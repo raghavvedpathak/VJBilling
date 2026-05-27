@@ -1,0 +1,1 @@
+export const LEASE_TTL_MINUTES = 5; // Lease expires in 5 minutes; heartbeat extends it

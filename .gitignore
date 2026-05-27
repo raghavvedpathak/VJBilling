@@ -1,0 +1,26 @@
+# Dependency directories (The heavy stuff)
+node_modules/
+jspm_packages/
+
+# Expo specific folders
+.expo/
+dist/
+web-build/
+
+# Android specific clutter
+.gradle/
+build/
+local.properties
+*.iml
+
+# IDE / Editor configuration folders (Like Android Studio / VS Code)
+.idea/
+.vscode/
+
+# Local environment secrets (Passwords, API keys)
+.env
+.env.local
+
+# System files
+.DS_Store
+Thumbs.db

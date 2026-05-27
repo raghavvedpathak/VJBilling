@@ -1,0 +1,143 @@
+// repositories/fyRepository.ts
+// Strict DB access layer for financial_years table.
+//
+// CONSTITUTIONAL RULES:
+//   - FY label format: 'FY YYYY-YY' e.g. 'FY 2025-26' (spec schema comment canonical form)
+//   - startDate / endDate stored as YYYY-MM-DD date strings ONLY — NOT full ISO-8601 datetimes.
+//     Storing as datetimes breaks resolveTransactionFyId string comparison with entryDate.
+//   - resolveTransactionFyId: ALL Phase 3+ write services MUST use this — NEVER getActiveFY().id
+//   - v7.5 UQ-ACTIVE-FY-CONSTRAINT: enforced by DB partial unique index (migration zero SQL)
+
+import * as Crypto from 'expo-crypto';
+import { eq, and, lte, gte } from 'drizzle-orm';
+import { db } from '../db/client';
+import { financialYears, FYStatus } from '../db/schema';
+import { now } from '../utils/now';
+
+type DbOrTx = any;
+
+export type NewFY = typeof financialYears.$inferInsert;
+
+export const fyRepository = {
+
+  /**
+   * Creates a financial year row. Status is always ACTIVE on creation.
+   * startDate and endDate MUST be YYYY-MM-DD strings — NOT ISO-8601 datetimes.
+   */
+  async create(
+    input: Omit<NewFY, 'id' | 'createdAt' | 'status'>,
+    tx: DbOrTx = db
+  ) {
+    const newId = Crypto.randomUUID();
+
+    const [createdFY] = await tx.insert(financialYears).values({
+      ...input,
+      id: newId,
+      status: FYStatus.ACTIVE,
+      createdAt: now(),
+    }).returning();
+
+    return createdFY;
+  },
+
+  /**
+   * Creates the initial FY for a new firm.
+   * Indian FY: April 1 → March 31.
+   * Months Jan–Mar (0–2) belong to the FY that started the previous calendar year.
+   *
+   * Label format: 'FY YYYY-YY' e.g. 'FY 2025-26'
+   * Spec canonical: schema comment on financial_years.label says "e.g. 'FY 2025-26'"
+   *
+   * Date format: 'YYYY-MM-DD' — stored as plain date strings, NOT ISO-8601 datetimes.
+   * Reason: resolveTransactionFyId uses lte/gte string comparison against entryDate ('YYYY-MM-DD').
+   * Storing full datetimes (e.g. 'T23:59:59.000Z') would break that comparison at timezone boundaries.
+   */
+  async createInitialFY(firmId: string, tx: DbOrTx = db) {
+    const today = new Date();
+    const currentMonth = today.getMonth(); // 0-indexed: Jan=0, Mar=2, Apr=3
+    const currentYear = today.getFullYear();
+
+    // Indian FY starts April 1. Jan/Feb/Mar belong to FY that started previous year.
+    let startYear: number;
+    let endYear: number;
+
+    if (currentMonth < 3) {
+      // Jan, Feb, Mar → FY started last calendar year
+      startYear = currentYear - 1;
+      endYear = currentYear;
+    } else {
+      // Apr through Dec → FY started this calendar year
+      startYear = currentYear;
+      endYear = currentYear + 1;
+    }
+
+    // Label: 'FY YYYY-YY' — e.g. 'FY 2025-26' (last 2 digits of endYear only)
+    const endYearShort = String(endYear).slice(-2);
+    const fyLabel = `FY ${startYear}-${endYearShort}`;
+
+    // Dates as YYYY-MM-DD strings ONLY — NOT full ISO-8601 datetimes
+    const startDate = `${startYear}-04-01`;
+    const endDate   = `${endYear}-03-31`;
+
+    return await this.create({ firmId, label: fyLabel, startDate, endDate }, tx);
+  },
+
+  /**
+   * Returns the single ACTIVE FY for a firm.
+   * For Phase 1 reads and display only.
+   * Phase 3+ write services MUST use resolveTransactionFyId() instead — NEVER this method for fyId.
+   */
+  async getActiveFY(firmId: string, tx: DbOrTx = db) {
+    const [fy] = await tx
+      .select()
+      .from(financialYears)
+      .where(
+        and(
+          eq(financialYears.firmId, firmId),
+          eq(financialYears.status, FYStatus.ACTIVE)
+        )
+      );
+    return fy ?? null;
+  },
+
+  /**
+   * v7.5 RESOLVE-TRANSACTION-FYID — Constitutional FY resolution function.
+   *
+   * MANDATORY: All Phase 3+ write services (postSaleInvoice, postPurchaseInvoice,
+   * recordPayment, postExpense, postStockEntry, karigar issue/return) MUST call this
+   * to derive fyId from entryDate. They MUST NOT use getActiveFY().id for fyId assignment.
+   *
+   * Why: A backdated March 15 entry created on April 2 must receive fyId = FY-2025-26,
+   * not FY-2026-27. Using getActiveFY() after the FY transition would produce VJ/26-27/0001
+   * for a March invoice — a statutory GSTR-1 compliance failure (date vs prefix mismatch).
+   *
+   * @param firmId    - The firm whose FYs to search
+   * @param entryDate - ISO date string 'YYYY-MM-DD' — the transaction's entry date
+   * @returns fyId string (UUID) of the matching ACTIVE FY
+   * @throws ENTRY_DATE_IN_CLOSED_FY if no ACTIVE FY covers the entryDate
+   */
+  async resolveTransactionFyId(
+    firmId: string,
+    entryDate: string, // MUST be 'YYYY-MM-DD' — same format as stored startDate/endDate
+    tx: DbOrTx = db
+  ): Promise<string> {
+    const match = await tx
+      .select()
+      .from(financialYears)
+      .where(
+        and(
+          eq(financialYears.firmId, firmId),
+          eq(financialYears.status, FYStatus.ACTIVE),
+          lte(financialYears.startDate, entryDate), // startDate <= entryDate
+          gte(financialYears.endDate, entryDate)    // endDate >= entryDate
+        )
+      )
+      .limit(1);
+
+    if (!match.length) {
+      throw new Error('ENTRY_DATE_IN_CLOSED_FY');
+    }
+
+    return match[0].id;
+  },
+};
