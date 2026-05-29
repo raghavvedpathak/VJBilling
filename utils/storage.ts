@@ -15,9 +15,10 @@ let storageInstance: StorageService;
 
 try {
   // 1. Try to load MMKV dynamically (Production / Native Build)
-  const { MMKV } = require('react-native-mmkv');
+  // ⚠️ FIX: MMKV v4 uses `createMMKV` instead of `new MMKV`
+  const { createMMKV } = require('react-native-mmkv');
   
-  const mmkv = new MMKV({
+  const mmkv = createMMKV({
     id: 'vjbilling-storage',
   });
 
@@ -28,7 +29,8 @@ try {
       const value = mmkv.getString(key);
       return value ?? null;
     },
-    removeItem: (key) => mmkv.delete(key),
+    // ⚠️ FIX: MMKV v4 changed `.delete()` to `.remove()`
+    removeItem: (key) => mmkv.remove(key),
     
     // Extended Methods
     set: (key, value) => mmkv.set(key, value),
@@ -37,9 +39,10 @@ try {
   
   console.log('[Storage] High-Performance MMKV Engine Initialized');
 
-} catch (e) {
+} catch (e: any) {
   // 3. Fallback to AsyncStorage (Safe Mode for Expo Go / Web)
-  console.log('[Storage] Native MMKV not found, safely falling back to AsyncStorage');
+  // ⚠️ FIX: Added e.message so it stops hiding the true error from us!
+  console.log('[Storage] Native MMKV not found, safely falling back to AsyncStorage. Error:', e.message);
   
   storageInstance = {
     setItem: async (key, value) => {
