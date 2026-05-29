@@ -7,6 +7,10 @@
 //     Storing as datetimes breaks resolveTransactionFyId string comparison with entryDate.
 //   - resolveTransactionFyId: ALL Phase 3+ write services MUST use this — NEVER getActiveFY().id
 //   - v7.5 UQ-ACTIVE-FY-CONSTRAINT: enforced by DB partial unique index (migration zero SQL)
+//
+// ADDED METHODS (required by fyService.closeFY):
+//   - getById(fyId)   — fetches a single FY row by UUID primary key
+//   - closeFY(firmId, fyId) — sets status = CLOSED; validates firmId ownership
 
 import * as Crypto from 'expo-crypto';
 import { eq, and, lte, gte } from 'drizzle-orm';
@@ -98,6 +102,46 @@ export const fyRepository = {
         )
       );
     return fy ?? null;
+  },
+
+  /**
+   * Fetches a single FY row by UUID primary key.
+   * Called by fyService.closeFY() to read the FY label for the audit_archive_index row.
+   * Returns null if the FY does not exist — callers must guard with ! assert.
+   */
+  async getById(fyId: string, tx: DbOrTx = db) {
+    const [fy] = await tx
+      .select()
+      .from(financialYears)
+      .where(eq(financialYears.id, fyId));
+    return fy ?? null;
+  },
+
+  /**
+   * Closes a financial year by setting status = CLOSED.
+   * firmId ownership is validated via the WHERE clause — a cross-firm close is
+   * structurally impossible because the query will match 0 rows for a foreign firmId.
+   *
+   * CONSTITUTIONAL:
+   *   - Only fyService.closeFY() may call this method.
+   *   - Must always run inside a transaction (tx context mandatory).
+   *   - Does NOT open a new transaction itself — the caller owns the transaction.
+   *   - Does NOT write audit logs — fyService.closeFY() owns all audit writes.
+   *
+   * @param firmId - Required for firm isolation — prevents cross-firm FY close
+   * @param fyId   - UUID of the FY to close
+   * @param tx     - Drizzle transaction context — MUST be provided by caller
+   */
+  async closeFY(firmId: string, fyId: string, tx: DbOrTx = db) {
+    await tx
+      .update(financialYears)
+      .set({ status: FYStatus.CLOSED })
+      .where(
+        and(
+          eq(financialYears.id, fyId),
+          eq(financialYears.firmId, firmId) // firm isolation: cross-firm close structurally impossible
+        )
+      );
   },
 
   /**
