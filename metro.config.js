@@ -3,10 +3,8 @@ const { withNativeWind } = require("nativewind/metro");
 
 const config = getDefaultConfig(__dirname);
 
-// 1. Remove 'sql' from sourceExts (Stop treating it as code)
-config.resolver.sourceExts = config.resolver.sourceExts.filter(ext => ext !== 'sql');
-
-// 2. Add 'sql' to assetExts (Treat it like an image/text file for Drizzle)
-config.resolver.assetExts.push('sql');
+// ✅ FIXED: Removed sql from assetExts and sourceExts filter.
+// babel-preset inline-import handles .sql files as inlined strings.
+// Moving sql to assetExts conflicts with inline-import and breaks useMigrations().
 
 module.exports = withNativeWind(config, { input: "./app/global.css" });

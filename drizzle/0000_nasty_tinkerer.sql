@@ -259,3 +259,45 @@ CREATE TABLE `writer_leases` (
 	`expires_at` text NOT NULL,
 	`device_id` text NOT NULL
 );
+--> statement-breakpoint
+-- ACTION: Partial Unique Index (v7.5 UQ-ACTIVE-FY-CONSTRAINT)
+CREATE UNIQUE INDEX `uq_one_active_fy_per_firm` ON `financial_years`(`firm_id`) WHERE status = 'ACTIVE';
+--> statement-breakpoint
+-- ACTION: v7.7 Performance Indexes
+CREATE INDEX IF NOT EXISTS `idx_writer_leases_expires` ON `writer_leases`(`expires_at`);
+--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS `idx_audit_logs_firm_date` ON `audit_logs`(`firm_id`, `created_at` DESC);
+--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS `idx_audit_logs_event_type` ON `audit_logs`(`event_type`, `firm_id`);
+--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS `idx_financial_years_firm_status` ON `financial_years`(`firm_id`, `status`);
+--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS `idx_financial_years_firm_dates` ON `financial_years`(`firm_id`, `start_date`, `end_date`);
+--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS `idx_firms_archived` ON `firms`(`is_archived`, `firm_id`);
+--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS `idx_bis_logos_firm_active` ON `bis_logos`(`firm_id`, `is_archived`);
+--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS `idx_tax_rates_firm_active` ON `tax_rates`(`firm_id`, `is_active`);
+--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS `idx_tax_groups_firm_active` ON `tax_groups`(`firm_id`, `is_active`);
+--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS `idx_tax_group_components_group` ON `tax_group_components`(`tax_group_id`);
+--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS `idx_tax_group_components_rate` ON `tax_group_components`(`tax_rate_id`);
+--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS `idx_sync_log_firm_date` ON `sync_log`(`device_id`, `occurred_at` DESC);
+--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS `idx_sync_devices_firm` ON `sync_devices`(`device_id`, `is_enabled`);
+--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS `idx_audit_archive_firm_fy` ON `audit_archive_index`(`firm_id`, `fy_id`);
+--> statement-breakpoint
+-- ACTION: Immutability Triggers
+CREATE TRIGGER prevent_firm_code_update BEFORE UPDATE OF firm_code ON firms
+BEGIN SELECT RAISE(ABORT, 'FIRM_CODE_IMMUTABLE: firmCode cannot be changed after creation'); END;
+--> statement-breakpoint
+CREATE TRIGGER prevent_audit_update BEFORE UPDATE ON audit_logs
+BEGIN SELECT RAISE(ABORT, 'AUDIT_LOG_IMMUTABLE: audit logs cannot be changed'); END;
+--> statement-breakpoint
+CREATE TRIGGER prevent_audit_delete BEFORE DELETE ON audit_logs
+BEGIN SELECT RAISE(ABORT, 'AUDIT_LOG_IMMUTABLE: audit logs cannot be deleted'); END;

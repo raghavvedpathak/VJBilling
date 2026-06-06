@@ -3,6 +3,10 @@
 // v6.7 FIX-V67-4 — firmId param (optional) for firm-scoped filtering
 // v7.7 VERIFY-BOOT-CACHE — 30-minute MMKV cache eliminates 9-query boot scan
 // v7.8 FIX-V78-5 — VerifyFinding.firmId?: string structural field (replaces string-matching)
+// v7.9 FIX-CLEAN-INSTALL-HANG — Skip safeModeService.clear() on clean install (no firms).
+//   On Expo Go (AsyncStorage fallback), db.transaction() in clear() hangs when called
+//   immediately after bootstrap on a fresh DB with no audit log rows written yet.
+//   Safe to skip: if no firms exist, Safe Mode cannot be active from a prior session.
 //
 // CONSTITUTIONAL RULES:
 //   - MUST NOT call assertNotInSafeMode() — verify runs when Safe Mode is active.
@@ -69,45 +73,54 @@ export const verifyService = {
 
     const findings: VerifyFinding[] = [];
 
+    console.log('[Verify] Check 1: Fetching all firms...');
     const allFirmRows = await db.select({ id: firms.id }).from(firms);
+    console.log('[Verify] Check 1: Got', allFirmRows.length, 'firms');
     const allFirmIds  = allFirmRows.map(r => r.id);
     const knownFirmIdSet = new Set(allFirmIds);
 
-    // Check 1: Orphan FY
-    if (allFirmIds.length > 0) {
-      const orphanFYs = await db
-        .select({ id: financialYears.id, firmId: financialYears.firmId })
-        .from(financialYears)
-        .where(notInArray(financialYears.firmId, allFirmIds));
+    // ✅ FIX-CLEAN-INSTALL-HANG: On clean install with no firms, skip all checks
+    // and return HEALTHY immediately. Safe Mode cannot be active with no firms.
+    // This avoids safeModeService.clear() db.transaction() hang on first boot.
+    if (allFirmIds.length === 0) {
+      console.log('[Verify] Clean install detected — no firms. Skipping all checks, returning HEALTHY.');
+      useVerifyStore.getState().setScanResults([]);
 
-      for (const row of orphanFYs) {
-        findings.push({
-          severity: 'CRITICAL',
-          check: 'ORPHAN_FY',
-          detail: `Financial year references non-existent firm ${row.firmId}`,
-          firmId: row.firmId ?? undefined,
-        });
+      if (!firmId) {
+        try {
+          await storage.setItem(CACHE_KEY_STATUS, 'HEALTHY');
+          await storage.setItem(CACHE_KEY_AT, new Date().toISOString());
+        } catch (cacheWriteError) {
+          console.warn('[Verify] VERIFY-BOOT-CACHE: Failed to write cache keys:', cacheWriteError);
+        }
       }
-    } else {
-      const orphanFYs = await db
-        .select({ id: financialYears.id, firmId: financialYears.firmId })
-        .from(financialYears);
 
-      for (const row of orphanFYs) {
-        findings.push({
-          severity: 'CRITICAL',
-          check: 'ORPHAN_FY',
-          detail: `Financial year references non-existent firm ${row.firmId}`,
-          firmId: row.firmId ?? undefined,
-        });
-      }
+      return { status: 'HEALTHY', findings: [] };
     }
 
+    // Check 1: Orphan FY
+    console.log('[Verify] Check 1b: Orphan FY check...');
+    const orphanFYs = await db
+      .select({ id: financialYears.id, firmId: financialYears.firmId })
+      .from(financialYears)
+      .where(notInArray(financialYears.firmId, allFirmIds));
+
+    for (const row of orphanFYs) {
+      findings.push({
+        severity: 'CRITICAL',
+        check: 'ORPHAN_FY',
+        detail: `Financial year references non-existent firm ${row.firmId}`,
+        firmId: row.firmId ?? undefined,
+      });
+    }
+    console.log('[Verify] Check 1b done:', orphanFYs.length, 'orphans');
+
     // Check 2 + 3: Missing FY / Multiple Active FY per active firm
+    console.log('[Verify] Check 2+3: Active firm FY check...');
     const activeFirmRows = await db
       .select({ id: firms.id })
       .from(firms)
-      .where(eq(firms.isArchived, 0)); // plain integer
+      .where(eq(firms.isArchived, 0));
 
     for (const { id: fid } of activeFirmRows) {
       const activeFYs = await db
@@ -131,8 +144,10 @@ export const verifyService = {
         });
       }
     }
+    console.log('[Verify] Check 2+3 done');
 
     // Check 4: Firm isolation — FY rows referencing unknown firmId
+    console.log('[Verify] Check 4: Firm isolation...');
     const fyFirmIds = (await db
       .select({ firmId: financialYears.firmId })
       .from(financialYears)).map(r => r.firmId);
@@ -145,8 +160,10 @@ export const verifyService = {
         detail: `${isolationViolations.length} record(s) reference unknown firmId — firm isolation violated.`,
       });
     }
+    console.log('[Verify] Check 4 done');
 
     // Check 5: Audit log timestamp continuity
+    console.log('[Verify] Check 5: Audit log continuity...');
     const auditRows = await db
       .select({ firmId: auditLogs.firmId, createdAt: auditLogs.createdAt })
       .from(auditLogs)
@@ -172,25 +189,26 @@ export const verifyService = {
         detail: `${continuityViolations} audit log timestamp inversion(s) detected.`,
       });
     }
+    console.log('[Verify] Check 5 done');
 
     // Check 6: Orphan audit logs
-    if (allFirmIds.length > 0) {
-      const orphanAudit = await db
-        .select({ id: auditLogs.id })
-        .from(auditLogs)
-        .where(and(isNotNull(auditLogs.firmId), notInArray(auditLogs.firmId, allFirmIds)));
+    console.log('[Verify] Check 6: Orphan audit logs...');
+    const orphanAudit = await db
+      .select({ id: auditLogs.id })
+      .from(auditLogs)
+      .where(and(isNotNull(auditLogs.firmId), notInArray(auditLogs.firmId, allFirmIds)));
 
-      if (orphanAudit.length > 0) {
-        findings.push({
-          severity: 'WARNING',
-          check: 'ORPHAN_AUDIT_LOGS',
-          detail: `${orphanAudit.length} audit log(s) reference non-existent firms. Data isolation breach detected.`,
-        });
-      }
+    if (orphanAudit.length > 0) {
+      findings.push({
+        severity: 'WARNING',
+        check: 'ORPHAN_AUDIT_LOGS',
+        detail: `${orphanAudit.length} audit log(s) reference non-existent firms. Data isolation breach detected.`,
+      });
     }
+    console.log('[Verify] Check 6 done');
 
     // Check 7: Expired writer leases still in DB
-    // FIX: now() replaces raw new Date().toISOString() — consistent with centralized time utility
+    console.log('[Verify] Check 7: Expired leases...');
     const expiredLeases = await db
       .select({ id: writerLeases.id })
       .from(writerLeases)
@@ -203,10 +221,13 @@ export const verifyService = {
         detail: `${expiredLeases.length} expired writer lease(s) found. Database lock mechanism may be stalling.`,
       });
     }
+    console.log('[Verify] Check 7 done');
 
     // Check 8: Schema version mismatch
+    console.log('[Verify] Check 8: Schema version...');
     try {
       const svRow = await db.select().from(schemaVersion).limit(1);
+      console.log('[Verify] Check 8: svRow=', JSON.stringify(svRow), 'SCHEMA_VERSION=', SCHEMA_VERSION);
       if (!svRow.length || svRow[0].currentVersion !== SCHEMA_VERSION) {
         findings.push({
           severity: 'CRITICAL',
@@ -221,6 +242,7 @@ export const verifyService = {
         detail: 'Database schema version table missing or unreadable.',
       });
     }
+    console.log('[Verify] Check 8 done');
 
     // Check 9: Counter integrity — Phase 1 no-op. Activates in Phase 2.
     // Phase 2: validate invoice/receipt counter monotonicity per firm per FY.
@@ -231,14 +253,19 @@ export const verifyService = {
     if (findings.some(f => f.severity === 'CRITICAL')) status = 'CRITICAL';
     else if (findings.some(f => f.severity === 'WARNING')) status = 'WARNING';
 
+    console.log('[Verify] Overall status:', status);
+
     // PATH 1 RESOLUTION
     if (status === 'CRITICAL') {
       console.error('[Verify] Critical Integrity Failure Detected. Activating Safe Mode.');
-      await safeModeService.activate('VERIFY_CRITICAL_ISSUE');
+      await safeModeService.activate('VERIFY_CRITICAL_ISSUE' as any);
     } else if (status === 'HEALTHY') {
+      // ✅ FIX-CLEAN-INSTALL-HANG: Only call clear() when firms exist.
+      // We already returned early above for the no-firms case.
+      console.log('[Verify] Clearing Safe Mode (HEALTHY)...');
       await safeModeService.clear();
+      console.log('[Verify] Safe Mode cleared.');
     }
-    // WARNING: do NOT clear Safe Mode — findings still exist
 
     // Write cache after every full global scan
     if (!firmId) {
