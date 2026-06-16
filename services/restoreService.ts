@@ -19,6 +19,8 @@ import {
   writerLeases,
   appSettings,
   bisLogos,
+  categories, designs, stones, hsnCodes, items, itemEvents,
+  gemstoneLots, designCategoryMap, sequenceCounters, oldGoldLots, urdPurchases
 } from '../db/schema';
 import { leaseService } from './leaseService';
 import { auditRepository } from '../repositories/auditRepository';
@@ -84,6 +86,17 @@ export const restoreService = {
       safeModeState:  backupSmState,
       settings:       backupSettings,
       bisLogos:       backupBisLogos,
+      categories: backupCategories,
+      designs: backupDesigns,
+      stones: backupStones,
+      hsnCodes: backupHsnCodes,
+      items: backupItems,
+      itemEvents: backupItemEvents,
+      gemstoneLots: backupGemstoneLots,
+      designCategoryMap: backupDesignCategoryMap,
+      sequenceCounters: backupSequenceCounters,
+      oldGoldLots: backupOldGoldLots,
+      urdPurchases: backupUrdPurchases,
     } = backup.payload;
 
     if (!Array.isArray(backupFirms)) throw new Error('RESTORE_FAILED: Invalid payload structure.');
@@ -134,6 +147,21 @@ export const restoreService = {
 
       await db.transaction(async (tx) => {
         // A. Wipe existing data — child tables first
+        // DELETE order — reverse FK dependency (Phase 2 tables only; Phase 1 tables deleted separately)
+        // urd_purchases → old_gold_lots → sequence_counters → design_category_map →
+        // gemstone_lots → item_events → items → hsn_codes → designs → stones → categories
+        await tx.delete(urdPurchases);
+        await tx.delete(oldGoldLots);
+        await tx.delete(sequenceCounters);
+        await tx.delete(designCategoryMap);
+        await tx.delete(gemstoneLots);
+        await tx.delete(itemEvents);
+        await tx.delete(items);
+        await tx.delete(hsnCodes);
+        await tx.delete(designs);
+        await tx.delete(stones);
+        await tx.delete(categories);
+
         await tx.delete(writerLeases);
         await tx.delete(auditLogs);
         await tx.delete(bisLogos);
@@ -167,6 +195,19 @@ export const restoreService = {
             updatedAt: now(),           // was new Date().toISOString()
           });
         }
+
+        // INSERT order — FK dependency order (children after parents)
+        if (backupCategories?.length > 0) await tx.insert(categories).values(backupCategories);
+        if (backupDesigns?.length > 0) await tx.insert(designs).values(backupDesigns);
+        if (backupStones?.length > 0) await tx.insert(stones).values(backupStones);
+        if (backupHsnCodes?.length > 0) await tx.insert(hsnCodes).values(backupHsnCodes);
+        if (backupItems?.length > 0) await tx.insert(items).values(backupItems);
+        if (backupItemEvents?.length > 0) await tx.insert(itemEvents).values(backupItemEvents);
+        if (backupGemstoneLots?.length > 0) await tx.insert(gemstoneLots).values(backupGemstoneLots);
+        if (backupDesignCategoryMap?.length > 0) await tx.insert(designCategoryMap).values(backupDesignCategoryMap);
+        if (backupSequenceCounters?.length > 0) await tx.insert(sequenceCounters).values(backupSequenceCounters);
+        if (backupOldGoldLots?.length > 0) await tx.insert(oldGoldLots).values(backupOldGoldLots);
+        if (backupUrdPurchases?.length > 0) await tx.insert(urdPurchases).values(backupUrdPurchases);
 
         // C. Restore Safe Mode state
         if (backupSmState?.id) {

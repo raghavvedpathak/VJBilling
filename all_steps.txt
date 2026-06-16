@@ -1,0 +1,2510 @@
+﻿--- USER MSG ---
+<USER_REQUEST>
+i will now provided steps accroding that we will build app and u always act as project leader and lead dev and project architech and project tester also make sure we dont lose what we build now i will provide each step with all details and u create or update files accroding that
+</USER_REQUEST>
+<ADDITIONAL_METADATA>
+The current local time is: 2026-06-13T15:00:07+05:30.
+</ADDITIONAL_METADATA>
+<USER_SETTINGS_CHANGE>
+The user changed setting `Model Selection` from None to Gemini 3.1 Pro (High). No need to comment on this change if the user doesn't ask about it. If reporting what model you are, please use a human readable name instead of the exact string.
+</USER_SETTINGS_CHANGE>
+--- USER MSG ---
+<USER_REQUEST>
+PROJECT Â· VJ BILLING
+PHASE 2 â€” INVENTORY TRUTH LAYER
+v1.73 â€” IMPLEMENTATION-READY Â· ALL BLOCKING GAPS RESOLVED
+Fully Aligned with Phase 1 v7.9
+Phase 3 and Phase 4 depend on Phase 2 v1.73
+Spec Version v1.73 â€” IMPLEMENTATION-READY
+Depends On Phase 1 v7.9
+Status ALL BUILD-BLOCKERS ELIMINATED Â· ZERO KNOWN BLOCKING
+GAPS
+Stack React Native Â· Expo Â· Drizzle ORM Â· expo-sqlite Â· TypeScript Strict
+Architecture Offline-first Â· Immutable SKU Â· Append-only audit Â· Clean Architecture
+Migration File 0002_phase2_inventory.sql
+Schema Version 2
+Roles Project Leader Â· Lead Architect Â· Lead Developer  STEP 0 â€” Constitutional Boundaries & Architectural Rules
+ðŸ”’ CONSTITUTIONAL BOUNDARY (NON-NEGOTIABLE)
+Phase 2 produces INVENTORY TRUTH. Phase 3 consumes that truth for MONEY.
+Phase 2 MUST: Create accurate item records Â· Track jewellery lifecycle Â· Maintain audit trail
+Phase 2 MUST NOT: Do billing Â· GST Â· Payment Â· Settlement Â· Accounting Â· Auto-update from market rates
+ðŸ”´ ABSOLUTE RED LINES â€” WHAT WOULD BREAK THE SYSTEM (v1.26)
+Any violation of these rules will corrupt inventory truth, financial balances, or audit integrity.
+RED-1: NEVER allow metalSource mutation after createItem(). WRITE-ONCE. TypeScript enforced via
+ UpdateableItemFields. Phase 6 reporting depends on this being immutable.
+RED-2: NEVER allow grossWeightMg, netWeightMg, or fineWeightMg edit after item status = AVAILABLE.
+ adjustWeight() MUST throw WEIGHT_EDIT_AFTER_DRAFT_FORBIDDEN for any non-DRAFT item.
+ FIX-WA-1 (v1.24): Enforced at service layer. See Step 6.
+RED-3: NEVER allow Phase 3 to directly update item.status except via the TWO REGISTERED
+EXCEPTIONS
+ (postInvoice read + restoreItemFromSale RETURNED/PHANTOM_AVAILABLE write). All other direct
+table writes forbidden.
+RED-4: NEVER remove netWeightMg or fineWeightMg columns. Phase 3 addItemToDraft() and Phase 4
+ refinery yield both read these directly. Removing either causes silent undefined.
+RED-5: NEVER recalculate fineWeightMg or netW
+<truncated 5964 bytes>
+name ON gemstone_lots(name);
+-- v1.23 FIX-IDX-2: searchStock join performance
+CREATE INDEX IF NOT EXISTS idx_items_design_status ON items(design_id, status);
+-- GAP-C3 (v1.73): Missing indexes added â€” required by Phase 3 on day 1. All cost-zero at
+creation time.
+CREATE INDEX IF NOT EXISTS idx_items_sku ON items(sku, firm_id);
+CREATE INDEX IF NOT EXISTS idx_items_huid ON items(huid) WHERE huid IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_items_category_status ON items(firm_id, category_id, status);
+CREATE INDEX IF NOT EXISTS idx_items_invoice ON items(invoice_id) WHERE invoice_id IS NOT NULL;
+-- idx_items_phantom IN()-clause partial index requires SQLite >= 3.8.9 (verify expo-sqlite
+bundled version).
+-- If IN() partial index fails at runtime, drop it and use the two equality-predicate indexes
+below instead.
+CREATE INDEX IF NOT EXISTS idx_items_phantom_available ON items(firm_id, phantom_stock_id)
+WHERE status = 'PHANTOM_AVAILABLE';
+CREATE INDEX IF NOT EXISTS idx_items_phantom_sold ON items(firm_id, phantom_stock_id) WHERE
+status = 'PHANTOM_SOLD';
+CREATE INDEX IF NOT EXISTS idx_item_events_item ON item_events(item_id, firm_id, created_at
+DESC);
+CREATE INDEX IF NOT EXISTS idx_item_events_firm_type ON item_events(firm_id, event_type);
+-- For getKarigarIssuedItems() correlated subquery (FIX-KARIGAR-DUPES-1 v1.71) â€” runs once per
+row.
+CREATE INDEX IF NOT EXISTS idx_audit_logs_entity_event ON audit_logs(entity_id, event_type,
+firm_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_designs_firm_active ON designs(firm_id, is_active);
+CREATE INDEX IF NOT EXISTS idx_designs_firm_metal ON designs(firm_id, metal);
+CREATE INDEX IF NOT EXISTS idx_categories_firm_active ON categories(firm_id, is_active);
+CREATE INDEX IF NOT EXISTS idx_sequence_counters_firm_month ON sequence_counters(firm_id,
+month);
+CREATE INDEX IF NOT EXISTS idx_urd_purchases_fy ON urd_purchases(firm_id, fy_id);
+
+</USER_REQUEST>
+<ADDITIONAL_METADATA>
+The current local time is: 2026-06-13T15:03:02+05:30.
+</ADDITIONAL_METADATA>
+--- USER MSG ---
+<USER_REQUEST>
+STEP 1 â€” Firm Code (Phase 1 v7.9 Alignment)
+Phase 2 reads firmCode from the firms table (Phase 1 domain). Phase 2 uses firmCode as prefix in audit payloads and for
+display only. Phase 2 MUST NOT modify the firms table schema.
+ALIGN-1 (v1.15): All references updated from Phase 1 v3.0 to Phase 1 v4.0, incorporating G40â€“G44 additions. ALIGN-P1-V52
+(v1.28): Updated to Phase 1 v5.2. Phase 1 v5.0 added firmLogoRef and phone3 to the firms table (G45â€“G46). Phase 2 reads
+firmCode only and MUST NOT modify the firms table schema (rule unchanged). firmLogoRef is available for Phase 3 to
+consume for invoice/receipt headers. FIX-BACKUP-GATE-1 (v1.29): Phase 3 billing module MUST NOT be enabled in
+production until BACKUP-V2 is merged and tested. Assign owner before Phase 3 cutover. ALIGN-P1-V67 (v1.30): Phase 1
+v6.7 delta reviewed â€” zero Phase 2 code changes required. v5.3 (G58â€“G62): Logo lifecycle and backup integrity â€” Phase 1
+internal. v6.0â€“G65: verifyService canonical body, schema_version table, ESLint rule â€” Phase 1 internal. v6.1 G66:
+schemaVersion Drizzle export, heartbeatTimer type fix, validateBackupSchema return type â€” Phase 1 internal. v6.2
+(G67â€“G69): currency/currencySymbol/currencyDecimalPlaces (INR read-only), dateFormatToken (6 options),
+warnUnsavedChanges â€” Phase 1 internal, Phase 2 does not write app_settings. v6.3â€“v6.5 build-blocker fixes (FIX 1â€“4,
+BLOCKER Aâ€“C, GAP 1â€“6): All Phase 1 internal. v6.6 (BUG FIX 1 + GAP 7): bisLogoRepository.archive() UUID fix, Detox
+device name â€” Phase 1 internal. v6.7 NEW: Settings screen MUST reserve Utilities section slot gated behind Phase 6 feature
+flag (Verify My Data, Export Parties, Export Items, Close FY) â€” Phase 6 scope, zero Phase 2 code change required.
+ALIGN-P1-V73 (v1.36): Phase 1 v7.3 delta reviewed. v6.8 G67-LINT: no-restricted-syntax ESLint rule for â‚¹/â€˜INRâ€™ literals â€”
+Phase 2 MUST comply: no â‚¹ or â€˜INRâ€™ string literals in Phase 2 app/ or screens/ code; allowlist: utils/currency.ts, db/se
+<truncated 6468 bytes>
+mpact. AMOUNTTOWORDS-TESTS: amountToWords() max guard corrected 9999999999â†’999999999
+(Phase 1 FIX-V79-4) â€” Phase 2 URD bill uses amountToWords(totalValuePaise); a URD purchase totalValuePaise must not
+exceed 999999999 (â‚¹99,99,999.99). Phase 2 confirmURDPurchase() MUST guard: if (totalValuePaise > 999999999) throw
+new Error(â€˜URD_AMOUNT_EXCEEDS_MAXâ€™). ALIGN-P1-V78 (v1.73): Phase 1 v7.8 delta reviewed. FIX-V78-5: VerifyFinding
+interface gains firmId?: string structural field; Phase 2 verifyService adapter maps VerifyFinding[] to VerifyIssue[] â€” adapter
+comment updated from â€œPhase 1 v7.3â€ to â€œPhase 1 v7.8â€ (see verifyService.ts). FIX-V78-4: SAFE-MODE-ROW-GUARD now
+activates with STORAGE_CORRUPTION_DETECTED (was FY_INTEGRITY_BROKEN) â€” Phase 2 internal to Phase 1
+bootstrap, zero Phase 2 code impact. FIX-V78-6: AUDIT-RETENTION-ENFORCE DELETE scoped per firmId â€” implemented
+in closeFY() per ALIGN-P1-V77. All other FIX-V78-* fixes are Phase 1 internal. ALIGN-P1-V79 (v1.73): Phase 1 v7.9 delta
+reviewed. FIX-V79-1: Phase 1 table count corrected 11â†’14 â€” Phase 2 HSN Decision box updated to 14 tables (see Step
+4.7). FIX-V79-4: amountToWords() max guard corrected â€” confirmURDPurchase() guard added per ALIGN-P1-V77.
+FIX-V79-5: UpdateFirmInput GSTIN-stateCode update rule formally stated â€” Phase 1 internal, Phase 2 reads firmCode only
+and does not call updateFirm(). FIX-V79-2 (verify-migration-zero.ts canonical script), FIX-V79-3 (post-generate-checklist.md
+canonical content), FIX-V79-6 (Detox setup filename warning): all Phase 1 internal developer tooling â€” zero Phase 2 code
+changes required. Dependency header updated to Phase 1 v7.9 throughout.
+
+</USER_REQUEST>
+<ADDITIONAL_METADATA>
+The current local time is: 2026-06-13T15:04:41+05:30.
+
+The user's current state is as follows:
+Active Document: c:\VJBilling\drizzle\0002_phase2_inventory.sql (LANGUAGE_SQL)
+Cursor is on line: 1
+Other open documents:
+- c:\VJBilling\drizzle\0002_phase2_inventory.sql (LANGUAGE_SQL)
+</ADDITIONAL_METADATA>
+--- USER MSG ---
+<USER_REQUEST>
+STEP 1.5 â€” Performance Foundations
+ðŸ”µ MMKV USAGE SCOPE (STRICT BOUNDARIES)
+ALLOWED: Active firm ID Â· Device identity cache Â· Theme preferences Â· Feature flags Â· Session state Â· UI
+preferences
+MUST NOT store: Inventory data Â· Item instances Â· SKU counters Â· Financial data Â· Audit logs Â· Business
+transactions
+ðŸ”µ FLASHLIST MANDATORY USAGE
+MUST use: Inventory list screens Â· Item search results Â· Bulk entry preview Â· Item history Â· Verify results
+NOT required: Forms Â· Settings Â· Static content Â· Lists under 50 items
+estimatedItemSize MUST be defined. Stable keys required (item.id). Row components MUST be
+React.memo().
+
+</USER_REQUEST>
+<ADDITIONAL_METADATA>
+The current local time is: 2026-06-13T15:06:17+05:30.
+
+The user's current state is as follows:
+Active Document: c:\VJBilling\drizzle\0002_phase2_inventory.sql (LANGUAGE_SQL)
+Cursor is on line: 1
+Other open documents:
+- c:\VJBilling\drizzle\0002_phase2_inventory.sql (LANGUAGE_SQL)
+</ADDITIONAL_METADATA>
+--- USER MSG ---
+<USER_REQUEST>
+STEP 1.6 â€” Shared Utilities & Type Definitions
+types/phase2.types.ts â€” 18 domain types
+// types/phase2.types.ts
+// P4-FIX-1 (v1.9): SENT_TO_MELT added
+export type StockStatus = 'DRAFT' | 'AVAILABLE' | 'SOLD' | 'SENT_TO_KARIGAR' |
+'SENT_TO_REFINERY' | 'MELTED' | 'DAMAGED' | 'RETURNED' | 'SENT_TO_MELT' | 'PHANTOM_AVAILABLE' |
+'PHANTOM_SOLD'; // FEAT-PHANTOM-INVENTORY-1 (v1.67): phantom item statuses
+// P4-FIX-1b (v1.10) + ALIGN-FIX-2 (v1.11)
+export type OldGoldLotStatus = 'RECEIVED' | 'PENDING' |
+'SENT_TO_REFINERY' | 'SETTLED' | 'SENT_TO_MELT' | 'ISSUED_TO_KARIGAR';
+export type FYStatus = 'ACTIVE' | 'CLOSED';
+export type Metal = 'GOLD' | 'SILVER';
+export type GemstoneStatus = 'AVAILABLE' | 'SOLD' | 'DAMAGED'; // GEMSTONE-1 v1.21
+// P4-FIX-2 (v1.9) + ALIGN-FIX-1 (v1.11) + FIX-MS-1 (v1.19)
+export type MetalSource =
+| 'CUSTOMER' // legacy + default
+| 'KARIGAR'
+| 'EXCHANGE'
+| 'PURCHASE'
+| 'MELT_OUTPUT' // Phase 4 melt batch output lots
+| 'CUSTOMER_OLD_GOLD' // ALIGN-FIX-1 v1.11
+| 'SUPPLIER_PURCHASE' // ALIGN-FIX-1 v1.11 â€” default for new items
+| 'REFINERY_OUTPUT' // ALIGN-FIX-1 v1.11
+| 'JOB_WORK_RETURN' // FIX-MS-1 v1.19
+| 'OPENING_BALANCE'; // FIX-MS-1 v1.19 â€” set by opening balance flow only
+export type ItemEventType = 'CREATED' | 'ITEM_STATUS_CHANGED' | // NOTE: 'EDITED' removed â€” superseded by
+'ITEM_EDITED' (FIX-UPDATE-ITEM-BODY-1 v1.46). Existing rows with 'EDITED' are legacy dead code.
+'WEIGHT_ADJUSTED' | 'HUID_ADDED' | 'BARCODE_REPRINTED' | 'ITEM_RETURNED' |
+'ITEM_SENT_TO_KARIGAR' | 'ITEM_RETURNED_FROM_KARIGAR' | 'ITEM_EDITED' | 'PHANTOM_CREATED' |
+'PHANTOM_RECONCILED'; // FEAT-PHANTOM-INVENTORY-1 (v1.67): FIX-ENUM-1 (v1.38): added for karigar repair
+flow (FIX-DMG-1 v1.32). FIX-UPDATE-ITEM-BODY-1 (v1.46): ITEM_EDITED added
+// FIX-IMM-1 (v1.23): Restricted update type â€” excludes WRITE-ONCE fields
+export type UpdateableItemFields = Omit<
+Partial<Item>,
+'metalSource' | 'sku' | 'barcode' | 'id' | 'firmId' | 'createdAt'
+>;
+export interface CreateItemInput
+<truncated 2237 bytes>
+(inferred from Drizzle schemas)
+export type Item = typeof items.$inferSelect;
+export type Category = typeof categories.$inferSelect;
+export type Design = typeof designs.$inferSelect;
+export type Stone = typeof stones.$inferSelect;
+export type OldGoldLot = typeof oldGoldLots.$inferSelect;
+export type FinancialYear = typeof financialYears.$inferSelect;
+export type SequenceCounter = typeof sequenceCounters.$inferSelect;
+// SequenceCounterType â€” compile-time guard for all sequence counter type strings.
+// Phase 2 OWNS: 'URD'. Phase 3 ADDS: 'SALE' | 'CREDIT_NOTE' (reserved â€” MUST NOT be used in Phase 2).
+// NEVER pass a raw string literal where SequenceCounterType is expected.
+export type SequenceCounterType = 'URD'; // GAP-I1 (v1.73): Phase 2 OWNS 'URD' ONLY. Phase 3 uses
+invoice_number_config for SALE/PURCHASE/CN/DN â€” NOT this table. DO NOT add 'SALE' | 'CREDIT_NOTE' here.
+export type ItemEvent = typeof itemEvents.$inferSelect;
+export type GemstoneLot = typeof gemstoneLots.$inferSelect; // GEMSTONE-1 v1.21
+// SEARCH-1 (v1.13): Item-level search result
+export type ItemSearchResult = {
+itemId: string; sku: string; designName: string; categoryName: string;
+metal: 'GOLD' | 'SILVER'; grossWeightMg: number; purityPercent: number;
+huid: string | null; status: 'AVAILABLE' | 'PHANTOM_AVAILABLE'; // FEAT-PHANTOM-INVENTORY-1 (v1.67):
+phantom items appear in billing search
+}
+// SEARCH-1 (v1.13) + BLOCK-5 (v1.15): Design-level aggregated stock
+export type DesignStockResult = {
+designId: string; designName: string; categoryName: string;
+metal: 'GOLD' | 'SILVER'; purityPercent: number; // from items grouping
+totalGrossWeightMg: number; availableCount: number;
+}
+
+</USER_REQUEST>
+<ADDITIONAL_METADATA>
+The current local time is: 2026-06-13T15:07:08+05:30.
+
+The user's current state is as follows:
+Active Document: c:\VJBilling\drizzle\0002_phase2_inventory.sql (LANGUAGE_SQL)
+Cursor is on line: 1
+Other open documents:
+- c:\VJBilling\drizzle\0002_phase2_inventory.sql (LANGUAGE_SQL)
+</ADDITIONAL_METADATA>
+--- USER MSG ---
+<USER_REQUEST>
+add this rule after i give u steps u must check if any previous file needs to be updated and if needs to be updated then we must not lose what we already build add this rule and tell me
+</USER_REQUEST>
+<ADDITIONAL_METADATA>
+The current local time is: 2026-06-13T15:10:02+05:30.
+
+The user's current state is as follows:
+Active Document: c:\VJBilling\drizzle\0002_phase2_inventory.sql (LANGUAGE_SQL)
+Cursor is on line: 1
+Other open documents:
+- c:\VJBilling\drizzle\0002_phase2_inventory.sql (LANGUAGE_SQL)
+</ADDITIONAL_METADATA>
+--- USER MSG ---
+<USER_REQUEST>
+STEP 2 â€” Category Master
+Organise jewellery designs logically. Flat structure â€” no hierarchy. Soft delete only. ARCH-FLAT-CAT (v1.42):
+parentCategoryId and depth removed.
+export const categories = sqliteTable('categories', {
+id: text('id').primaryKey(),
+name: text('name').notNull(),
+// ARCH-FLAT-CAT (v1.42): parentCategoryId and depth REMOVED â€” categories are flat
+// UNIQUE INDEX uq_category_firm_name ON categories(firm_id, lower(name)) â€” see migration
+firmId: text('firm_id').notNull(),
+isActive: integer('is_active').default(1).notNull(),
+code: text('code').notNull(), // CAT-DES-DISPLAY-CODE (v1.42): e.g. CAT0001
+createdAt: text('created_at').notNull(),
+updatedAt: text('updated_at').notNull(),
+}, (table) => ({
+// ARCH-FLAT-CAT (v1.42): parentFk self-referential FK removed
+firmFk: foreignKey({ columns: [table.firmId], foreignColumns: [firms.id] }),
+}));
+// categoryRepository.ts
+insert(tx: DrizzleTransaction, data: NewCategory): Promise<Category>
+getById(id: string): Promise<Category | null>
+getById(tx: DrizzleTransaction, id: string): Promise<Category | null>
+findByFirmId(firmId: string): Promise<Category[]>
+update(tx: DrizzleTransaction, id: string, data: Partial<Pick<Category, 'name'>>): Promise<void> //
+FIX-UPDATE-CAT-1 (v1.44)
+softDelete(tx: DrizzleTransaction, id: string): Promise<void>
+ðŸ”´ FIX-CAT-DELETE-GUARD-1 (v1.44) â€” softDeleteCategory() Active Items Guard
+// PROBLEM: categoryRepository.softDelete() had no guard. Deleting a category while
+// items reference it via items.categoryId leaves orphaned FKs and breaks verifyService Check 2.
+async function softDeleteCategory(categoryId: string, firmId: string): Promise<void> {
+await assertNoActiveLease(); assertNotInSafeMode();
+return db.transaction(async (tx) => {
+const cat = await categoryRepository.getById(tx, categoryId);
+if (!cat || cat.firmId !== firmId) throw new Error('CATEGORY_NOT_FOUND_OR_WRONG_FIRM');
+// FIX-CAT-DELETE-GUARD-1 (v1.44): Block if any non-terminal items reference this category
+
+<truncated 136 bytes>
+','DRAFT','SENT_TO_KARIGAR','SENT_TO_REFINERY','SENT_TO_MELT','DAMAGED','PHANTOM_AVAILABLE'].inc
+ludes(i.status)); // FEAT-PHANTOM-INVENTORY-1 (v1.67): PHANTOM_AVAILABLE added. DAMAGED added (v1.70):
+non-terminal state, item awaiting karigar repair or return â€” must not orphan category
+if (blocked.length > 0) throw new Error('CATEGORY_HAS_ACTIVE_ITEMS');
+await categoryRepository.softDelete(tx, categoryId);
+await auditRepository.log(tx, { eventType: 'CATEGORY_SOFT_DELETED', firmId, entityId: categoryId,
+deviceId: getDeviceId(), payload: { categoryId, name: cat.name } });
+});
+}
+// New repository method required (add to itemRepository.ts):
+findByCategoryId(tx: DrizzleTransaction, categoryId: string, firmId: string): Promise<Item[]>
+// SQL: SELECT * FROM items WHERE category_id = ? AND firm_id = ?
+ðŸ”´ FIX-UPDATE-CAT-1 (v1.44) â€” updateCategory() Service
+async function updateCategory(categoryId: string, firmId: string, name: string): Promise<void> {
+await assertNoActiveLease(); assertNotInSafeMode();
+return db.transaction(async (tx) => {
+const cat = await categoryRepository.getById(tx, categoryId);
+if (!cat || cat.firmId !== firmId) throw new Error('CATEGORY_NOT_FOUND_OR_WRONG_FIRM');
+// UNIQUE INDEX uq_category_firm_name enforces name uniqueness at DB level.
+// Catch Drizzle unique constraint violation and re-throw as CATEGORY_NAME_DUPLICATE.
+await categoryRepository.update(tx, categoryId, { name, updatedAt: now() });
+await auditRepository.log(tx, { eventType: 'CATEGORY_UPDATED', firmId, entityId: categoryId,
+deviceId: getDeviceId(), payload: { categoryId, oldName: cat.name, newName: name } });
+});
+}
+
+</USER_REQUEST>
+<ADDITIONAL_METADATA>
+The current local time is: 2026-06-13T15:12:49+05:30.
+
+The user's current state is as follows:
+Active Document: c:\VJBilling\types\phase2.types.ts (LANGUAGE_TYPESCRIPT)
+Cursor is on line: 1
+Other open documents:
+- c:\VJBilling\types\phase2.types.ts (LANGUAGE_TYPESCRIPT)
+- c:\VJBilling\drizzle\0002_phase2_inventory.sql (LANGUAGE_SQL)
+</ADDITIONAL_METADATA>
+--- USER MSG ---
+<USER_REQUEST>
+STEP 3 â€” Design Master
+Defines what kind of item will exist. No purity column â€” purity is per-item. (BLOCK-5 v1.15). FIX-DESIGN-VALIDATE-1 (v1.34)
+UPDATED (v1.41): Design name may be 1 word or 2 words. No 3+-word names. No special characters. Enforced at
+createDesign() service layer â€” throws DESIGN_NAME_INVALID if word count is 0 or 3+. UI must also enforce this at input
+level.
+export const designs = sqliteTable('designs', {
+id: text('id').primaryKey(),
+name: text('name').notNull(),
+// FIX-CAT-ITEM-FK (v1.42): categoryId REMOVED from designs â€” items carry their own category //
+CAT-DES-DISPLAY-CODE (v1.42): code column added â€” e.g. DES0001 code: text('code').notNull(),
+metal: text('metal', { enum: ['GOLD', 'SILVER'] }).notNull(),
+defaultHsn: text('default_hsn'),
+firmId: text('firm_id').notNull(),
+isActive: integer('is_active').default(1).notNull(),
+createdAt: text('created_at').notNull(),
+updatedAt: text('updated_at').notNull(),
+// NOTE (BLOCK-5 v1.15): NO purity_percent column here.
+// Purity is per-item. A ring design can have 22K and 18K items.
+}, (table) => ({
+// FIX-CAT-ITEM-FK (v1.42): categoryFk removed from designs â€” designs no longer own category
+firmFk: foreignKey({ columns: [table.firmId], foreignColumns: [firms.id] }),
+uniqueDesign: unique().on(table.name, table.metal, table.firmId), // FIX-CAT-ITEM-FK (v1.42)
+}));
+ðŸ”´ BLOCK-5 (v1.15) â€” searchStock SQL Fixed: GROUP BY design + purity
+HSN code on items table (FIX-HSN-ITEM-1) âœ…
+N
+E
+W
+v
+1
+F
+I
+X
+-
+H
+S
+.44
+N
+-ITEM-1:hsn_codeTEXTNOTNULLon
+items.hsnCodeinCreate
+ItemInpu
+t.MANDATOR
+Yâ€”NOfa
+llbacktodesign.defau
+ltHsn.Ca
+llermustalwayspasshsnCode.ThrowsIT
+E
+M
+_
+H
+S
+N
+_
+M
+I
+S
+S
+I
+N
+G
+if
+n
+o
+t
+f
+o
+u
+n
+d
+.
+P
+h
+a
+s
+e
+3
+l
+o
+t.
+h
+s
+n
+C
+o
+d
+e
+b
+r
+o
+k
+e
+n
+c
+h
+a
+i
+n
+r
+e
+s
+o
+l
+v
+e
+d
+.
+softDeleteCategory() active-items guard (FIX-CAT-DELETE-GUARD-1) âœ…
+N
+E
+W
+F
+I
+X
+-
+v1.44
+CAT-DELETE-GUARD-1:so
+ftDeleteCategory
+()checks
+item
+<truncated 5755 bytes>
+og(tx, { eventType: 'DESIGN_SOFT_DELETED', firmId, entityId:
+designId,
+deviceId: getDeviceId(), payload: { designId, name: design.name } }); //
+FIX-SOFTDELETE-DES-1 (v1.44): categoryId removed from designs
+});
+}
+ðŸ”´ FIX-UPDATE-DES-1 (v1.44) â€” updateDesign() Service
+// RULE: Only name and defaultHsn may be updated on a design.
+// metal change is FORBIDDEN if any items exist â€” SKUs encode metal prefix and would be invalidated.
+async function updateDesign(
+designId: string, firmId: string,
+input: { name?: string; defaultHsn?: string | null }
+): Promise<void> {
+await assertNoActiveLease(); assertNotInSafeMode();
+return db.transaction(async (tx) => {
+const design = await designRepository.getById(tx, designId);
+if (!design || design.firmId !== firmId) throw new Error('DESIGN_NOT_FOUND_OR_WRONG_FIRM');
+// Metal change is always forbidden â€” SKU prefix encodes metal. Changing metal would invalidate all
+existing SKUs.
+// Name uniqueness: UNIQUE(name, metal, firmId) index enforces at DB level â€” re-throw as
+DESIGN_NAME_TAKEN.
+// Name validation: same 1-or-2-word rule as createDesign() â€” throw DESIGN_NAME_INVALID if violated.
+const updateData: Partial<Pick<Design, 'name' | 'defaultHsn'>> = { updatedAt: now() };
+if (input.name !== undefined) { validateDesignName(input.name); updateData.name = input.name; }
+if (input.defaultHsn !== undefined) updateData.defaultHsn = input.defaultHsn;
+await designRepository.update(tx, designId, updateData);
+await auditRepository.log(tx, { eventType: 'DESIGN_UPDATED', firmId, entityId: designId,
+deviceId: getDeviceId(), payload: { designId, changes: input } });
+});
+}
+
+</USER_REQUEST>
+<ADDITIONAL_METADATA>
+The current local time is: 2026-06-13T15:15:43+05:30.
+
+The user's current state is as follows:
+Active Document: c:\VJBilling\types\phase2.types.ts (LANGUAGE_TYPESCRIPT)
+Cursor is on line: 1
+Other open documents:
+- c:\VJBilling\types\phase2.types.ts (LANGUAGE_TYPESCRIPT)
+- c:\VJBilling\drizzle\0002_phase2_inventory.sql (LANGUAGE_SQL)
+</ADDITIONAL_METADATA>
+--- USER MSG ---
+<USER_REQUEST>
+STEP 3.5 â€” Design Category Map (DESIGN-CAT-MAP v1.42)
+Analytics/UI helper table â€” NOT operational source of truth. items.category_id is canonical. Phase 2 Step 3.5 added by
+DESIGN-CAT-MAP (v1.42).
+export const designCategoryMap = sqliteTable('design_category_map', {
+id: text('id').primaryKey(),
+designId: text('design_id').notNull(),
+categoryId: text('category_id').notNull(),
+firmId: text('firm_id').notNull(),
+createdAt: text('created_at').notNull(),
+}, (table) => ({
+uniqueDCM: unique().on(table.designId, table.categoryId, table.firmId),
+}));
+// ARCHITECTURAL NOTE: This is an ANALYTICS/UI HELPER only. items.category_id is the operational source of
+truth. FIX-DCM-WRITE-1 (v1.46): Write trigger â€” createItem() MUST insert into design_category_map(designId,
+categoryId, firmId) immediately after successful item insert, using INSERT OR IGNORE (UNIQUE constraint
+deduplicates automatically). Phase 6 reads this for design-category analytics. No separate service call
+required â€” done inside createItem() transaction.
+// designCategoryMapRepository: insert, findByDesignId, findByCategory, delete
+-- Migration (add to 0002_phase2_inventory.sql):
+CREATE TABLE IF NOT EXISTS design_category_map (id TEXT PRIMARY KEY, design_id TEXT NOT NULL, category_id
+TEXT NOT NULL, firm_id TEXT NOT NULL, created_at TEXT NOT NULL, UNIQUE(design_id, category_id, firm_id));
+CREATE INDEX IF NOT EXISTS idx_dcm_design ON design_category_map(design_id);
+CREATE INDEX IF NOT EXISTS idx_dcm_category ON design_category_map(category_id);
+</USER_REQUEST>
+<ADDITIONAL_METADATA>
+The current local time is: 2026-06-13T15:19:01+05:30.
+
+The user's current state is as follows:
+Active Document: c:\VJBilling\types\phase2.types.ts (LANGUAGE_TYPESCRIPT)
+Cursor is on line: 1
+Other open documents:
+- c:\VJBilling\types\phase2.types.ts (LANGUAGE_TYPESCRIPT)
+- c:\VJBilling\drizzle\0002_phase2_inventory.sql (LANGUAGE_SQL)
+</ADDITIONAL_METADATA>
+--- USER MSG ---
+<USER_REQUEST>
+add this in rules when i give u steps make sure u implement everything that in step must not miss anything
+</USER_REQUEST>
+<ADDITIONAL_METADATA>
+The current local time is: 2026-06-13T15:20:27+05:30.
+
+The user's current state is as follows:
+Active Document: c:\VJBilling\repositories\designCategoryMapRepository.ts (LANGUAGE_TYPESCRIPT)
+Cursor is on line: 1
+Other open documents:
+- c:\VJBilling\services\categoryService.ts (LANGUAGE_TYPESCRIPT)
+- c:\VJBilling\tsconfig.json (LANGUAGE_UNSPECIFIED)
+- c:\VJBilling\db\schema.ts (LANGUAGE_TYPESCRIPT)
+- c:\VJBilling\repositories\designCategoryMapRepository.ts (LANGUAGE_TYPESCRIPT)
+- c:\VJBilling\types\phase2.types.ts (LANGUAGE_TYPESCRIPT)
+</ADDITIONAL_METADATA>
+--- USER MSG ---
+<USER_REQUEST>
+before we go ahead check all steps that i have given and make sure nothing missed then we will go ahead
+</USER_REQUEST>
+<ADDITIONAL_METADATA>
+The current local time is: 2026-06-13T15:21:28+05:30.
+
+The user's current state is as follows:
+Active Document: c:\VJBilling\repositories\designCategoryMapRepository.ts (LANGUAGE_TYPESCRIPT)
+Cursor is on line: 1
+Other open documents:
+- c:\VJBilling\services\categoryService.ts (LANGUAGE_TYPESCRIPT)
+- c:\VJBilling\tsconfig.json (LANGUAGE_UNSPECIFIED)
+- c:\VJBilling\db\schema.ts (LANGUAGE_TYPESCRIPT)
+- c:\VJBilling\repositories\designCategoryMapRepository.ts (LANGUAGE_TYPESCRIPT)
+- c:\VJBilling\types\phase2.types.ts (LANGUAGE_TYPESCRIPT)
+</ADDITIONAL_METADATA>
+--- USER MSG ---
+<USER_REQUEST>
+STEP 4 â€” Stone Master
+ðŸ”´ BLOCK-3 (v1.15) â€” stones Drizzle Schema Added
+PROBLEM: stones schema was entirely missing. typeof stones.$inferSelect caused TS compile
+failure.
+FIX: Complete stones schema, repository, and createStone() added.
+export const stones = sqliteTable('stones', {
+id: text('id').primaryKey(),
+name: text('name').notNull(),
+type: text('type').notNull(), // 'DIAMOND' | 'RUBY' | 'EMERALD' | 'SAPPHIRE'
+firmId: text('firm_id').notNull(),
+isActive: integer('is_active').default(1).notNull(),
+createdAt: text('created_at').notNull(),
+updatedAt: text('updated_at').notNull(),
+}, (table) => ({
+firmFk: foreignKey({ columns: [table.firmId], foreignColumns: [firms.id] }),
+}));
+// stoneRepository.ts
+insert(tx: DrizzleTransaction, data: NewStone): Promise<Stone>
+getById(tx: DrizzleTransaction, id: string, firmId: string): Promise<Stone | null>
+findByFirmId(firmId: string): Promise<Stone[]>
+softDelete(tx: DrizzleTransaction, id: string, firmId: string): Promise<void>
+// createStone() service body
+async function createStone(input: CreateStoneInput, firmId: string): Promise<Stone> {
+await assertNoActiveLease(); // GUARD 1
+assertNotInSafeMode(); // GUARD 2
+return db.transaction(async (tx) => {
+const stone = await stoneRepository.insert(tx, {
+id: uuid(), name: input.name, type: input.type,
+firmId, isActive: 1, createdAt: now(), updatedAt: now(),
+});
+await auditRepository.log(tx, { eventType: 'STONE_CREATED', firmId, entityId: stone.id,
+deviceId: getDeviceId(), payload: { name: stone.name, type: stone.type } });
+return stone;
+});
+}
+
+</USER_REQUEST>
+<ADDITIONAL_METADATA>
+The current local time is: 2026-06-13T15:22:58+05:30.
+
+The user's current state is as follows:
+Active Document: c:\VJBilling\repositories\designCategoryMapRepository.ts (LANGUAGE_TYPESCRIPT)
+Cursor is on line: 1
+Other open documents:
+- c:\VJBilling\repositories\designCategoryMapRepository.ts (LANGUAGE_TYPESCRIPT)
+- c:\VJBilling\types\phase2.types.ts (LANGUAGE_TYPESCRIPT)
+- c:\VJBilling\drizzle\0002_phase2_inventory.sql (LANGUAGE_SQL)
+- c:\VJBilling\repositories\auditRepository.ts (LANGUAGE_TYPESCRIPT)
+- c:\VJBilling\services\categoryService.ts (LANGUAGE_TYPESCRIPT)
+</ADDITIONAL_METADATA>
+--- USER MSG ---
+<USER_REQUEST>
+STEP 4.5 â€” Gemstone Lot Inventory (GEMSTONE-1 v1.21)
+ðŸ”´ GEMSTONE-1 (v1.21) â€” New Entity: gemstone_lots
+ARCHITECTURAL DISTINCTION (CRITICAL):
+stones (Step 4) = MASTER TYPE REFERENCE. Descriptor. No stock lifecycle. No own weight.
+gemstone_lots (4.5) = INDEPENDENT STOCK INVENTORY. Physical batch. Own weight, rate,
+lifecycle.
+NO SKU / NO BARCODE: Lot-based. A purchase of 5 diamonds = 1 lot record.
+NO DRAFT STATUS: Lots are intake-confirmed at creation. Status begins AVAILABLE immediately.
+export const gemstoneLots = sqliteTable('gemstone_lots', {
+id: text('id').primaryKey(),
+firmId: text('firm_id').notNull(),
+stoneId: text('stone_id').notNull(), // FK -> stones.id
+name: text('name').notNull(), // e.g. 'Round Diamond 0.50ct'
+// RULE 1 CARAT EXTENSION (v1.21): carats x 100 as integer. No floats.
+// 0.50 carat = 50. 1.25 carat = 125. Display: (weightCaratX100 / 100).toFixed(2) + ' ct' â€” e.g. 50 â†’
+'0.50 ct', 125 â†’ '1.25 ct'. Always 2 decimal places. Always include ct suffix.
+weightCaratX100: integer('weight_carat_x100').notNull(),
+quantity: integer('quantity').notNull().default(1),
+purchaseRatePaisePerCarat: integer('purchase_rate_paise_per_carat'),
+totalPurchaseAmountPaise: integer('total_purchase_amount_paise'),
+supplierName: text('supplier_name'),
+certificationRef: text('certification_ref'), // Phase 3 reads for invoice
+status: text('status', { enum: ['AVAILABLE','SOLD','DAMAGED'] }).notNull().default('AVAILABLE'),
+notes: text('notes'),
+createdAt: text('created_at').notNull(),
+updatedAt: text('updated_at').notNull(),
+}, (table) => ({
+firmFk: foreignKey({ columns: [table.firmId], foreignColumns: [firms.id] }),
+stoneFk: foreignKey({ columns: [table.stoneId], foreignColumns: [stones.id] }),
+}));
+// State machine: AVAILABLE -> SOLD | DAMAGED (DAMAGED is terminal for gemstone lots)
+const GEMSTONE_LOT_TRANSITIONS: Record<GemstoneStatus, GemstoneStatus[]> = {
+AVAILABLE: ['SOLD', 'DAMAGED'],
+SOLD: [], // Terminal in Phase 2
+DAMAGED: [], // Terminal
+};
+ðŸ”´ FIX-V1
+<truncated 2788 bytes>
+ction(async (tx) => {
+const lot = await gemstoneLotRepository.getById(tx, lotId, firmId);
+if (!lot) throw new Error('GEMSTONE_LOT_NOT_FOUND_OR_WRONG_FIRM');
+const allowed = GEMSTONE_LOT_TRANSITIONS[lot.status];
+if (!allowed.includes(newStatus))
+throw new Error(`INVALID_GEMSTONE_TRANSITION: ${lot.status} -> ${newStatus}`);
+await gemstoneLotRepository.updateStatus(tx, firmId, lotId, newStatus);
+await auditRepository.log(tx, { eventType: 'GEMSTONE_LOT_STATUS_CHANGED', firmId, entityId: lotId,
+deviceId: getDeviceId(),
+payload: { lotId, oldStatus: lot.status, newStatus, reason: reason ?? null } });
+});
+}
+// Migration â€” add to 0002_phase2_inventory.sql
+CREATE TABLE IF NOT EXISTS gemstone_lots (
+id TEXT PRIMARY KEY, firm_id TEXT NOT NULL, stone_id TEXT NOT NULL, name TEXT NOT NULL,
+weight_carat_x100 INTEGER NOT NULL, quantity INTEGER NOT NULL DEFAULT 1,
+purchase_rate_paise_per_carat INTEGER, total_purchase_amount_paise INTEGER,
+supplier_name TEXT, certification_ref TEXT, status TEXT NOT NULL DEFAULT 'AVAILABLE',
+notes TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
+FOREIGN KEY (firm_id) REFERENCES firms(id), FOREIGN KEY (stone_id) REFERENCES stones(id)
+);
+CREATE INDEX IF NOT EXISTS idx_gemstone_lots_firm_status ON gemstone_lots(firm_id, status);
+-- FIX-IDX-1 (v1.23): name search performance
+CREATE INDEX IF NOT EXISTS idx_gemstone_lots_name ON gemstone_lots(name);
+
+</USER_REQUEST>
+<ADDITIONAL_METADATA>
+The current local time is: 2026-06-13T15:24:41+05:30.
+
+The user's current state is as follows:
+Active Document: c:\VJBilling\repositories\designCategoryMapRepository.ts (LANGUAGE_TYPESCRIPT)
+Cursor is on line: 1
+Other open documents:
+- c:\VJBilling\repositories\designCategoryMapRepository.ts (LANGUAGE_TYPESCRIPT)
+- c:\VJBilling\types\phase2.types.ts (LANGUAGE_TYPESCRIPT)
+- c:\VJBilling\drizzle\0002_phase2_inventory.sql (LANGUAGE_SQL)
+- c:\VJBilling\repositories\auditRepository.ts (LANGUAGE_TYPESCRIPT)
+- c:\VJBilling\services\categoryService.ts (LANGUAGE_TYPESCRIPT)
+</ADDITIONAL_METADATA>
+--- USER MSG ---
+<USER_REQUEST>
+STEP 4.75 â€” HSN Code Master (FIX-HSN-MASTER-1 v1.46)
+DECISION: HSN codes are Phase 2 owned. Reason: Phase 1 has zero HSN content.
+Phase 1 (v7.9) defines 14 tables: schema_version, safe_mode_state, firms, writer_leases,
+financial_years, audit_logs, app_settings, bis_logos, tax_rates, tax_groups,
+tax_group_components, sync_devices, sync_log, audit_archive_index. HSN codes are NOT among them.
+THEREFORE: hsn_codes table is created in Phase 2 migration 0002_phase2_inventory.sql.
+hsnMasterRepository lives in Phase 2. It is called inside createItem() before SKU is consumed.
+Phase 3 reads items.hsn_code (a plain TEXT column) via stockLotRepo mapper. Phase 3 never
+validates, writes, or queries the hsn_codes master table directly.
+This is the correct layering: Phase 2 owns the master data. Phase 3 inherits the snapshot.
+OWNERSHIP RULES
+Phase 2 OWNS : hsn_codes CREATE TABLE, Drizzle schema, hsnMasterRepository, seed script section.
+Phase 2 GATE : createItem() calls hsnMasterRepository.findByCode(tx, firmId, hsnCode) before SKU.
+Phase 3 READS : items.hsn_code TEXT column via stockLotRepo.getById() mapper. No hsn_codes query.
+Phase 3+ MUST NOT write hsn_codes. MUST NOT bypass the Phase 2 validation gate.
+design.defaultHsn : UI pre-fill hint only. NEVER auto-fallback in createItem() â€” caller must pass.
+hsn_codes Drizzle Schema
+// src/db/schema/hsnCodes.ts â€” FIX-HSN-MASTER-1 (v1.46)
+// Government-defined HSN codes for Indian jewellery (Chapter 71).
+// Not firm-scoped. Seed data. Read-only at runtime after seeding.
+import { sqliteTable, text, integer } from 'drizzle-orm/sqlite-core';
+export const hsnCodes = sqliteTable('hsn_codes', {
+id: text('id').primaryKey(), // uuid
+code: text('code').notNull().unique(), // '7113', '711311', etc.
+description: text('description').notNull(), // human-readable label
+chapter: text('chapter').notNull().default('71'), // '71' for jewellery
+isActive: integer('is_active').notNull().default(1), // 1=active 0=deactivated
+createdAt: text('created_at').not
+<truncated 1570 bytes>
+odes (
+id TEXT PRIMARY KEY,
+code TEXT NOT NULL UNIQUE,
+description TEXT NOT NULL,
+chapter TEXT NOT NULL DEFAULT '71',
+is_active INTEGER NOT NULL DEFAULT 1,
+created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_hsn_code ON hsn_codes(code);
+CREATE INDEX IF NOT EXISTS idx_hsn_chapter ON hsn_codes(chapter);
+SEED DATA REQUIREMENT (FIX-HSN-MASTER-1 v1.46)
+hsn_codes MUST be seeded before any item can be created.
+Seed file: src/db/seed.ts (add HSN section using INSERT OR IGNORE).
+MINIMUM SEED â€” Chapter 71 codes for Indian jewellery:
+ { code: '7113', description: 'Jewellery and parts of precious metal' }
+ { code: '711311', description: 'Silver jewellery (incl. plated)' }
+ { code: '711319', description: 'Gold / platinum jewellery' }
+ { code: '7114', description: 'Goldsmiths and silversmiths wares' }
+ { code: '7117', description: 'Imitation jewellery' }
+ { code: '7118', description: 'Coin (gold/silver used in jewellery context)'}
+SEED GUARD: Use INSERT OR IGNORE. Prevents duplicate-key errors on re-install.
+UI SURFACE: Settings > Inventory > HSN Codes (future Phase 3 admin screen).
+hsnMasterRepository.findAll() feeds the HSN picker in createItem UI.
+design.defaultHsn: TEXT column on designs table. Pre-fills the HSN picker in UI.
+It is a UI convenience hint ONLY. createItem() ALWAYS calls findByCode() to validate.
+If design.defaultHsn is set to an unknown code, createItem() still throws ITEM_HSN_MISSING.
+</USER_REQUEST>
+<ADDITIONAL_METADATA>
+The current local time is: 2026-06-13T15:27:09+05:30.
+
+The user's current state is as follows:
+Active Document: c:\VJBilling\repositories\designCategoryMapRepository.ts (LANGUAGE_TYPESCRIPT)
+Cursor is on line: 1
+Other open documents:
+- c:\VJBilling\tsconfig.json (LANGUAGE_UNSPECIFIED)
+- c:\VJBilling\db\schema.ts (LANGUAGE_TYPESCRIPT)
+- c:\VJBilling\repositories\designCategoryMapRepository.ts (LANGUAGE_TYPESCRIPT)
+- c:\VJBilling\types\phase2.types.ts (LANGUAGE_TYPESCRIPT)
+- c:\VJBilling\drizzle\0002_phase2_inventory.sql (LANGUAGE_SQL)
+</ADDITIONAL_METADATA>
+--- USER MSG ---
+<USER_REQUEST>
+STEP 5 â€” SKU + Barcode Engine
+ðŸ”µ SKU STRUCTURE: [M][DES][MMYY][SEQ]
+[M] = Metal (G=Gold, S=Silver)
+[DES] = Design prefix (3-4 chars). Rule: If design name is 1 word â€” use first 3 chars of that word. If design
+name is 2 words â€” use first char of Word 1 + first 3 chars of Word 2. Always UPPERCASE. No metal-word
+skip. Examples: "Chainjod" under Silver â†’ CHA (S+CHA=SCHA total). "Gents Ring" under Gold â†’
+G+RIN=GGRIN total. "Gold Ring" under Gold â†’ G+RIN=GGRIN total. "Temple Necklace" under Gold â†’
+T+NEC=GTNEC total.
+[MMYY] = Month + Year using date-fns format(date, 'MMyy') â€” e.g. 0226 = Feb 2026
+[SEQ] = 4-digit stored sequence (0001â€“9999) â€” SKU-SEQ-4DIGIT (v1.42). Smart display (SKU-DISPLAY-1
+v1.43, FIX-SKU-DISPLAY-2 v1.51): UI enforces minimum 2 digits â€” shows 2 digits for 1â€“99 (e.g. 01, 09, 10,
+99), 3 digits for 100â€“999, 4 digits for 1000â€“9999. Stored SKU in DB is always full 4-digit padded.
+formatSKUDisplay() is the only permitted UI renderer for SKU sequence.
+Examples: SCHA032601 â†’ Chainjod, Mar 2026, seq 01 (metal=Silver, 1-wordâ†’CHA). GGRIN032602 â†’
+Gents Ring, Mar 2026, seq 02 (metal=Gold, word1=Gentsâ†’G, word2=Ringâ†’RIN). GGRIN032603 â†’ Gold
+Ring, Mar 2026, seq 03 (metal=Gold, word1=Goldâ†’G, word2=Ringâ†’RIN). No metal-word skip â€” all words
+treated equally.
+Sequence is GLOBAL PER FIRM per month â€” one counter shared across ALL designs for the firm. Resets to
+01 on first item of each new month (auto, no cron). SKU is IMMUTABLE after creation. SKU length is variable
+(12-13 chars) depending on prefix â€” this is intentional and accepted.
+Barcode value = SKU (1:1 identity).
+// SCHEMA-1 FIX (v1.8): sequenceCounters table
+export const sequenceCounters = sqliteTable('sequence_counters', {
+id: text('id').primaryKey(), // format: '{firmId}_{MMYY}'
+firmId: text('firm_id').notNull(),
+month: text('month').notNull(), // MMYY format e.g. '0226'
+year: text('year').notNull(), // 4-digit year e.g. '2026'
+currentSeq: integer('current_seq').notNull
+<truncated 6109 bytes>
+KUSeq() â€” UI-only display helper. NEVER affects stored SKU value.
+// Internal SKU storage: always 4-digit padded (0001..9999). Display: smart â€” no leading zeros.
+// Rule (FIX-SKU-DISPLAY-2 v1.51): seq 1â€“9 shows as 01â€“09 (2-digit MINIMUM). 10â€“99 shows as 2 digits.
+100â€“999 as 3 digits. 1000â€“9999 as 4 digits.
+// Example: stored GGRIN03260001 displays as GGRIN03261. Stored GGRIN03260010 displays as GGRIN032610.
+// NEVER call formatSKUSeq on SKU before storage. Call only in UI rendering layer.
+// GAP-I6 (v1.73): âš ï¸ UI LAYER ONLY â€” do NOT import in services/, repositories/, or db/.
+// Calling this on a raw SKU before storage corrupts the sequence counter (inserts formatted prefix).
+// PR GATE: grep diff for formatSKUDisplay in services/ or repositories/ â€” any match is a hard rejection.
+export function formatSKUDisplay(sku: string): string {
+// SKU format: [M=1][DES=3-4][MMYY=4][SEQ=4] â€” last 4 chars are always the 4-digit seq
+if (sku.length < 4) return sku; // guard: malformed â€” return as-is
+const prefix = sku.slice(0, -4); // everything before the 4-digit seq
+const seqPart = sku.slice(-4); // always 4 chars: e.g. '0001', '0099', '0100'
+const seqNum = parseInt(seqPart, 10); // parse numeric value for display formatting
+const displaySeq = seqNum < 10 ? `0${seqNum}` : String(seqNum); // FIX-SKU-DISPLAY-2 (v1.51): min 2
+digits return `${prefix}${displaySeq}`; // smart: 01, 10, 100, 1000
+}
+
+</USER_REQUEST>
+<ADDITIONAL_METADATA>
+The current local time is: 2026-06-13T15:28:59+05:30.
+
+The user's current state is as follows:
+Active Document: c:\VJBilling\repositories\designCategoryMapRepository.ts (LANGUAGE_TYPESCRIPT)
+Cursor is on line: 1
+Other open documents:
+- c:\VJBilling\tsconfig.json (LANGUAGE_UNSPECIFIED)
+- c:\VJBilling\db\schema.ts (LANGUAGE_TYPESCRIPT)
+- c:\VJBilling\repositories\designCategoryMapRepository.ts (LANGUAGE_TYPESCRIPT)
+- c:\VJBilling\types\phase2.types.ts (LANGUAGE_TYPESCRIPT)
+- c:\VJBilling\drizzle\0002_phase2_inventory.sql (LANGUAGE_SQL)
+</ADDITIONAL_METADATA>
+--- USER MSG ---
+<USER_REQUEST>
+STEP 5.1 â€” Barcode Label Generation + Print Flow (FEAT-BARCODE-LABEL-1 v1.66)
+ðŸ”µ OVERVIEW
+Every item in Phase 2 has a barcode value equal to its SKU (1:1 identity, STEP 5). This step specifies the
+two-sided physical label generated for each item and the print flow that fires after createItem() or
+createItemsBulk() completes. generateBarcodeLabel() is a pure read â€” no transaction, no audit write, no state
+change. logBarcodeReprint() is implemented here (previously orphaned since FIX-HUID-BARCODE-1 v1.31
+deferred it to Phase 3 with no landing zone). Phase 3 MUST NOT re-implement either function.
+ðŸ”µ PHYSICAL LABEL FORMAT â€” TWO-SIDED FOLDABLE TAG
+FRONT SIDE (weight + item details):
+Line 1: [designName] â€” designs.name (JOIN, never stored on items)
+Line 2: [purity] â€” getDisplayPurity(purityPercent, purityKarat, metal)
+Line 3: Gr.Wt : X.XXX g â€” (grossWeightMg / 1000).toFixed(3) + â€™ gâ€™
+Line 4: Nt.Wt : X.XXX g â€” (netWeightMg / 1000).toFixed(3) + â€™ gâ€™
+BACK SIDE (barcode + identity):
+Line 1: [firmCode] â€” firms.firmCode (read-only, Phase 1 domain)
+Line 2: [BARCODE IMAGE] â€” rendered from items.barcode value (= items.sku)
+Line 3: [sku] â€” items.sku (formatSKUDisplay() for UI; raw sku for barcode
+encoding)
+DISPLAY RULES (mandatory â€” no exceptions):
+Weight display: RULE-1A-WEIGHT-DISPLAY (v1.54) â€” (mg / 1000).toFixed(3) + â€™ gâ€™. Always 3 decimal places.
+Always â€™ gâ€™ suffix. No exceptions on label.
+Purity display: getDisplayPurity(purityPercent, purityKarat, metal) â€” Gold returns karat string (e.g. â€œ22Kâ€), Silver
+returns percentage string (e.g. â€œ92.5%â€). NEVER raw purityPercent alone on label.
+SKU on barcode back: raw 4-digit-padded items.sku MUST be used as barcode encoding value.
+formatSKUDisplay() is used only for the human-readable SKU text below the barcode â€” NEVER for encoding.
+ðŸ”µ BarcodeLabel TYPE (add to types/phase2.types.ts)
+// types/phase2.types.ts â€” addition for FEAT-BARCODE-LABEL-1 (v1.66)
+export type BarcodeLabel = {
+
+<truncated 3657 bytes>
+Required = 1 (flag visible to user as an amber warning badge). (4) Manually from Screen D at any
+time via â€œReprint Labelâ€ action.
+MANDATORY PREVIEW: Before any print action is executed, the UI MUST display a full preview of both label
+sides. The preview is non-negotiable â€” the print button is disabled until the preview has been shown. Preview
+renders BarcodeLabel data returned by generateBarcodeLabel(). Front side preview shows design name, purity,
+Gr.Wt, Nt.Wt. Back side preview shows firm code, barcode image rendered from barcodeValue, and skuDisplay
+text. User confirms via explicit â€œPrintâ€ button tap.
+PRINT SEQUENCE: (1) Call generateBarcodeLabel(itemId, firmId) â€” assemble label data. (2) Render preview
+screen (both sides). (3) User taps â€œPrintâ€. (4) Send to printer. (5) On successful print callback: call
+logBarcodeReprint(itemId, firmId) â€” clears barcodeReprintRequired flag + writes BARCODE_REPRINTED
+event. (6) Navigate back. On print failure: show error toast, do NOT call logBarcodeReprint() â€” flag remains set.
+CONSTITUTIONAL BOUNDARIES:
+generateBarcodeLabel() is READ-ONLY. Zero writes. Zero audit. Zero transaction. Phase 3 MUST NOT
+re-implement generateBarcodeLabel() or logBarcodeReprint(). Phase 3 touch-point: addHUID() (still deferred to
+Phase 3) will set barcodeReprintRequired = 1 after HUID assignment â€” prompting a reprint via this flow. Zero
+schema changes. Zero migration changes. Zero state machine changes.
+
+</USER_REQUEST>
+<ADDITIONAL_METADATA>
+The current local time is: 2026-06-13T15:31:24+05:30.
+
+The user's current state is as follows:
+Active Document: c:\VJBilling\services\skuEngine.ts (LANGUAGE_TYPESCRIPT)
+Cursor is on line: 1
+Other open documents:
+- c:\VJBilling\types\phase2.types.ts (LANGUAGE_TYPESCRIPT)
+- c:\VJBilling\drizzle\0002_phase2_inventory.sql (LANGUAGE_SQL)
+- c:\VJBilling\db\schema.ts (LANGUAGE_TYPESCRIPT)
+- c:\VJBilling\repositories\hsnMasterRepository.ts (LANGUAGE_TYPESCRIPT)
+- c:\VJBilling\db\seed.ts (LANGUAGE_TYPESCRIPT)
+</ADDITIONAL_METADATA>
+--- USER MSG ---
+<USER_REQUEST>
+STEP 5.5 â€” Financial Year Close: closeFY() + preCloseChecks()
+ðŸ†• ALIGN-P1-V76 (v1.47) â€” CLOSE-FY-FLOW: Constitutional 4-Step Close Financial Year UI +
+Service Flow
+Phase 1 v7.6 specifies the constitutional 4-step Close FY flow at the Phase 1 level. Phase 2 Step 5.5 is the
+implementation target. The full flow is specified here as the canonical implementation authority for this phase.
+FY-ENDED DASHBOARD BANNER (ALIGN-P1-V75):
+When app bootstraps and device date > activeFY.endDate, Phase 2 MUST show a non-blocking yellow banner
+on the dashboard: "Financial Year [label] has ended. Close it when ready." with a CTA button linking to Settings
+> Utilities > Close Financial Year. Banner persists until closeFY() executes successfully. Banner MUST NOT
+block any write operation (invoice, payment, stock, expense). getActiveFY() continues to return the existing
+ACTIVE FY regardless of device date â€” no silent auto-transition. Implementation: useFYBannerStore() Zustand
+store tracks bannerVisible state. On app bootstrap, fyService.getActiveFY(firmId) checks activeFY.endDate vs
+today's date. If today > endDate, set bannerVisible = true. On successful closeFY(), set bannerVisible = false.
+STEP 1 â€” FY SELECTOR (Count-Branching):
+Query: SELECT all financial_years WHERE firmId = activeFirmId AND status = 'ACTIVE'. Count result drives the
+UI branch:Count = 0 â†’ FY_INTEGRITY_BROKEN Safe Mode activated. Show error screen: "No active financial
+year found. Run Verify My Data to diagnose." Close flow aborted. No further steps.Count = 1 (NORMAL PATH â€”
+guaranteed by uq_one_active_fy_per_firm index added in Phase 1 v7.5): Show single FY confirmation card.
+Card must display: FY label (e.g. "FY 2025-26"), date range (Apr 1 2025 â€” Mar 31 2026), last entry date (latest
+transaction date in this FY), transaction count (total entries in this FY). User reads card and confirms "Yes, close
+FY 2025-26". No FY picker shown â€” there is only one option.Count > 1 (RECOVERY PATH â€” structurally
+prevented by
+<truncated 16974 bytes>
+th > 0) issues.push({ code: 'STALE_ACTIVE_FY', severity: 'WARNING', message:
+`${staleFYs.length} active FY boundary is > 60 days in the past â€” close the financial year` });
+// FEAT-PHANTOM-INVENTORY-1 (v1.67) â€” Check 6: Stale unreconciled phantom items (WARNING)
+const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+const stalePhantoms = await db.select({ id: items.id }).from(items).where(and(eq(items.firmId, firmId),
+inArray(items.status, ['PHANTOM_AVAILABLE','PHANTOM_SOLD']), isNull(items.phantomStockId),
+lt(items.createdAt, thirtyDaysAgo)));
+if (stalePhantoms.length > 0) issues.push({ code: 'STALE_PHANTOM_ITEMS', severity: 'WARNING', message:
+`${stalePhantoms.length} phantom item(s) have been unreconciled for > 30 days â€” add backdated stock and
+reconcile` });
+// FEAT-PHANTOM-INVENTORY-1 (v1.67) â€” Check 7: Open phantoms block FY close (CRITICAL)
+// RULE: FY cannot be closed with open phantom debt â€” year-end metal balance must be final truth.
+const openPhantoms = await db.select({ id: items.id }).from(items).where(and(eq(items.firmId, firmId),
+inArray(items.status, ['PHANTOM_AVAILABLE','PHANTOM_SOLD']), isNull(items.phantomStockId)));
+if (openPhantoms.length > 0) issues.push({ code: 'FY_CLOSE_BLOCKED_PHANTOM_ITEMS', severity: 'CRITICAL',
+message: `${openPhantoms.length} phantom item(s) must be reconciled before closing FY â€” add backdated stock
+entries and call reconcilePhantomItem()` });
+return issues;
+}
+</USER_REQUEST>
+<ADDITIONAL_METADATA>
+The current local time is: 2026-06-13T15:36:08+05:30.
+
+The user's current state is as follows:
+Active Document: c:\VJBilling\services\skuEngine.ts (LANGUAGE_TYPESCRIPT)
+Cursor is on line: 1
+Other open documents:
+- c:\VJBilling\db\schema.ts (LANGUAGE_TYPESCRIPT)
+- c:\VJBilling\repositories\hsnMasterRepository.ts (LANGUAGE_TYPESCRIPT)
+- c:\VJBilling\db\seed.ts (LANGUAGE_TYPESCRIPT)
+- c:\VJBilling\utils\skuDisplay.ts (LANGUAGE_TYPESCRIPT)
+- c:\VJBilling\services\skuEngine.ts (LANGUAGE_TYPESCRIPT)
+</ADDITIONAL_METADATA>
+--- USER MSG ---
+<USER_REQUEST>
+STEP 5.7 â€” Phantom Inventory: createPhantomItem() + reconcilePhantomItem()
+(FEAT-PHANTOM-INVENTORY-1 v1.67)
+Bill physical stock that has not yet been entered in inventory. A phantom item is created immediately â€” it carries real weight, a
+real SKU, and is visible in billing search with a [PHANTOM] badge. The metal balance shows it as negative debt until the
+shopkeeper adds the backdated real stock entry and calls reconcilePhantomItem().
+ðŸ”´ PHANTOM LIFECYCLE STATE MACHINE
+createPhantomItem() â†’ PHANTOM_AVAILABLE â†’ (Phase 3 addItemToDraft) â†’ PHANTOM_AVAILABLE â†’ (Phase 3
+postInvoice) â†’ PHANTOM_SOLD
+PHANTOM_SOLD + createItem() â†’ reconcilePhantomItem(phantomId, realItemId) â†’ phantom.phantomStockId =
+realItemId Â· real.status = SOLD Â· real.phantomStockId = phantomItemId
+METAL BALANCE: PHANTOM_AVAILABLE + PHANTOM_SOLD where phantomStockId IS NULL â†’ shown as NEGATIVE debt in
+getStockWeightSummary(). After reconcile: debt cleared (phantomStockId IS NOT NULL excludes from debt
+count).
+CreatePhantomItemInput type
+export type CreatePhantomItemInput = {
+designId: string; // REQUIRED â€” must exist and belong to firmId
+categoryId: string; // REQUIRED â€” must exist and belong to firmId
+hsnCode: string; // REQUIRED â€” mandatory for Phase 3 GST invoice. Throws ITEM_HSN_MISSING if
+not found.
+grossWeightMg: number; // REQUIRED â€” must be > 0. Physical weight of item in milligrams. RED-6:
+integer only.
+stoneWeightMg?: number; // optional â€” default 0
+beadsWeightMg?: number; // optional â€” default 0
+purityPercent: number; // REQUIRED â€” 0 < purityPercent â‰¤ 100
+purityKarat: number; // REQUIRED â€” resolved via percentToKarat() per PURITY-INTAKE-1 (v1.21)
+primaryStoneId?: string; // optional
+location?: string; // optional â€” SHOP | LOCKER | KARIGAR | REFINERY | TRANSIT | null};
+createPhantomItem() â€” Canonical Service Body
+// services/itemService.ts â€” FEAT-PHANTOM-INVENTORY-1 (v1.67)
+// Identical validation and SKU-generation path as createItem(). Differs only
+<truncated 7437 bytes>
+FTER: if (lot.status !== 'AVAILABLE' && lot.status !== 'PHANTOM_AVAILABLE') throw new
+Error('ITEM_NOT_AVAILABLE');
+Change P3-2: postInvoice() status transition â€” phantom-aware
+// Phase 3 postInvoice() Step 7 â€” replace single transition with phantom-aware branch:
+if (lot.status === 'AVAILABLE') {
+await itemRepository.updateStatus(tx, firmId, lot.id, 'SOLD'); // normal path
+} else if (lot.status === 'PHANTOM_AVAILABLE') {
+await itemRepository.updateStatus(tx, firmId, lot.id, 'PHANTOM_SOLD'); // phantom path
+} else { throw new Error('ITEM_ALREADY_SOLD'); } // race condition guard unchanged
+Change P3-3: New error codes to register in Phase 3 error registry
+PHANTOM_ITEM_ALREADY_SOLD â€” postInvoice() race: PHANTOM_AVAILABLE already
+PHANTOM_SOLDPHANTOM_NOT_YET_SOLD â€” reconcilePhantomItem() called on PHANTOM_AVAILABLE (not
+billed yet)PHANTOM_ALREADY_RECONCILED â€” phantom.phantomStockId already
+setREAL_ITEM_NOT_AVAILABLE_FOR_RECONCILE â€” real item is not AVAILABLE when reconcile
+attemptedREAL_ITEM_ALREADY_USED_FOR_RECONCILE â€” real item already linked to another
+phantomRECONCILE_DESIGN_MISMATCH â€” phantom and real item are different
+designsRECONCILE_WEIGHT_MISMATCH â€” phantom and real item have different
+netWeightMgRECONCILE_PURITY_MISMATCH â€” purityPercent differs by >
+0.01FY_CLOSE_BLOCKED_PHANTOM_ITEMS â€” verifyService CRITICAL: open phantoms block FY
+closeSTALE_PHANTOM_ITEMS â€” verifyService WARNING: phantoms unreconciled > 30 days
+</USER_REQUEST>
+<ADDITIONAL_METADATA>
+The current local time is: 2026-06-13T15:58:18+05:30.
+
+The user's current state is as follows:
+Active Document: c:\VJBilling\services\skuEngine.ts (LANGUAGE_TYPESCRIPT)
+Cursor is on line: 1
+Other open documents:
+- c:\VJBilling\drizzle\0002_phase2_inventory.sql (LANGUAGE_SQL)
+- c:\VJBilling\db\schema.ts (LANGUAGE_TYPESCRIPT)
+- c:\VJBilling\repositories\hsnMasterRepository.ts (LANGUAGE_TYPESCRIPT)
+- c:\VJBilling\db\seed.ts (LANGUAGE_TYPESCRIPT)
+- c:\VJBilling\utils\skuDisplay.ts (LANGUAGE_TYPESCRIPT)
+</ADDITIONAL_METADATA>
+--- USER MSG ---
+<USER_REQUEST>
+STEP 6 â€” Item Instance
+Physical jewellery piece. Immutable SKU. Optional HUID. All weights in milligrams.
+ðŸ”´ PURITY-INTAKE-1 (v1.21) â€” Mandatory Purity Auto-Resolve Rule
+RULE: At item creation, the caller MUST resolve purityKarat as follows:
+Step 1: Call percentToKarat(purityPercent)
+Step 2: If non-null -> pass as purityKarat (e.g. 91.6 -> 22 -> purityKarat=22; 99.99 -> 24 ->
+purityKarat=24; 99.50 -> 24 -> purityKarat=24)
+Step 3: If null (non-standard) -> pass purityKarat = 0
+DISPLAY CONTRACT: Show '91.6% Â· 22K' side-by-side before confirm.
+INVOICE CONTRACT: getDisplayPurity(item.purityPercent, item.purityKarat, item.metal)
+-> Gold purityKarat=22 -> '22K' | Gold purityKarat=0 -> '91.6%' | Silver -> always %
+IMMUTABILITY: purityPercent = math truth. purityKarat = display truth. Neither changes after
+creation.
+items table schema â€” v1.44 (FIX-WAST-1, FIX-WAST-2, FIX-WAST-3, FIX-HSN-ITEM-1,
+FIX-CREATEITEM-CAT-1)
+export const items = sqliteTable('items', {
+id: text('id').primaryKey(),
+sku: text('sku').notNull().unique(),
+barcode: text('barcode').notNull().unique(), // = sku
+huid: text('huid').unique(), // FIX-HUID-FORMAT-1 (v1.44) + FIX-HUID-ONCE-1 (v1.45): BIS HUID is
+6-char alphanumeric uppercase. addHUID() in Phase 3 MUST validate /^[A-Z0-9]{6}$/. Errors: HUID_INVALID
+(bad format), HUID_ALREADY_EXISTS (global duplicate), HUID_ALREADY_SET (write-once â€” item.huid must be null
+before assignment).
+designId: text('design_id').notNull(),
+firmId: text('firm_id').notNull(),
+categoryId: text('category_id').notNull(), // FIX-CAT-ITEM-FK (v1.42): moved from designs to items
+primaryStoneId: text('primary_stone_id'),
+grossWeightMg: integer('gross_weight_mg').notNull(),
+stoneWeightMg: integer('stone_weight_mg').notNull().default(0),
+beadsWeightMg: integer('beads_weight_mg').notNull().default(0),
+// BLOCK-2 (v1.15): STORED â€” not derived. FIX-IMM-2 (v1.24): IMMUTABLE after createItem().
+netWeightMg: integer('net_weight_mg').notNull(), // PHYSICAL: gross - stone - beads
+fi
+<truncated 16010 bytes>
+fineWeightMg.
+const newFineWeightMg = Math.round(newNetWeightMg * item.purityPercent / 100);
+// FIX-ADJ-WAST-1 (v1.29): Recalculate fineGoldChargedMg â€” must stay in sync with fineWeightMg.
+// If wastage was charged at creation, the cost field must reflect the new fine weight.
+// Failure to recalculate leaves Phase 7 WAC reading a stale pre-adjustment cost.
+const newFineGoldChargedMg = (item.wastagePercent ?? 0) > 0
+? Math.round(newFineWeightMg * (1 + (item.wastagePercent ?? 0) / 100))
+: null; // null when no wastage â€” consistent with createItem() contract
+// FIX-IMM-1 (v1.23): Use UpdateableItemFields â€” metalSource excluded
+await itemRepository.update(tx, itemId, {
+grossWeightMg: newGrossWeightMg, stoneWeightMg: newStoneWeightMg,
+beadsWeightMg: newBeadsWeightMg, netWeightMg: newNetWeightMg,
+fineWeightMg: newFineWeightMg,
+fineGoldChargedMg: newFineGoldChargedMg, // FIX-ADJ-WAST-1 (v1.29): keep cost field in sync
+updatedAt: now(),
+});
+await itemEventRepository.insert(tx, {
+id: uuid(), itemId, firmId, eventType: 'WEIGHT_ADJUSTED', severity: 'WARNING',
+performedBy: getDeviceId(), reason,
+oldValue: String(oldGrossWeightMg), newValue: String(newGrossWeightMg), timestamp: now(),
+});
+await auditRepository.log(tx, {
+eventType: 'WEIGHT_ADJUSTED', firmId, entityId: itemId,
+deviceId: getDeviceId(),
+payload: { itemId, sku: item.sku, oldGrossWeightMg, newGrossWeightMg,
+newNetWeightMg, newFineWeightMg, newFineGoldChargedMg, reason },
+});
+});
+}
+
+</USER_REQUEST>
+<ADDITIONAL_METADATA>
+The current local time is: 2026-06-13T16:03:23+05:30.
+
+The user's current state is as follows:
+Active Document: c:\VJBilling\services\skuEngine.ts (LANGUAGE_TYPESCRIPT)
+Cursor is on line: 1
+Other open documents:
+- c:\VJBilling\db\schema.ts (LANGUAGE_TYPESCRIPT)
+- c:\VJBilling\repositories\hsnMasterRepository.ts (LANGUAGE_TYPESCRIPT)
+- c:\VJBilling\db\seed.ts (LANGUAGE_TYPESCRIPT)
+- c:\VJBilling\utils\skuDisplay.ts (LANGUAGE_TYPESCRIPT)
+- c:\VJBilling\services\skuEngine.ts (LANGUAGE_TYPESCRIPT)
+</ADDITIONAL_METADATA>
+--- USER MSG ---
+<USER_REQUEST>
+STEP 6.1 â€” Purity Map & Utilities
+// purity.constants.ts â€” FIX-GAP-D-1 (v1.19)
+export const PURITY_MAP: Record<number, number> = {
+24: 99.9, 23: 95.8, 22: 91.6, 21: 87.5, // FIX-24K-PURITY-1 (v1.57): 99.9 is canonical
+karatToPercent(24) display value. percentToKarat() extended below to also accept 99.99 and 99.50 as 24K.
+20: 83.3, 18: 75.0, 14: 58.3, 10: 41.7, 9: 37.5,
+// NEW-3 FIX: 14K = 58.3 (14/24x100 = 58.333 -> 58.3) | FIX-SILVER-PURITY-1 (v1.46): percentToKarat()
+returns null for ALL silver purities (99.9%, 92.5%, 83.5%, 80.0%). Silver items ALWAYS stored with
+purityKarat=0. getDisplayPurity() for SILVER always shows percentage string (e.g. "92.5%"), NEVER karat
+label. Silver purity reference: 99.9%=Fine(999), 92.5%=Sterling(925), 83.5%=835-silver, 80.0%=800-silver.
+RULE: a silver item with purityPercent=92.5 gets purityKarat=0 at createItem(). karatToPercent() is a
+GOLD-ONLY function â€” DO NOT call with silver purity percentages. FIX-SILVER-PURITY-UI-1 (v1.56): UI LAYER
+WARNING â€” the item creation screen MUST NOT call karatToPercent() when metal === 'SILVER'. Doing so will
+throw INVALID_KARAT for any silver purity value. Always check metal before calling karatToPercent().
+getDisplayPurity() handles silver correctly and is safe to call for both metals.
+};
+// FIX-24K-PURITY-1 (v1.57): Extended reverse-lookup for 24K sub-variants.
+// PURITY_MAP[24] = 99.9 is the canonical value (karatToPercent display direction).
+// 99.99 (4-nine fine, investment grade) and 99.50 (BIS 995) are real BIS 24K
+// standards. They fall outside the 0.05 tolerance of percentToKarat() so
+// they are handled via explicit extended map checked first. 99.90 already
+// resolves correctly via tolerance (|99.9 - 99.90| = 0.0 < 0.05).
+export const PURITY_PERCENT_EXTENDED: Record<number, number> = {
+99.99: 24, // 4-nine fine gold â€” investment grade, BIS 9999
+99.50: 24, // BIS 995 â€” hallmarked 24K fine gold
+};
+// karatToPercent() â€” throws if karat not in map
+export function karatToPercent(karat: number): number {
+const pct = PURITY_MAP[karat];
+if (pct === undefined) throw new Error(`INVALID_KARAT: ${karat}`);
+return pct;
+}
+// percentToKarat() â€” checks PURITY_PERCENT_EXTENDED first (exact match), then PURITY_MAP (within 0.05%).
+Returns null if no match.
+export function percentToKarat(percent: number): number | null {
+// FIX-24K-PURITY-1 (v1.57): check extended map first (exact match)
+if (PURITY_PERCENT_EXTENDED[percent] !== undefined) return PURITY_PERCENT_EXTENDED[percent];
+// then fall through to PURITY_MAP tolerance check
+for (const [k, v] of Object.entries(PURITY_MAP)) {
+if (Math.abs(v - percent) < 0.05) return Number(k);
+}
+return null;
+}
+// getDisplayPurity() â€” UI DISPLAY LAYER ONLY. NEVER used in math.
+export function getDisplayPurity(purityPercent: number, purityKarat: number | null, metal: 'GOLD' |
+'SILVER'): string {
+if (metal === "GOLD" && purityKarat !== null && purityKarat > 0) return `${purityKarat}K`;
+return `${purityPercent}%`;
+}
+</USER_REQUEST>
+<ADDITIONAL_METADATA>
+The current local time is: 2026-06-13T16:09:53+05:30.
+
+The user's current state is as follows:
+Active Document: c:\VJBilling\services\skuEngine.ts (LANGUAGE_TYPESCRIPT)
+Cursor is on line: 1
+Other open documents:
+- c:\VJBilling\repositories\designCategoryMapRepository.ts (LANGUAGE_TYPESCRIPT)
+- c:\VJBilling\types\phase2.types.ts (LANGUAGE_TYPESCRIPT)
+- c:\VJBilling\drizzle\0002_phase2_inventory.sql (LANGUAGE_SQL)
+- c:\VJBilling\db\schema.ts (LANGUAGE_TYPESCRIPT)
+- c:\VJBilling\repositories\hsnMasterRepository.ts (LANGUAGE_TYPESCRIPT)
+</ADDITIONAL_METADATA>
+--- USER MSG ---
+<USER_REQUEST>
+STEP 6.5 â€” updateItem() Canonical Body (FIX-UPDATE-ITEM-BODY-1 v1.46)
+FIX-UPDATE-ITEM-BODY-1 (v1.46) â€” Problem Statement
+FIX-UPDATE-ITEM-1 (v1.45) declared updateItem() contract and ITEM_EDITED audit event
+but provided NO canonical service body. Developers had no reference for the guard
+sequence, UpdateableItemDraftFields type, or audit payload shape.
+RULES enforced by this body:
+ 1. DRAFT items ONLY. Non-DRAFT throws WEIGHT_EDIT_AFTER_DRAFT_FORBIDDEN.
+ 2. Weight fields (grossWeightMg, netWeightMg, fineWeightMg, fineGoldChargedMg)
+ are NOT editable here. Use adjustWeight() for weight changes on DRAFT items.
+ 3. metalSource, sku, barcode, id, firmId, createdAt â€” permanently excluded (type-level).
+ 4. categoryId, hsnCode â€” Phase 3+ scope (dedicated service functions).
+ 5. NO-OP contract: empty input or all-unchanged fields = no DB write, no audit row.
+ 6. ITEM_EDITED audit payload = sparse changes map: { field: { old, new } }.
+ Only changed fields are included. Unchanged fields omitted.
+// UpdateableItemDraftFields â€” TypeScript type (FIX-UPDATE-ITEM-BODY-1 v1.46)
+// DRAFT items only. Weight fields excluded â€” use adjustWeight().
+// categoryId and hsnCode excluded â€” Phase 3+ dedicated services.
+export type UpdateableItemDraftFields = Partial<{
+purityPercent: number; // re-assay correction
+purityKarat: number; // display karat correction
+primaryStoneId: string | null;
+location: string; // SHOP|LOCKER|KARIGAR|REFINERY|TRANSIT
+makingChargePaise: number | null;
+stoneCostPaise: number | null;
+purchaseRatePaise: number | null;
+// EXCLUDED: grossWeightMg, netWeightMg, fineWeightMg, fineGoldChargedMg â†’ adjustWeight()
+// EXCLUDED: wastagePercent â†’ adjustWeight() recalculates fineGoldChargedMg atomically
+// EXCLUDED: metalSource, sku, barcode, id, firmId, createdAt â†’ IMMUTABLE
+// EXCLUDED: categoryId â†’ Phase 3 reassignCategory()
+// EXCLUDED: hsnCode â†’ Phase 3 updateItemHsn()
+// EXCLUDED: invoiceId â†’ DORMANT, Phase 3 postInvoice() sole writer
+}>;
+// update
+<truncated 1434 bytes>
+ !== 'DRAFT') throw new Error('WEIGHT_EDIT_AFTER_DRAFT_FORBIDDEN');
+// Build sparse changes map â€” only fields whose value actually changed
+const changes: Record<string, { old: unknown; new: unknown }> = {};
+const updateData: Record<string, unknown> = { updatedAt: now() };
+for (const key of presentFields) {
+const oldVal = item[key as keyof Item];
+const newVal = (input as Record<string, unknown>)[key];
+if (oldVal !== newVal) {
+changes[key] = { old: oldVal, new: newVal };
+updateData[key] = newVal;
+}
+}
+// NO-OP: all submitted fields identical to current values
+if (Object.keys(changes).length === 0) return;
+await itemRepository.update(tx, itemId, updateData);
+// item_events row â€” ITEM_EDITED
+await itemEventRepository.insert(tx, {
+id: uuid(), itemId, firmId,
+eventType: 'ITEM_EDITED',
+severity: 'INFO',
+performedBy: getDeviceId(),
+reason: reason ?? null,
+oldValue: JSON.stringify(
+Object.fromEntries(Object.entries(changes).map(([k, v]) => [k, v.old]))
+),
+newValue: JSON.stringify(
+Object.fromEntries(Object.entries(changes).map(([k, v]) => [k, v.new]))
+),
+timestamp: now(),
+});
+// audit_logs row â€” ITEM_EDITED with sparse changes map
+await auditRepository.log(tx, {
+eventType: 'ITEM_EDITED',
+firmId,
+entityId: itemId,
+deviceId: getDeviceId(),
+payload: {
+itemId,
+sku: item.sku,
+// sparse map: { fieldName: { old, new } } â€” only changed fields
+changes,
+reason: reason ?? null,
+},
+});
+});
+}
+</USER_REQUEST>
+<ADDITIONAL_METADATA>
+The current local time is: 2026-06-13T16:11:55+05:30.
+
+The user's current state is as follows:
+Active Document: c:\VJBilling\utils\purity.constants.ts (LANGUAGE_TYPESCRIPT)
+Cursor is on line: 1
+Other open documents:
+- c:\VJBilling\repositories\designCategoryMapRepository.ts (LANGUAGE_TYPESCRIPT)
+- c:\VJBilling\types\phase2.types.ts (LANGUAGE_TYPESCRIPT)
+- c:\VJBilling\drizzle\0002_phase2_inventory.sql (LANGUAGE_SQL)
+- c:\VJBilling\utils\purity.constants.ts (LANGUAGE_TYPESCRIPT)
+- c:\VJBilling\services\skuEngine.ts (LANGUAGE_TYPESCRIPT)
+</ADDITIONAL_METADATA>
+--- USER MSG ---
+<USER_REQUEST>
+STEP 6.6 â€” Bulk Item Add: createItemsBulk() + UI Display Fields (FIX-BULK-1 +
+FIX-UI-TOTAL-1 v1.51 + FIX-PPG-DISPLAY-1 v1.52)
+// FIX-BULK-1 (v1.51): createItemsBulk() â€” Bulk add up to 50 items atomically.
+// GAP-I2 (v1.73): CROSS-BATCH SKU DEDUP â€” pass running nextSeq forward between loop iterations.
+// Do NOT call generateSKU() independently per item â€” two items in the same batch could compute
+// identical candidate SKUs if the sequence_counters row does not yet exist at batch start.
+// Pattern: 1 SELECT to get startSeq, then pass nextSeq = startSeq + i to each item, 1 final UPDATE.
+// This reduces 100 DB ops (50 SELECT + 50 UPDATE) to 1 SELECT + 1 UPDATE per batch.
+// (2) ALL items in ONE db.transaction() â€” atomic: all succeed or all roll back.
+// (3) Each item: generateSKU() called inside same tx â€” seq increments per item.
+// (4) Full validation pipeline per item (grossWeight, purity, net, HSN, category, design) BEFORE SKU.
+// (5) fineGoldChargedMg + purchaseRatePaise calculated per item â€” same rules as createItem().
+// (6) Each item gets own ITEM_CREATED audit_logs row + item_events CREATED row.
+// (7) Returns Item[] in insertion order.
+const BULK_ITEM_MAX = 50;
+async function createItemsBulk(inputs: CreateItemInput[], firmId: string): Promise<Item[]> {
+await assertNoActiveLease(); assertNotInSafeMode();
+if (inputs.length === 0) return [];
+if (inputs.length > BULK_ITEM_MAX) throw new Error('BULK_ITEM_MAX_EXCEEDED');
+return db.transaction(async (tx) => {
+const results: Item[] = [];
+for (const input of inputs) {
+// Full validation per item â€” same pipeline as createItem()
+const design = await designRepository.getById(tx, input.designId);
+if (!design || design.firmId !== firmId) throw new Error('DESIGN_NOT_FOUND_OR_WRONG_FIRM');
+const category = await categoryRepository.getById(tx, input.categoryId);
+if (!category || category.firmId !== firmId) throw new Error('CATEGORY_NOT_FOUND_OR_WRONG_FIRM');
+await hsnMasterRepository.findByCode(tx, firmId, input.hsnCo
+<truncated 1657 bytes>
+ityPercent, purityKarat: input.purityKarat,
+wastagePercent, fineGoldChargedMg, purchaseRatePaise: input.purchaseRatePaise ?? null,
+makingChargePaise: input.makingChargePaise ?? null, stoneCostPaise: input.stoneCostPaise ?? null,
+location: input.location ?? null, invoiceId: null, hsnCode: input.hsnCode,
+metalSource: input.metalSource ?? 'SUPPLIER_PURCHASE',
+barcodeReprintRequired: 0, status: 'DRAFT', createdAt: now(), updatedAt: now(),
+});
+await itemEventRepository.insert(tx, { id: uuid(), itemId: item.id, firmId,
+eventType: 'CREATED', severity: 'INFO', performedBy: getDeviceId(),
+reason: null, oldValue: null, newValue: null, timestamp: now() });
+await auditRepository.log(tx, { eventType: 'ITEM_CREATED', firmId, entityId: item.id,
+deviceId: getDeviceId(), payload: { sku, designId: item.designId,
+categoryId: item.categoryId, netWeightMg, fineWeightMg,
+wastagePercent, fineGoldChargedMg, purchaseRatePaise: item.purchaseRatePaise,
+purityPercent: item.purityPercent, hsnCode: item.hsnCode,
+metalSource: item.metalSource, bulkInsert: true }, });
+// FIX-DCM-CREATEITEM-BODY (v1.58): Insert into design_category_map per FIX-DCM-WRITE-1 (v1.46).
+INSERT OR IGNORE semantics.
+await designCategoryMapRepository.insert(tx, { id: uuid(), designId: item.designId, categoryId:
+item.categoryId, firmId, createdAt: now() });
+results.push(item);
+} // end for loop
+return results;
+}); // end transaction
+} // end createItemsBulk
+</USER_REQUEST>
+<ADDITIONAL_METADATA>
+The current local time is: 2026-06-13T16:14:27+05:30.
+
+The user's current state is as follows:
+Active Document: c:\VJBilling\utils\purity.constants.ts (LANGUAGE_TYPESCRIPT)
+Cursor is on line: 1
+Other open documents:
+- c:\VJBilling\utils\purity.constants.ts (LANGUAGE_TYPESCRIPT)
+- c:\VJBilling\services\skuEngine.ts (LANGUAGE_TYPESCRIPT)
+- c:\VJBilling\repositories\designCategoryMapRepository.ts (LANGUAGE_TYPESCRIPT)
+- c:\VJBilling\types\phase2.types.ts (LANGUAGE_TYPESCRIPT)
+- c:\VJBilling\drizzle\0002_phase2_inventory.sql (LANGUAGE_SQL)
+</ADDITIONAL_METADATA>
+--- USER MSG ---
+<USER_REQUEST>
+STEP 9-Lite â€” Inventory Screen Stock Summary Header
+(FEAT-STOCK-SUMMARY-1 v1.63)
+Scope: Read-only UI display layer. When the user opens Inventory, the top of the screen MUST display a stock summary
+widget showing total available gold stock and silver stock by net weight in grams, plus an INR value placeholder wired in
+Phase 3. Zero writes. Zero schema changes. Zero migration changes. Does NOT replace or conflict with the deferred STEP 9
+full aggregation layer (Phase 7 WAC consumer) â€” this step is narrower: UI display only, net weight by metal only,
+status=AVAILABLE only.
+ðŸ”µ FEAT-STOCK-SUMMARY-1 (v1.63) â€” Inventory Screen Stock Summary Header
+CONSTITUTIONAL BOUNDARY (mandatory):
+Phase 2 MUST NOT: Auto-update from market rates (constitutional rule, v1.26). Phase 2 MUST NOT call the
+Phase 3 Rate Engine or depend on it in any way. The INR total displayed in the stock summary header MUST
+show â‚¹ â€” as a placeholder until Phase 3 wires the rate. Phase 3 is the ONLY phase that may resolve a live
+metal rate and compute the INR total. This boundary is non-negotiable.
+SERVICE: getStockWeightSummary(firmId: string)
+Location: itemRepository.ts (read-only, no transaction required). firmId MUST be passed â€” constitutional rule
+RED-9: firmId is never optional. Returns: { goldNetWeightMg: number; goldPhantomDebtMg: number;
+goldBalanceMg: number; silverNetWeightMg: number; silverPhantomDebtMg: number; silverBalanceMg: number
+}. All values default to 0 when no items exist for that metal. FEAT-PHANTOM-INVENTORY-1 (v1.67):
+goldBalanceMg = goldNetWeightMg âˆ’ goldPhantomDebtMg (can be negative when phantom debt exceeds real
+stock). Only unreconciled phantoms (phantom_stock_id IS NULL) count as debt.
+SELECT metal, SUM(CASE WHEN status = 'AVAILABLE' THEN net_weight_mg ELSE 0 END) AS
+availableNetWeightMg, SUM(CASE WHEN status IN ('PHANTOM_AVAILABLE','PHANTOM_SOLD') AND
+phantom_stock_id IS NULL THEN net_weight_mg ELSE 0 END) AS phantomDebtMg
+FROM items WHERE firm_id = ? AND status IN (â€˜A
+<truncated 2666 bytes>
+D-10 separation law applies.
+Widget is NOT part of the FlatList â€” it sits above it as a fixed header component. estimatedItemSize rule (STEP
+1.5) does NOT apply to this widget. Stable key not required (single widget, not a list).
+ðŸ PHASE 3 TOUCH-POINT â€” INR Total (declared here, implemented in Phase 3):
+Phase 3 Rate Engine will provide goldRatePerGramPaise and silverRatePerGramPaise. Phase 3 MUST wire
+these into the Inventory header widget to compute: goldTotalValuePaise = Math.round((goldNetWeightMg / 1000)
+* goldRatePerGramPaise) and silverTotalValuePaise = Math.round((silverNetWeightMg / 1000) *
+silverRatePerGramPaise). Phase 3 replaces the â€œâ‚¹ â€”â€ placeholder with getCurrencySymbol() + (totalValuePaise
+/ 100).toFixed(2) per CURRENCY-DISPLAY-RULE (v1.54). Phase 2 widget MUST be structured to accept
+optional rate props so Phase 3 can inject them without restructuring the component. Math.round() MANDATORY
+â€” no float arithmetic per RED-6.
+RELATIONSHIP TO STEP 9 (DEFERRED):
+Step 9 (DEFERRED) is the full aggregation layer for Phase 7 WAC: fine weight by category, purchase value
+totals, karigar-in-transit count. It remains deferred pending Phase 7 WAC spec. Step 9-Lite is independent â€” a
+simpler, narrower read (net weight by metal, UI display only). Implementing Step 9-Lite does NOT unblock or
+replace Step 9. Step 9 deferral and its UNLOCK CONDITION (FIX-STEP9-UNLOCK-1 v1.56) remain unchanged.
+</USER_REQUEST>
+<ADDITIONAL_METADATA>
+The current local time is: 2026-06-13T16:19:14+05:30.
+
+The user's current state is as follows:
+Active Document: c:\VJBilling\utils\purity.constants.ts (LANGUAGE_TYPESCRIPT)
+Cursor is on line: 1
+Other open documents:
+- c:\VJBilling\drizzle\0002_phase2_inventory.sql (LANGUAGE_SQL)
+- c:\VJBilling\utils\purity.constants.ts (LANGUAGE_TYPESCRIPT)
+- c:\VJBilling\services\skuEngine.ts (LANGUAGE_TYPESCRIPT)
+- c:\VJBilling\repositories\designCategoryMapRepository.ts (LANGUAGE_TYPESCRIPT)
+- c:\VJBilling\types\phase2.types.ts (LANGUAGE_TYPESCRIPT)
+</ADDITIONAL_METADATA>
+--- USER MSG ---
+<USER_REQUEST>
+STEP 9-Lite Additions â€” GAP-3: Low Stock Threshold (FEAT-GAP3-LOWSTOCK-1 v1.66)
+SCHEMA ADDITION: lowStockThreshold on categories table
+// categories table â€” additional column (FEAT-GAP3-LOWSTOCK-1 v1.66)
+lowStockThreshold: integer('low_stock_threshold'), // nullable DEFAULT NULL
+// NULL = no threshold set. When set: AVAILABLE item count <= threshold triggers low-stock
+flag.
+// Migration: ALTER TABLE categories ADD COLUMN low_stock_threshold INTEGER DEFAULT NULL;
+SERVICE: getLowStockCategories(firmId: string)
+Location: services/inventoryDrillDownService.ts. Read-only. No transaction. firmId mandatory (RED-9).
+SELECT c.id, c.name, c.low_stock_threshold, COUNT(i.id) AS available_count
+FROM categories c LEFT JOIN items i ON i.category_id = c.id
+AND i.status = 'AVAILABLE' AND i.firm_id = ?
+WHERE c.firm_id = ? AND c.low_stock_threshold IS NOT NULL
+GROUP BY c.id HAVING available_count <= c.low_stock_threshold ORDER BY available_count ASC
+SERVICE: updateCategoryLowStockThreshold(categoryId, firmId, threshold: number | null)
+Dual Guard: assertNoActiveLease + assertNotInSafeMode. db.transaction(). firmId guard on category before
+update. Updates categories.lowStockThreshold. Writes CATEGORY_UPDATED audit event. threshold = null
+clears the threshold.
+UI: Screen A amber badge on category row when AVAILABLE count <= lowStockThreshold (threshold
+non-null). Badge label: "Low Stock". Phase 7 reporting consumes getLowStockCategories() for alert
+reports.
+
+</USER_REQUEST>
+<ADDITIONAL_METADATA>
+The current local time is: 2026-06-13T16:21:52+05:30.
+
+The user's current state is as follows:
+Active Document: c:\VJBilling\utils\purity.constants.ts (LANGUAGE_TYPESCRIPT)
+Cursor is on line: 1
+Other open documents:
+- c:\VJBilling\services\skuEngine.ts (LANGUAGE_TYPESCRIPT)
+- c:\VJBilling\repositories\designCategoryMapRepository.ts (LANGUAGE_TYPESCRIPT)
+- c:\VJBilling\types\phase2.types.ts (LANGUAGE_TYPESCRIPT)
+- c:\VJBilling\drizzle\0002_phase2_inventory.sql (LANGUAGE_SQL)
+- c:\VJBilling\utils\purity.constants.ts (LANGUAGE_TYPESCRIPT)
+</ADDITIONAL_METADATA>
+--- USER MSG ---
+<USER_REQUEST>
+STEP 9-Lite Additions â€” GAP-4: Metal Source-Wise Stock (FEAT-GAP4-METALSOURCE-1 v1.66)
+SERVICE: getStockByMetalSource(firmId: string): Promise<MetalSourceStockResult[]>
+Location: services/inventoryDrillDownService.ts. Read-only. No transaction. firmId mandatory (RED-9). Returns
+AVAILABLE items aggregated by metalSource + metal. Phase 6 origin reporting consumes this directly.
+SELECT metal_source AS metalSource, metal,
+SUM(net_weight_mg) AS totalNetWeightMg, COUNT(*) AS itemCount
+FROM items WHERE firm_id = ? AND status = 'AVAILABLE'
+GROUP BY metal_source, metal ORDER BY metal ASC, totalNetWeightMg DESC
+TYPE: MetalSourceStockResult (add to types/phase2.types.ts)
+export type MetalSourceStockResult = {
+metalSource: string; // e.g. 'PURCHASE' | 'KARIGAR' | 'CUSTOMER_OLD_GOLD' etc.
+metal: 'GOLD' | 'SILVER';
+totalNetWeightMg: number; // display: (totalNetWeightMg / 1000).toFixed(3) + ' g'
+itemCount: number;
+};
+Zero schema changes. Zero migration changes. Weight display: RULE-1A-WEIGHT-DISPLAY (v1.54). RED-10:
+never use fineGoldChargedMg in this aggregation â€” net weight only. RED-9: firmId mandatory.
+
+</USER_REQUEST>
+<ADDITIONAL_METADATA>
+The current local time is: 2026-06-13T16:24:48+05:30.
+
+The user's current state is as follows:
+Active Document: c:\VJBilling\utils\purity.constants.ts (LANGUAGE_TYPESCRIPT)
+Cursor is on line: 1
+Other open documents:
+- c:\VJBilling\repositories\designCategoryMapRepository.ts (LANGUAGE_TYPESCRIPT)
+- c:\VJBilling\types\phase2.types.ts (LANGUAGE_TYPESCRIPT)
+- c:\VJBilling\drizzle\0002_phase2_inventory.sql (LANGUAGE_SQL)
+- c:\VJBilling\utils\purity.constants.ts (LANGUAGE_TYPESCRIPT)
+- c:\VJBilling\services\skuEngine.ts (LANGUAGE_TYPESCRIPT)
+</ADDITIONAL_METADATA>
+--- USER MSG ---
+<USER_REQUEST>
+STEP 12 Addition â€” GAP-5: Old Gold Refinery Pending Report
+(FEAT-GAP5-REFINERYPENDING-1 v1.66)
+SERVICE: getPendingRefineryLots(firmId: string): Promise<OldGoldLot[]>
+Location: services/oldGoldLotService.ts (add to existing file). Read-only. No transaction. firmId mandatory
+(RED-9). Returns all old_gold_lots pending refinery action for the firm â€” status RECEIVED, PENDING, or
+SENT_TO_REFINERY. Phase 4 refinery yield workflow and URD reporting consume this list.
+SELECT * FROM old_gold_lots
+WHERE firm_id = ?
+AND status IN ('RECEIVED', 'PENDING', 'SENT_TO_REFINERY')
+ORDER BY created_at DESC
+Returns existing OldGoldLot[] type (no new type needed). Zero schema changes. Zero migration changes. Zero
+state machine changes. Weight display per RULE-1A-WEIGHT-DISPLAY (v1.54). Currency display per
+getCurrencySymbol() + toFixed(2) for any paise fields.
+</USER_REQUEST>
+<ADDITIONAL_METADATA>
+The current local time is: 2026-06-13T16:28:33+05:30.
+
+The user's current state is as follows:
+Active Document: c:\VJBilling\utils\purity.constants.ts (LANGUAGE_TYPESCRIPT)
+Cursor is on line: 1
+Other open documents:
+- c:\VJBilling\types\phase2.types.ts (LANGUAGE_TYPESCRIPT)
+- c:\VJBilling\drizzle\0002_phase2_inventory.sql (LANGUAGE_SQL)
+- c:\VJBilling\utils\purity.constants.ts (LANGUAGE_TYPESCRIPT)
+- c:\VJBilling\services\skuEngine.ts (LANGUAGE_TYPESCRIPT)
+- c:\VJBilling\repositories\designCategoryMapRepository.ts (LANGUAGE_TYPESCRIPT)
+</ADDITIONAL_METADATA>
+--- USER MSG ---
+<USER_REQUEST>
+STEP 10 Addition â€” GAP-6: Karigar Issued Items Summary (FEAT-GAP6-KARIGAR-SUMMARY-1
+v1.66)
+SERVICE: getKarigarIssuedItems(firmId: string): Promise<KarigarIssuedItem[]>
+Location: services/karigarService.ts (add to existing file). Read-only. No transaction. firmId mandatory (RED-9).
+Returns all items currently SENT_TO_KARIGAR for the firm, enriched with karigarName from the most recent
+ITEM_SENT_TO_KARIGAR audit log entry.
+SELECT items.id, items.sku, items.barcode, items.gross_weight_mg AS grossWeightMg,
+items.net_weight_mg AS netWeightMg, items.purity_percent AS purityPercent,
+items.purity_karat AS purityKarat, items.metal, items.updated_at AS updatedAt,
+designs.name AS designName, al.payload AS auditPayload
+FROM items JOIN designs ON designs.id = items.design_id
+LEFT JOIN audit_logs al ON al.entity_id = items.id
+AND al.event_type = 'ITEM_SENT_TO_KARIGAR' AND al.firm_id = items.firm_id
+AND al.timestamp = (SELECT MAX(al2.timestamp) FROM audit_logs al2 WHERE al2.entity_id =
+items.id AND al2.event_type = 'ITEM_SENT_TO_KARIGAR' AND al2.firm_id = items.firm_id) --
+FIX-KARIGAR-DUPES-1: correlated subquery returns most recent audit row only; prevents
+duplicate result rows for items sent to karigar multiple times
+WHERE items.firm_id = ? AND items.status = 'SENT_TO_KARIGAR'
+ORDER BY items.updated_at DESC
+TYPE: KarigarIssuedItem (add to types/phase2.types.ts)
+export type KarigarIssuedItem = {
+id: string; sku: string; barcode: string;
+designName: string;
+metal: 'GOLD' | 'SILVER'; purityPercent: number; purityKarat: number;
+grossWeightMg: number; netWeightMg: number;
+karigarName: string | null; // extracted from audit_logs payload JSON
+updatedAt: string; // ISO string â€” when item was sent to karigar
+};
+karigarName extracted at service layer: JSON.parse(al.auditPayload)?.karigarName ?? null. LEFT JOIN ensures
+row is included even if no audit log found (karigarName = null). Zero schema changes. Zero migration changes.
+Zero state machine changes. Weight display: RULE-1A-WEIGHT-DISPLAY (v1.54).
+
+</USER_REQUEST>
+<ADDITIONAL_METADATA>
+The current local time is: 2026-06-13T16:31:31+05:30.
+
+The user's current state is as follows:
+Active Document: c:\VJBilling\utils\purity.constants.ts (LANGUAGE_TYPESCRIPT)
+Cursor is on line: 1
+Other open documents:
+- c:\VJBilling\drizzle\0002_phase2_inventory.sql (LANGUAGE_SQL)
+- c:\VJBilling\utils\purity.constants.ts (LANGUAGE_TYPESCRIPT)
+- c:\VJBilling\services\skuEngine.ts (LANGUAGE_TYPESCRIPT)
+- c:\VJBilling\repositories\designCategoryMapRepository.ts (LANGUAGE_TYPESCRIPT)
+- c:\VJBilling\types\phase2.types.ts (LANGUAGE_TYPESCRIPT)
+</ADDITIONAL_METADATA>
+--- USER MSG ---
+<USER_REQUEST>
+STEP 10 â€” Stock Status State Machine
+ðŸ”´ CONTRA-2 (v1.15) â€” RETURNED State Machine Corrected
+RETURNED is NOT unreachable dead code.
+Phase 3 restoreItemFromSale() transitions SOLD -> RETURNED.
+Phase 3 approveReturnedItem() transitions RETURNED -> AVAILABLE.
+FIX: RETURNED: ['AVAILABLE'] â€” transition defined.
+// P4-FIX-1 (v1.9) + CONTRA-2 (v1.15)
+const ALLOWED_TRANSITIONS: Record<StockStatus, StockStatus[]> = {
+DRAFT: ['AVAILABLE', 'DAMAGED'],
+AVAILABLE: ['SOLD', 'SENT_TO_REFINERY', 'DAMAGED'], // FIX-AVAILABLE-KARIGAR-1 (v1.46):
+SENT_TO_KARIGAR is NOT reachable from AVAILABLE â€” only from DAMAGED. sendToKarigar() enforces item.status
+=== 'DAMAGED'. FIX-AVAILABLE-KARIGAR-1-CLARIFY (v1.71): prior wording was ambiguous.
+// FIX-SM-1 (v1.17): SOLD->RETURNED is a Phase 3 direct-write exception.
+// Phase 3 restoreItemFromSale() writes RETURNED via itemRepository.updateStatus()
+// directly â€” bypasses Phase 2 updateItemStatus() because SOLD is terminal here.
+SOLD: [], // Terminal in Phase 2
+SENT_TO_REFINERY: ['MELTED', 'SENT_TO_MELT'],
+SENT_TO_MELT: ['MELTED'],
+MELTED: [], // Terminal
+DAMAGED: ['SENT_TO_KARIGAR', 'RETURNED'], // FIX-DMG-1 v1.32: NOT terminal. SENT_TO_REFINERY is
+FORBIDDEN from DAMAGED directly â€” karigar step is MANDATORY. Only valid paths: repair (SENT_TO_KARIGAR) or
+supplier return (RETURNED).
+RETURNED: ['AVAILABLE'], // CONTRA-2: Phase 3 sets, Phase 2 permits ->AVAILABLE
+// FIX-DMG-1 (v1.32): SENT_TO_KARIGAR â€” DAMAGED item sent to karigar for repair.
+// If repaired -> AVAILABLE. If cannot be repaired -> SENT_TO_REFINERY for melt. Or RETURNED to supplier.
+SENT_TO_KARIGAR: ['AVAILABLE', 'SENT_TO_REFINERY', 'DAMAGED'], // repaired->AVAILABLE |
+unrepairable->SENT_TO_REFINERY | back->DAMAGED (loop guard: sendToKarigar() MUST count prior
+ITEM_SENT_TO_KARIGAR events and throw KARIGAR_LOOP_LIMIT_EXCEEDED if >= 3) // FEAT-PHANTOM-INVENTORY-1
+(v1.67): Phantom states are managed exclusively by createPhantomItem() and // reconcilePhantomItem(). They
+MUST NOT e
+<truncated 2535 bytes>
+n (melt or
+return to supplier).
+RED LINE: NEVER transition DAMAGED â†’ MELTED directly. DAMAGED â†’ SENT_TO_REFINERY is also
+FORBIDDEN.
+The SENT_TO_KARIGAR step is MANDATORY before any melt path for damaged items.
+New StockStatus values added (FIX-DMG-1 v1.32):
+SENT_TO_KARIGAR: item is with karigar for damage assessment/repair.
+AUDIT: ITEM_SENT_TO_KARIGAR (sent), ITEM_RETURNED_FROM_KARIGAR (returned with outcome
+reason).
+OUTCOME field MUST be provided when transitioning out of SENT_TO_KARIGAR:
+'REPAIRED' | 'UNREPAIRABLE' | 'PARTIALLY_REPAIRED'
+// GAP-3 (v1.15) â€” Full canonical implementation
+async function discardDraftItem(itemId: string, firmId: string): Promise<void> {
+await assertNoActiveLease(); // GUARD 1
+assertNotInSafeMode(); // GUARD 2
+return db.transaction(async (tx) => {
+const item = await itemRepository.getById(tx, itemId); // FIX-GETBYID-TX-1 (v1.56): tx overload
+required inside transaction
+if (!item || item.firmId !== firmId) throw new Error('ITEM_NOT_FOUND_OR_WRONG_FIRM');
+if (item.status !== 'DRAFT') throw new Error('ITEM_NOT_DRAFT');
+// CRITICAL ORDER: itemEvents MUST be deleted before item (FK constraint)
+await itemEventRepository.deleteByItemId(tx, itemId);
+await itemRepository.delete(tx, itemId);
+await auditRepository.log(tx, {
+eventType: 'DRAFT_ITEM_DISCARDED', firmId, entityId: itemId,
+deviceId: getDeviceId(), payload: { sku: item.sku, designId: item.designId },
+});
+});
+}
+</USER_REQUEST>
+<ADDITIONAL_METADATA>
+The current local time is: 2026-06-13T16:34:28+05:30.
+
+The user's current state is as follows:
+Active Document: c:\VJBilling\utils\purity.constants.ts (LANGUAGE_TYPESCRIPT)
+Cursor is on line: 1
+Other open documents:
+- c:\VJBilling\drizzle\0002_phase2_inventory.sql (LANGUAGE_SQL)
+- c:\VJBilling\utils\purity.constants.ts (LANGUAGE_TYPESCRIPT)
+- c:\VJBilling\services\skuEngine.ts (LANGUAGE_TYPESCRIPT)
+- c:\VJBilling\repositories\designCategoryMapRepository.ts (LANGUAGE_TYPESCRIPT)
+- c:\VJBilling\types\phase2.types.ts (LANGUAGE_TYPESCRIPT)
+</ADDITIONAL_METADATA>
+--- USER MSG ---
+<USER_REQUEST>
+STEP 10.6 â€” Update Item Status: updateItemStatus()
+async function updateItemStatus(
+itemId: string, firmId: string, newStatus: StockStatus, reason?: string
+): Promise<void> {
+await assertNoActiveLease(); assertNotInSafeMode();
+return db.transaction(async (tx) => {
+const item = await itemRepository.getById(tx, itemId); // FIX-GETBYID-TX-1 (v1.56): tx overload
+required inside transaction
+if (!item || item.firmId !== firmId) throw new Error('ITEM_NOT_FOUND_OR_WRONG_FIRM');
+const allowed = ALLOWED_TRANSITIONS[item.status];
+if (!allowed.includes(newStatus))
+throw new Error(`INVALID_TRANSITION: ${item.status} -> ${newStatus}`);
+const oldStatus = item.status;
+await itemRepository.updateStatus(tx, firmId, itemId, newStatus);
+await itemEventRepository.insert(tx, {
+id: uuid(), itemId, firmId, eventType: 'ITEM_STATUS_CHANGED', severity: 'INFO',
+performedBy: getDeviceId(), reason: reason ?? null,
+oldValue: oldStatus, newValue: newStatus, timestamp: now(),
+});
+await auditRepository.log(tx, {
+eventType: 'ITEM_STATUS_CHANGED', firmId, entityId: itemId,
+deviceId: getDeviceId(), payload: { itemId, oldStatus, newStatus, sku: item.sku },
+});
+});
+}
+</USER_REQUEST>
+<ADDITIONAL_METADATA>
+The current local time is: 2026-06-13T16:36:40+05:30.
+
+The user's current state is as follows:
+Active Document: c:\VJBilling\utils\purity.constants.ts (LANGUAGE_TYPESCRIPT)
+Cursor is on line: 1
+Other open documents:
+- c:\VJBilling\utils\purity.constants.ts (LANGUAGE_TYPESCRIPT)
+- c:\VJBilling\services\skuEngine.ts (LANGUAGE_TYPESCRIPT)
+- c:\VJBilling\repositories\designCategoryMapRepository.ts (LANGUAGE_TYPESCRIPT)
+- c:\VJBilling\types\phase2.types.ts (LANGUAGE_TYPESCRIPT)
+- c:\VJBilling\drizzle\0002_phase2_inventory.sql (LANGUAGE_SQL)
+</ADDITIONAL_METADATA>
+--- USER MSG ---
+<USER_REQUEST>
+STEP 10.7 â€” Karigar Services: sendToKarigar() + returnFromKarigar()
+ðŸ”´ FIX-SERVICE-BODY-1 (v1.35) â€” sendToKarigar() + returnFromKarigar() Canonical
+Implementations
+PROBLEM: FIX-SERVICE-1 (v1.33) declared dedicated karigar service functions but provided NO canonical
+bodies.
+Developers had no reference for: loop guard count query, OUTCOME field enforcement, audit payload shape.
+FIX: Full canonical bodies added below. Both functions replace updateItemStatus() for karigar transitions.
+KARIGAR_LOOP_LIMIT_EXCEEDED guard uses itemEventRepository.countByItemIdAndEventType().
+returnFromKarigar() enforces OUTCOME field: REPAIRED | UNREPAIRABLE | PARTIALLY_REPAIRED.
+// sendToKarigar() â€” Canonical Service Body (FIX-SERVICE-BODY-1 v1.35)
+// MUST be called for DAMAGED â†’ SENT_TO_KARIGAR transition ONLY.
+// NEVER call updateItemStatus() for this transition â€” karigar loop guard is here.
+async function sendToKarigar(
+itemId: string, firmId: string, karigarName: string, reason: string
+): Promise<void> {
+await assertNoActiveLease(); // GUARD 1
+assertNotInSafeMode(); // GUARD 2
+return db.transaction(async (tx) => {
+const item = await itemRepository.getById(tx, itemId); // FIX-GETBYID-TX-1 (v1.56): tx overload
+required inside transaction
+if (!item || item.firmId !== firmId) throw new Error('ITEM_NOT_FOUND_OR_WRONG_FIRM');
+// Only DAMAGED items may be sent to karigar
+if (item.status !== 'DAMAGED') throw new Error('INVALID_TRANSITION: must be DAMAGED to send to
+karigar');
+// FIX-LOOP-1 (v1.33): Loop guard â€” count prior ITEM_SENT_TO_KARIGAR events
+// If count >= 3, force decision: melt (SENT_TO_REFINERY) or return to supplier (RETURNED)
+const priorKarigarCount = await itemEventRepository.countByItemIdAndEventType(
+tx, itemId, 'ITEM_SENT_TO_KARIGAR'
+);
+if (priorKarigarCount >= 3) throw new Error('KARIGAR_LOOP_LIMIT_EXCEEDED');
+await itemRepository.updateStatus(tx, firmId, itemId, 'SENT_TO_KARIGAR');
+await itemEventRepository.insert(tx, {
+id: uuid(), itemId, firmId, eventType: 'I
+<truncated 1331 bytes>
+t itemRepository.getById(tx, itemId); // FIX-GETBYID-TX-1 (v1.56): tx overload
+required inside transaction
+if (!item || item.firmId !== firmId) throw new Error('ITEM_NOT_FOUND_OR_WRONG_FIRM');
+if (item.status !== 'SENT_TO_KARIGAR')
+throw new Error('INVALID_TRANSITION: item must be SENT_TO_KARIGAR to return from karigar');
+// Validate nextStatus is in ALLOWED_TRANSITIONS[SENT_TO_KARIGAR]
+const allowed = ALLOWED_TRANSITIONS['SENT_TO_KARIGAR'];
+if (!allowed.includes(nextStatus))
+throw new Error(`INVALID_TRANSITION: SENT_TO_KARIGAR -> ${nextStatus}`);
+await itemRepository.updateStatus(tx, firmId, itemId, nextStatus);
+await itemEventRepository.insert(tx, {
+id: uuid(), itemId, firmId, eventType: 'ITEM_RETURNED_FROM_KARIGAR', severity: 'INFO',
+performedBy: getDeviceId(), reason: reason ?? null,
+oldValue: 'SENT_TO_KARIGAR', newValue: nextStatus, timestamp: now(),
+});
+await auditRepository.log(tx, {
+eventType: 'ITEM_RETURNED_FROM_KARIGAR', firmId, entityId: itemId,
+deviceId: getDeviceId(),
+payload: { itemId, sku: item.sku, outcome, nextStatus, karigarName, reason: reason ?? null },
+});
+});
+}
+// itemEventRepository â€” additional method required for loop guard (FIX-SERVICE-BODY-1 v1.35)
+// Add to itemEventRepository.ts:
+countByItemIdAndEventType(
+tx: DrizzleTransaction, itemId: string, eventType: ItemEventType
+): Promise<number>
+// SQL: SELECT COUNT(*) FROM item_events WHERE item_id = ? AND event_type = ?
+</USER_REQUEST>
+<ADDITIONAL_METADATA>
+The current local time is: 2026-06-13T16:40:17+05:30.
+
+The user's current state is as follows:
+Active Document: c:\VJBilling\utils\purity.constants.ts (LANGUAGE_TYPESCRIPT)
+Cursor is on line: 1
+Other open documents:
+- c:\VJBilling\utils\purity.constants.ts (LANGUAGE_TYPESCRIPT)
+- c:\VJBilling\services\skuEngine.ts (LANGUAGE_TYPESCRIPT)
+- c:\VJBilling\repositories\designCategoryMapRepository.ts (LANGUAGE_TYPESCRIPT)
+- c:\VJBilling\types\phase2.types.ts (LANGUAGE_TYPESCRIPT)
+- c:\VJBilling\drizzle\0002_phase2_inventory.sql (LANGUAGE_SQL)
+</ADDITIONAL_METADATA>
+--- USER MSG ---
+<USER_REQUEST>
+STEP 12 â€” Old Gold Lot
+// BLOCK-4 (v1.15): old_gold_lots schema
+export const oldGoldLots = sqliteTable('old_gold_lots', {
+id: text('id').primaryKey(),
+firmId: text('firm_id').notNull(),
+receivedFrom: text('received_from').notNull(),
+receivedDate: text('received_date').notNull(), // ISO date YYYY-MM-DD
+grossWeightMg: integer('gross_weight_mg').notNull(),
+purityPercent: real('purity_percent').notNull(),
+metalSource: text('metal_source').notNull().default('CUSTOMER'),
+notes: text('notes'),
+// P4-FIX-1b (v1.10) + ALIGN-FIX-2 (v1.11)
+status: text('status', {
+enum: ['RECEIVED','PENDING','SENT_TO_REFINERY','SETTLED','SENT_TO_MELT','ISSUED_TO_KARIGAR']
+}).notNull().default('RECEIVED'),
+createdAt: text('created_at').notNull(),
+updatedAt: text('updated_at').notNull(),
+customerId: text('customer_id'), // FIX-OLDGOLD-CUSTOMER-1 (v1.49): nullable FK â†’
+customers.id. Nullable â€” lots from karigar or melt output have no customer.
+// FIX-OLDGOLD-COST-1 (v1.51): Cost fields added â€” mirrors URD purchase cost model. // fineWeightMg:
+auto-calculated at createOldGoldLot() = round(grossWeightMg * purityPercent / 100). // NEVER used in metal
+balance. Stored for UI display and Phase 7 profit/loss reference. fineWeightMg:
+integer('fine_weight_mg').notNull().default(0), // purchaseRatePaise: manual rate entered by user (paise
+per gram). Nullable â€” may not be known at lot creation time. purchaseRatePaise:
+integer('purchase_rate_paise'), // nullable â€” paise per gram // totalAmountPaise: auto-calculated =
+round((fineWeightMg / 1000) * purchaseRatePaise). Null if purchaseRatePaise is null. totalAmountPaise:
+integer('total_amount_paise'), // nullable â€” computed at insert time
+}, (table) => ({
+firmFk: foreignKey({ columns: [table.firmId], foreignColumns: [firms.id] }),
+}));
+// DOMAIN-FIX-1 (v1.22): RECEIVED->ISSUED_TO_KARIGAR is ONLY valid for MELT_OUTPUT lots.
+// Raw old gold (CUSTOMER/CUSTOMER_OLD_GOLD) must go through melt batch first.
+// State machine permits the transition; metalSource guard enforced at service layer.
+const VALID_LOT_TRANSITIONS: Record<OldGoldLotStatus, OldGoldLotStatus[]> = {
+RECEIVED: ['PENDING', 'SENT_TO_MELT', 'ISSUED_TO_KARIGAR'],
+PENDING: ['SENT_TO_REFINERY', 'RECEIVED'], // back-transition allowed
+SENT_TO_REFINERY: ['SETTLED'],
+SENT_TO_MELT: [], // Terminal â€” lot consumed into melt batch
+ISSUED_TO_KARIGAR: ['RECEIVED'],
+SETTLED: [], // Terminal
+};
+// oldGoldLotRepository â€” SEARCH-1 (v1.13) + DOMAIN-FIX-1 (v1.22) + FIX-IDX-3 (v1.25)
+insert(tx, data): Promise<OldGoldLot>
+getById(id): Promise<OldGoldLot | null>
+findByFirmId(firmId): Promise<OldGoldLot[]>
+updateStatus(tx, firmId, id, status): Promise<void>
+// DOMAIN-FIX-1 (v1.22): filters metal_source = 'MELT_OUTPUT' only
+// FIX-IDX-3 (v1.25): idx_old_gold_lots_firm upgraded to (firm_id, status, metal_source)
+// â€” all 3 filter columns now index-covered. Prior index left metal_source as post-scan.
+// SQL: WHERE firm_id = ? AND status = 'RECEIVED' AND metal_source = 'MELT_OUTPUT'
+// Phase 4 MUST call this â€” must NOT write its own query against old_gold_lots.
+findAvailableForIssuance(firmId: string): Promise<OldGoldLot[]>
+
+</USER_REQUEST>
+<ADDITIONAL_METADATA>
+The current local time is: 2026-06-13T16:42:29+05:30.
+
+The user's current state is as follows:
+Active Document: c:\VJBilling\utils\purity.constants.ts (LANGUAGE_TYPESCRIPT)
+Cursor is on line: 1
+Other open documents:
+- c:\VJBilling\utils\purity.constants.ts (LANGUAGE_TYPESCRIPT)
+- c:\VJBilling\services\skuEngine.ts (LANGUAGE_TYPESCRIPT)
+- c:\VJBilling\repositories\designCategoryMapRepository.ts (LANGUAGE_TYPESCRIPT)
+- c:\VJBilling\types\phase2.types.ts (LANGUAGE_TYPESCRIPT)
+- c:\VJBilling\drizzle\0002_phase2_inventory.sql (LANGUAGE_SQL)
+</ADDITIONAL_METADATA>
+--- USER MSG ---
+<USER_REQUEST>
+STEP 12.6 â€” Old Gold Lot Services: createOldGoldLot() + updateOldGoldLotStatus()
+ðŸ”´ FIX-OLDGOLD-BODY-1 (v1.35) â€” createOldGoldLot() + updateOldGoldLotStatus() Canonical
+Implementations
+PROBLEM: Step 12 defined the oldGoldLots schema and state machine but provided NO service bodies.
+Step Check guarantee listed createOldGoldLot as 'specified' â€” this was incorrect. No canonical body existed.
+updateOldGoldLotStatus() also missing â€” DOMAIN-FIX-1 metalSource guard had no implementation anchor.
+FIX: Full canonical bodies added. createOldGoldLot() mirrors createGemstoneLot() pattern.
+updateOldGoldLotStatus() enforces DOMAIN-FIX-1: RECEIVEDâ†’ISSUED_TO_KARIGAR ONLY for
+MELT_OUTPUT lots.
+// createOldGoldLot() â€” Canonical Service Body (FIX-OLDGOLD-BODY-1 v1.35)
+async function createOldGoldLot(
+input: CreateOldGoldLotInput, firmId: string
+): Promise<OldGoldLot> {
+await assertNoActiveLease(); // GUARD 1
+assertNotInSafeMode(); // GUARD 2
+// Input validation
+if (input.grossWeightMg <= 0) throw new Error('OLD_GOLD_GROSS_WEIGHT_INVALID');
+if (input.purityPercent <= 0 || input.purityPercent > 100)
+throw new Error('OLD_GOLD_PURITY_PERCENT_INVALID'); // FIX-OLDGOLD-COST-1 (v1.51): Calculate derived
+cost fields const fineWeightMg = Math.round(input.grossWeightMg * input.purityPercent / 100); const
+totalAmountPaise = input.purchaseRatePaise ? Math.round((fineWeightMg / 1000) * input.purchaseRatePaise)
+: null; // null when no rate provided
+return db.transaction(async (tx) => {
+const lot = await oldGoldLotRepository.insert(tx, {
+id: uuid(),
+firmId,
+receivedFrom: input.receivedFrom, fineWeightMg, //
+FIX-OLDGOLD-COST-1 (v1.51) purchaseRatePaise: input.purchaseRatePaise ?? null, totalAmountPaise,
+receivedDate: input.receivedDate,
+grossWeightMg: input.grossWeightMg,
+purityPercent: input.purityPercent,
+metalSource: input.metalSource ?? 'CUSTOMER',
+customerId: input.customerId ?? null, // FIX-OLDGOLD-CUSTOMER-1 (v1.49): wire customerId from
+input into lot row
+notes: input.notes ?? n
+<truncated 500 bytes>
+ise: lot.totalAmountPaise,
+},
+});
+return lot;
+});
+}
+// updateOldGoldLotStatus() â€” Canonical Service Body (FIX-OLDGOLD-BODY-1 v1.35)
+// DOMAIN-FIX-1 (v1.22): RECEIVEDâ†’ISSUED_TO_KARIGAR ONLY valid for MELT_OUTPUT lots.
+// Raw customer gold must go through melt batch first.
+async function updateOldGoldLotStatus(
+lotId: string, firmId: string, newStatus: OldGoldLotStatus, reason?: string
+): Promise<void> {
+await assertNoActiveLease(); // GUARD 1
+assertNotInSafeMode(); // GUARD 2
+return db.transaction(async (tx) => {
+const lot = await oldGoldLotRepository.getById(lotId);
+if (!lot || lot.firmId !== firmId) throw new Error('OLD_GOLD_LOT_NOT_FOUND_OR_WRONG_FIRM');
+// State machine check
+const allowed = VALID_LOT_TRANSITIONS[lot.status];
+if (!allowed.includes(newStatus))
+throw new Error(`INVALID_LOT_TRANSITION: ${lot.status} -> ${newStatus}`);
+// DOMAIN-FIX-1 (v1.22): ISSUED_TO_KARIGAR guard â€” metalSource MUST be MELT_OUTPUT
+if (newStatus === 'ISSUED_TO_KARIGAR' && lot.metalSource !== 'MELT_OUTPUT')
+throw new Error('ISSUED_TO_KARIGAR_REQUIRES_MELT_OUTPUT: raw customer gold must be melted first');
+const oldStatus = lot.status;
+await oldGoldLotRepository.updateStatus(tx, firmId, lotId, newStatus);
+await auditRepository.log(tx, {
+eventType: 'OLD_GOLD_LOT_STATUS_CHANGED', firmId, entityId: lotId,
+deviceId: getDeviceId(),
+payload: { lotId, oldStatus, newStatus, reason: reason ?? null },
+});
+});
+}
+
+</USER_REQUEST>
+<ADDITIONAL_METADATA>
+The current local time is: 2026-06-13T16:46:38+05:30.
+
+The user's current state is as follows:
+Active Document: c:\VJBilling\utils\purity.constants.ts (LANGUAGE_TYPESCRIPT)
+Cursor is on line: 1
+Other open documents:
+- c:\VJBilling\utils\purity.constants.ts (LANGUAGE_TYPESCRIPT)
+- c:\VJBilling\services\skuEngine.ts (LANGUAGE_TYPESCRIPT)
+- c:\VJBilling\repositories\designCategoryMapRepository.ts (LANGUAGE_TYPESCRIPT)
+- c:\VJBilling\types\phase2.types.ts (LANGUAGE_TYPESCRIPT)
+- c:\VJBilling\drizzle\0002_phase2_inventory.sql (LANGUAGE_SQL)
+</ADDITIONAL_METADATA>
+--- USER MSG ---
+<USER_REQUEST>
+STEP 12.7 â€” old_gold_lots: customerId FK + URD Philosophy
+FIX-OLDGOLD-CUSTOMER-1 (v1.49): customerId column added to old_gold_lots. FIX-URD-1 (v1.49): URD Purchase
+distinguished from Old Gold exchange. Both feed inventory as old gold, both link to customerId. URD is a standalone
+cash/bank purchase from customer; Old Gold is exchange inside a sale invoice.
+ðŸ”´ FIX-OLDGOLD-CUSTOMER-1 (v1.49) â€” customerId FK missing from old_gold_lots
+PROBLEM: old_gold_lots.receivedFrom was a free-text string. No FK to customers table. Old gold received as
+exchange in a sale â€” or bought via URD purchase â€” could not be traced back to a customer. Customer profile
+showed no linked gold transactions.
+FIX: customerId TEXT nullable column added to old_gold_lots with FK -> customers.id. NULLABLE because
+walk-in gold (no customer record) is valid. When old gold comes from a sale exchange: customerId = sale
+invoice's customerId (set by Phase 3 createOldGoldInSale()). When old gold comes from URD purchase:
+customerId = urd_purchases.customerId (set by createURDPurchase()). receivedFrom (free-text) retained as
+human-readable name snapshot â€” NOT removed.
+Phase 3 createOldGoldInSale() MUST be updated: pass customerId from the sale invoice into the old gold lot.
+Phase 3 touch-point: createOldGoldInSale(tx, { ..., customerId: invoice.customerId }).
+</USER_REQUEST>
+<ADDITIONAL_METADATA>
+The current local time is: 2026-06-13T16:49:06+05:30.
+
+The user's current state is as follows:
+Active Document: c:\VJBilling\utils\purity.constants.ts (LANGUAGE_TYPESCRIPT)
+Cursor is on line: 1
+Other open documents:
+- c:\VJBilling\repositories\designCategoryMapRepository.ts (LANGUAGE_TYPESCRIPT)
+- c:\VJBilling\types\phase2.types.ts (LANGUAGE_TYPESCRIPT)
+- c:\VJBilling\drizzle\0002_phase2_inventory.sql (LANGUAGE_SQL)
+- c:\VJBilling\utils\purity.constants.ts (LANGUAGE_TYPESCRIPT)
+- c:\VJBilling\services\skuEngine.ts (LANGUAGE_TYPESCRIPT)
+</ADDITIONAL_METADATA>
+--- USER MSG ---
+<USER_REQUEST>
+STEP 12.8 â€” Old Gold vs URD Purchase: Architectural Distinction
+OLD GOLD / URD DISTINCTION (LOCKED â€” v1.49)
+OLD GOLD (Exchange inside Sale Invoice)
+Customer brings old jewellery/gold as part-payment when buying new jewellery. Recorded as
+oldGoldDeductionPaise on the sale invoice. Creates one old_gold_lots row (metalSource: 'CUSTOMER',
+customerId: invoice.customerId). Goes into inventory as raw old gold stock lot. Handled by Phase 3
+createOldGoldInSale() â€” NOT a separate transaction. No separate bill generated for old gold exchange â€” it
+appears on the sale invoice.
+URD PURCHASE (Standalone Purchase from Unregistered Customer)
+Shop buys old gold/jewellery directly from a customer (walk-in seller). No sale invoice involved â€” this is a
+PURCHASE transaction. Customer is paid in cash or bank transfer (MONEY_OUT from shop). Creates one
+urd_purchases row + one old_gold_lots row (metalSource: 'CUSTOMER', customerId: urd.customerId).
+Generates a printable URD Purchase Bill (legal requirement under GST for unregistered dealer purchases).
+Customer details â€” name, address, mobile, Aadhaar (optional), PAN (optional) â€” captured on bill. Handled by
+Phase 2 createURDPurchase() service defined in STEP 12.9.
+INVENTORY RESULT â€” BOTH PATHS:
+Both Old Gold exchange and URD Purchase result in a row in old_gold_lots with metalSource: 'CUSTOMER'.
+Both rows carry customerId FK. Both are tracked under the same inventory pipeline: RECEIVED -> PENDING
+-> SENT_TO_MELT -> (melt batch) -> MELT_OUTPUT -> ISSUED_TO_KARIGAR or SENT_TO_REFINERY.
+</USER_REQUEST>
+<ADDITIONAL_METADATA>
+The current local time is: 2026-06-13T16:50:19+05:30.
+
+The user's current state is as follows:
+Active Document: c:\VJBilling\utils\purity.constants.ts (LANGUAGE_TYPESCRIPT)
+Cursor is on line: 1
+Other open documents:
+- c:\VJBilling\types\phase2.types.ts (LANGUAGE_TYPESCRIPT)
+- c:\VJBilling\drizzle\0002_phase2_inventory.sql (LANGUAGE_SQL)
+- c:\VJBilling\utils\purity.constants.ts (LANGUAGE_TYPESCRIPT)
+- c:\VJBilling\services\skuEngine.ts (LANGUAGE_TYPESCRIPT)
+- c:\VJBilling\repositories\designCategoryMapRepository.ts (LANGUAGE_TYPESCRIPT)
+</ADDITIONAL_METADATA>
+--- USER MSG ---
+<USER_REQUEST>
+STEP 12.9 â€” URD Purchase Schema: urd_purchases table
+// FIX-URD-1 (v1.49): urd_purchases table â€” standalone purchase of old gold/jewellery from unregistered
+customer
+export const urdPurchases = sqliteTable('urd_purchases', {
+id: text('id').primaryKey(),
+firmId: text('firm_id').notNull(),
+fyId: text('fy_id').notNull(),
+// Auto-generated sequence: URD/2024-25/0001
+urdNumber: text('urd_number'), // null until CONFIRMED
+purchaseDate: text('purchase_date').notNull(), // ISO date YYYY-MM-DD
+// Customer linkage â€” customerId nullable (walk-in with no existing record allowed)
+// When customerId is set, snapshot fields MUST still be populated (legal document requirement)
+customerId: text('customer_id'), // nullable FK -> customers.id
+// Customer snapshot â€” captured at time of purchase, NEVER re-read from customers table
+customerName: text('customer_name').notNull(),
+customerAddress: text('customer_address'),
+customerMobile: text('customer_mobile'),
+customerAadhaar: text('customer_aadhaar'), // OPTIONAL â€” no validation enforced
+customerPAN: text('customer_pan'), // OPTIONAL â€” no validation enforced
+// Metal details
+metalType: text('metal_type').notNull(), // 'GOLD' | 'SILVER'
+grossWeightMg: integer('gross_weight_mg').notNull(),
+purityPercent: real('purity_percent').notNull(),
+fineWeightMg: integer('fine_weight_mg').notNull(),
+// fineWeightMg = Math.round(grossWeightMg * purityPercent / 100)
+// Pricing
+ratePerGramPaise: integer('rate_per_gram_paise').notNull(),
+totalValuePaise: integer('total_value_paise').notNull(),
+// totalValuePaise = Math.round((fineWeightMg / 1000) * ratePerGramPaise)
+// Payment â€” shop pays the customer (MONEY_OUT)
+paymentMode: text('payment_mode').notNull(), // 'CASH' | 'BANK' | 'UPI'
+bankAccountId: text('bank_account_id'), // nullable; REQUIRED if BANK or UPI
+// Inventory linkage â€” created atomically with this purchase
+oldGoldLotId: text('old_gold_lot_id').notNull(), // FK -> old_gold_lots.id
+status: text('status', {
+enum: ['DRAFT', 'CO
+<truncated 1191 bytes>
+n enforced at DB or service layer. UI
+may show a soft warning if both are absent on purchases above Rs 50,000 (GST threshold advisory only â€”
+NOT a hard block).
+bankAccountId MUST be non-null if paymentMode is BANK or UPI. bankAccountId MUST be null if
+paymentMode is CASH. Same rule as recordPayment() in Phase 3 â€” throw
+URD_BANK_ACCOUNT_REQUIRED if violated.
+oldGoldLotId is REQUIRED and created atomically inside the same db.transaction(). The URD purchase row
+and the old_gold_lots row are created together or not at all.
+status DRAFT: urdNumber is null, inventory lot created but no MONEY_OUT emitted. status CONFIRMED:
+urdNumber assigned from sequence, lot status = RECEIVED, URD_PURCHASE_CONFIRMED audit event
+written. âš ï¸ PHASE 3 TOUCH-POINT (FIX-URD-MONEY-OUT-1 v1.50): MONEY_OUT payment record is
+Phase 3 scope â€” the payments/ledger table does not exist until Phase 3. Phase 3 MUST extend or wrap
+confirmURDPurchase() to call paymentRepository.insert({ type: 'URD_PURCHASE', direction: 'MONEY_OUT',
+... }) inside the same transaction. confirmURDPurchase() is the sole Phase 2 path to CONFIRMED status.
+SEQUENCE: urdNumber format = URD/[FY-label]/[4-digit-seq]. Example: URD/2024-25/0001.
+sequenceCounters MUST add 'URD' as a valid type alongside 'SALE' and 'CREDIT_NOTE'. Sequence is
+firm-scoped and FY-scoped (resets each FY). urdNumber assigned only on CONFIRM â€” same pattern as
+invoiceNumber in Phase 3.
+
+</USER_REQUEST>
+<ADDITIONAL_METADATA>
+The current local time is: 2026-06-13T16:51:24+05:30.
+
+The user's current state is as follows:
+Active Document: c:\VJBilling\utils\purity.constants.ts (LANGUAGE_TYPESCRIPT)
+Cursor is on line: 1
+Other open documents:
+- c:\VJBilling\services\skuEngine.ts (LANGUAGE_TYPESCRIPT)
+- c:\VJBilling\repositories\designCategoryMapRepository.ts (LANGUAGE_TYPESCRIPT)
+- c:\VJBilling\types\phase2.types.ts (LANGUAGE_TYPESCRIPT)
+- c:\VJBilling\drizzle\0002_phase2_inventory.sql (LANGUAGE_SQL)
+- c:\VJBilling\utils\purity.constants.ts (LANGUAGE_TYPESCRIPT)
+</ADDITIONAL_METADATA>
+--- USER MSG ---
+<USER_REQUEST>
+STEP 12.10 â€” CreateURDPurchaseInput + Types
+// FIX-URD-1 (v1.49): CreateURDPurchaseInput
+export type URDPurchaseStatus = 'DRAFT' | 'CONFIRMED';
+export type URDMetalType = 'GOLD' | 'SILVER';
+export interface CreateURDPurchaseInput {
+purchaseDate: string; // ISO date YYYY-MM-DD
+// Customer â€” at least customerName is required
+customerId?: string; // optional FK -> customers.id
+customerName: string; // NOT NULL â€” required for bill
+customerAddress?: string;
+customerMobile?: string;
+customerAadhaar?: string; // OPTIONAL
+customerPAN?: string; // OPTIONAL
+metalType: URDMetalType;
+grossWeightMg: number; // must be > 0
+purityPercent: number; // must be > 0 and <= 100
+ratePerGramPaise: number; // must be > 0
+paymentMode: 'CASH' | 'BANK' | 'UPI';
+bankAccountId?: string; // required if BANK or UPI
+notes?: string;
+}
+export type URDPurchase = typeof urdPurchases.$inferSelect;
+</USER_REQUEST>
+<ADDITIONAL_METADATA>
+The current local time is: 2026-06-13T16:53:38+05:30.
+
+The user's current state is as follows:
+Active Document: c:\VJBilling\utils\purity.constants.ts (LANGUAGE_TYPESCRIPT)
+Cursor is on line: 1
+Other open documents:
+- c:\VJBilling\drizzle\0002_phase2_inventory.sql (LANGUAGE_SQL)
+- c:\VJBilling\utils\purity.constants.ts (LANGUAGE_TYPESCRIPT)
+- c:\VJBilling\services\skuEngine.ts (LANGUAGE_TYPESCRIPT)
+- c:\VJBilling\repositories\designCategoryMapRepository.ts (LANGUAGE_TYPESCRIPT)
+- c:\VJBilling\types\phase2.types.ts (LANGUAGE_TYPESCRIPT)
+</ADDITIONAL_METADATA>
+--- USER MSG ---
+<USER_REQUEST>
+STEP 12.11 â€” createURDPurchase() + confirmURDPurchase() Service Bodies
+ðŸ”´ FIX-URD-COST-1 (v1.62) â€” createURDPurchase() old_gold_lots Cost Fields Not Wired
+PROBLEM: createURDPurchase() was not wiring three computed cost fields into the
+oldGoldLotRepository.insert() call, despite all three values being computed and available immediately
+before the transaction.
+IMPACT 1 â€” fineWeightMg: old_gold_lots.fine_weight_mg was always 0 (column DEFAULT 0, from
+FIX-OLDGOLD-COST-1 v1.51) for every URD-created lot. Phase 4 refinery yield and Phase 7 WAC read this
+field directly â€” both would silently operate on 0 instead of the actual fine weight, producing incorrect yield
+calculations and wrong WAC cost-basis.
+IMPACT 2 â€” purchaseRatePaise: old_gold_lots.purchase_rate_paise was always null for URD-created lots.
+Phase 7 WAC cost-per-gram calculation requires this field â€” null causes WAC to silently skip cost computation
+for every URD lot, understating total cost of goods.
+IMPACT 3 â€” totalAmountPaise: old_gold_lots.total_amount_paise was always null for URD-created lots. URD
+reporting aggregates and Phase 3 ledger reconciliation read this â€” null causes zero-value entries in all URD
+purchase summaries, making reporting unreliable.
+FIX: Three fields now explicitly wired in the oldGoldLotRepository.insert() call inside
+createURDPurchase():
+fineWeightMg: Math.round(grossWeightMg * purityPercent / 100) â€” computed above the transaction block,
+identical formula to urd_purchases row. purchaseRatePaise: input.ratePerGramPaise ?? null â€” paise per gram,
+straight from validated input. totalAmountPaise: totalValuePaise â€” Math.round((fineWeightMg / 1000) *
+ratePerGramPaise), computed above.
+Zero schema changes. Zero migration changes (all three columns already added in FIX-OLDGOLD-COST-1
+v1.51). Zero service logic changes beyond the three insert field wirings.
+// createURDPurchase() â€” FIX-URD-1 (v1.49)
+// Creates DRAFT URD purchase + old_gold_lots row atomically.
+// No urdNumber a
+<truncated 4713 bytes>
+
+const seq = await sequenceCounterRepository.nextVal(tx, firmId, urd.fyId, 'URD');
+const fyLabel = (await financialYearRepository.getById(tx, urd.fyId)).label; // FIX-URD-FYID-GUARD-1
+(v1.56): urd.firmId guard already executed above â€” cross-firm risk is structurally prevented. Any future
+refactor MUST pass firmId to the FY repo for constitutional compliance with the firmId-never-optional rule
+(RED-9). FIX-FYREPO-TX-1 (v1.71): tx overload added â€” call is inside db.transaction(); passing tx keeps the
+FY lookup within the same transaction snapshot. financialYearRepository.getById() MUST expose a tx
+overload: getById(tx: DrizzleTransaction, id: string): Promise<FinancialYear | null>. GAP-C5 (v1.73): Both
+TypeScript overload signatures are REQUIRED in financialYearRepository â€” strict-mode compile fails without
+them: getById(id: string): Promise<FinancialYear | null>; getById(tx: DrizzleTransaction, id: string):
+Promise<FinancialYear | null>;
+const urdNumber = `URD/${fyLabel}/${String(seq).padStart(4, '0')}`;
+// Update status + assign number
+await urdPurchaseRepository.update(tx, urdId, {
+status: 'CONFIRMED',
+urdNumber,
+updatedAt: now(),
+});
+// Audit
+await auditRepository.log(tx, {
+eventType: 'URD_PURCHASE_CONFIRMED', firmId, entityId: urdId,
+deviceId: getDeviceId(),
+payload: { urdId, urdNumber, totalValuePaise: urd.totalValuePaise },
+});
+return { ...urd, status: 'CONFIRMED', urdNumber };
+});
+}
+
+</USER_REQUEST>
+<ADDITIONAL_METADATA>
+The current local time is: 2026-06-13T16:56:02+05:30.
+
+The user's current state is as follows:
+Active Document: c:\VJBilling\utils\purity.constants.ts (LANGUAGE_TYPESCRIPT)
+Cursor is on line: 1
+Other open documents:
+- c:\VJBilling\repositories\designCategoryMapRepository.ts (LANGUAGE_TYPESCRIPT)
+- c:\VJBilling\types\phase2.types.ts (LANGUAGE_TYPESCRIPT)
+- c:\VJBilling\drizzle\0002_phase2_inventory.sql (LANGUAGE_SQL)
+- c:\VJBilling\utils\purity.constants.ts (LANGUAGE_TYPESCRIPT)
+- c:\VJBilling\services\skuEngine.ts (LANGUAGE_TYPESCRIPT)
+</ADDITIONAL_METADATA>
+--- USER MSG ---
+<USER_REQUEST>
+STEP 12.12 â€” urdPurchaseRepository
+// urdPurchaseRepository â€” FIX-URD-1 (v1.49)
+insert(tx, data): Promise<URDPurchase>
+getById(id): Promise<URDPurchase | null>
+findByFirmId(firmId): Promise<URDPurchase[]>
+findByCustomerId(firmId, customerId): Promise<URDPurchase[]>
+update(tx, id, fields: Partial<URDPurchase>): Promise<void>
+// Index:
+CREATE INDEX IF NOT EXISTS idx_urd_purchases_firm
+ON urd_purchases(firm_id, status, purchase_date);
+CREATE INDEX IF NOT EXISTS idx_urd_purchases_customer
+ON urd_purchases(firm_id, customer_id) WHERE customer_id IS NOT NULL;
+
+</USER_REQUEST>
+<ADDITIONAL_METADATA>
+The current local time is: 2026-06-13T17:00:48+05:30.
+
+The user's current state is as follows:
+Active Document: c:\VJBilling\utils\purity.constants.ts (LANGUAGE_TYPESCRIPT)
+Cursor is on line: 1
+Other open documents:
+- c:\VJBilling\repositories\designCategoryMapRepository.ts (LANGUAGE_TYPESCRIPT)
+- c:\VJBilling\types\phase2.types.ts (LANGUAGE_TYPESCRIPT)
+- c:\VJBilling\drizzle\0002_phase2_inventory.sql (LANGUAGE_SQL)
+- c:\VJBilling\utils\purity.constants.ts (LANGUAGE_TYPESCRIPT)
+- c:\VJBilling\services\skuEngine.ts (LANGUAGE_TYPESCRIPT)
+</ADDITIONAL_METADATA>
+--- USER MSG ---
+<USER_REQUEST>
+STEP 12.12A â€” urdPurchaseService (Phase 3 Cross-Phase Seam)
+URD-SERVICE-SEAM-1 (v1.72) â€” urdPurchaseService PUBLIC CROSS-PHASE BOUNDARY
+Phase 3 FIX-URD-SEAM-1 requires that Phase 3 NEVER queries urd_purchases directly. Phase 3 MUST
+access URD purchase data exclusively through this service function. This is the sanctioned cross-phase seam,
+analogous to the old gold boundary in Phase 3 Step 0. Direct repository calls from Phase 3 are a cross-phase
+table isolation violation.
+// urdPurchaseService â€” URD-SERVICE-SEAM-1 (v1.72)
+// File: services/urdPurchaseService.ts
+// PUBLIC EXPORT â€” Phase 3 cross-phase seam. Phase 3 MUST call this;
+// NEVER call urdPurchaseRepository.getById() from Phase 3 directly.
+export async function getById(
+id: string,
+firmId: string,
+): Promise<URDPurchase | null> {
+const urd = await urdPurchaseRepository.getById(id);
+if (!urd || urd.firmId !== firmId) return null;
+// Returns all fields Phase 3 needs for URD bill rendering:
+// totalValuePaise, paymentMode, bankAccountId,
+// customerAadhaar, customerPAN (snapshot fields from purchase time),
+// purchaseDate, urdNumber, status, firmId, id,
+// customerName, customerAddress, customerMobile,
+// metalType, grossWeightMg, purityPercent, fineWeightMg,
+// ratePerGramPaise, oldGoldLotId, customerId, fyId
+return urd;
+}
+</USER_REQUEST>
+<ADDITIONAL_METADATA>
+The current local time is: 2026-06-13T17:03:02+05:30.
+
+The user's current state is as follows:
+Active Document: c:\VJBilling\utils\purity.constants.ts (LANGUAGE_TYPESCRIPT)
+Cursor is on line: 1
+Other open documents:
+- c:\VJBilling\utils\purity.constants.ts (LANGUAGE_TYPESCRIPT)
+- c:\VJBilling\services\skuEngine.ts (LANGUAGE_TYPESCRIPT)
+- c:\VJBilling\repositories\designCategoryMapRepository.ts (LANGUAGE_TYPESCRIPT)
+- c:\VJBilling\types\phase2.types.ts (LANGUAGE_TYPESCRIPT)
+- c:\VJBilling\drizzle\0002_phase2_inventory.sql (LANGUAGE_SQL)
+</ADDITIONAL_METADATA>
+--- USER MSG ---
+<USER_REQUEST>
+STEP 12.12B â€” BACKUP-V2 Payload Spec + Restore FK Order (GAP-C6 v1.73)
+BACKUP-V2 (v1.72) â€” Updated createBackup() Payload and restoreService FK-Safe Order
+BACKUP-V2 is RESOLVED (v1.72). The Phase 1 createBackup() body (Phase 1 Step 12) MUST be updated to
+include all Phase 2 tables. Phase 1 restoreService.restore() MUST insert and delete Phase 2 tables in FK-safe
+dependency order. This step publishes both the updated payload and the canonical restore order. bis_logos
+remains Phase 1 scope covered by Phase 1 G49.
+Updated createBackup() SELECT payload (Phase 1 Step 12 must match):
+const [firms, financialYears, settings, auditLogs, safeModeStateRows, bisLogos,
+categories, designs, stones, hsnCodes, items, itemEvents,
+gemstoneLots, designCategoryMap, sequenceCounters, oldGoldLots, urdPurchases
+] = await Promise.all([...]);
+return { firms, financialYears, settings, auditLogs,
+safeModeState: safeModeStateRows, bisLogos, writerLeases: [],
+// BACKUP-V2 Phase 2 tables:
+categories, designs, stones, hsnCodes, items, itemEvents,
+gemstoneLots, designCategoryMap, sequenceCounters, oldGoldLots, urdPurchases };
+restoreService.restore() â€” Phase 2 DELETE order (reverse FK dependency, run before INSERT):
+// DELETE order â€” reverse FK dependency (Phase 2 tables only; Phase 1 tables deleted
+separately)
+// urd_purchases â†’ old_gold_lots â†’ sequence_counters â†’ design_category_map â†’
+// gemstone_lots â†’ item_events â†’ items â†’ hsn_codes â†’ designs â†’ stones â†’ categories
+restoreService.restore() â€” Phase 2 INSERT order (FK-safe, run after DELETE):
+// INSERT order â€” FK dependency order (children after parents)
+// 1. categories (no Phase 2 FK deps)
+// 2. designs (no Phase 2 FK deps)
+// 3. stones (no Phase 2 FK deps)
+// 4. hsn_codes (no Phase 2 FK deps)
+// 5. items (FK: category_id â†’ categories, design_id â†’ designs)
+// 6. item_events (FK: item_id â†’ items)
+// 7. gemstone_lots (FK: stone_id â†’ stones)
+// 8. design_category_map (FK: design_id â†’ designs, category_id â†’ 
+<truncated 1260 bytes>
+S TABLE: Description (metal type + purity), Gross Weight (g), Purity (%), Fine Weight (g),
+Rate/gram, Total Value. All weights displayed in grams (divide mg by 1000, 3 decimal places â€” e.g. 12.000 g).
+Rate/gram and Total Value displayed in Indian Rupees (divide paise by 100, 2 decimal places, prefixed with
+currency symbol from getCurrencySymbol() â€” e.g. â‚¹6,500.00). No other currency. No other decimal count.
+PAYMENT SECTION: Amount Paid â€” shown in both numerals and words. Numeral format:
+getCurrencySymbol() + (totalValuePaise / 100).toFixed(2) â€” e.g. â‚¹6,500.00. Words format:
+amountToWords(totalValuePaise) from utils/currency.ts â€” e.g. â€œRupees Six Thousand Five Hundred Onlyâ€.
+Words MUST use Indian rupee denomination (Rupees / Paise). Never use foreign currency names. Payment
+Mode: Cash / Bank Transfer / UPI. Bank account details if BANK or UPI.
+SIGNATURE SECTION: Two boxes side by side. Left: 'Seller Signature' + Name line (customer signs here).
+Right: 'Authorized Signatory' + Firm name (shop owner signs here). Text below: 'I confirm that I have sold the
+above article(s) and received the stated amount.'
+FOOTER: 'This is a computer-generated URD Purchase Bill.' + firm address + date/time printed.
+PRINT TRIGGER: generateURDPurchaseBill(urdId, firmId) â€” callable only for CONFIRMED URD
+purchases. Throws URD_NOT_CONFIRMED if status is DRAFT. Same guard pattern as postInvoice print
+in Phase 3.
+
+</USER_REQUEST>
+<ADDITIONAL_METADATA>
+The current local time is: 2026-06-13T17:09:30+05:30.
+
+The user's current state is as follows:
+Active Document: c:\VJBilling\utils\purity.constants.ts (LANGUAGE_TYPESCRIPT)
+Cursor is on line: 1
+Other open documents:
+- c:\VJBilling\utils\purity.constants.ts (LANGUAGE_TYPESCRIPT)
+- c:\VJBilling\services\skuEngine.ts (LANGUAGE_TYPESCRIPT)
+- c:\VJBilling\repositories\designCategoryMapRepository.ts (LANGUAGE_TYPESCRIPT)
+- c:\VJBilling\types\phase2.types.ts (LANGUAGE_TYPESCRIPT)
+- c:\VJBilling\drizzle\0002_phase2_inventory.sql (LANGUAGE_SQL)
+</ADDITIONAL_METADATA>
+--- USER MSG ---
+<USER_REQUEST>
+STEP 12.14 â€” Migration: urd_purchases table + customerId on old_gold_lots
+-- MIGRATION: 0002_phase2_inventory.sql addendum (v1.49)
+-- FIX-OLDGOLD-CUSTOMER-1: customerId FK on old_gold_lots
+ALTER TABLE old_gold_lots ADD COLUMN customer_id TEXT REFERENCES customers(id);-- FIX-CUSTOMERS-FK-SCOPE-1
+(v1.50): customers table is Phase 3 scope and does NOT exist-- when this Phase 2 migration runs. SQLite FK
+enforcement is OFF by default in expo-sqlite-- (PRAGMA foreign_keys = OFF), so this will not blow up at
+runtime. The FK declaration-- is forward-declared as an architectural contract â€” it becomes enforced once
+Phase 3-- creates the customers table. This is accepted, documented, and intentional.-- FIX-OLDGOLD-COST-1
+(v1.51): Add cost tracking columns to old_gold_lots.-- fineWeightMg: derived at insert time, DEFAULT 0 is
+migration-safe for existing rows.-- purchaseRatePaise: nullable â€” not always known at lot creation.--
+totalAmountPaise: nullable â€” null when purchaseRatePaise is null.ALTER TABLE old_gold_lots ADD COLUMN
+fine_weight_mg INTEGER NOT NULL DEFAULT 0;ALTER TABLE old_gold_lots ADD COLUMN purchase_rate_paise
+INTEGER;ALTER TABLE old_gold_lots ADD COLUMN total_amount_paise INTEGER;
+CREATE INDEX IF NOT EXISTS idx_old_gold_lots_customer
+ON old_gold_lots(firm_id, customer_id) WHERE customer_id IS NOT NULL;
+-- FIX-URD-1: urd_purchases table
+CREATE TABLE IF NOT EXISTS urd_purchases (
+id TEXT PRIMARY KEY,
+firm_id TEXT NOT NULL REFERENCES firms(id),
+fy_id TEXT NOT NULL REFERENCES financial_years(id),
+urd_number TEXT,
+purchase_date TEXT NOT NULL,
+customer_id TEXT REFERENCES customers(id), -- Phase 3 FK (FIX-CUSTOMERS-FK-SCOPE-1 v1.50):
+customers table created in Phase 3. SQLite FK enforcement OFF at Phase 2 build time â€” accepted and
+documented.
+customer_name TEXT NOT NULL,
+customer_address TEXT,
+customer_mobile TEXT,
+customer_aadhaar TEXT,
+customer_pan TEXT,
+metal_type TEXT NOT NULL,
+gross_weight_mg INTEGER NOT NULL,
+purity_percent REAL NOT NULL,
+fine_weight_mg INTEGER NOT NULL,
+rate_per_gram_paise INTEGER NOT NULL,
+total_value_paise INTEGER NOT NULL,
+payment_mode TEXT NOT NULL,
+bank_account_id TEXT,
+old_gold_lot_id TEXT NOT NULL REFERENCES old_gold_lots(id),
+status TEXT NOT NULL DEFAULT 'DRAFT',
+notes TEXT,
+created_at TEXT NOT NULL,
+updated_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_urd_purchases_firm
+ON urd_purchases(firm_id, status, purchase_date);
+CREATE INDEX IF NOT EXISTS idx_urd_purchases_customer
+ON urd_purchases(firm_id, customer_id) WHERE customer_id IS NOT NULL;
+-- FIX-URD-SEQ-1: Add 'URD' to sequence_counters valid types
+-- sequenceCounters already stores type as free text â€” no schema change required.
+-- Document that valid type values are: 'SALE' | 'CREDIT_NOTE' | 'URD'
+</USER_REQUEST>
+<ADDITIONAL_METADATA>
+The current local time is: 2026-06-13T17:15:43+05:30.
+
+The user's current state is as follows:
+Active Document: c:\VJBilling\utils\purity.constants.ts (LANGUAGE_TYPESCRIPT)
+Cursor is on line: 1
+Other open documents:
+- c:\VJBilling\types\phase2.types.ts (LANGUAGE_TYPESCRIPT)
+- c:\VJBilling\drizzle\0002_phase2_inventory.sql (LANGUAGE_SQL)
+- c:\VJBilling\utils\purity.constants.ts (LANGUAGE_TYPESCRIPT)
+- c:\VJBilling\services\skuEngine.ts (LANGUAGE_TYPESCRIPT)
+- c:\VJBilling\repositories\designCategoryMapRepository.ts (LANGUAGE_TYPESCRIPT)
+</ADDITIONAL_METADATA>
+--- USER MSG ---
+<USER_REQUEST>
+STEP 12.15 â€” Audit Events: URD Purchase
+// New audit event types added (FIX-URD-1 v1.49):
+// Add to ItemEventType union and audit_events enum:
+| Event Type | Service | Payload Fields |
+|-------------------------|-----------------------|-------------------------------------------------------|
+| URD_PURCHASE_CREATED | createURDPurchase() | urdId, lotId, customerName, customerId, |
+| | | grossWeightMg, purityPercent, fineWeightMg, |
+| | | totalValuePaise |
+| URD_PURCHASE_CONFIRMED | confirmURDPurchase() | urdId, urdNumber, totalValuePaise |
+ðŸ”´ PHASE 3 TOUCH-POINT REQUIRED: createOldGoldInSale() customerId propagation
+FIX-OLDGOLD-CUSTOMER-1 requires Phase 3 createOldGoldInSale() to be updated. When creating an old
+gold lot during a sale, customerId from the sale invoice MUST be passed to the lot.
+Phase 3 call site change: oldGoldLotRepository.insert(tx, { ..., customerId: invoice.customerId }). This is a
+Phase 3 implementation task â€” documented here as a Phase 2 spec requirement so Phase 3 developer
+cannot miss it.
+Phase 3 MUST also add Aadhaar and PAN optional columns to the customers table (customerAadhaar TEXT
+nullable, customerPAN TEXT nullable). These are needed for URD purchase bill pre-fill when the customer
+already exists in the system.
+STEP 12 ADDITIONS â€” STEP CHECK GUARANTEES (v1.49)
+old_gold_lots.customer_id TEXT nullable FK -> customers.id â€” column present
+urd_purchases table defined with all columns â€” schema specified
+createURDPurchase() canonical body specified â€” DRAFT creation with lot
+confirmURDPurchase() canonical body specified â€” urdNumber + audit
+urdPurchaseRepository methods defined: insert, getById, findByFirmId, findByCustomerId, update Â·
+URD-SERVICE-SEAM-1 (v1.72): urdPurchaseService.getById(id, firmId) public export added in Step 12.12A â€”
+Phase 3 cross-phase seam; Phase 3 MUST NOT call urdPurchaseRepository directly
+URD sequence type 'URD' documented in sequenceCounters
+URD Purchase Bill layout spec complete â€” generateURDPurchaseBill() guard defined
+Migration SQL specified â€” ALTER TABLE old_gold_lots + CREATE TABLE urd_purchases
+Phase 3 touch-point documented â€” createOldGoldInSale() must pass customerId
+Audit events URD_PURCHASE_CREATED and URD_PURCHASE_CONFIRMED payload-specified
+</USER_REQUEST>
+<ADDITIONAL_METADATA>
+The current local time is: 2026-06-13T17:17:25+05:30.
+
+The user's current state is as follows:
+Active Document: c:\VJBilling\utils\purity.constants.ts (LANGUAGE_TYPESCRIPT)
+Cursor is on line: 1
+Other open documents:
+- c:\VJBilling\services\skuEngine.ts (LANGUAGE_TYPESCRIPT)
+- c:\VJBilling\repositories\designCategoryMapRepository.ts (LANGUAGE_TYPESCRIPT)
+- c:\VJBilling\types\phase2.types.ts (LANGUAGE_TYPESCRIPT)
+- c:\VJBilling\drizzle\0002_phase2_inventory.sql (LANGUAGE_SQL)
+- c:\VJBilling\utils\purity.constants.ts (LANGUAGE_TYPESCRIPT)
+</ADDITIONAL_METADATA>
+--- USER MSG ---
+<USER_REQUEST>
+STEP 14 â€” Item Event Repository + Schema
+// SCHEMA-2 FIX (v1.8): itemEvents table
+export const itemEvents = sqliteTable('item_events', {
+id: text('id').primaryKey(),
+itemId: text('item_id').notNull(),
+firmId: text('firm_id').notNull(),
+eventType: text('event_type', {
+enum: ['CREATED','ITEM_STATUS_CHANGED','WEIGHT_ADJUSTED', // 'EDITED' removed â€” superseded by
+'ITEM_EDITED'
+'HUID_ADDED','BARCODE_REPRINTED','ITEM_RETURNED',
+'ITEM_SENT_TO_KARIGAR','ITEM_RETURNED_FROM_KARIGAR','ITEM_EDITED','PHANTOM_CREATED','PHANTOM_RECONCILED']
+// FIX-ENUM-1 (v1.38). FIX-UPDATE-ITEM-BODY-1 (v1.46): ITEM_EDITED added. FEAT-PHANTOM-INVENTORY-1 (v1.67):
+PHANTOM_CREATED + PHANTOM_RECONCILED added
+}).notNull(),
+severity: text('severity', { enum: ['INFO','WARNING','ERROR'] }).notNull(),
+performedBy: text('performed_by').notNull(), // deviceId
+reason: text('reason'),
+oldValue: text('old_value'),
+newValue: text('new_value'),
+timestamp: text('timestamp').notNull(),
+}, (table) => ({
+itemFk: foreignKey({ columns: [table.itemId], foreignColumns: [items.id] }).onDelete('restrict'),
+firmFk: foreignKey({ columns: [table.firmId], foreignColumns: [firms.id] }),
+}));
+// itemEventRepository.ts â€” APPEND-ONLY
+insert(tx: DrizzleTransaction, data: NewItemEvent): Promise<ItemEvent>
+deleteByItemId(tx: DrizzleTransaction, itemId: string): Promise<void> // MUST precede delete()
+findByItemId(itemId: string): Promise<ItemEvent[]>
+countByItemIdAndEventType(tx: DrizzleTransaction, itemId: string, eventType: ItemEventType):
+Promise<number> // FIX-SERVICE-BODY-1 (v1.35): used by sendToKarigar() loop guard â€” SQL: SELECT COUNT(*)
+FROM item_events WHERE item_id = ? AND event_type = ?
+
+</USER_REQUEST>
+<ADDITIONAL_METADATA>
+The current local time is: 2026-06-13T17:29:07+05:30.
+
+The user's current state is as follows:
+Active Document: c:\VJBilling\utils\purity.constants.ts (LANGUAGE_TYPESCRIPT)
+Cursor is on line: 1
+Other open documents:
+- c:\VJBilling\services\skuEngine.ts (LANGUAGE_TYPESCRIPT)
+- c:\VJBilling\repositories\designCategoryMapRepository.ts (LANGUAGE_TYPESCRIPT)
+- c:\VJBilling\types\phase2.types.ts (LANGUAGE_TYPESCRIPT)
+- c:\VJBilling\drizzle\0002_phase2_inventory.sql (LANGUAGE_SQL)
+- c:\VJBilling\utils\purity.constants.ts (LANGUAGE_TYPESCRIPT)
+</ADDITIONAL_METADATA>
+--- USER MSG ---
+<USER_REQUEST>
+STEP 15 â€” Inventory Search Service
+ðŸ”µ SEARCH-1 (v1.13) â€” inventorySearchService.ts Constitutional Rules
+ READ-ONLY â€” no db.transaction() wrapper
+ NO dual guards Â· NO audit write Â· NO lease acquisition
+ firmId is MANDATORY â€” never optional
+ Minimum query length: 2 characters â€” enforced here
+ LIMIT 20 enforced at repository SQL layer
+// services/inventorySearchService.ts
+searchItems(firmId: string, query: string): Promise<ItemSearchResult[]> {
+if (query.trim().length < 2) return []
+return itemRepository.search(firmId, query.trim())
+}
+searchDesignStock(firmId: string, query: string): Promise<DesignStockResult[]> {
+if (query.trim().length < 2) return []
+return designRepository.searchStock(firmId, query.trim())
+}
+
+</USER_REQUEST>
+<ADDITIONAL_METADATA>
+The current local time is: 2026-06-13T17:34:16+05:30.
+
+The user's current state is as follows:
+Active Document: c:\VJBilling\utils\purity.constants.ts (LANGUAGE_TYPESCRIPT)
+Cursor is on line: 1
+Other open documents:
+- c:\VJBilling\utils\purity.constants.ts (LANGUAGE_TYPESCRIPT)
+- c:\VJBilling\services\skuEngine.ts (LANGUAGE_TYPESCRIPT)
+- c:\VJBilling\repositories\designCategoryMapRepository.ts (LANGUAGE_TYPESCRIPT)
+- c:\VJBilling\types\phase2.types.ts (LANGUAGE_TYPESCRIPT)
+- c:\VJBilling\drizzle\0002_phase2_inventory.sql (LANGUAGE_SQL)
+</ADDITIONAL_METADATA>
+--- USER MSG ---
+<USER_REQUEST>
+STEP 16 â€” Inventory Drill-Down + Item Detail + Timeline (FEAT-DRILL-DOWN-1
+v1.65)
+ðŸ”µ FEAT-DRILL-DOWN-1 (v1.65) â€” Inventory Drill-Down + Item Detail + Timeline: Constitutional
+Rules
+READ-ONLY throughout â€” no db.transaction() wrapper on any of these services.
+NO dual guards Â· NO audit write Â· NO lease acquisition.
+firmId is MANDATORY on every query â€” RED-9: firmId is never optional.
+FlashList MANDATORY on Screen A, Screen B, Screen C per STEP 1.5 rule. estimatedItemSize MUST be
+defined. Stable keys required. Row components MUST be React.memo().
+Weight display ALWAYS (mg / 1000).toFixed(3) + ' g' â€” RULE-1A-WEIGHT-DISPLAY (v1.54). 3 decimal places
+always. Unit suffix always.
+Currency display: getCurrencySymbol() + (paise / 100).toFixed(2) â€” no raw â‚¹ or 'INR' string literals in screens/
+code. Use utils/currency.ts only. RED-6 enforced.
+purity display: getDisplayPurity(purityPercent, purityKarat, metal) â€” Gold purityKarat=22 â†’ "22K" | Gold
+purityKarat=0 â†’ purityPercent+% | Silver â†’ always purityPercent+%.
+invoiceId slot MUST be reserved in Item Detail UI â€” shows "â€”" until Phase 3 postInvoice() writes it. Row MUST
+NOT be hidden or removed.
+ðŸ PHASE 3 TOUCH-POINT: When invoiceId is populated by Phase 3 postInvoice(), replace "â€”" with invoice
+number + tappable navigation link to sale invoice screen.
+Zero schema changes. Zero migration changes. Zero Phase 3 dependencies to launch.
+
+</USER_REQUEST>
+<ADDITIONAL_METADATA>
+The current local time is: 2026-06-13T17:40:02+05:30.
+
+The user's current state is as follows:
+Active Document: c:\VJBilling\utils\purity.constants.ts (LANGUAGE_TYPESCRIPT)
+Cursor is on line: 1
+Other open documents:
+- c:\VJBilling\utils\purity.constants.ts (LANGUAGE_TYPESCRIPT)
+- c:\VJBilling\services\skuEngine.ts (LANGUAGE_TYPESCRIPT)
+- c:\VJBilling\repositories\designCategoryMapRepository.ts (LANGUAGE_TYPESCRIPT)
+- c:\VJBilling\types\phase2.types.ts (LANGUAGE_TYPESCRIPT)
+- c:\VJBilling\drizzle\0002_phase2_inventory.sql (LANGUAGE_SQL)
+</ADDITIONAL_METADATA>
+<USER_SETTINGS_CHANGE>
+The user changed setting `Model Selection` from Gemini 3.1 Pro (High) to Claude Opus 4.6 (Thinking). No need to comment on this change if the user doesn't ask about it. If reporting what model you are, please use a human readable name instead of the exact string.
+</USER_SETTINGS_CHANGE>
+--- USER MSG ---
+<USER_REQUEST>
+check every steps and make sure we added everything
+</USER_REQUEST>
+<ADDITIONAL_METADATA>
+The current local time is: 2026-06-13T17:49:08+05:30.
+
+The user's current state is as follows:
+Active Document: c:\VJBilling\utils\purity.constants.ts (LANGUAGE_TYPESCRIPT)
+Cursor is on line: 1
+Other open documents:
+- c:\VJBilling\utils\purity.constants.ts (LANGUAGE_TYPESCRIPT)
+- c:\VJBilling\services\skuEngine.ts (LANGUAGE_TYPESCRIPT)
+- c:\VJBilling\repositories\designCategoryMapRepository.ts (LANGUAGE_TYPESCRIPT)
+- c:\VJBilling\types\phase2.types.ts (LANGUAGE_TYPESCRIPT)
+- c:\VJBilling\drizzle\0002_phase2_inventory.sql (LANGUAGE_SQL)
+</ADDITIONAL_METADATA>
+<USER_SETTINGS_CHANGE>
+The user changed setting `Model Selection` from Claude Opus 4.6 (Thinking) to Gemini 3.1 Pro (High). No need to comment on this change if the user doesn't ask about it. If reporting what model you are, please use a human readable name instead of the exact string.
+</USER_SETTINGS_CHANGE>

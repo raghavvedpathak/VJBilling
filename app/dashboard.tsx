@@ -7,7 +7,7 @@ import { useSession } from '../hooks/useSession';
 import { useFirmStore } from '../store/firmStore';
 import { GlassCard, GlassButton } from '../components/ui/Glass'; 
 import { LeaseStatusBanner } from '../components/LeaseStatusBanner'; 
-import { LogOut, Settings, ShieldCheck, FileText, Package, Users, TrendingUp, ChevronRight, Gem } from 'lucide-react-native';
+import { LogOut, Settings, ShieldCheck, FileText, Package, Users, TrendingUp, ChevronRight, Gem, ClipboardList, Database } from 'lucide-react-native';
 
 export default function Dashboard() {
   const router = useRouter();
@@ -106,21 +106,41 @@ export default function Dashboard() {
         <View className="flex-row flex-wrap justify-between gap-y-4">
           <MenuTile title="Tax Invoice" subtitle="Billing & Sales" icon={<FileText size={24} color="#B87333" />} disabled />
           
-          {/* Phase 2: Inventory Navigation Activated */}
           <MenuTile 
             title="Stock Inventory" 
             subtitle="Manage Items" 
             icon={<Package size={24} color="#2E1D00" />} 
-            onPress={() => router.push('/inventory')} 
+            onPress={() => router.push('/inventory/drill-down')} 
           />
           
-          <MenuTile title="Parties & Karigars" subtitle="Ledgers" icon={<Users size={24} color="#2E1D00" />} disabled />
+          <MenuTile 
+            title="Draft Items" 
+            subtitle="Pending Verify" 
+            icon={<ClipboardList size={24} color="#2E1D00" />} 
+            onPress={() => router.push('/inventory/drafts')} 
+          />
+
           <MenuTile title="Business Reports" subtitle="Insights" icon={<TrendingUp size={24} color="#2E1D00" />} disabled />
         </View>
 
         <Text className="text-vj-text/60 text-xs font-bold uppercase tracking-widest mb-4 mt-8 ml-1">
-          Governance
+          Governance & Masters
         </Text>
+
+        <TouchableOpacity activeOpacity={0.8} onPress={() => router.push('/masters')} className="mb-4">
+          <GlassCard style={{ padding: 0 }}>
+            <View className="flex-row items-center gap-4 p-4">
+              <View className="bg-vj-glass p-3 rounded-full border border-white/20">
+                <Database size={24} color="#2E1D00" />
+              </View>
+              <View className="flex-1">
+                <Text className="text-vj-text font-bold text-lg">Master Catalogs</Text>
+                <Text className="text-vj-text/60 text-xs">Categories, Designs, HSN Codes</Text>
+              </View>
+              <ChevronRight size={20} color="#B87333" className="opacity-50" />
+            </View>
+          </GlassCard>
+        </TouchableOpacity>
 
         <TouchableOpacity activeOpacity={0.8} onPress={() => router.push('/settings')}>
           <GlassCard style={{ padding: 0 }}>

@@ -16,6 +16,7 @@ import * as Crypto from 'expo-crypto';
 import { eq, and, lte, gte } from 'drizzle-orm';
 import { db } from '../db/client';
 import { financialYears, FYStatus } from '../db/schema';
+import type { DrizzleTransaction, FinancialYear } from '../types/phase2.types';
 import { now } from '../utils/now';
 
 type DbOrTx = any;
@@ -109,12 +110,18 @@ export const fyRepository = {
    * Called by fyService.closeFY() to read the FY label for the audit_archive_index row.
    * Returns null if the FY does not exist — callers must guard with ! assert.
    */
-  async getById(fyId: string, tx: DbOrTx = db) {
+  getById: (async (txOrId: DrizzleTransaction | string, idParam?: string): Promise<FinancialYear | null> => {
+    const isTx = typeof txOrId !== 'string';
+    const tx = isTx ? (txOrId as DrizzleTransaction) : db;
+    const fyId = isTx ? idParam! : (txOrId as string);
     const [fy] = await tx
       .select()
       .from(financialYears)
       .where(eq(financialYears.id, fyId));
     return fy ?? null;
+  }) as {
+    (id: string): Promise<FinancialYear | null>;
+    (tx: DrizzleTransaction, id: string): Promise<FinancialYear | null>;
   },
 
   /**
@@ -185,3 +192,5 @@ export const fyRepository = {
     return match[0].id;
   },
 };
+
+export const financialYearRepository = fyRepository;

@@ -64,6 +64,41 @@ export const auditRepository = {
     });
   },
 
+  async log(
+    tx: DbOrTx,
+    input: {
+      eventType: string;
+      firmId: string | null;
+      entityId?: string | null;
+      deviceId: string;
+      payload: string;
+    }
+  ) {
+    if (
+      !tx &&
+      input.eventType !== 'RESTORE_OLD_SCHEMA' &&
+      input.eventType !== 'DEVICE_ID_GENERATED' &&
+      input.eventType !== 'BACKUP_CREATED'
+    ) {
+      throw new Error(
+        `AUDIT_TX_REQUIRED: A valid transaction context must be provided for event ${input.eventType}`
+      );
+    }
+
+    const dbContext = tx ?? db;
+    const newId = Crypto.randomUUID();
+
+    await dbContext.insert(auditLogs).values({
+      id: newId,
+      firmId: input.firmId,
+      entityId: input.entityId ?? null,
+      eventType: input.eventType as any,
+      payload: input.payload,
+      deviceId: input.deviceId,
+      createdAt: now(),
+    });
+  },
+
   /**
    * STEP 6 HARDENING: FIRM ISOLATION
    * Explicitly requires firmId. Cross-firm queries are structurally impossible.

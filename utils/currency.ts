@@ -124,3 +124,7 @@ export function amountToWords(paise: number): string {
 
   return `${rupeeWords} Only`;
 }
+
+export function getCurrencySymbol(): string {
+  return '₹';
+}

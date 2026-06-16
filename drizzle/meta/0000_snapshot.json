@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "8fa6956e-64ac-4687-8f86-b8e15948732a",
+  "id": "23ceb190-8d68-4d4f-a93d-8246f45bb90a",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "tables": {
     "app_settings": {
@@ -302,6 +302,13 @@
           "autoincrement": false,
           "default": 1
         },
+        "code": {
+          "name": "code",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
         "low_stock_threshold": {
           "name": "low_stock_threshold",
           "type": "integer",
@@ -325,7 +332,21 @@
         }
       },
       "indexes": {},
-      "foreignKeys": {},
+      "foreignKeys": {
+        "categories_firm_id_firms_id_fk": {
+          "name": "categories_firm_id_firms_id_fk",
+          "tableFrom": "categories",
+          "tableTo": "firms",
+          "columnsFrom": [
+            "firm_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "checkConstraints": {}
@@ -369,7 +390,17 @@
           "autoincrement": false
         }
       },
-      "indexes": {},
+      "indexes": {
+        "design_category_map_design_id_category_id_firm_id_unique": {
+          "name": "design_category_map_design_id_category_id_firm_id_unique",
+          "columns": [
+            "design_id",
+            "category_id",
+            "firm_id"
+          ],
+          "isUnique": true
+        }
+      },
       "foreignKeys": {},
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
@@ -385,22 +416,15 @@
           "notNull": true,
           "autoincrement": false
         },
-        "firm_id": {
-          "name": "firm_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "category_id": {
-          "name": "category_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
         "name": {
           "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "code": {
+          "name": "code",
           "type": "text",
           "primaryKey": false,
           "notNull": true,
@@ -413,16 +437,16 @@
           "notNull": true,
           "autoincrement": false
         },
-        "purity_percent": {
-          "name": "purity_percent",
-          "type": "real",
+        "default_hsn": {
+          "name": "default_hsn",
+          "type": "text",
           "primaryKey": false,
-          "notNull": true,
+          "notNull": false,
           "autoincrement": false
         },
-        "purity_karat": {
-          "name": "purity_karat",
-          "type": "integer",
+        "firm_id": {
+          "name": "firm_id",
+          "type": "text",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false
@@ -450,8 +474,32 @@
           "autoincrement": false
         }
       },
-      "indexes": {},
-      "foreignKeys": {},
+      "indexes": {
+        "designs_name_metal_firm_id_unique": {
+          "name": "designs_name_metal_firm_id_unique",
+          "columns": [
+            "name",
+            "metal",
+            "firm_id"
+          ],
+          "isUnique": true
+        }
+      },
+      "foreignKeys": {
+        "designs_firm_id_firms_id_fk": {
+          "name": "designs_firm_id_firms_id_fk",
+          "tableFrom": "designs",
+          "tableTo": "firms",
+          "columnsFrom": [
+            "firm_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "checkConstraints": {}
@@ -682,6 +730,205 @@
       "uniqueConstraints": {},
       "checkConstraints": {}
     },
+    "gemstone_lots": {
+      "name": "gemstone_lots",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "firm_id": {
+          "name": "firm_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "stone_id": {
+          "name": "stone_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "weight_carat_x100": {
+          "name": "weight_carat_x100",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "quantity": {
+          "name": "quantity",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 1
+        },
+        "purchase_rate_paise_per_carat": {
+          "name": "purchase_rate_paise_per_carat",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "total_purchase_amount_paise": {
+          "name": "total_purchase_amount_paise",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "supplier_name": {
+          "name": "supplier_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "certification_ref": {
+          "name": "certification_ref",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'AVAILABLE'"
+        },
+        "notes": {
+          "name": "notes",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "gemstone_lots_firm_id_firms_id_fk": {
+          "name": "gemstone_lots_firm_id_firms_id_fk",
+          "tableFrom": "gemstone_lots",
+          "tableTo": "firms",
+          "columnsFrom": [
+            "firm_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "gemstone_lots_stone_id_stones_id_fk": {
+          "name": "gemstone_lots_stone_id_stones_id_fk",
+          "tableFrom": "gemstone_lots",
+          "tableTo": "stones",
+          "columnsFrom": [
+            "stone_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "hsn_codes": {
+      "name": "hsn_codes",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "code": {
+          "name": "code",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "description": {
+          "name": "description",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "chapter": {
+          "name": "chapter",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'71'"
+        },
+        "is_active": {
+          "name": "is_active",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 1
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "hsn_codes_code_unique": {
+          "name": "hsn_codes_code_unique",
+          "columns": [
+            "code"
+          ],
+          "isUnique": true
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
     "item_events": {
       "name": "item_events",
       "columns": {
@@ -713,15 +960,43 @@
           "notNull": true,
           "autoincrement": false
         },
-        "payload": {
-          "name": "payload",
+        "severity": {
+          "name": "severity",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "performed_by": {
+          "name": "performed_by",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "reason": {
+          "name": "reason",
           "type": "text",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false
         },
-        "created_at": {
-          "name": "created_at",
+        "old_value": {
+          "name": "old_value",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "new_value": {
+          "name": "new_value",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "timestamp": {
+          "name": "timestamp",
           "type": "text",
           "primaryKey": false,
           "notNull": true,
@@ -729,7 +1004,34 @@
         }
       },
       "indexes": {},
-      "foreignKeys": {},
+      "foreignKeys": {
+        "item_events_item_id_items_id_fk": {
+          "name": "item_events_item_id_items_id_fk",
+          "tableFrom": "item_events",
+          "tableTo": "items",
+          "columnsFrom": [
+            "item_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        },
+        "item_events_firm_id_firms_id_fk": {
+          "name": "item_events_firm_id_firms_id_fk",
+          "tableFrom": "item_events",
+          "tableTo": "firms",
+          "columnsFrom": [
+            "firm_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "checkConstraints": {}
@@ -744,19 +1046,27 @@
           "notNull": true,
           "autoincrement": false
         },
-        "firm_id": {
-          "name": "firm_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
         "sku": {
           "name": "sku",
           "type": "text",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false
+        },
+        "barcode": {
+          "name": "barcode",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "barcode_reprint_required": {
+          "name": "barcode_reprint_required",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 0
         },
         "huid": {
           "name": "huid",
@@ -779,6 +1089,20 @@
           "notNull": true,
           "autoincrement": false
         },
+        "firm_id": {
+          "name": "firm_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "primary_stone_id": {
+          "name": "primary_stone_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
         "metal": {
           "name": "metal",
           "type": "text",
@@ -795,20 +1119,13 @@
         },
         "purity_karat": {
           "name": "purity_karat",
-          "type": "integer",
+          "type": "real",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false
         },
         "gross_weight_mg": {
           "name": "gross_weight_mg",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "net_weight_mg": {
-          "name": "net_weight_mg",
           "type": "integer",
           "primaryKey": false,
           "notNull": true,
@@ -822,21 +1139,63 @@
           "autoincrement": false,
           "default": 0
         },
-        "metal_source": {
-          "name": "metal_source",
-          "type": "text",
+        "beads_weight_mg": {
+          "name": "beads_weight_mg",
+          "type": "integer",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false,
-          "default": "'PURCHASE'"
+          "default": 0
         },
-        "status": {
-          "name": "status",
-          "type": "text",
+        "net_weight_mg": {
+          "name": "net_weight_mg",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "fine_weight_mg": {
+          "name": "fine_weight_mg",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "wastage_percent": {
+          "name": "wastage_percent",
+          "type": "real",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false,
-          "default": "'DRAFT'"
+          "default": 0
+        },
+        "fine_gold_charged_mg": {
+          "name": "fine_gold_charged_mg",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "purchase_rate_paise": {
+          "name": "purchase_rate_paise",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "making_charge_paise": {
+          "name": "making_charge_paise",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "stone_cost_paise": {
+          "name": "stone_cost_paise",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
         },
         "location": {
           "name": "location",
@@ -858,6 +1217,29 @@
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false
+        },
+        "hsn_code": {
+          "name": "hsn_code",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "metal_source": {
+          "name": "metal_source",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'SUPPLIER_PURCHASE'"
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'DRAFT'"
         },
         "fy_id": {
           "name": "fy_id",
@@ -888,9 +1270,63 @@
             "sku"
           ],
           "isUnique": true
+        },
+        "items_barcode_unique": {
+          "name": "items_barcode_unique",
+          "columns": [
+            "barcode"
+          ],
+          "isUnique": true
+        },
+        "items_huid_unique": {
+          "name": "items_huid_unique",
+          "columns": [
+            "huid"
+          ],
+          "isUnique": true
         }
       },
-      "foreignKeys": {},
+      "foreignKeys": {
+        "items_design_id_designs_id_fk": {
+          "name": "items_design_id_designs_id_fk",
+          "tableFrom": "items",
+          "tableTo": "designs",
+          "columnsFrom": [
+            "design_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "items_firm_id_firms_id_fk": {
+          "name": "items_firm_id_firms_id_fk",
+          "tableFrom": "items",
+          "tableTo": "firms",
+          "columnsFrom": [
+            "firm_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "items_primary_stone_id_stones_id_fk": {
+          "name": "items_primary_stone_id_stones_id_fk",
+          "tableFrom": "items",
+          "tableTo": "stones",
+          "columnsFrom": [
+            "primary_stone_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "checkConstraints": {}
@@ -912,29 +1348,15 @@
           "notNull": true,
           "autoincrement": false
         },
-        "fy_id": {
-          "name": "fy_id",
+        "received_from": {
+          "name": "received_from",
           "type": "text",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false
         },
-        "customer_id": {
-          "name": "customer_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "lot_number": {
-          "name": "lot_number",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "metal": {
-          "name": "metal",
+        "received_date": {
+          "name": "received_date",
           "type": "text",
           "primaryKey": false,
           "notNull": true,
@@ -954,43 +1376,13 @@
           "notNull": true,
           "autoincrement": false
         },
-        "fine_weight_mg": {
-          "name": "fine_weight_mg",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": 0
-        },
         "metal_source": {
           "name": "metal_source",
           "type": "text",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false,
-          "default": "'OLD_GOLD'"
-        },
-        "status": {
-          "name": "status",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": "'RECEIVED'"
-        },
-        "purchase_rate_paise": {
-          "name": "purchase_rate_paise",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "total_amount_paise": {
-          "name": "total_amount_paise",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
+          "default": "'CUSTOMER'"
         },
         "notes": {
           "name": "notes",
@@ -999,12 +1391,13 @@
           "notNull": false,
           "autoincrement": false
         },
-        "received_at": {
-          "name": "received_at",
+        "status": {
+          "name": "status",
           "type": "text",
           "primaryKey": false,
           "notNull": true,
-          "autoincrement": false
+          "autoincrement": false,
+          "default": "'RECEIVED'"
         },
         "created_at": {
           "name": "created_at",
@@ -1019,10 +1412,53 @@
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false
+        },
+        "customer_id": {
+          "name": "customer_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "fine_weight_mg": {
+          "name": "fine_weight_mg",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 0
+        },
+        "purchase_rate_paise": {
+          "name": "purchase_rate_paise",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "total_amount_paise": {
+          "name": "total_amount_paise",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
         }
       },
       "indexes": {},
-      "foreignKeys": {},
+      "foreignKeys": {
+        "old_gold_lots_firm_id_firms_id_fk": {
+          "name": "old_gold_lots_firm_id_firms_id_fk",
+          "tableFrom": "old_gold_lots",
+          "tableTo": "firms",
+          "columnsFrom": [
+            "firm_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "checkConstraints": {}
@@ -1116,20 +1552,6 @@
           "notNull": true,
           "autoincrement": false
         },
-        "counter_type": {
-          "name": "counter_type",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "fy_id": {
-          "name": "fy_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
         "month": {
           "name": "month",
           "type": "text",
@@ -1137,13 +1559,94 @@
           "notNull": true,
           "autoincrement": false
         },
-        "last_value": {
-          "name": "last_value",
+        "year": {
+          "name": "year",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "current_seq": {
+          "name": "current_seq",
           "type": "integer",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false,
           "default": 0
+        },
+        "last_used_at": {
+          "name": "last_used_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "sequence_counters_firm_id_firms_id_fk": {
+          "name": "sequence_counters_firm_id_firms_id_fk",
+          "tableFrom": "sequence_counters",
+          "tableTo": "firms",
+          "columnsFrom": [
+            "firm_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "stones": {
+      "name": "stones",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "type": {
+          "name": "type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "firm_id": {
+          "name": "firm_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "is_active": {
+          "name": "is_active",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 1
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
         },
         "updated_at": {
           "name": "updated_at",
@@ -1154,7 +1657,21 @@
         }
       },
       "indexes": {},
-      "foreignKeys": {},
+      "foreignKeys": {
+        "stones_firm_id_firms_id_fk": {
+          "name": "stones_firm_id_firms_id_fk",
+          "tableFrom": "stones",
+          "tableTo": "firms",
+          "columnsFrom": [
+            "firm_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "checkConstraints": {}
@@ -1457,18 +1974,60 @@
           "name": "urd_number",
           "type": "text",
           "primaryKey": false,
-          "notNull": true,
+          "notNull": false,
           "autoincrement": false
         },
-        "old_gold_lot_id": {
-          "name": "old_gold_lot_id",
+        "purchase_date": {
+          "name": "purchase_date",
           "type": "text",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false
         },
-        "metal": {
-          "name": "metal",
+        "customer_id": {
+          "name": "customer_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "customer_name": {
+          "name": "customer_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "customer_address": {
+          "name": "customer_address",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "customer_mobile": {
+          "name": "customer_mobile",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "customer_aadhaar": {
+          "name": "customer_aadhaar",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "customer_pan": {
+          "name": "customer_pan",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "metal_type": {
+          "name": "metal_type",
           "type": "text",
           "primaryKey": false,
           "notNull": true,
@@ -1499,7 +2058,7 @@
           "name": "rate_per_gram_paise",
           "type": "integer",
           "primaryKey": false,
-          "notNull": false,
+          "notNull": true,
           "autoincrement": false
         },
         "total_value_paise": {
@@ -1523,22 +2082,8 @@
           "notNull": false,
           "autoincrement": false
         },
-        "customer_aadhaar": {
-          "name": "customer_aadhaar",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "customer_pan": {
-          "name": "customer_pan",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "purchase_date": {
-          "name": "purchase_date",
+        "old_gold_lot_id": {
+          "name": "old_gold_lot_id",
           "type": "text",
           "primaryKey": false,
           "notNull": true,
@@ -1551,6 +2096,13 @@
           "notNull": true,
           "autoincrement": false,
           "default": "'DRAFT'"
+        },
+        "notes": {
+          "name": "notes",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
         },
         "created_at": {
           "name": "created_at",
@@ -1568,7 +2120,34 @@
         }
       },
       "indexes": {},
-      "foreignKeys": {},
+      "foreignKeys": {
+        "urd_purchases_firm_id_firms_id_fk": {
+          "name": "urd_purchases_firm_id_firms_id_fk",
+          "tableFrom": "urd_purchases",
+          "tableTo": "firms",
+          "columnsFrom": [
+            "firm_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "urd_purchases_old_gold_lot_id_old_gold_lots_id_fk": {
+          "name": "urd_purchases_old_gold_lot_id_old_gold_lots_id_fk",
+          "tableFrom": "urd_purchases",
+          "tableTo": "old_gold_lots",
+          "columnsFrom": [
+            "old_gold_lot_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "checkConstraints": {}

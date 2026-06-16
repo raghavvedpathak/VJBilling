@@ -7,7 +7,11 @@ import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 import * as Crypto from 'expo-crypto';
 import { db } from '../db/client';
-import { firms, financialYears, auditLogs, safeModeState, appSettings, bisLogos } from '../db/schema';
+import { 
+  firms, financialYears, auditLogs, safeModeState, appSettings, bisLogos,
+  categories, designs, stones, hsnCodes, items, itemEvents,
+  gemstoneLots, designCategoryMap, sequenceCounters, oldGoldLots, urdPurchases
+} from '../db/schema';
 import { leaseService } from './leaseService';
 import { auditRepository } from '../repositories/auditRepository';
 import { getDeviceId } from '../utils/deviceId';
@@ -54,19 +58,51 @@ export const backupService = {
 
       // ATOMIC SNAPSHOT — all reads in one transaction to prevent data shifts mid-export
       await db.transaction(async (tx) => {
-        const smStateRows  = await tx.select().from(safeModeState);
-        const settingsRows = await tx.select().from(appSettings);
+        const [
+          smStateRows, settingsRows, firmsRows, financialYearsRows, auditLogsRows, bisLogosRows,
+          categoriesRows, designsRows, stonesRows, hsnCodesRows, itemsRows, itemEventsRows,
+          gemstoneLotsRows, designCategoryMapRows, sequenceCountersRows, oldGoldLotsRows, urdPurchasesRows
+        ] = await Promise.all([
+          tx.select().from(safeModeState),
+          tx.select().from(appSettings),
+          tx.select().from(firms),
+          tx.select().from(financialYears),
+          tx.select().from(auditLogs),
+          tx.select().from(bisLogos),
+          tx.select().from(categories),
+          tx.select().from(designs),
+          tx.select().from(stones),
+          tx.select().from(hsnCodes),
+          tx.select().from(items),
+          tx.select().from(itemEvents),
+          tx.select().from(gemstoneLots),
+          tx.select().from(designCategoryMap),
+          tx.select().from(sequenceCounters),
+          tx.select().from(oldGoldLots),
+          tx.select().from(urdPurchases),
+        ]);
 
         const dataSnapshot = {
-          firms:          await tx.select().from(firms),
-          financialYears: await tx.select().from(financialYears),
-          settings:       settingsRows,
-          auditLogs:      await tx.select().from(auditLogs),
-          bisLogos:       await tx.select().from(bisLogos),
+          firms: firmsRows,
+          financialYears: financialYearsRows,
+          settings: settingsRows,
+          auditLogs: auditLogsRows,
+          bisLogos: bisLogosRows,
           safeModeState:  smStateRows.length > 0
             ? smStateRows[0]
             : { id: 1, isActive: 0, reason: null, activatedAt: null, clearedAt: null },
           writerLeases: [], // Always empty — locks do not travel across devices
+          categories: categoriesRows,
+          designs: designsRows,
+          stones: stonesRows,
+          hsnCodes: hsnCodesRows,
+          items: itemsRows,
+          itemEvents: itemEventsRows,
+          gemstoneLots: gemstoneLotsRows,
+          designCategoryMap: designCategoryMapRows,
+          sequenceCounters: sequenceCountersRows,
+          oldGoldLots: oldGoldLotsRows,
+          urdPurchases: urdPurchasesRows,
         };
 
         const payloadString = JSON.stringify(dataSnapshot);

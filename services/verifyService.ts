@@ -297,3 +297,49 @@ export const verifyService = {
     }
   },
 };
+// --- APPENDED PHASE 2 INVENTORY VERIFY ---
+import { items, designs, categories } from '../db/schema';
+import { inArray, isNull, gt } from 'drizzle-orm';
+import type { VerifyIssue } from '../types/phase2.types';
+
+export const phase2VerifyService = {
+  async runVerify(firmId: string): Promise<VerifyIssue[]> {
+    const issues: VerifyIssue[] = [];
+    const p1Result = await verifyService.runVerify(firmId);
+    
+    for (const f of p1Result.findings) {
+      if (f.severity === 'HEALTHY') continue;
+      issues.push({ code: f.check, severity: f.severity as 'CRITICAL' | 'WARNING', message: f.detail });
+    }
+    
+    const allDesignIds = new Set((await db.select({ id: designs.id }).from(designs).where(eq(designs.firmId, firmId))).map(r => r.id));
+    const itemDesignIds = (await db.select({ designId: items.designId }).from(items).where(eq(items.firmId, firmId))).map(r => r.designId);
+    const orphanItemCount = itemDesignIds.filter(id => !allDesignIds.has(id)).length;
+    if (orphanItemCount > 0) issues.push({ code: 'ORPHAN_ITEMS', severity: 'CRITICAL', message: `${orphanItemCount} item(s) reference non-existent designs` });
+
+    const allCategoryIds = new Set((await db.select({ id: categories.id }).from(categories).where(eq(categories.firmId, firmId))).map(r => r.id));
+    const itemCategoryIds = (await db.select({ categoryId: items.categoryId }).from(items).where(eq(items.firmId, firmId))).map(r => r.categoryId);
+    const orphanItemCategoryCount = itemCategoryIds.filter(id => id && !allCategoryIds.has(id)).length;
+    if (orphanItemCategoryCount > 0) issues.push({ code: 'ORPHAN_ITEM_CATEGORIES', severity: 'CRITICAL', message: `${orphanItemCategoryCount} item(s) reference non-existent categories` });
+
+    const zeroWeightItems = await db.select({ id: items.id }).from(items).where(and(eq(items.firmId, firmId), eq(items.grossWeightMg, 0)));
+    if (zeroWeightItems.length > 0) issues.push({ code: 'ITEMS_ZERO_GROSS_WEIGHT', severity: 'CRITICAL', message: `${zeroWeightItems.length} item(s) have grossWeightMg = 0` });
+
+    const purityViolations = await db.select({ id: items.id }).from(items).where(and(eq(items.firmId, firmId), gt(items.fineWeightMg, items.grossWeightMg)));
+    if (purityViolations.length > 0) issues.push({ code: 'ITEMS_PURITY_OVER_100', severity: 'CRITICAL', message: `${purityViolations.length} item(s) have fineWeightMg > grossWeightMg (effective purity > 100%)` });
+
+    const sixtyDaysAgo = new Date(Date.now() - 60 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+    const staleFYs = await db.select({ id: financialYears.id }).from(financialYears)
+      .where(and(eq(financialYears.firmId, firmId), eq(financialYears.status, 'ACTIVE'), lt(financialYears.endDate, sixtyDaysAgo)));
+    if (staleFYs.length > 0) issues.push({ code: 'STALE_ACTIVE_FY', severity: 'WARNING', message: `${staleFYs.length} active FY boundary is > 60 days in the past — close the financial year` });
+
+    const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+    const stalePhantoms = await db.select({ id: items.id }).from(items).where(and(eq(items.firmId, firmId), inArray(items.status, ['PHANTOM_AVAILABLE','PHANTOM_SOLD']), isNull(items.phantomStockId), lt(items.createdAt, thirtyDaysAgo)));
+    if (stalePhantoms.length > 0) issues.push({ code: 'STALE_PHANTOM_ITEMS', severity: 'WARNING', message: `${stalePhantoms.length} phantom item(s) have been unreconciled for > 30 days — add backdated stock and reconcile` });
+
+    const openPhantoms = await db.select({ id: items.id }).from(items).where(and(eq(items.firmId, firmId), inArray(items.status, ['PHANTOM_AVAILABLE','PHANTOM_SOLD']), isNull(items.phantomStockId)));
+    if (openPhantoms.length > 0) issues.push({ code: 'FY_CLOSE_BLOCKED_PHANTOM_ITEMS', severity: 'CRITICAL', message: `${openPhantoms.length} phantom item(s) must be reconciled before closing FY — add backdated stock entries and call reconcilePhantomItem()` });
+
+    return issues;
+  }
+};
