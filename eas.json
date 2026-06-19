@@ -10,7 +10,10 @@
     "preview": {
       "distribution": "internal",
       "android": {
-        "buildType": "apk" 
+        "buildType": "apk"
+      },
+      "env": {
+        "EAS_BUILD_NPM_CI_FLAGS": "--legacy-peer-deps"
       }
     },
     "production": {}
