@@ -13,7 +13,7 @@
         "buildType": "apk"
       },
       "env": {
-        "EAS_BUILD_NPM_CI_FLAGS": "--legacy-peer-deps"
+        "npm_config_legacy_peer_deps": "true"
       }
     },
     "production": {}
