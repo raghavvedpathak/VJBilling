@@ -53,6 +53,12 @@ export default function BarcodePrintScreen() {
     const rawGross = label.frontSide.grossWeightDisplay.replace(' g', '');
     const rawNet = label.frontSide.netWeightDisplay.replace(' g', '');
 
+    const karatMatch = label.frontSide.purityDisplay.match(/(\d+K)/);
+    const karatOnly = karatMatch ? karatMatch[1] : '';
+    const topRowText = karatOnly 
+      ? `${label.frontSide.designName.toUpperCase()} ${karatOnly}` 
+      : label.frontSide.designName.toUpperCase();
+
     return `
       <!DOCTYPE html>
       <html>
@@ -85,7 +91,7 @@ export default function BarcodePrintScreen() {
         </head>
         <body>
           <div class="head">
-            <div class="text-line">${label.frontSide.purityDisplay} ${label.frontSide.designName.toUpperCase()}</div>
+            <div class="text-line">${topRowText}</div>
             <div class="text-line">Gr.Wt. : ${rawGross}</div>
             <div class="text-line">Nt.Wt. : ${rawNet}</div>
           </div>
@@ -99,12 +105,12 @@ export default function BarcodePrintScreen() {
           <script>
             // Generate exact QR Code inside the div
             new QRCode(document.getElementById("qrcode"), {
-              text: "${label.backSide.skuDisplay}",
-              width: 32,
-              height: 32,
+              text: "${label.backSide.barcodeValue}",
+              width: 44,
+              height: 44,
               colorDark : "#000000",
               colorLight : "#ffffff",
-              correctLevel : QRCode.CorrectLevel.M
+              correctLevel : QRCode.CorrectLevel.L
             });
           </script>
         </body>
@@ -187,7 +193,13 @@ export default function BarcodePrintScreen() {
             {/* Front Side (Head) */}
             <View style={{ flex: 1, padding: 12, borderRightWidth: 1, borderRightColor: '#ccc', borderStyle: 'dashed', justifyContent: 'center' }}>
               <Text style={{ fontSize: 13, fontWeight: '800', color: COLORS.vjText, marginBottom: 6 }}>
-                {label.frontSide.purityDisplay} {label.frontSide.designName.toUpperCase()}
+                {(() => {
+                  const km = label.frontSide.purityDisplay.match(/(\d+K)/);
+                  const ko = km ? km[1] : '';
+                  return ko 
+                    ? `${label.frontSide.designName.toUpperCase()} ${ko}` 
+                    : label.frontSide.designName.toUpperCase();
+                })()}
               </Text>
               <Text style={{ fontSize: 13, fontWeight: '700', color: COLORS.vjText, marginBottom: 4 }}>
                 Gr.Wt. : {label.frontSide.grossWeightDisplay.replace(' g', '')}
