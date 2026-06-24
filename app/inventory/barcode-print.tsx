@@ -9,7 +9,8 @@ import { TwoToneWrapper } from '../../components/TwoToneWrapper';
 import { GlassCard, GlassButton } from '../../components/ui/Glass';
 import { useFirmStore } from '../../store/firmStore';
 import { barcodeLabelService } from '../../services/barcodeLabelService';
-import { Printer, Share, CheckCircle, RefreshCcw, QrCode } from 'lucide-react-native';
+import { Printer, Share, CheckCircle, RefreshCcw } from 'lucide-react-native';
+import QRCode from 'react-native-qrcode-svg';
 import type { BarcodeLabel } from '../../types/phase2.types';
 
 const COLORS = {
@@ -86,7 +87,7 @@ export default function BarcodePrintScreen() {
             }
             .text-line { font-size: 8px; font-weight: bold; margin: 1.5px 0; color: black; line-height: 1; }
             .sku-text { font-size: 8px; font-weight: bold; color: black; margin-top: 2px; margin-bottom: 2px; }
-            #qrcode { margin: 1px 0; display: flex; justify-content: center; align-items: center; }
+            #qrcode { margin: 1px 0; display: flex; justify-content: center; align-items: center; padding: 2px; background: #ffffff; }
           </style>
         </head>
         <body>
@@ -106,8 +107,8 @@ export default function BarcodePrintScreen() {
             // Generate exact QR Code inside the div
             new QRCode(document.getElementById("qrcode"), {
               text: "${label.backSide.barcodeValue}",
-              width: 44,
-              height: 44,
+              width: 48,
+              height: 48,
               colorDark : "#000000",
               colorLight : "#ffffff",
               correctLevel : QRCode.CorrectLevel.L
@@ -215,7 +216,13 @@ export default function BarcodePrintScreen() {
               
               {/* QR CODE PREVIEW */}
               <View style={{ marginBottom: 4, alignItems: 'center', justifyContent: 'center' }}>
-                <QrCode size={36} color={COLORS.vjText} strokeWidth={1.5} />
+                <QRCode 
+                  value={label.backSide.barcodeValue} 
+                  size={42} 
+                  color={COLORS.vjText} 
+                  backgroundColor="#ffffff" 
+                  quietZone={2}
+                />
               </View>
 
               <Text style={{ fontSize: 12, fontWeight: '800', color: COLORS.vjText, fontFamily: 'monospace' }}>{label.backSide.skuDisplay}</Text>
