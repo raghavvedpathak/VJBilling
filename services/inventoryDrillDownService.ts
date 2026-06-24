@@ -41,12 +41,12 @@ export async function getItemDetail(
   itemId: string
 ): Promise<ItemDetail> {
   if (!firmId || !itemId) throw new Error('FIRM_ID_AND_ITEM_ID_REQUIRED');
-  
+
   const item = await inventoryDrillDownRepository.getItemWithNames(firmId, itemId);
   if (!item) throw new Error('ITEM_NOT_FOUND_OR_WRONG_FIRM');
-  
+
   const timeline = await inventoryDrillDownRepository.getItemTimeline(firmId, itemId);
-  
+
   return { ...item, timeline };
 }
 

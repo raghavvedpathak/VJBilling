@@ -1,5 +1,5 @@
-import { useState, useEffect, useCallback } from 'react';
-import { useRouter } from 'expo-router';
+import { useState, useCallback } from 'react';
+import { useRouter, useFocusEffect } from 'expo-router';
 import { useFirmStore } from '../store/firmStore';
 import { firmRepository, Firm } from '../repositories/firmRepository';
 import { fyRepository } from '../repositories/fyRepository';
@@ -33,8 +33,6 @@ export function useSession() {
     }
 
     try {
-      setIsLoading(true);
-
       // 1. Fetch Firm Identity
       const firmData = await firmRepository.getById(activeFirmId);
 
@@ -72,9 +70,11 @@ export function useSession() {
   // Both are stable refs so this does not cause extra re-runs.
   }, [activeFirmId, router, clearActiveFirm]);
 
-  useEffect(() => {
-    refreshSession();
-  }, [refreshSession]);
+  useFocusEffect(
+    useCallback(() => {
+      refreshSession();
+    }, [refreshSession])
+  );
 
   return {
     firm,

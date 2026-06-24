@@ -1,7 +1,6 @@
 import { db } from '../db/client';
 import { urdPurchaseRepository } from '../repositories/urdPurchaseRepository';
 import { oldGoldLotRepository } from '../repositories/oldGoldLotRepository';
-// IDE Cache trigger
 import { sequenceCounterRepository } from '../repositories/sequenceCounterRepository';
 import { auditRepository } from '../repositories/auditRepository';
 import { financialYearRepository } from '../repositories/fyRepository';
@@ -125,6 +124,9 @@ export const urdPurchaseService = {
       if (!urd || urd.firmId !== firmId) throw new Error('URD_NOT_FOUND_OR_WRONG_FIRM');
       if (urd.status !== 'DRAFT') throw new Error('URD_ALREADY_CONFIRMED');
 
+      // PHASE 1 ALIGNMENT LIMIT: Max value ₹99,99,999.99 to prevent amountToWords overflow
+      if (urd.totalValuePaise > 999999999) throw new Error('URD_AMOUNT_EXCEEDS_MAX');
+
       const seq = await sequenceCounterRepository.nextVal(tx, firmId, urd.fyId, 'URD');
       
       const fy = await financialYearRepository.getById(tx, urd.fyId);
@@ -160,84 +162,136 @@ export const urdPurchaseService = {
     const symbol = getCurrencySymbol();
     
     const html = `
-<div style="font-family: sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; border: 1px solid #ccc;">
-  <div style="text-align: center; border-bottom: 2px solid #000; padding-bottom: 10px; margin-bottom: 20px;">
-    <h1 style="margin: 0; font-size: 24px;">\${firm.name}</h1>
-    <p style="margin: 5px 0;">\${firm.address || ''}</p>
-    <p style="margin: 5px 0;">GSTIN: \${firm.gstin || 'N/A'} | Phone: \${firm.phone1 || 'N/A'}</p>
-    <h2 style="margin: 15px 0 5px; text-decoration: underline;">URD PURCHASE BILL</h2>
+<div style="font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; border: 2px solid #000; padding: 0; box-sizing: border-box; background: white;">
+  
+  <!-- Header Section -->
+  <div style="padding: 10px; text-align: center; position: relative;">
+    <div style="position: absolute; top: 10px; right: 10px; font-size: 10px;">
+      <div style="margin-bottom: 5px;">Subject to ${firm.city || 'Local'} Jurisdiction</div>
+      <div style="display: flex; gap: 5px; font-weight: bold; justify-content: flex-end;">
+        <div style="border: 1px solid #000; padding: 2px 15px;">CASH ${urd.paymentMode === 'CASH' ? '✓' : ''}</div>
+        <div style="border: 1px solid #000; padding: 2px 15px;">CREDIT ${urd.paymentMode !== 'CASH' ? '✓' : ''}</div>
+      </div>
+    </div>
+    <div style="margin-top: 10px; color: red; font-size: 14px; font-weight: bold;">|| Shri ||</div>
+    <div style="color: red; font-size: 24px; font-weight: bold; margin: 5px 0;">${firm.name}</div>
+    <div style="color: red; font-size: 14px; margin: 5px 0;">${firm.addressLine1 || ''}</div>
+    <div style="color: red; font-size: 14px; font-weight: bold; margin: 5px 0;">${firm.ownerName ? firm.ownerName + ' - ' : ''}${firm.phone1 || ''}</div>
   </div>
 
-  <div style="display: flex; justify-content: space-between; margin-bottom: 20px;">
-    <div>
-      <strong>URD Number:</strong> \${urd.urdNumber}<br>
-      <strong>Purchase Date:</strong> \${urd.purchaseDate}
+  <!-- Bill Title -->
+  <div style="border-top: 2px solid #000; border-bottom: 2px solid #000; text-align: center; padding: 5px;">
+    <div style="color: red; font-size: 18px; font-weight: bold;">URD PURCHASE BILL</div>
+  </div>
+
+  <!-- Declarations & Tax Row -->
+  <div style="border-bottom: 1px solid #000; padding: 5px; font-size: 10px; text-align: center;">
+    *As per Serial No 4 & 5 of Annexure to Rule No.138 (14) of CGST Rules, 2017, E-way bill is not required to be generated for items included in this invoice.*
+  </div>
+  <div style="display: flex; border-bottom: 1px solid #000; font-size: 12px; font-weight: bold;">
+    <div style="flex: 1; padding: 5px; border-right: 1px solid #000;">Tax is Payable on Reverse Charge - (No)</div>
+    <div style="flex: 1; padding: 5px; display: flex; justify-content: space-between;">
+      <span>State Code : ${firm.stateCode || '27'} (${firm.state || 'Maharashtra'})</span>
+      <span style="color: red; font-size: 14px;">GSTIN: ${firm.gstin || ''}</span>
     </div>
   </div>
 
-  <div style="margin-bottom: 20px; border: 1px solid #000; padding: 10px;">
-    <h3 style="margin-top: 0; border-bottom: 1px solid #ccc; padding-bottom: 5px;">Seller (Customer) Details</h3>
-    <strong>Name:</strong> \${urd.customerName}<br>
-    <strong>Address:</strong> \${urd.customerAddress || 'Not Provided'}<br>
-    <strong>Mobile:</strong> \${urd.customerMobile || 'Not Provided'}<br>
-    \${
-      (!urd.customerAadhaar && !urd.customerPAN) 
-        ? '<strong>Identity Proof:</strong> Not Provided<br>' 
-        : ''
-    }
-    \${urd.customerAadhaar ? \`<strong>Aadhaar:</strong> XXXX-XXXX-\${urd.customerAadhaar.slice(-4)}<br>\` : ''}
-    \${urd.customerPAN ? \`<strong>PAN:</strong> \${urd.customerPAN}<br>\` : ''}
+  <!-- Bill Meta -->
+  <div style="display: flex; border-bottom: 1px solid #000; font-size: 12px;">
+    <div style="flex: 1; padding: 5px; border-right: 1px solid #000;">URD Purchase Bill No. : <strong>${urd.urdNumber}</strong></div>
+    <div style="flex: 1; padding: 5px;">URD Purchase Bill Date : <strong>${urd.purchaseDate}</strong></div>
   </div>
 
-  <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px;">
+  <!-- Seller Details -->
+  <div style="padding: 10px 5px; font-size: 12px; border-bottom: 1px solid #000; line-height: 1.8;">
+    <strong>Details of Seller (Customer Name)</strong><br>
+    <div style="display: flex;">
+      <span style="width: 80px;">Name</span>
+      <span style="flex: 1; border-bottom: 1px dotted #000;">${urd.customerName}</span>
+    </div>
+    <div style="display: flex; margin-top: 5px;">
+      <span style="width: 80px;">Address</span>
+      <span style="flex: 1; border-bottom: 1px dotted #000;">${urd.customerAddress || ''}</span>
+    </div>
+    <div style="display: flex; margin-top: 5px;">
+      <span style="width: 80px;">Mobile No</span>
+      <span style="flex: 1; border-bottom: 1px dotted #000;">${urd.customerMobile || ''}</span>
+    </div>
+    <div style="display: flex; margin-top: 5px; align-items: center;">
+      <span style="width: 80px;">PAN No.</span>
+      <div style="display: flex; margin-right: 20px;">
+        ${(urd.customerPAN ? urd.customerPAN.padEnd(10, ' ') : '          ').split('').map(char => '<div style="width: 15px; height: 20px; border: 1px solid #000; text-align: center; line-height: 20px; text-transform: uppercase;">' + (char === ' ' ? '' : char) + '</div>').join('')}
+      </div>
+      <span>Aadhar Card No. : </span>
+      <span style="flex: 1; border-bottom: 1px dotted #000; margin-left: 10px;">${urd.customerAadhaar || ''}</span>
+    </div>
+  </div>
+
+  <!-- Table -->
+  <table style="width: 100%; border-collapse: collapse; text-align: center; font-size: 12px;">
     <thead>
-      <tr>
-        <th style="border: 1px solid #000; padding: 8px; text-align: left;">Description</th>
-        <th style="border: 1px solid #000; padding: 8px; text-align: right;">Gross Wt (g)</th>
-        <th style="border: 1px solid #000; padding: 8px; text-align: right;">Purity (%)</th>
-        <th style="border: 1px solid #000; padding: 8px; text-align: right;">Fine Wt (g)</th>
-        <th style="border: 1px solid #000; padding: 8px; text-align: right;">Rate/g</th>
-        <th style="border: 1px solid #000; padding: 8px; text-align: right;">Total Value</th>
+      <tr style="border-bottom: 1px solid #000;">
+        <th style="border-right: 1px solid #000; padding: 5px; width: 40px;">Sr.<br>No.</th>
+        <th style="border-right: 1px solid #000; padding: 5px;">Description of Goods</th>
+        <th style="border-right: 1px solid #000; padding: 5px;">Carat</th>
+        <th style="border-right: 1px solid #000; padding: 5px;">Purity</th>
+        <th style="border-right: 1px solid #000; padding: 5px;">Qty.</th>
+        <th style="border-right: 1px solid #000; padding: 5px;">Weight<br>in Gram</th>
+        <th style="border-right: 1px solid #000; padding: 5px;">Rate<br>Per Gram</th>
+        <th style="padding: 5px;">Amount</th>
       </tr>
     </thead>
     <tbody>
-      <tr>
-        <td style="border: 1px solid #000; padding: 8px;">Old \${urd.metalType} Jewellery (\${urd.purityPercent}%)</td>
-        <td style="border: 1px solid #000; padding: 8px; text-align: right;">\${(urd.grossWeightMg / 1000).toFixed(3)}</td>
-        <td style="border: 1px solid #000; padding: 8px; text-align: right;">\${urd.purityPercent}</td>
-        <td style="border: 1px solid #000; padding: 8px; text-align: right;">\${(urd.fineWeightMg / 1000).toFixed(3)}</td>
-        <td style="border: 1px solid #000; padding: 8px; text-align: right;">\${symbol}\${(urd.ratePerGramPaise / 100).toFixed(2)}</td>
-        <td style="border: 1px solid #000; padding: 8px; text-align: right;">\${symbol}\${(urd.totalValuePaise / 100).toFixed(2)}</td>
+      <tr style="height: 150px; vertical-align: top;">
+        <td style="border-right: 1px solid #000; padding: 5px;">1</td>
+        <td style="border-right: 1px solid #000; padding: 5px;">Old ${urd.metalType} Jewellery</td>
+        <td style="border-right: 1px solid #000; padding: 5px;">${Math.round(urd.purityPercent / 100 * 24)}K</td>
+        <td style="border-right: 1px solid #000; padding: 5px;">${urd.purityPercent}%</td>
+        <td style="border-right: 1px solid #000; padding: 5px;">1</td>
+        <td style="border-right: 1px solid #000; padding: 5px;">${(urd.grossWeightMg / 1000).toFixed(3)}</td>
+        <td style="border-right: 1px solid #000; padding: 5px;">${(urd.ratePerGramPaise / 100).toFixed(2)}</td>
+        <td style="padding: 5px;">${(urd.totalValuePaise / 100).toFixed(2)}</td>
       </tr>
     </tbody>
   </table>
 
-  <div style="margin-bottom: 40px;">
-    <strong>Amount Paid:</strong> \${symbol}\${(urd.totalValuePaise / 100).toFixed(2)}<br>
-    <strong>In Words:</strong> \${amountToWords(urd.totalValuePaise)}<br>
-    <strong>Payment Mode:</strong> \${urd.paymentMode} \${urd.bankAccountId ? '(Bank/UPI)' : ''}
+  <!-- Footer Sections -->
+  <div style="border-top: 1px solid #000; display: flex; font-size: 12px; height: 50px;">
+    <div style="flex: 2; border-right: 1px solid #000; padding: 5px;">
+      <div style="display: flex; justify-content: space-between;">
+        <span><strong>Bank Details :</strong> Bank of :</span>
+        <span>Branch :</span>
+      </div>
+      <div style="display: flex; justify-content: space-between; margin-top: 5px;">
+        <span>A/c. No. :</span>
+        <span>IFSC Code :</span>
+      </div>
+    </div>
+    <div style="flex: 1; display: flex; flex-direction: column;">
+      <div style="flex: 1; border-bottom: 1px solid #000; border-right: 1px solid #000; padding: 5px; font-weight: bold;">Discount</div>
+      <div style="flex: 1; border-right: 1px solid #000; padding: 5px; font-weight: bold;">Purchase Value</div>
+    </div>
+    <div style="flex: 1; display: flex; flex-direction: column;">
+      <div style="flex: 1; border-bottom: 1px solid #000; padding: 5px; text-align: right;">-</div>
+      <div style="flex: 1; padding: 5px; text-align: right; font-weight: bold;">${(urd.totalValuePaise / 100).toFixed(2)}</div>
+    </div>
   </div>
 
-  <div style="display: flex; justify-content: space-between; margin-top: 50px; text-align: center;">
-    <div style="width: 45%; border-top: 1px solid #000; padding-top: 5px;">
-      Seller Signature<br>
-      (\${urd.customerName})
-    </div>
-    <div style="width: 45%; border-top: 1px solid #000; padding-top: 5px;">
-      Authorized Signatory<br>
-      (\${firm.name})
-    </div>
-  </div>
-  
-  <div style="text-align: center; margin-top: 20px; font-style: italic;">
-    I confirm that I have sold the above article(s) and received the stated amount.
+  <div style="border-top: 1px solid #000; border-bottom: 1px solid #000; padding: 5px; font-size: 12px;">
+    Total Amount in words Rs. <strong>${amountToWords(urd.totalValuePaise)}</strong>
   </div>
 
-  <div style="margin-top: 40px; font-size: 10px; color: #666; text-align: center; border-top: 1px solid #eee; padding-top: 10px;">
-    This is a computer-generated URD Purchase Bill.<br>
-    \${firm.address || ''}<br>
-    Printed on: \${new Date().toLocaleString()}
+  <!-- Declaration -->
+  <div style="padding: 5px; font-size: 10px; line-height: 1.4; border-bottom: 1px solid #000;">
+    <strong>Declaration</strong> 1) Verified that the Particulars given above are true and correct & the amount indicated Represent the price actually charge & that there is no flow additional consideration directly or indirectly from the buyer. 2) We are agreed on valuation done at the time of purchase.
   </div>
+
+  <!-- Signatures -->
+  <div style="display: flex; justify-content: space-between; padding: 10px 20px 40px 20px; font-size: 12px; font-weight: bold;">
+    <div style="margin-top: 40px;">Customer's Signature</div>
+    <div style="color: red;">For ${firm.name}</div>
+  </div>
+
 </div>
 `;
     return html;

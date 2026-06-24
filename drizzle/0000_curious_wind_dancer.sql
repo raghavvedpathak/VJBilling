@@ -3,7 +3,7 @@ CREATE TABLE `app_settings` (
 	`theme` text DEFAULT 'system' NOT NULL,
 	`audit_retention_days` integer DEFAULT 365 NOT NULL,
 	`currency` text DEFAULT 'INR' NOT NULL,
-	`currency_symbol` text DEFAULT '₹' NOT NULL,
+	`currency_symbol` text DEFAULT 'Rs' NOT NULL,
 	`currency_decimal_places` integer DEFAULT 2 NOT NULL,
 	`date_format_token` text DEFAULT 'dd/MM/yyyy' NOT NULL,
 	`warn_unsaved_changes` integer DEFAULT 1 NOT NULL,
@@ -331,3 +331,22 @@ CREATE TABLE `writer_leases` (
 	`expires_at` text NOT NULL,
 	`device_id` text NOT NULL
 );
+
+-- =============================================================================
+-- MANUAL APPEND: PHASE 2 PARTIAL INDEXES & PHASE 3/7 DORMANT BOUNDARIES
+-- =============================================================================
+
+-- 1. Enforce single active financial year per firm
+CREATE UNIQUE INDEX `uq_one_active_fy_per_firm` ON `financial_years` (`firm_id`) WHERE status = 'ACTIVE';
+
+-- 2. Optimize Inventory Stock Summary Queries (Status-based partial indexes)
+CREATE INDEX `idx_items_status_available` ON `items` (`firm_id`, `status`) WHERE status = 'AVAILABLE';
+CREATE INDEX `idx_items_status_phantom` ON `items` (`firm_id`, `status`) WHERE status IN ('PHANTOM_AVAILABLE', 'PHANTOM_SOLD');
+CREATE INDEX `idx_items_status_draft` ON `items` (`firm_id`, `status`) WHERE status = 'DRAFT';
+
+-- 3. Optimize Reconciliation lookup
+CREATE INDEX `idx_items_unreconciled_phantom` ON `items` (`firm_id`, `status`, `phantom_stock_id`) WHERE phantom_stock_id IS NULL AND status IN ('PHANTOM_AVAILABLE', 'PHANTOM_SOLD');
+
+-- DORMANT BOUNDARY ENFORCEMENT WARNINGS
+-- TODO: PHASE 3 STEP 0 BOUNDARY. DO NOT import or query tax_rates, tax_groups, tax_group_components from Phase 1/2 service code.
+-- TODO: FUTURE SYNC PHASE BOUNDARY. DO NOT import or query sync_devices, sync_log from Phase 1-7 service code.

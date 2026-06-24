@@ -4,7 +4,7 @@
 
 import React, { useState, useCallback, memo } from 'react';
 import { View, Text, ScrollView, StyleSheet, ActivityIndicator, TouchableOpacity } from 'react-native';
-import { useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
 import { TwoToneWrapper } from '../../components/TwoToneWrapper';
 import { useFirmStore } from '../../store/firmStore';
@@ -112,8 +112,6 @@ const TimelineRow = memo(({ event, isLast }: { event: ItemTimelineEvent; isLast:
           <Text style={s.timelineReason} numberOfLines={2}>{event.reason}</Text>
         )}
 
-        {/* Phase 3 ITEM_SOLD invoice link placeholder can be added here if needed */}
-
         <Text style={s.timelineDate}>{dateStr}{'\n'}{timeStr}</Text>
       </View>
     </View>
@@ -135,6 +133,7 @@ function DetailRow({ label, value, icon, valueColor }: { label: string; value: s
 
 // ======== MAIN SCREEN ========
 export default function ItemDetailScreen() {
+  const router = useRouter();
   const { itemId } = useLocalSearchParams<{ itemId: string }>();
   const { activeFirmId } = useFirmStore();
   const [item, setItem] = useState<ItemDetail | null>(null);
@@ -191,6 +190,21 @@ export default function ItemDetailScreen() {
     createdAtFormatted = format(parseISO(item.createdAt), 'dd MMM yyyy hh:mm a');
   } catch {}
 
+  // --- Calculate Total Amount (Paise) ---
+  let totalCostPaise: number | null = null;
+  if (item.purchaseRatePaise !== null || item.makingChargePaise !== null || item.stoneCostPaise !== null) {
+    totalCostPaise = 0;
+    if (item.purchaseRatePaise !== null) {
+      // Calculate gold cost based on Fine Gold Charged (or fallback to Fine Weight + Wastage)
+      const billedGrams = item.fineGoldChargedMg != null 
+        ? (item.fineGoldChargedMg / 1000) 
+        : ((item.fineWeightMg / 1000) * (1 + (item.wastagePercent || 0) / 100));
+      totalCostPaise += billedGrams * item.purchaseRatePaise;
+    }
+    if (item.makingChargePaise !== null) totalCostPaise += item.makingChargePaise;
+    if (item.stoneCostPaise !== null) totalCostPaise += item.stoneCostPaise;
+  }
+
   const headerContent = (
     <View>
       <View style={s.headerTopRow}>
@@ -209,7 +223,7 @@ export default function ItemDetailScreen() {
 
   return (
     <TwoToneWrapper title="" showBack headerContent={headerContent}>
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 100 }}>
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 60 }}>
 
         {/* === DETAILS CARD === */}
         <View style={s.section}>
@@ -230,6 +244,8 @@ export default function ItemDetailScreen() {
 
             <DetailRow label="Wastage" value={item.wastagePercent ? `${item.wastagePercent.toFixed(2)}%` : '0.00%'} />
             <DetailRow label="HUID" value={item.huid || 'Not Set'} />
+            
+            {/* BARCODE REMAINS HERE */}
             <DetailRow label="Barcode" value={item.barcode} />
             
             <View style={s.divider} />
@@ -245,17 +261,28 @@ export default function ItemDetailScreen() {
             <DetailRow label="Added On" value={createdAtFormatted} />
 
             {/* === COST FIELDS === */}
-            {(item.purchaseRatePaise !== null || item.makingChargePaise !== null || item.stoneCostPaise !== null) && (
-              <View style={s.divider} />
-            )}
-            {item.purchaseRatePaise !== null && (
-              <DetailRow label="Purchase Rate" value={formatCurrency(item.purchaseRatePaise) + ' /g'} />
-            )}
-            {item.makingChargePaise !== null && (
-              <DetailRow label="Making Charge" value={formatCurrency(item.makingChargePaise)} />
-            )}
-            {item.stoneCostPaise !== null && (
-              <DetailRow label="Stone Cost" value={formatCurrency(item.stoneCostPaise)} />
+            {totalCostPaise !== null && (
+              <>
+                <View style={s.divider} />
+                <View style={s.costHeaderRow}>
+                  <Text style={s.costHeaderTitle}>Purchase Costs</Text>
+                </View>
+
+                {item.purchaseRatePaise !== null && (
+                  <DetailRow label="Purchase Rate" value={formatCurrency(item.purchaseRatePaise) + ' /g'} />
+                )}
+                {item.makingChargePaise !== null && (
+                  <DetailRow label="Making Charge" value={formatCurrency(item.makingChargePaise)} />
+                )}
+                {item.stoneCostPaise !== null && (
+                  <DetailRow label="Stone Cost" value={formatCurrency(item.stoneCostPaise)} />
+                )}
+                
+                <View style={s.costTotalBox}>
+                  <Text style={s.costTotalLabel}>Total Est. Cost</Text>
+                  <Text style={s.costTotalValue}>{formatCurrency(totalCostPaise)}</Text>
+                </View>
+              </>
             )}
 
             <View style={s.divider} />
@@ -351,6 +378,19 @@ const s = StyleSheet.create({
   detailIcon: { opacity: 0.7 },
   detailLabel: { color: 'rgba(46,29,0,0.5)', fontSize: 13, fontWeight: '600' },
   detailValue: { color: COLORS.vjText, fontSize: 14, fontWeight: '700', maxWidth: '60%', textAlign: 'right' },
+
+  // --- Costs Highlight ---
+  costHeaderRow: { paddingHorizontal: 14, paddingTop: 12, paddingBottom: 4 },
+  costHeaderTitle: { fontSize: 11, fontWeight: '800', color: COLORS.vjAccent, textTransform: 'uppercase', letterSpacing: 0.5 },
+  costTotalBox: { 
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+    marginHorizontal: 10, marginBottom: 10, marginTop: 4,
+    paddingVertical: 12, paddingHorizontal: 16,
+    backgroundColor: 'rgba(184,115,51,0.08)', borderRadius: 12,
+    borderWidth: 1, borderColor: 'rgba(184,115,51,0.2)'
+  },
+  costTotalLabel: { fontSize: 14, fontWeight: '800', color: COLORS.vjText },
+  costTotalValue: { fontSize: 16, fontWeight: '900', color: '#92400E', fontFamily: 'monospace' },
 
   // --- Timeline ---
   timelineTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 14, marginLeft: 2 },

@@ -1,9 +1,10 @@
+// app/masters/index.tsx
 import React from 'react';
 import { View, Text, ScrollView, TouchableOpacity, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
 import { TwoToneWrapper } from '../../components/TwoToneWrapper';
 import { GlassCard } from '../../components/ui/Glass';
-import { Settings2, Layers, Tag, ChevronRight } from 'lucide-react-native';
+import { Settings2, Layers, Tag, ChevronRight, Gem } from 'lucide-react-native';
 
 const COLORS = {
   vjText: '#2E1D00',
@@ -61,6 +62,23 @@ export default function MastersIndexScreen() {
           </GlassCard>
         </TouchableOpacity>
 
+        <Text style={s.sectionTitle}>Gemstones & Materials</Text>
+
+        <TouchableOpacity activeOpacity={0.8} onPress={() => router.push('/masters/stones')}>
+          <GlassCard style={s.tile}>
+            <View style={s.tileContent}>
+              <View style={s.iconWrapper}>
+                <Gem size={24} color="#2E1D00" />
+              </View>
+              <View style={s.textWrapper}>
+                <Text style={s.tileTitle}>Stone Master</Text>
+                <Text style={s.tileSubtitle}>Define diamond and precious stone types</Text>
+              </View>
+              <ChevronRight size={20} color="#B87333" style={{ opacity: 0.5 }} />
+            </View>
+          </GlassCard>
+        </TouchableOpacity>
+
       </ScrollView>
     </TwoToneWrapper>
   );
@@ -92,6 +110,7 @@ const s = StyleSheet.create({
     textTransform: 'uppercase',
     letterSpacing: 1,
     marginBottom: 16,
+    marginTop: 8,
     marginLeft: 4,
   },
   tile: {

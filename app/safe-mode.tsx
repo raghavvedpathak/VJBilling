@@ -81,7 +81,7 @@ export default function SafeModeScreen() {
 
   return (
     <KeyboardAvoidingView
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       className="flex-1 bg-vj-danger/10"
     >
       <ScrollView

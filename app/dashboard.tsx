@@ -7,7 +7,8 @@ import { useSession } from '../hooks/useSession';
 import { useFirmStore } from '../store/firmStore';
 import { GlassCard, GlassButton } from '../components/ui/Glass'; 
 import { LeaseStatusBanner } from '../components/LeaseStatusBanner'; 
-import { LogOut, Settings, ShieldCheck, FileText, Package, Users, TrendingUp, ChevronRight, Gem, ClipboardList, Database } from 'lucide-react-native';
+import { FYEndBanner } from '../components/FYEndBanner'; 
+import { LogOut, Settings, ShieldCheck, FileText, Package, TrendingUp, ChevronRight, Gem, Landmark } from 'lucide-react-native';
 
 export default function Dashboard() {
   const router = useRouter();
@@ -42,6 +43,7 @@ export default function Dashboard() {
     <View>
       <View className="mb-4">
          <LeaseStatusBanner />
+         <FYEndBanner />
       </View>
 
       <View className="py-2">
@@ -98,49 +100,27 @@ export default function Dashboard() {
   return (
     <TwoToneWrapper title="" headerContent={dashboardHeader}>
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 100 }}>
-        
+
         <Text className="text-vj-text/60 text-xs font-bold uppercase tracking-widest mb-4 ml-1">
-          Operations
+          Core Modules
         </Text>
 
         <View className="flex-row flex-wrap justify-between gap-y-4">
-          <MenuTile title="Tax Invoice" subtitle="Billing & Sales" icon={<FileText size={24} color="#B87333" />} disabled />
-          
           <MenuTile 
-            title="Stock Inventory" 
-            subtitle="Manage Items" 
+            title="Inventory & Stock" 
+            subtitle="Phase 2 Layer" 
             icon={<Package size={24} color="#2E1D00" />} 
-            onPress={() => router.push('/inventory/drill-down')} 
-          />
-          
-          <MenuTile 
-            title="Draft Items" 
-            subtitle="Pending Verify" 
-            icon={<ClipboardList size={24} color="#2E1D00" />} 
-            onPress={() => router.push('/inventory/drafts')} 
+            onPress={() => router.push('/inventory')} 
           />
 
-          <MenuTile title="Business Reports" subtitle="Insights" icon={<TrendingUp size={24} color="#2E1D00" />} disabled />
+          <MenuTile title="Billing & Sales" subtitle="Phase 3 Layer" icon={<FileText size={24} color="#B87333" />} disabled />
+          <MenuTile title="Vault & Refinery" subtitle="Phase 4 Layer" icon={<Landmark size={24} color="#B87333" />} disabled />
+          <MenuTile title="Business Reports" subtitle="Phase 6 Layer" icon={<TrendingUp size={24} color="#B87333" />} disabled />
         </View>
 
         <Text className="text-vj-text/60 text-xs font-bold uppercase tracking-widest mb-4 mt-8 ml-1">
-          Governance & Masters
+          System Settings
         </Text>
-
-        <TouchableOpacity activeOpacity={0.8} onPress={() => router.push('/masters')} className="mb-4">
-          <GlassCard style={{ padding: 0 }}>
-            <View className="flex-row items-center gap-4 p-4">
-              <View className="bg-vj-glass p-3 rounded-full border border-white/20">
-                <Database size={24} color="#2E1D00" />
-              </View>
-              <View className="flex-1">
-                <Text className="text-vj-text font-bold text-lg">Master Catalogs</Text>
-                <Text className="text-vj-text/60 text-xs">Categories, Designs, HSN Codes</Text>
-              </View>
-              <ChevronRight size={20} color="#B87333" className="opacity-50" />
-            </View>
-          </GlassCard>
-        </TouchableOpacity>
 
         <TouchableOpacity activeOpacity={0.8} onPress={() => router.push('/settings')}>
           <GlassCard style={{ padding: 0 }}>
@@ -160,7 +140,7 @@ export default function Dashboard() {
         <View className="mt-8 items-center opacity-30 mb-8">
           <Gem size={20} color="#2E1D00" />
           <Text className="text-[10px] font-bold text-vj-text mt-2">
-            VJ BILLING • PHASE 2 • INVENTORY LAYER
+            VJ BILLING • HUB ARCHITECTURE
           </Text>
         </View>
 
@@ -187,7 +167,6 @@ export default function Dashboard() {
   );
 }
 
-// Updated MenuTile to support routing
 function MenuTile({ title, subtitle, icon, disabled, onPress }: any) {
   return (
     <View style={{ width: '48%' }}> 

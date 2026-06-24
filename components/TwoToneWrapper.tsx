@@ -30,12 +30,12 @@ export function TwoToneWrapper({ title, children, showBack, actionIcon, onAction
       <SafeAreaView className="flex-1" edges={['top', 'left', 'right']}>
         
         {/* === UPPER ZONE (DARK) === */}
-        <View className="px-4 pt-2 pb-6">
+        <View className="w-full max-w-[800px] self-center px-4 pt-2 pb-6">
           
           {/* HEADER BAR */}
           {(title || showBack || actionIcon) && (
             <View className="flex-row items-center justify-between mb-6 mt-2">
-              <View className="flex-row items-center gap-4">
+              <View className="flex-row items-center gap-4 flex-1 mr-4">
                 {showBack && (
                   <TouchableOpacity 
                     onPress={handleBack}
@@ -45,7 +45,7 @@ export function TwoToneWrapper({ title, children, showBack, actionIcon, onAction
                   </TouchableOpacity>
                 )}
                 {title && (
-                  <Text className="text-3xl font-bold text-vj-bg tracking-tight">
+                  <Text className="text-3xl font-bold text-vj-bg tracking-tight flex-shrink" numberOfLines={1}>
                     {title}
                   </Text>
                 )}
@@ -68,8 +68,10 @@ export function TwoToneWrapper({ title, children, showBack, actionIcon, onAction
 
         {/* === LOWER ZONE (LIGHT WITH ROUNDED CORNERS) === */}
         {/* ARCHITECT FIX: Added overflow-hidden to stop ScrollView height snapping */}
-        <View className="flex-1 bg-vj-bg rounded-t-[32px] px-4 pt-6 shadow-2xl overflow-hidden">
-          {children}
+        <View className="flex-1 bg-vj-bg rounded-t-[32px] shadow-2xl overflow-hidden">
+          <View className="flex-1 w-full max-w-[800px] self-center px-4 pt-6">
+            {children}
+          </View>
         </View>
 
       </SafeAreaView>

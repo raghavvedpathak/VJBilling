@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Slot, useRouter } from "expo-router";
+import { Stack, useRouter } from "expo-router";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import {
   View,
@@ -130,7 +130,7 @@ function AppMigratorAndRunner() {
   return (
     <SafeAreaProvider>
       <StatusBar barStyle="dark-content" backgroundColor="#FAF3E0" />
-      <Slot />
+      <Stack screenOptions={{ headerShown: false }} />
     </SafeAreaProvider>
   );
 }

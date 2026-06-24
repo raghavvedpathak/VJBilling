@@ -93,6 +93,7 @@ export interface CreateItemInput {
   makingChargePaise?: number; // FIX-COST-1
   stoneCostPaise?: number; // FIX-COST-2
   location?: string; // FIX-LOC-1
+  huid?: string; // ADDED: FIX-HUID-FORMAT-1 (v1.44)
 }
 
 export interface BulkItemInput extends CreateItemInput { clientRef?: string; }
@@ -223,6 +224,7 @@ export type ItemDetail = {
   netWeightMg: number;
   fineWeightMg: number;
   wastagePercent: number;
+  fineGoldChargedMg: number | null; // <--- FIX: ADDED HERE!
   // Status & Location
   status: StockStatus;
   location: string | null; // SHOP | LOCKER | KARIGAR | REFINERY | TRANSIT | null
@@ -330,11 +332,8 @@ export type UpdateableItemDraftFields = Partial<{
   makingChargePaise: number | null;
   stoneCostPaise: number | null;
   purchaseRatePaise: number | null;
+  huid: string | null; // ADDED: FIX-HUID-FORMAT-1 (v1.44)
 }>;
-
-
-
-
 
 // Low stock (FEAT-GAP3-LOWSTOCK-1 v1.66)
 export interface LowStockCategory {

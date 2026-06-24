@@ -178,8 +178,8 @@ export default function EditFirmScreen() {
 
   return (
     <TwoToneWrapper title="Edit Firm" showBack headerContent={headerLogoPicker}>
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} className="flex-1">
-        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 100, paddingTop: 10 }}>
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} className="flex-1">
+        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 350, paddingTop: 10 }}>
           
           <GlassCard style={{ borderWidth: 0 }}>
             <GlassInput label="Firm Name" value={form.name} onChangeText={(t) => setForm({...form, name: t})} icon={<Building2 size={18} color="#B87333" />} />

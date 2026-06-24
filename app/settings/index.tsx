@@ -1,3 +1,4 @@
+// app/settings/index.tsx
 import React, { useState, useEffect } from 'react';
 import { View, Text, TouchableOpacity, ScrollView, Alert, ActivityIndicator, Modal, Switch } from 'react-native';
 import { useRouter } from 'expo-router';
@@ -150,7 +151,7 @@ export default function SettingsScreen() {
     );
   };
 
-  if (!firm) return null;
+  // Removed 'if (!firm) return null;' to prevent screen blinking on mount
 
   return (
     <TwoToneWrapper title="Settings" showBack>
@@ -160,9 +161,7 @@ export default function SettingsScreen() {
         keyboardShouldPersistTaps="handled"
         scrollEventThrottle={16}
         overScrollMode="never"
-        // ARCHITECT FIX: Added strict persistence flags to stop layout shifts
         removeClippedSubviews={false} 
-        automaticallyAdjustKeyboardInsets={true}
         bounces={false}
       >
         
@@ -233,11 +232,13 @@ export default function SettingsScreen() {
           icon={<Building2 size={24} color="#B87333" />}
           onPress={() => router.push('/settings/firms')}
         />
+
+        {/* UPDATED ROUTE: No longer throws an alert, navigates to the FY Close Wizard */}
         <GlassSettingsTile
           title="Close Financial Year"
           subtitle="Lock current year data"
           icon={<Lock size={24} color="#B87333" />}
-          onPress={() => Alert.alert("Coming Soon", "FY Close Flow available in Phase 2 Step 5.5.")}
+          onPress={() => router.push('/settings/close-fy')}
         />
 
         <SectionHeader title="Tax & Devices" />
@@ -295,10 +296,10 @@ export default function SettingsScreen() {
         <View className="mt-8 items-center opacity-40 mb-10">
           <Database size={20} color="#2E1D00" />
           <Text className="text-[10px] font-bold text-vj-text mt-2">
-            VJ BILLING • PHASE 1 • SECURE STORAGE
+            VJ BILLING • PHASE 2 • INVENTORY
           </Text>
           <Text className="text-[10px] text-vj-text">
-            Firm Code: {firm.firmCode || 'N/A'}
+            Firm Code: {firm?.firmCode || 'N/A'}
           </Text>
           <Text className="text-[10px] text-vj-text mt-1">
             Device: {Device.modelName || 'Unknown'} ({Device.osName})

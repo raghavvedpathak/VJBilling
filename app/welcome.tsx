@@ -80,11 +80,14 @@ export default function WelcomeScreen() {
       <View className="bg-white/10 p-6 rounded-full mb-6 border border-white/20 shadow-sm">
         <ShieldCheck size={56} color="#FAF3E0" />
       </View>
-      <Text className="text-3xl font-bold text-vj-bg text-center tracking-tight">
-        Welcome to VJ Billing
+      <Text className="text-vj-bg/80 font-bold text-xs uppercase tracking-widest mb-1">
+        Welcome To
       </Text>
-      <Text className="text-vj-bg/60 text-center mt-2 px-4 leading-5 font-medium tracking-widest text-xs uppercase">
-        Phase 1 • Secure Architecture
+      <Text className="text-5xl font-extrabold text-vj-bg text-center tracking-tighter mb-3">
+        VJ Billing
+      </Text>
+      <Text className="text-[#C8860A] text-center font-black tracking-widest text-[10px] uppercase">
+        By Raghav Ramdas Vedpathak
       </Text>
     </View>
   );

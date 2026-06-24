@@ -1,10 +1,11 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Modal, TextInput, Alert, ActivityIndicator, KeyboardAvoidingView, Platform } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { TwoToneWrapper } from '../../components/TwoToneWrapper';
 import { GlassCard, GlassButton } from '../../components/ui/Glass';
-import { Layers, Plus, X, Edit2, Trash2, LayoutGrid, List as ListIcon } from 'lucide-react-native';
+import { Layers, Plus, X, Edit2, Trash2, LayoutGrid, List as ListIcon, CheckCircle } from 'lucide-react-native';
 import { useFirmStore } from '../../store/firmStore';
 import { categoryService } from '../../services/categoryService';
 import { db } from '../../db/client';
@@ -27,7 +28,22 @@ export default function CategoriesScreen() {
   
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
-  const [viewMode, setViewMode] = useState<'list' | 'grid'>('list');
+  
+  // FIXED: Bulletproof AsyncStorage for View Mode
+  const [viewMode, setViewModeState] = useState<'list' | 'grid'>('list');
+
+  useEffect(() => {
+    AsyncStorage.getItem('categoryViewMode').then((mode) => {
+      if (mode === 'grid' || mode === 'list') {
+        setViewModeState(mode);
+      }
+    });
+  }, []);
+
+  const setViewMode = (mode: 'list' | 'grid') => {
+    setViewModeState(mode);
+    AsyncStorage.setItem('categoryViewMode', mode);
+  };
   
   const [showAddModal, setShowAddModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
@@ -36,6 +52,9 @@ export default function CategoriesScreen() {
   const [newName, setNewName] = useState('');
   const [newMetal, setNewMetal] = useState<'GOLD' | 'SILVER'>('GOLD');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState<Category | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const loadCategories = useCallback(async () => {
     if (!activeFirmId) return;
@@ -68,8 +87,32 @@ export default function CategoriesScreen() {
     
     setIsSubmitting(true);
     try {
-      // Generate CAT code
-      const countRes = await db.select({ count: sql<number>`count(*)` }).from(categoriesTable).where(eq(categoriesTable.firmId, activeFirmId));
+      // Restore soft-deleted if exists
+      const existing = await db.select().from(categoriesTable)
+        .where(and(eq(categoriesTable.firmId, activeFirmId), eq(categoriesTable.name, newName.trim())))
+        .limit(1);
+        
+      if (existing.length > 0) {
+        if (existing[0].isActive === 1) {
+          Alert.alert('Duplicate', 'A category with this name already exists.');
+          setIsSubmitting(false);
+          return;
+        } else {
+          await db.update(categoriesTable)
+            .set({ isActive: 1, metal: newMetal, updatedAt: now() })
+            .where(eq(categoriesTable.id, existing[0].id));
+            
+          setShowAddModal(false);
+          setNewName('');
+          setNewMetal('GOLD');
+          loadCategories();
+          setSuccessMessage('Category restored successfully');
+          setIsSubmitting(false);
+          return;
+        }
+      }
+
+      const countRes = await db.select({ count: sql<number>`count(*)` }).from(categoriesTable).where(and(eq(categoriesTable.firmId, activeFirmId), eq(categoriesTable.isActive, 1)));
       const codeStr = `CAT${String(Number(countRes[0]?.count || 0) + 1).padStart(4, '0')}`;
 
       await db.insert(categoriesTable).values({
@@ -83,11 +126,11 @@ export default function CategoriesScreen() {
         updatedAt: now(),
       });
       
-      Alert.alert('Success', 'Category added successfully');
       setShowAddModal(false);
       setNewName('');
       setNewMetal('GOLD');
       loadCategories();
+      setSuccessMessage('Category added successfully');
     } catch (e: any) {
       if (e.message?.includes('UNIQUE')) {
         Alert.alert('Duplicate', 'A category with this name already exists.');
@@ -108,10 +151,11 @@ export default function CategoriesScreen() {
     setIsSubmitting(true);
     try {
       await categoryService.updateCategory(editingCategory.id, activeFirmId, newName.trim());
-      Alert.alert('Success', 'Category updated successfully');
       setShowEditModal(false);
       setEditingCategory(null);
       setNewName('');
+      loadCategories();
+      setSuccessMessage('Category updated successfully');
       loadCategories();
     } catch (e: any) {
       Alert.alert('Error', e.message);
@@ -122,22 +166,7 @@ export default function CategoriesScreen() {
 
   const handleDelete = (cat: Category) => {
     if (!activeFirmId) return;
-    Alert.alert('Confirm Delete', `Are you sure you want to delete ${cat.name}?`, [
-      { text: 'Cancel', style: 'cancel' },
-      { 
-        text: 'Delete', 
-        style: 'destructive',
-        onPress: async () => {
-          try {
-            await categoryService.softDeleteCategory(cat.id, activeFirmId);
-            Alert.alert('Success', 'Category deleted');
-            loadCategories();
-          } catch (e: any) {
-            Alert.alert('Error', e.message === 'CATEGORY_HAS_ACTIVE_ITEMS' ? 'Cannot delete: Category has active inventory items.' : e.message);
-          }
-        }
-      }
-    ]);
+    setConfirmDelete(cat);
   };
 
   const openEdit = (cat: Category) => {
@@ -207,9 +236,9 @@ export default function CategoriesScreen() {
         )}
       </View>
 
-      <Modal visible={showAddModal} transparent animationType="slide">
-        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'padding'} className="flex-1 bg-black/50 justify-end">
-          <View className="bg-vj-bg w-full rounded-t-3xl p-6 shadow-xl border border-white/50" style={{ paddingBottom: 40, maxHeight: '80%' }}>
+      <Modal visible={showAddModal} transparent animationType="fade">
+        <KeyboardAvoidingView behavior="padding" className="flex-1 bg-black/50 justify-start items-center pt-24 p-4">
+          <View className="bg-vj-bg w-full max-w-[500px] self-center rounded-3xl p-6 shadow-2xl border border-white/50" style={{ maxHeight: '80%' }}>
             <View className="flex-row justify-between items-center mb-6 border-b border-black/10 pb-4">
               <Text className="text-xl font-bold text-vj-text">New Category</Text>
               <TouchableOpacity onPress={() => setShowAddModal(false)} className="p-1 bg-black/5 rounded-full">
@@ -256,9 +285,9 @@ export default function CategoriesScreen() {
         </KeyboardAvoidingView>
       </Modal>
 
-      <Modal visible={showEditModal} transparent animationType="slide">
-        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'padding'} className="flex-1 bg-black/50 justify-end">
-          <View className="bg-vj-bg w-full rounded-t-3xl p-6 shadow-xl border border-white/50" style={{ paddingBottom: 40, maxHeight: '80%' }}>
+      <Modal visible={showEditModal} transparent animationType="fade">
+        <KeyboardAvoidingView behavior="padding" className="flex-1 bg-black/50 justify-start items-center pt-24 p-4">
+          <View className="bg-vj-bg w-full max-w-[500px] self-center rounded-3xl p-6 shadow-2xl border border-white/50" style={{ maxHeight: '80%' }}>
             <View className="flex-row justify-between items-center mb-6 border-b border-black/10 pb-4">
               <Text className="text-xl font-bold text-vj-text">Edit Category</Text>
               <TouchableOpacity onPress={() => setShowEditModal(false)} className="p-1 bg-black/5 rounded-full">
@@ -285,6 +314,90 @@ export default function CategoriesScreen() {
             </View>
           </View>
         </KeyboardAvoidingView>
+      </Modal>
+
+      {/* Modern Success Modal */}
+      <Modal visible={!!successMessage} transparent animationType="fade">
+        <View style={s.modalOverlayCenter}>
+          <View style={s.successModalContent}>
+            <View style={s.successIconContainer}>
+              <CheckCircle size={56} color="#10B981" />
+            </View>
+            <Text style={s.successTitle}>Success!</Text>
+            <Text style={s.successSubtitle}>{successMessage}</Text>
+            
+            <View style={{ width: '100%', marginTop: 16 }}>
+              <GlassButton 
+                title="Done" 
+                onPress={() => setSuccessMessage(null)} 
+              />
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Modern Confirmation Modal */}
+      <Modal visible={!!confirmDelete} transparent animationType="fade">
+        <View style={s.modalOverlayCenter}>
+          <View style={s.successModalContent}>
+            <View style={[s.successIconContainer, { backgroundColor: 'rgba(239, 68, 68, 0.1)' }]}>
+              <Text style={{ fontSize: 40 }}>❓</Text>
+            </View>
+            <Text style={s.successTitle}>Confirm Delete</Text>
+            <Text style={s.successSubtitle}>Are you sure you want to delete {confirmDelete?.name}?</Text>
+            
+            <View style={{ width: '100%', marginTop: 16, flexDirection: 'row', gap: 12 }}>
+              <View style={{ flex: 1 }}>
+                <GlassButton 
+                  title="Cancel" 
+                  onPress={() => setConfirmDelete(null)} 
+                  variant="secondary"
+                />
+              </View>
+              <View style={{ flex: 1 }}>
+                <GlassButton 
+                  title="Delete" 
+                  onPress={async () => {
+                    const cat = confirmDelete;
+                    setConfirmDelete(null);
+                    if (!cat || !activeFirmId) return;
+                    try {
+                      setLoading(true);
+                      await categoryService.softDeleteCategory(cat.id, activeFirmId);
+                      setSuccessMessage('Category deleted');
+                      loadCategories();
+                    } catch (error: any) {
+                      setErrorMessage(error.message === 'CATEGORY_HAS_ACTIVE_ITEMS' ? 'Cannot delete: Category has active inventory items.' : error.message);
+                    } finally {
+                      setLoading(false);
+                    }
+                  }} 
+                  variant="danger"
+                />
+              </View>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Modern Error Modal */}
+      <Modal visible={!!errorMessage} transparent animationType="fade">
+        <View style={s.modalOverlayCenter}>
+          <View style={s.successModalContent}>
+            <View style={[s.successIconContainer, { backgroundColor: 'rgba(239, 68, 68, 0.1)' }]}>
+              <Text style={{ fontSize: 40 }}>⚠️</Text>
+            </View>
+            <Text style={s.successTitle}>Delete Failed</Text>
+            <Text style={s.successSubtitle}>{errorMessage}</Text>
+            
+            <View style={{ width: '100%', marginTop: 16 }}>
+              <GlassButton 
+                title="Dismiss" 
+                onPress={() => setErrorMessage(null)} 
+              />
+            </View>
+          </View>
+        </View>
       </Modal>
     </TwoToneWrapper>
   );
@@ -324,7 +437,6 @@ const s = StyleSheet.create({
   metalPillText: { fontSize: 10, fontWeight: '800', letterSpacing: 0.5 },
   actionRow: { flexDirection: 'row', gap: 8 },
   actionBtn: { padding: 8, backgroundColor: 'rgba(46,29,0,0.05)', borderRadius: 8 },
-  
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
   formGroup: { marginBottom: 16 },
   label: { fontSize: 12, fontWeight: '700', color: 'rgba(46,29,0,0.6)', textTransform: 'uppercase', marginBottom: 8 },
@@ -335,4 +447,46 @@ const s = StyleSheet.create({
   toggleActiveSilver: { backgroundColor: '#6B7280', borderColor: '#6B7280' },
   toggleText: { fontSize: 14, fontWeight: '700', color: 'rgba(46,29,0,0.6)' },
   toggleTextActive: { color: '#fff' },
+  
+  // Success Modal Styles
+  modalOverlayCenter: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
+  successModalContent: {
+    backgroundColor: COLORS.vjBg,
+    width: '100%',
+    maxWidth: 400,
+    borderRadius: 24,
+    padding: 32,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.5)',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.25,
+    shadowRadius: 20,
+    elevation: 10,
+  },
+  successIconContainer: {
+    marginBottom: 16,
+    backgroundColor: 'rgba(16, 185, 129, 0.1)',
+    padding: 16,
+    borderRadius: 50,
+  },
+  successTitle: {
+    fontSize: 24,
+    fontWeight: '800',
+    color: COLORS.vjText,
+    marginBottom: 8,
+  },
+  successSubtitle: {
+    fontSize: 14,
+    color: 'rgba(46,29,0,0.6)',
+    textAlign: 'center',
+    marginBottom: 24,
+  },
 });

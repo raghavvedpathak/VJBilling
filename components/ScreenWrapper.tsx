@@ -46,7 +46,7 @@ export function ScreenWrapper({
 
       {/* SAFE AREA */}
       <SafeAreaView className="flex-1" edges={['top', 'left', 'right']}>
-        <View className="flex-1 px-4 pt-2">
+        <View className="flex-1 w-full max-w-[800px] self-center px-4 pt-2">
 
           {/* HEADER */}
           {(title || showBack || actionIcon) && (

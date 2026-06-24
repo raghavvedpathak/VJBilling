@@ -1,3 +1,4 @@
+// db/seed.ts
 import { db } from './client';
 import { hsnCodes } from './schema';
 import * as Crypto from 'expo-crypto';

@@ -1,15 +1,18 @@
+// app/inventory/drafts.tsx
 import React, { useState, useCallback, memo } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, Alert } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, Alert, Modal } from 'react-native';
 import { FlashList } from '@shopify/flash-list';
 import { useRouter } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
 import { TwoToneWrapper } from '../../components/TwoToneWrapper';
+import { GlassButton } from '../../components/ui/Glass';
 import { useFirmStore } from '../../store/firmStore';
 import { inventoryDrillDownService } from '../../services/inventoryDrillDownService';
 import { itemService } from '../../services/itemService';
 import type { ItemSearchResult } from '../../types/phase2.types';
 import { getDisplayPurity } from '../../utils/purity.constants';
-import { Check, ClipboardList, PackageSearch } from 'lucide-react-native';
+import { formatSKUDisplay } from '../../utils/skuDisplay'; 
+import { Check, ClipboardList, PackageSearch, Edit3, CheckCircle } from 'lucide-react-native'; // <-- Added Edit3 icon
 
 const formatWeight = (mg: number): string => (mg / 1000).toFixed(3) + ' g';
 
@@ -25,11 +28,14 @@ const COLORS = {
 type DraftRowProps = {
   item: ItemSearchResult;
   onActivate: (itemId: string, sku: string) => void;
+  onEdit: (itemId: string) => void; // <-- Added onEdit prop
 };
 
-const DraftRow = memo(({ item, onActivate }: DraftRowProps) => {
+const DraftRow = memo(({ item, onActivate, onEdit }: DraftRowProps) => {
   const metalColor = item.metal === 'GOLD' ? COLORS.gold : COLORS.silver;
   const purityDisplay = getDisplayPurity(item.purityPercent, item.purityKarat || 0, item.metal);
+  
+  const displaySku = formatSKUDisplay(item.sku);
 
   return (
     <View style={s.card}>
@@ -37,7 +43,7 @@ const DraftRow = memo(({ item, onActivate }: DraftRowProps) => {
 
       <View style={s.cardBody}>
         <View style={s.rowTop}>
-          <Text style={s.sku} numberOfLines={1}>{item.sku}</Text>
+          <Text style={s.sku} numberOfLines={1}>{displaySku}</Text>
           <View style={[s.metalPill, { borderColor: metalColor }]}>
             <Text style={[s.metalPillText, { color: metalColor }]}>{purityDisplay}</Text>
           </View>
@@ -52,13 +58,24 @@ const DraftRow = memo(({ item, onActivate }: DraftRowProps) => {
         </View>
       </View>
 
-      <TouchableOpacity 
-        style={s.activateBtn} 
-        activeOpacity={0.7}
-        onPress={() => onActivate(item.itemId, item.sku)}
-      >
-        <Check size={20} color="#fff" />
-      </TouchableOpacity>
+      {/* Action Buttons Container */}
+      <View style={s.actionRow}>
+        <TouchableOpacity 
+          style={s.editBtn} 
+          activeOpacity={0.7}
+          onPress={() => onEdit(item.itemId)} // <-- Calls handleEdit
+        >
+          <Edit3 size={20} color={COLORS.vjAccent} />
+        </TouchableOpacity>
+
+        <TouchableOpacity 
+          style={s.activateBtn} 
+          activeOpacity={0.7}
+          onPress={() => onActivate(item.itemId, displaySku)}
+        >
+          <Check size={20} color="#fff" />
+        </TouchableOpacity>
+      </View>
     </View>
   );
 });
@@ -67,7 +84,10 @@ export default function DraftsScreen() {
   const router = useRouter();
   const { activeFirmId } = useFirmStore();
   const [data, setData] = useState<ItemSearchResult[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
+  const [successSku, setSuccessSku] = useState<string | null>(null);
+  const [confirmActivate, setConfirmActivate] = useState<{ itemId: string, displaySku: string } | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const loadDrafts = useCallback(async () => {
     if (!activeFirmId) return;
@@ -88,29 +108,14 @@ export default function DraftsScreen() {
     }, [loadDrafts])
   );
 
-  const handleActivate = useCallback((itemId: string, sku: string) => {
-    Alert.alert(
-      'Activate Item',
-      `Are you sure you want to verify and activate ${sku}? It will move to available stock.`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { 
-          text: 'Activate', 
-          style: 'default',
-          onPress: async () => {
-            try {
-              if (!activeFirmId) return;
-              await itemService.updateItemStatus(itemId, activeFirmId, 'AVAILABLE', 'Manually verified from drafts');
-              Alert.alert('Success', `${sku} is now AVAILABLE.`);
-              loadDrafts();
-            } catch (error: any) {
-              Alert.alert('Activation Failed', error.message);
-            }
-          }
-        }
-      ]
-    );
-  }, [activeFirmId, loadDrafts]);
+  // <-- New navigation handler for Edit Screen
+  const handleEdit = useCallback((itemId: string) => {
+    router.push({ pathname: '/inventory/edit-draft', params: { itemId } });
+  }, [router]);
+
+  const handleActivate = useCallback((itemId: string, displaySku: string) => {
+    setConfirmActivate({ itemId, displaySku });
+  }, []);
 
   const headerContent = (
     <View>
@@ -139,7 +144,11 @@ export default function DraftsScreen() {
             data={data}
             keyExtractor={(item) => item.itemId}
             renderItem={({ item }) => (
-              <DraftRow item={item} onActivate={handleActivate} />
+              <DraftRow 
+                item={item} 
+                onActivate={handleActivate} 
+                onEdit={handleEdit} // <-- Passing handleEdit to row
+              />
             )}
             // @ts-ignore: estimatedItemSize required by spec
             estimatedItemSize={100}
@@ -155,6 +164,89 @@ export default function DraftsScreen() {
           />
         )}
       </View>
+
+      {/* Modern Success Modal */}
+      <Modal visible={!!successSku} transparent animationType="fade">
+        <View style={s.modalOverlayCenter}>
+          <View style={s.successModalContent}>
+            <View style={s.successIconContainer}>
+              <CheckCircle size={56} color="#10B981" />
+            </View>
+            <Text style={s.successTitle}>Activated!</Text>
+            <Text style={s.successSubtitle}>{successSku} is now AVAILABLE.</Text>
+            
+            <View style={{ width: '100%', marginTop: 16 }}>
+              <GlassButton 
+                title="Done" 
+                onPress={() => setSuccessSku(null)} 
+              />
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Modern Confirmation Modal */}
+      <Modal visible={!!confirmActivate} transparent animationType="fade">
+        <View style={s.modalOverlayCenter}>
+          <View style={s.successModalContent}>
+            <View style={[s.successIconContainer, { backgroundColor: 'rgba(184, 115, 51, 0.1)' }]}>
+              <Text style={{ fontSize: 40 }}>❓</Text>
+            </View>
+            <Text style={s.successTitle}>Activate Item</Text>
+            <Text style={s.successSubtitle}>Are you sure you want to verify and activate {confirmActivate?.displaySku}? It will move to available stock.</Text>
+            
+            <View style={{ width: '100%', marginTop: 16, flexDirection: 'row', gap: 12 }}>
+              <View style={{ flex: 1 }}>
+                <GlassButton 
+                  title="Cancel" 
+                  onPress={() => setConfirmActivate(null)} 
+                  variant="secondary"
+                />
+              </View>
+              <View style={{ flex: 1 }}>
+                <GlassButton 
+                  title="Activate" 
+                  onPress={async () => {
+                    const item = confirmActivate;
+                    setConfirmActivate(null);
+                    if (!item || !activeFirmId) return;
+                    try {
+                      setLoading(true);
+                      await itemService.updateItemStatus(item.itemId, activeFirmId, 'AVAILABLE', 'Manually verified from drafts');
+                      setSuccessSku(item.displaySku);
+                      loadDrafts();
+                    } catch (error: any) {
+                      setErrorMessage(error.message);
+                    } finally {
+                      setLoading(false);
+                    }
+                  }} 
+                />
+              </View>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Modern Error Modal */}
+      <Modal visible={!!errorMessage} transparent animationType="fade">
+        <View style={s.modalOverlayCenter}>
+          <View style={s.successModalContent}>
+            <View style={[s.successIconContainer, { backgroundColor: 'rgba(239, 68, 68, 0.1)' }]}>
+              <Text style={{ fontSize: 40 }}>⚠️</Text>
+            </View>
+            <Text style={s.successTitle}>Activation Failed</Text>
+            <Text style={s.successSubtitle}>{errorMessage}</Text>
+            
+            <View style={{ width: '100%', marginTop: 16 }}>
+              <GlassButton 
+                title="Dismiss" 
+                onPress={() => setErrorMessage(null)} 
+              />
+            </View>
+          </View>
+        </View>
+      </Modal>
     </TwoToneWrapper>
   );
 }
@@ -223,6 +315,19 @@ const s = StyleSheet.create({
     color: 'rgba(46,29,0,0.3)',
     fontSize: 10,
   },
+  actionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  editBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    backgroundColor: 'rgba(184,115,51,0.1)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
   activateBtn: {
     width: 44,
     height: 44,
@@ -287,5 +392,47 @@ const s = StyleSheet.create({
   emptySubtitle: {
     color: 'rgba(46,29,0,0.35)',
     fontSize: 13,
+  },
+  
+  // Success Modal Styles
+  modalOverlayCenter: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
+  successModalContent: {
+    backgroundColor: COLORS.vjBg,
+    width: '100%',
+    maxWidth: 400,
+    borderRadius: 24,
+    padding: 32,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.5)',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.25,
+    shadowRadius: 20,
+    elevation: 10,
+  },
+  successIconContainer: {
+    marginBottom: 16,
+    backgroundColor: 'rgba(16, 185, 129, 0.1)',
+    padding: 16,
+    borderRadius: 50,
+  },
+  successTitle: {
+    fontSize: 24,
+    fontWeight: '800',
+    color: COLORS.vjText,
+    marginBottom: 8,
+  },
+  successSubtitle: {
+    fontSize: 14,
+    color: 'rgba(46,29,0,0.6)',
+    textAlign: 'center',
+    marginBottom: 24,
   },
 });

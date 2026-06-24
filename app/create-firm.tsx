@@ -270,12 +270,12 @@ export default function CreateFirmScreen() {
   return (
     <TwoToneWrapper title="New Firm" showBack headerContent={headerLogoPicker}>
       <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         className="flex-1"
       >
         <ScrollView
           showsVerticalScrollIndicator={false}
-          contentContainerStyle={{ paddingBottom: 100, paddingTop: 10 }}
+          contentContainerStyle={{ paddingBottom: 350, paddingTop: 10 }}
         >
           <GlassCard style={{ borderWidth: 0 }}>
             <GlassInput

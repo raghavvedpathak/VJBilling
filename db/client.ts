@@ -82,6 +82,17 @@ export function useDatabase() {
           END;
         `);
 
+        // PHASE 2 RED-LINE: Phantom Reconciliations are permanent
+        expoDb.execSync(`
+          CREATE TRIGGER IF NOT EXISTS prevent_phantom_stock_id_update
+          BEFORE UPDATE OF phantom_stock_id ON items
+          FOR EACH ROW
+          WHEN OLD.phantom_stock_id IS NOT NULL AND OLD.phantom_stock_id != NEW.phantom_stock_id
+          BEGIN
+            SELECT RAISE(ABORT, 'PHANTOM_STOCK_IMMUTABLE: phantom_stock_id cannot be changed once reconciled');
+          END;
+        `);
+
         console.log('[DB Client] All hardening triggers applied successfully.');
 
         // -----------------------------------------------------------------------

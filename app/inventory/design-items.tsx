@@ -13,7 +13,8 @@ import { TwoToneWrapper } from '../../components/TwoToneWrapper';
 import { useFirmStore } from '../../store/firmStore';
 import { inventoryDrillDownService } from '../../services/inventoryDrillDownService';
 import { getDisplayPurity } from '../../utils/purity.constants';
-import { ChevronRight, ChevronDown, Tag, Gem, MapPin } from 'lucide-react-native';
+import { formatSKUDisplay } from '../../utils/skuDisplay'; // <-- IMPORTED UI FORMATTER
+import { ChevronRight, ChevronDown, Tag, Gem, MapPin, Printer } from 'lucide-react-native'; // <-- Added Printer
 import type { ItemSearchResult } from '../../types/phase2.types';
 
 const formatWeight = (mg: number): string => (mg / 1000).toFixed(3) + ' g';
@@ -46,12 +47,12 @@ type ItemRowData = {
 type ListItem = GroupHeaderData | ItemRowData;
 
 // --- Header Component ---
-const GroupHeader = memo(({ 
-  data, 
-  onToggle 
-}: { 
-  data: GroupHeaderData; 
-  onToggle: (purity: number) => void 
+const GroupHeader = memo(({
+  data,
+  onToggle
+}: {
+  data: GroupHeaderData;
+  onToggle: (purity: number) => void
 }) => {
   const metalColor = data.metal === 'GOLD' ? COLORS.gold : COLORS.silver;
   const purityDisplay = getDisplayPurity(data.purityPercent, data.purityKarat, data.metal);
@@ -77,7 +78,7 @@ const GroupHeader = memo(({
           <Text style={s.headerWeight}>{formatWeight(data.totalNetWeightMg)}</Text>
         </View>
       </View>
-      
+
       <View style={s.headerChevron}>
         {data.isExpanded ? (
           <ChevronDown size={20} color="rgba(46,29,0,0.4)" />
@@ -90,16 +91,19 @@ const GroupHeader = memo(({
 });
 
 // --- Item Component ---
-const SkuRow = memo(({ 
-  data, 
-  onPress 
-}: { 
-  data: ItemRowData; 
-  onPress: (itemId: string) => void 
+const SkuRow = memo(({
+  data,
+  onPress,
+  onPrint // <-- Added print prop
+}: {
+  data: ItemRowData;
+  onPress: (itemId: string) => void;
+  onPrint: (itemId: string) => void;
 }) => {
   const { item } = data;
   const metalColor = item.metal === 'GOLD' ? COLORS.gold : COLORS.silver;
   const purityDisplay = getDisplayPurity(item.purityPercent, item.purityKarat ?? null, item.metal);
+  const displaySku = formatSKUDisplay(item.sku); // <-- Hide leading zeros safely
 
   return (
     <TouchableOpacity
@@ -112,7 +116,7 @@ const SkuRow = memo(({
 
       <View style={s.itemCardBody}>
         <View style={s.topRow}>
-          <Text style={s.skuText} selectable>{item.sku}</Text>
+          <Text style={s.skuText} selectable>{displaySku}</Text>
           <View style={s.badgeRow}>
             {item.huid ? (
               <View style={s.huidBadge}>
@@ -153,7 +157,17 @@ const SkuRow = memo(({
         </View>
       </View>
 
-      <ChevronRight size={18} color="rgba(46,29,0,0.2)" />
+      {/* Row Actions Container */}
+      <View style={s.actionContainer}>
+        <TouchableOpacity
+          style={s.printBtn}
+          activeOpacity={0.7}
+          onPress={() => onPrint(item.itemId)} // <-- Quick Print Handler
+        >
+          <Printer size={20} color={COLORS.vjAccent} />
+        </TouchableOpacity>
+        <ChevronRight size={20} color="rgba(46,29,0,0.2)" />
+      </View>
     </TouchableOpacity>
   );
 });
@@ -205,6 +219,11 @@ export default function DesignItemsScreen() {
     });
   }, [router]);
 
+  // <-- New navigation handler for Quick Print
+  const handlePrint = useCallback((itemId: string) => {
+    router.push({ pathname: '/inventory/barcode-print', params: { itemId } });
+  }, [router]);
+
   // Flatten logic
   const renderData = useMemo(() => {
     if (!items.length) return [];
@@ -220,7 +239,7 @@ export default function DesignItemsScreen() {
 
     // Sort purities DESC
     const sortedPurities = Array.from(groupsMap.keys()).sort((a, b) => b - a);
-    
+
     const dataList: ListItem[] = [];
 
     for (const purity of sortedPurities) {
@@ -285,7 +304,8 @@ export default function DesignItemsScreen() {
               if (item.type === 'header') {
                 return <GroupHeader data={item} onToggle={toggleGroup} />;
               } else {
-                return <SkuRow data={item} onPress={handleItemPress} />;
+                // <-- Ensure onPrint is passed here!
+                return <SkuRow data={item} onPress={handleItemPress} onPrint={handlePrint} />;
               }
             }}
             // @ts-ignore: estimatedItemSize required by spec
@@ -369,7 +389,7 @@ const s = StyleSheet.create({
     overflow: 'hidden',
     borderWidth: 1,
     borderColor: 'rgba(46,29,0,0.08)',
-    paddingRight: 16,
+    paddingRight: 20, // <-- INCREASED to pull buttons away from the screen edge
   },
   metalStripe: {
     width: 5,
@@ -481,6 +501,20 @@ const s = StyleSheet.create({
     fontSize: 10,
     fontWeight: '800',
     letterSpacing: 0.5,
+  },
+  // ACTION CONTAINER
+  actionContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12, // <-- INCREASED gap to make the print button easier to tap
+  },
+  printBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    backgroundColor: 'rgba(184,115,51,0.1)',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   // Base
   headerIconRow: { marginBottom: 12 },
