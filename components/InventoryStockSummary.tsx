@@ -4,6 +4,7 @@
 
 import React, { useState, useCallback } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
+import { GlassCard } from './ui/Glass';
 import { useFocusEffect } from '@react-navigation/native';
 import { itemRepository } from '../repositories/itemRepository';
 import { getCurrencySymbol } from '../utils/currency';
@@ -89,7 +90,7 @@ export function InventoryStockSummary({ firmId, goldRatePerGramPaise, silverRate
     const estimatedValue = formatLiveValue(balanceMg, ratePaise);
     
     return (
-      <View style={s.card}>
+      <GlassCard>
         
         {/* Header Section */}
         <View style={s.header}>
@@ -154,7 +155,7 @@ export function InventoryStockSummary({ firmId, goldRatePerGramPaise, silverRate
             {formatWeight(balanceMg)}
           </Text>
         </View>
-      </View>
+      </GlassCard>
     );
   };
 
@@ -188,18 +189,7 @@ const s = StyleSheet.create({
     width: '100%',
     gap: 16,
   },
-  card: {
-    backgroundColor: COLORS.surface,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.03,
-    shadowRadius: 8,
-    elevation: 2,
-  },
+
   // Custom Bullion Bar Styles
   ingotContainer: {
     width: 26,

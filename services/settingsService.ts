@@ -56,27 +56,33 @@ export const settingsService = {
     }
 
     const deviceId = await getDeviceId();
-    const timestamp = now();
+    const existing = useAppSettingsStore.getState();
+    const updated = { ...existing, ...input, updatedAt: now() };
 
     // 2. ATOMIC TRANSACTION — UPSERT prevents ghost-reset bug
-    await db.transaction(async (tx) => {
-      await tx.insert(appSettings)
-        .values({ id: 1, ...input, updatedAt: timestamp })
+    // v7.16 FIX-V716-4: JSI driver requires synchronous tx callback — async removed
+    db.transaction((tx) => {
+      tx.insert(appSettings)
+        .values({ id: 1, ...input, updatedAt: updated.updatedAt })
         .onConflictDoUpdate({
           target: appSettings.id,
-          set: { ...input, updatedAt: timestamp },
-        });
+          set: { ...input, updatedAt: updated.updatedAt },
+        }).run();
 
-      await auditRepository.create({
-        firmId: null,
+      auditRepository.log(tx, {
         eventType: 'SETTINGS_CHANGED',
-        payload: JSON.stringify({ changes: Object.keys(input) }),
+        firmId: null, // device-level event — settings are not firm-scoped
+        payload: JSON.stringify({
+          fields: Object.keys(input),
+          oldValues: Object.fromEntries(Object.keys(input).map(k => [k, (existing as any)[k]])),
+          newValues: input,
+        }),
         deviceId,
-      }, tx);
+      });
     });
 
     // 3. Sync Zustand store — static setState on the store object
     // FIX: useAppSettingsStore.setState() — correct Zustand static setState pattern
-    useAppSettingsStore.setState(input as any);
+    useAppSettingsStore.setState(updated as any);
   },
 };

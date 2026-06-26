@@ -364,8 +364,8 @@ const s = StyleSheet.create({
     textTransform: 'uppercase', letterSpacing: 1, marginBottom: 10, marginLeft: 2,
   },
   sectionCard: {
-    backgroundColor: '#ffffff', borderRadius: 16, padding: 4,
-    borderWidth: 1, borderColor: 'rgba(46,29,0,0.06)',
+    backgroundColor: 'rgba(255, 255, 255, 0.65)', borderRadius: 16, padding: 4,
+    borderWidth: 1, borderColor: 'rgba(255, 255, 255, 0.5)',
   },
 
   // --- Detail Rows ---
@@ -401,8 +401,8 @@ const s = StyleSheet.create({
   timelineDot: { width: 10, height: 10, borderRadius: 5, marginTop: 4 },
   timelineConnector: { width: 2, flex: 1, backgroundColor: 'rgba(46,29,0,0.08)', marginTop: 4 },
   timelineCard: {
-    flex: 1, backgroundColor: '#ffffff', borderRadius: 12, padding: 12,
-    borderWidth: 1, borderColor: 'rgba(46,29,0,0.06)', marginBottom: 8,
+    flex: 1, backgroundColor: 'rgba(255, 255, 255, 0.65)', borderRadius: 12, padding: 12,
+    borderWidth: 1, borderColor: 'rgba(255, 255, 255, 0.5)', marginBottom: 8,
   },
   timelineHeader: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 },
   timelineEventType: { fontSize: 13, fontWeight: '700' },

@@ -155,12 +155,12 @@ const s = StyleSheet.create({
   card: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#ffffff',
+    backgroundColor: 'rgba(255, 255, 255, 0.65)', // Pseudo-glass
     marginBottom: 10,
     borderRadius: 16,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: 'rgba(46,29,0,0.08)',
+    borderColor: 'rgba(255, 255, 255, 0.5)', // Pseudo-glass border
     paddingRight: 16,
     gap: 12,
   },

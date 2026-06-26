@@ -31,6 +31,13 @@ module.exports = {
               }
             ]
           }
+        ],
+        "no-restricted-syntax": [
+          "error",
+          {
+            selector: "Literal[value=/\\u20B9|\\bINR\\b/]",
+            message: "CURRENCY_HARDCODE: Never hardcode ₹ or 'INR'. Use getCurrencySymbol() from utils/currency.ts (G67)",
+          }
         ]
       }
     }

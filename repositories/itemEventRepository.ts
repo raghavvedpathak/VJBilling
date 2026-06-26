@@ -12,19 +12,19 @@ export const itemEventRepository = {
     });
   },
 
-  async deleteByItemId(tx: DrizzleTransaction, itemId: string): Promise<void> {
-    await tx.delete(itemEvents).where(eq(itemEvents.itemId, itemId));
+  async deleteByItemId(tx: DrizzleTransaction, firmId: string, itemId: string): Promise<void> {
+    await tx.delete(itemEvents).where(and(eq(itemEvents.itemId, itemId), eq(itemEvents.firmId, firmId)));
   },
 
-  async findByItemId(itemId: string) {
-    return await db.select().from(itemEvents).where(eq(itemEvents.itemId, itemId));
+  async findByItemId(firmId: string, itemId: string) {
+    return await db.select().from(itemEvents).where(and(eq(itemEvents.itemId, itemId), eq(itemEvents.firmId, firmId)));
   },
 
-  async countByItemIdAndEventType(tx: DrizzleTransaction, itemId: string, eventType: ItemEventType): Promise<number> {
+  async countByItemIdAndEventType(tx: DrizzleTransaction, firmId: string, itemId: string, eventType: ItemEventType): Promise<number> {
     const result = await tx
       .select({ count: sql<number>`COUNT(*)` })
       .from(itemEvents)
-      .where(and(eq(itemEvents.itemId, itemId), eq(itemEvents.eventType, eventType as any)));
+      .where(and(eq(itemEvents.itemId, itemId), eq(itemEvents.firmId, firmId), eq(itemEvents.eventType, eventType as any)));
     return Number(result[0]?.count) || 0;
   }
 };

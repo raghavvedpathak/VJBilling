@@ -28,7 +28,8 @@ const EVENT_MAPPING: Record<string, string> = {
   'SETTINGS_CHANGED': 'Settings Modified',
   'DEVICE_ID_GENERATED': 'New Device Registered',
   'BIS_LOGO_ARCHIVED': 'BIS Logo Removed',
-  'PRE_MIGRATION_SNAPSHOT_FAILED': 'Pre-Migration Snapshot Failed'
+  'PRE_MIGRATION_SNAPSHOT_FAILED': 'Pre-Migration Snapshot Failed',
+  'AUDIT_RETENTION_PURGE_EXECUTED': 'Audit Log Retention Purge Ran'
 };
 
 const colors = {
@@ -175,17 +176,17 @@ const AuditLogItem = memo(({
 
 const s = StyleSheet.create({
   card: {
-    backgroundColor: '#ffffff',
+    backgroundColor: 'rgba(255, 255, 255, 0.65)',
     marginBottom: 12,
     borderRadius: 16,
     borderWidth: 1,
     overflow: 'hidden',
   },
   cardCollapsed: {
-    borderColor: 'rgba(46,29,0,0.10)',
+    borderColor: 'rgba(255, 255, 255, 0.5)',
   },
   cardExpanded: {
-    borderColor: 'rgba(46,29,0,0.30)',
+    borderColor: 'rgba(255, 255, 255, 0.8)',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
@@ -248,11 +249,11 @@ const s = StyleSheet.create({
     letterSpacing: 0.8,
   },
   payloadCard: {
-    backgroundColor: '#ffffff',
+    backgroundColor: 'rgba(255, 255, 255, 0.65)',
     padding: 16,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: 'rgba(46,29,0,0.10)',
+    borderColor: 'rgba(255, 255, 255, 0.5)',
   },
   payloadRow: {
     flexDirection: 'row',

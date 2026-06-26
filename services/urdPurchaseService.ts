@@ -25,7 +25,7 @@ export const urdPurchaseService = {
     id: string,
     firmId: string,
   ): Promise<URDPurchase | null> {
-    const urd = await urdPurchaseRepository.getById(id);
+    const urd = await urdPurchaseRepository.getById(db as any, firmId, id);
     if (!urd || urd.firmId !== firmId) return null;
     return urd;
   },
@@ -120,7 +120,7 @@ export const urdPurchaseService = {
     safeModeService.assertNotInSafeMode();
 
     return db.transaction(async (tx) => {
-      const urd = await urdPurchaseRepository.getById(urdId);
+      const urd = await urdPurchaseRepository.getById(tx, firmId, urdId);
       if (!urd || urd.firmId !== firmId) throw new Error('URD_NOT_FOUND_OR_WRONG_FIRM');
       if (urd.status !== 'DRAFT') throw new Error('URD_ALREADY_CONFIRMED');
 
@@ -129,13 +129,13 @@ export const urdPurchaseService = {
 
       const seq = await sequenceCounterRepository.nextVal(tx, firmId, urd.fyId, 'URD');
       
-      const fy = await financialYearRepository.getById(tx, urd.fyId);
+      const fy = await financialYearRepository.getById(tx, firmId, urd.fyId);
       if (!fy) throw new Error('FY_NOT_FOUND');
       const fyLabel = fy.label;
 
       const urdNumber = `URD/${fyLabel}/${String(seq).padStart(4, '0')}`;
 
-      await urdPurchaseRepository.update(tx, urdId, {
+      await urdPurchaseRepository.update(tx, firmId, urdId, {
         status: 'CONFIRMED',
         urdNumber,
         updatedAt: now(),
@@ -152,7 +152,7 @@ export const urdPurchaseService = {
   },
 
   async generateURDPurchaseBill(urdId: string, firmId: string): Promise<string> {
-    const urd = await urdPurchaseRepository.getById(urdId);
+    const urd = await urdPurchaseRepository.getById(db as any, firmId, urdId);
     if (!urd || urd.firmId !== firmId) throw new Error('URD_NOT_FOUND_OR_WRONG_FIRM');
     if (urd.status !== 'CONFIRMED') throw new Error('URD_NOT_CONFIRMED');
 

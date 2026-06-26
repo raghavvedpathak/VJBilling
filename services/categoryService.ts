@@ -14,7 +14,7 @@ export const categoryService = {
     safeModeService.assertNotInSafeMode();
 
     return db.transaction(async (tx) => {
-      const cat = await categoryRepository.getById(tx, categoryId);
+      const cat = await categoryRepository.getById(tx, firmId, categoryId);
       if (!cat || cat.firmId !== firmId) throw new Error('CATEGORY_NOT_FOUND_OR_WRONG_FIRM');
 
       // FIX-CAT-DELETE-GUARD-1 (v1.44): Block if any non-terminal items reference this category
@@ -27,7 +27,7 @@ export const categoryService = {
       // DAMAGED added (v1.70): non-terminal state, item awaiting karigar repair or return — must not orphan category
       if (blocked.length > 0) throw new Error('CATEGORY_HAS_ACTIVE_ITEMS');
 
-      await categoryRepository.softDelete(tx, categoryId);
+      await categoryRepository.softDelete(tx, firmId, categoryId);
 
       await auditRepository.log(tx, {
         eventType: 'CATEGORY_SOFT_DELETED',
@@ -45,13 +45,13 @@ export const categoryService = {
     safeModeService.assertNotInSafeMode();
 
     return db.transaction(async (tx) => {
-      const cat = await categoryRepository.getById(tx, categoryId);
+      const cat = await categoryRepository.getById(tx, firmId, categoryId);
       if (!cat || cat.firmId !== firmId) throw new Error('CATEGORY_NOT_FOUND_OR_WRONG_FIRM');
 
       // UNIQUE INDEX uq_category_firm_name enforces name uniqueness at DB level.
       // Catch Drizzle unique constraint violation and re-throw as CATEGORY_NAME_DUPLICATE.
       try {
-        await categoryRepository.update(tx, categoryId, { name });
+        await categoryRepository.update(tx, firmId, categoryId, { name });
       } catch (e: any) {
         if (e.message?.includes('UNIQUE constraint failed') || e.code === 'SQLITE_CONSTRAINT_UNIQUE') {
           throw new Error('CATEGORY_NAME_DUPLICATE');
@@ -74,10 +74,10 @@ export const categoryService = {
     safeModeService.assertNotInSafeMode();
 
     return db.transaction(async (tx) => {
-      const cat = await categoryRepository.getById(tx, categoryId);
+      const cat = await categoryRepository.getById(tx, firmId, categoryId);
       if (!cat || cat.firmId !== firmId) throw new Error('CATEGORY_NOT_FOUND_OR_WRONG_FIRM');
 
-      await categoryRepository.update(tx, categoryId, { lowStockThreshold: threshold });
+      await categoryRepository.update(tx, firmId, categoryId, { lowStockThreshold: threshold });
 
       await auditRepository.log(tx, {
         eventType: 'CATEGORY_UPDATED',

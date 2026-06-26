@@ -149,12 +149,12 @@ const s = StyleSheet.create({
   card: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#ffffff',
+    backgroundColor: 'rgba(255, 255, 255, 0.65)',
     marginBottom: 10,
     borderRadius: 16,
     padding: 16,
     borderWidth: 1,
-    borderColor: 'rgba(46,29,0,0.08)',
+    borderColor: 'rgba(255, 255, 255, 0.5)',
     gap: 12,
   },
   metalBadge: {

@@ -8,8 +8,8 @@ declare global {
   var __testDrizzleDb: any;
 }
 
-const mockKvStore: Record<string, string> = {};
-const mockAsyncStore: Record<string, string> = {};
+const mockKvStore: Record<string, string> = { 'vjbilling_device_id': 'test-device-123' };
+const mockAsyncStore: Record<string, string> = { 'vjbilling_device_id': 'test-device-123' };
 
 // ─── 1. MOCK: expo-sqlite ─────────────────────────────────────────────────────
 

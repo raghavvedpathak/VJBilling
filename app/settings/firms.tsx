@@ -86,7 +86,7 @@ export default function FirmManagerScreen() {
       setLoadingId(dialog.targetId);
       
       if (dialog.type === 'SWITCH') {
-        await switchFirm(dialog.targetId);
+        await firmService.switchFirm(dialog.targetId);
         setDialog(null);
         router.dismissAll();
         router.replace('/dashboard');

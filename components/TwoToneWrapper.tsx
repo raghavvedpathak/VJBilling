@@ -4,6 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { ChevronLeft } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
+import { DynamicBackground } from './ui/DynamicBackground';
 
 interface TwoToneWrapperProps {
   title?: string;
@@ -69,6 +70,7 @@ export function TwoToneWrapper({ title, children, showBack, actionIcon, onAction
         {/* === LOWER ZONE (LIGHT WITH ROUNDED CORNERS) === */}
         {/* ARCHITECT FIX: Added overflow-hidden to stop ScrollView height snapping */}
         <View className="flex-1 bg-vj-bg rounded-t-[32px] shadow-2xl overflow-hidden">
+          <DynamicBackground />
           <View className="flex-1 w-full max-w-[800px] self-center px-4 pt-6">
             {children}
           </View>

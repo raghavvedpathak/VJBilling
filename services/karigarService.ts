@@ -84,7 +84,7 @@ export const karigarService = {
     safeModeService.assertNotInSafeMode();
 
     return db.transaction(async (tx) => {
-      const item = await itemRepository.getById(tx, itemId);
+      const item = await itemRepository.getById(tx, firmId, itemId);
       if (!item || item.firmId !== firmId) throw new Error('ITEM_NOT_FOUND_OR_WRONG_FIRM');
 
       if (item.status !== 'DAMAGED') {
@@ -92,7 +92,7 @@ export const karigarService = {
       }
 
       const priorKarigarCount = await itemEventRepository.countByItemIdAndEventType(
-        tx, itemId, 'ITEM_SENT_TO_KARIGAR'
+        tx, firmId, itemId, 'ITEM_SENT_TO_KARIGAR'
       );
       if (priorKarigarCount >= 3) throw new Error('KARIGAR_LOOP_LIMIT_EXCEEDED');
 
@@ -129,7 +129,7 @@ export const karigarService = {
       'DAMAGED';
 
     return db.transaction(async (tx) => {
-      const item = await itemRepository.getById(tx, itemId);
+      const item = await itemRepository.getById(tx, firmId, itemId);
       if (!item || item.firmId !== firmId) throw new Error('ITEM_NOT_FOUND_OR_WRONG_FIRM');
 
       if (item.status !== 'SENT_TO_KARIGAR') {

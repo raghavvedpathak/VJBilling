@@ -22,7 +22,7 @@ export const bisLogoRepository = {
     return id;
   },
 
-  async archive(bisLogoId: string, reason: string = 'licence_removed', tx: DbOrTx = db): Promise<void> {
+  async archive(firmId: string, bisLogoId: string, reason: string = 'licence_removed', tx: DbOrTx = db): Promise<void> {
     await tx
       .update(bisLogos)
       .set({
@@ -30,7 +30,7 @@ export const bisLogoRepository = {
         archivedAt: now(),
         archivedReason: reason,
       })
-      .where(eq(bisLogos.id, bisLogoId));
+      .where(and(eq(bisLogos.id, bisLogoId), eq(bisLogos.firmId, firmId)));
   },
 
   // v6.6 BUG FIX: Required by updateFirm() to get the UUID id of the active bis_logo row

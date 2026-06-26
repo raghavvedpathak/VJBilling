@@ -40,10 +40,10 @@ export const barcodeLabelService = {
     safeModeService.assertNotInSafeMode();
 
     await db.transaction(async (tx) => {
-      const item = await itemRepository.getById(tx, itemId);
+      const item = await itemRepository.getById(tx, firmId, itemId);
       if (!item || item.firmId !== firmId) throw new Error('ITEM_NOT_FOUND_OR_WRONG_FIRM');
 
-      await itemRepository.updateBarcodeReprintFlag(tx, itemId, false);
+      await itemRepository.updateBarcodeReprintFlag(tx, firmId, itemId, false);
 
       await itemEventRepository.insert(tx, {
         itemId,

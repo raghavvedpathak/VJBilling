@@ -50,9 +50,9 @@ export function FYEndBanner() {
 
 const s = StyleSheet.create({
   banner: {
-    backgroundColor: '#FEF3C7',
+    backgroundColor: 'rgba(254, 243, 199, 0.65)',
     borderWidth: 1,
-    borderColor: '#F59E0B',
+    borderColor: 'rgba(245, 158, 11, 0.5)',
     borderRadius: 16,
     padding: 16,
     flexDirection: 'row',

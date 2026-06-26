@@ -10,8 +10,8 @@ export const oldGoldLotRepository = {
     return result[0];
   },
 
-  async getById(id: string): Promise<OldGoldLot | null> {
-    const result = await db.select().from(oldGoldLots).where(eq(oldGoldLots.id, id)).limit(1);
+  async getById(tx: DrizzleTransaction, firmId: string, id: string): Promise<OldGoldLot | null> {
+    const result = await tx.select().from(oldGoldLots).where(and(eq(oldGoldLots.id, id), eq(oldGoldLots.firmId, firmId))).limit(1);
     return result[0] || null;
   },
 

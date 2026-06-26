@@ -4,6 +4,9 @@
 // v6.5 Gap B: BIS logo archival on licence removal
 // isArchived and isActive are plain integers in schema — ALWAYS use 0/1, NEVER true/false
 
+import { eq } from 'drizzle-orm';
+import { firms } from '../db/schema';
+
 import { firmRepository, NewFirm } from '../repositories/firmRepository';
 import { fyRepository } from '../repositories/fyRepository';
 import { auditRepository } from '../repositories/auditRepository';
@@ -183,7 +186,7 @@ export const firmService = {
         // Gap B: Archive BIS logo when bisLicence is removed
         if ('bisLicence' in input && !input.bisLicence && existingFirm.bisLogoRef) {
           updatePayload.bisLogoRef = null;
-          await bisLogoRepository.archive(existingFirm.bisLogoRef, 'licence_removed', tx);
+          await bisLogoRepository.archive(existingFirm.id, existingFirm.bisLogoRef, 'licence_removed', tx);
           auditEvents.push({
             eventType: 'BIS_LOGO_ARCHIVED',
             payload: JSON.stringify({ reason: 'licence_removed' }),
@@ -218,6 +221,37 @@ export const firmService = {
       await this.refreshStore();
       return updatedFirm;
 
+    } finally {
+      await leaseService.release(leaseId);
+    }
+  },
+
+  async switchFirm(firmId: string): Promise<void> {
+    await assertSystemIsWritable();
+    const leaseId = await leaseService.acquire('SWITCH', firmId);
+
+    try {
+      const deviceId = await getDeviceId();
+      await db.transaction(async (tx) => {
+        const target = await tx.select().from(firms).where(eq(firms.id, firmId)).limit(1);
+        if (!target.length || target[0].isArchived) throw new Error('FIRM_NOT_FOUND: ' + firmId);
+        
+        await tx.update(firms).set({ isActive: 0 });
+        await tx.update(firms).set({ isActive: 1 }).where(eq(firms.id, firmId));
+        
+        await auditRepository.create(
+          {
+            firmId,
+            eventType: 'FIRM_SWITCHED',
+            payload: JSON.stringify({ switchedToFirmId: firmId, switchedAt: new Date().toISOString() }),
+            deviceId,
+          },
+          tx
+        );
+      });
+
+      await this.refreshStore();
+      useFirmStore.getState().switchFirm(firmId);
     } finally {
       await leaseService.release(leaseId);
     }

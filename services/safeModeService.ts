@@ -10,7 +10,7 @@ export const bootstrapComplete = { value: false };
 
 export const safeModeService = { 
   
-  async activate(reason: SafeModeTrigger) { 
+  async activate(reason: SafeModeTrigger, details?: object) { 
     const currentTime = now(); 
     const deviceId = await getDeviceId();
 
@@ -26,7 +26,7 @@ export const safeModeService = {
       await auditRepository.create({ 
         firmId: null, 
         eventType: 'SAFE_MODE_ACTIVATED', 
-        payload: JSON.stringify({ reason }), 
+        payload: JSON.stringify({ reason, ...details }), 
         deviceId 
       }, tx); 
     }); 

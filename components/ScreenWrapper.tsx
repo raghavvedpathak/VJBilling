@@ -5,8 +5,7 @@ import { useRouter } from 'expo-router';
 import { ChevronLeft } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
-
-// Platform import removed — it was imported but never used (dead import).
+import { DynamicBackground } from './ui/DynamicBackground';
 
 interface ScreenWrapperProps {
   title?: string;
@@ -43,6 +42,8 @@ export function ScreenWrapper({
         end={{ x: 1, y: 1 }}
         style={{ position: 'absolute', left: 0, right: 0, top: 0, bottom: 0 }}
       />
+      
+      <DynamicBackground />
 
       {/* SAFE AREA */}
       <SafeAreaView className="flex-1" edges={['top', 'left', 'right']}>

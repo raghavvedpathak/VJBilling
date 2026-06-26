@@ -6,7 +6,7 @@ import { now } from '../utils/now';
 
 export const sequenceCounterRepository = {
   async nextVal(tx: DrizzleTransaction, firmId: string, fyId: string, type: string): Promise<number> {
-    const fy = await financialYearRepository.getById(tx, fyId);
+    const fy = await financialYearRepository.getById(tx, firmId, fyId);
     if (!fy) throw new Error('FY_NOT_FOUND');
     const fyLabel = fy.label;
     

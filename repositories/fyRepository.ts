@@ -110,18 +110,12 @@ export const fyRepository = {
    * Called by fyService.closeFY() to read the FY label for the audit_archive_index row.
    * Returns null if the FY does not exist — callers must guard with ! assert.
    */
-  getById: (async (txOrId: DrizzleTransaction | string, idParam?: string): Promise<FinancialYear | null> => {
-    const isTx = typeof txOrId !== 'string';
-    const tx = isTx ? (txOrId as DrizzleTransaction) : db;
-    const fyId = isTx ? idParam! : (txOrId as string);
+  async getById(tx: DrizzleTransaction, firmId: string, id: string): Promise<FinancialYear | null> {
     const [fy] = await tx
       .select()
       .from(financialYears)
-      .where(eq(financialYears.id, fyId));
+      .where(and(eq(financialYears.id, id), eq(financialYears.firmId, firmId)));
     return fy ?? null;
-  }) as {
-    (id: string): Promise<FinancialYear | null>;
-    (tx: DrizzleTransaction, id: string): Promise<FinancialYear | null>;
   },
 
   /**

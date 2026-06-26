@@ -6,19 +6,16 @@ import type { DrizzleTransaction, Item, ItemSearchResult } from '../types/phase2
 import { now } from '../utils/now';
 
 export const itemRepository = {
-  async getById(txOrId: DrizzleTransaction | string, id?: string): Promise<Item | null> {
-    const isTx = typeof txOrId !== 'string';
-    const tx = isTx ? txOrId as DrizzleTransaction : db;
-    const itemId = isTx ? id! : txOrId as string;
-    const result = await tx.select().from(items).where(eq(items.id, itemId)).limit(1);
+  async getById(tx: DrizzleTransaction, firmId: string, id: string): Promise<Item | null> {
+    const result = await tx.select().from(items).where(and(eq(items.id, id), eq(items.firmId, firmId))).limit(1);
     return result[0] || null;
   },
 
-  async updateBarcodeReprintFlag(tx: DrizzleTransaction, itemId: string, flag: boolean): Promise<void> {
+  async updateBarcodeReprintFlag(tx: DrizzleTransaction, firmId: string, itemId: string, flag: boolean): Promise<void> {
     await tx
       .update(items)
       .set({ barcodeReprintRequired: flag ? 1 : 0, updatedAt: now() })
-      .where(eq(items.id, itemId));
+      .where(and(eq(items.id, itemId), eq(items.firmId, firmId)));
   },
 
   async findByStatus(firmId: string, status: string): Promise<Item[]> {
@@ -59,8 +56,8 @@ export const itemRepository = {
       );
   },
 
-  async update(tx: DrizzleTransaction, id: string, data: Partial<Item>): Promise<void> {
-    await tx.update(items).set(data).where(eq(items.id, id));
+  async update(tx: DrizzleTransaction, firmId: string, id: string, data: Partial<Item>): Promise<void> {
+    await tx.update(items).set(data).where(and(eq(items.id, id), eq(items.firmId, firmId)));
   },
 
   async updateStatus(tx: DrizzleTransaction, firmId: string, id: string, status: string): Promise<void> {
@@ -72,13 +69,13 @@ export const itemRepository = {
     return result[0];
   },
 
-  async findBySku(sku: string): Promise<Item | null> {
-    const result = await db.select().from(items).where(eq(items.sku, sku)).limit(1);
+  async findBySku(firmId: string, sku: string): Promise<Item | null> {
+    const result = await db.select().from(items).where(and(eq(items.sku, sku), eq(items.firmId, firmId))).limit(1);
     return result[0] || null;
   },
 
-  async findByHUID(huid: string): Promise<Item | null> {
-    const result = await db.select().from(items).where(eq(items.huid, huid)).limit(1);
+  async findByHUID(firmId: string, huid: string): Promise<Item | null> {
+    const result = await db.select().from(items).where(and(eq(items.huid, huid), eq(items.firmId, firmId))).limit(1);
     return result[0] || null;
   },
 
@@ -86,8 +83,8 @@ export const itemRepository = {
     return db.select().from(items).where(eq(items.firmId, firmId));
   },
 
-  async delete(tx: DrizzleTransaction, id: string): Promise<void> {
-    await tx.delete(items).where(eq(items.id, id));
+  async delete(tx: DrizzleTransaction, firmId: string, id: string): Promise<void> {
+    await tx.delete(items).where(and(eq(items.id, id), eq(items.firmId, firmId)));
   },
 
   async getStockWeightSummary(firmId: string) {

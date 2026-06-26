@@ -25,10 +25,10 @@ export const itemService = {
     safeModeService.assertNotInSafeMode();
 
     return db.transaction(async (tx) => {
-      const design = await designRepository.getById(tx, input.designId);
+      const design = await designRepository.getById(tx, firmId, input.designId);
       if (!design || design.firmId !== firmId) throw new Error('DESIGN_NOT_FOUND_OR_WRONG_FIRM');
 
-      const category = await categoryRepository.getById(tx, input.categoryId);
+      const category = await categoryRepository.getById(tx, firmId, input.categoryId);
       if (!category || category.firmId !== firmId) throw new Error('CATEGORY_NOT_FOUND_OR_WRONG_FIRM');
 
       await hsnMasterRepository.findByCode(tx, firmId, input.hsnCode);
@@ -91,12 +91,12 @@ export const itemService = {
     safeModeService.assertNotInSafeMode();
 
     return db.transaction(async (tx) => {
-      const phantom = await itemRepository.getById(tx, phantomItemId);
+      const phantom = await itemRepository.getById(tx, firmId, phantomItemId);
       if (!phantom || phantom.firmId !== firmId) throw new Error('PHANTOM_ITEM_NOT_FOUND');
       if (phantom.status !== 'PHANTOM_SOLD') throw new Error('PHANTOM_NOT_YET_SOLD');
       if (phantom.phantomStockId !== null) throw new Error('PHANTOM_ALREADY_RECONCILED');
 
-      const real = await itemRepository.getById(tx, realItemId);
+      const real = await itemRepository.getById(tx, firmId, realItemId);
       if (!real || real.firmId !== firmId) throw new Error('REAL_ITEM_NOT_FOUND');
       if (real.status !== 'AVAILABLE') throw new Error('REAL_ITEM_NOT_AVAILABLE_FOR_RECONCILE');
       if (real.phantomStockId !== null) throw new Error('REAL_ITEM_ALREADY_USED_FOR_RECONCILE');
@@ -105,9 +105,9 @@ export const itemService = {
       if (phantom.netWeightMg !== real.netWeightMg) throw new Error('RECONCILE_WEIGHT_MISMATCH');
       if (Math.abs(phantom.purityPercent - real.purityPercent) > 0.01) throw new Error('RECONCILE_PURITY_MISMATCH');
 
-      await itemRepository.update(tx, phantomItemId, { phantomStockId: realItemId, updatedAt: now() });
+      await itemRepository.update(tx, firmId, phantomItemId, { phantomStockId: realItemId, updatedAt: now() });
       await itemRepository.updateStatus(tx, firmId, realItemId, 'SOLD');
-      await itemRepository.update(tx, realItemId, { invoiceId: phantom.invoiceId, phantomStockId: phantomItemId, updatedAt: now() });
+      await itemRepository.update(tx, firmId, realItemId, { invoiceId: phantom.invoiceId, phantomStockId: phantomItemId, updatedAt: now() });
 
       await itemEventRepository.insert(tx, {
         itemId: phantomItemId, firmId, eventType: 'PHANTOM_RECONCILED',
@@ -145,10 +145,10 @@ export const itemService = {
     safeModeService.assertNotInSafeMode();
 
     return db.transaction(async (tx) => {
-      const design = await designRepository.getById(tx, input.designId);
+      const design = await designRepository.getById(tx, firmId, input.designId);
       if (!design || design.firmId !== firmId) throw new Error('DESIGN_NOT_FOUND_OR_WRONG_FIRM');
 
-      const category = await categoryRepository.getById(tx, input.categoryId);
+      const category = await categoryRepository.getById(tx, firmId, input.categoryId);
       if (!category || category.firmId !== firmId) throw new Error('CATEGORY_NOT_FOUND_OR_WRONG_FIRM');
 
       const hsnCode = input.hsnCode;
@@ -247,7 +247,7 @@ export const itemService = {
     if (newNetWeightMg <= 0) throw new Error('ITEM_NET_WEIGHT_INVALID');
 
     return db.transaction(async (tx) => {
-      const item = await itemRepository.getById(tx, itemId);
+      const item = await itemRepository.getById(tx, firmId, itemId);
       if (!item || item.firmId !== firmId) throw new Error('ITEM_NOT_FOUND_OR_WRONG_FIRM');
 
       if (item.status !== 'DRAFT') throw new Error('WEIGHT_EDIT_AFTER_DRAFT_FORBIDDEN');
@@ -261,7 +261,7 @@ export const itemService = {
         ? Math.round(newNetWeightMg * totalTouchPercent / 100)
         : null;
 
-      await itemRepository.update(tx, itemId, {
+      await itemRepository.update(tx, firmId, itemId, {
         grossWeightMg: newGrossWeightMg, stoneWeightMg: newStoneWeightMg,
         beadsWeightMg: newBeadsWeightMg, netWeightMg: newNetWeightMg,
         fineWeightMg: newFineWeightMg,
@@ -307,7 +307,7 @@ export const itemService = {
     if (presentFields.length === 0) return;
 
     return db.transaction(async (tx) => {
-      const item = await itemRepository.getById(tx, itemId);
+      const item = await itemRepository.getById(tx, firmId, itemId);
       if (!item || item.firmId !== firmId) throw new Error('ITEM_NOT_FOUND_OR_WRONG_FIRM');
 
       if (item.status !== 'DRAFT') throw new Error('WEIGHT_EDIT_AFTER_DRAFT_FORBIDDEN');
@@ -327,7 +327,7 @@ export const itemService = {
 
       if (Object.keys(changes).length === 0) return;
 
-      await itemRepository.update(tx, itemId, updateData);
+      await itemRepository.update(tx, firmId, itemId, updateData);
 
       await itemEventRepository.insert(tx, {
         itemId, firmId,
@@ -370,7 +370,7 @@ export const itemService = {
     if (newNetWeightMg <= 0) throw new Error('ITEM_NET_WEIGHT_INVALID');
 
     return db.transaction(async (tx) => {
-      const item = await itemRepository.getById(tx, itemId);
+      const item = await itemRepository.getById(tx, firmId, itemId);
       if (!item || item.firmId !== firmId) throw new Error('ITEM_NOT_FOUND_OR_WRONG_FIRM');
       if (item.status !== 'DRAFT') throw new Error('EDIT_AFTER_DRAFT_FORBIDDEN');
 
@@ -382,7 +382,7 @@ export const itemService = {
         ? Math.round(newNetWeightMg * totalTouchPercent / 100)
         : null;
 
-      await itemRepository.update(tx, itemId, {
+      await itemRepository.update(tx, firmId, itemId, {
         grossWeightMg: input.grossWeightMg,
         stoneWeightMg: input.stoneWeightMg,
         beadsWeightMg: input.beadsWeightMg,
@@ -435,9 +435,9 @@ export const itemService = {
 
       const results: Item[] = [];
       for (const input of inputs) {
-        const design = await designRepository.getById(tx, input.designId);
+        const design = await designRepository.getById(tx, firmId, input.designId);
         if (!design || design.firmId !== firmId) throw new Error('DESIGN_NOT_FOUND_OR_WRONG_FIRM');
-        const category = await categoryRepository.getById(tx, input.categoryId);
+        const category = await categoryRepository.getById(tx, firmId, input.categoryId);
         if (!category || category.firmId !== firmId) throw new Error('CATEGORY_NOT_FOUND_OR_WRONG_FIRM');
         
         await hsnMasterRepository.findByCode(tx, firmId, input.hsnCode);
@@ -519,12 +519,12 @@ export const itemService = {
     safeModeService.assertNotInSafeMode();
 
     return db.transaction(async (tx) => {
-      const item = await itemRepository.getById(tx, itemId);
+      const item = await itemRepository.getById(tx, firmId, itemId);
       if (!item || item.firmId !== firmId) throw new Error('ITEM_NOT_FOUND_OR_WRONG_FIRM');
       if (item.status !== 'DRAFT') throw new Error('ITEM_NOT_DRAFT');
 
-      await itemEventRepository.deleteByItemId(tx, itemId);
-      await itemRepository.delete(tx, itemId);
+      await itemEventRepository.deleteByItemId(tx, firmId, itemId);
+      await itemRepository.delete(tx, firmId, itemId);
 
       await auditRepository.log(tx, {
         eventType: 'DRAFT_ITEM_DISCARDED',
@@ -543,7 +543,7 @@ export const itemService = {
     safeModeService.assertNotInSafeMode();
 
     return db.transaction(async (tx) => {
-      const item = await itemRepository.getById(tx, itemId);
+      const item = await itemRepository.getById(tx, firmId, itemId);
       if (!item || item.firmId !== firmId) throw new Error('ITEM_NOT_FOUND_OR_WRONG_FIRM');
 
       const allowed = ALLOWED_TRANSITIONS[item.status as StockStatus];

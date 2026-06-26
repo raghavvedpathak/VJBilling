@@ -14,6 +14,7 @@ import { useRouter } from 'expo-router';
 import { useSafeModeStore } from '../store/safeModeStore';
 import { safeModeService } from '../services/safeModeService';
 import { bootstrapService } from '../services/bootstrapService';
+import { GlassCard, GlassButton, GlassInput } from '../components/ui/Glass';
 
 export default function SafeModeScreen() {
   const router = useRouter();
@@ -103,50 +104,46 @@ export default function SafeModeScreen() {
         </Text>
 
         {/* DIAGNOSTICS */}
-        <View className="bg-white p-6 rounded-xl border border-vj-danger/30 shadow-sm mb-8">
-          <Text className="text-gray-500 text-xs font-bold uppercase tracking-widest mb-2">
+        <GlassCard>
+          <Text className="text-gray-400 text-xs font-bold uppercase tracking-widest mb-2">
             Diagnostic Report
           </Text>
           <View className="flex-row justify-between mb-2">
-            <Text className="text-gray-600">Error Code:</Text>
+            <Text className="text-gray-300">Error Code:</Text>
             <Text className="text-vj-danger font-mono font-bold">
               {reason || 'UNKNOWN_ERROR'}
             </Text>
           </View>
           <View className="flex-row justify-between">
-            <Text className="text-gray-600">Timestamp:</Text>
-            <Text className="text-gray-800 font-mono text-xs">
+            <Text className="text-gray-300">Timestamp:</Text>
+            <Text className="text-gray-400 font-mono text-xs">
               {activatedAt ? new Date(activatedAt).toLocaleString() : 'N/A'}
             </Text>
           </View>
-        </View>
+        </GlassCard>
 
         {/* ACTIONS */}
         {!showUnlock ? (
           <View className="gap-4">
-            <TouchableOpacity
+            <GlassButton
+              title={retrying ? 'Running Diagnostics...' : 'Retry Diagnostics'}
               onPress={handleRetry}
-              disabled={retrying}
-              className="bg-vj-danger p-4 rounded-xl flex-row justify-center items-center gap-3 shadow-sm active:opacity-80"
-            >
-              <RefreshCw size={20} color="white" />
-              <Text className="text-white font-bold text-lg">
-                {retrying ? 'Running Diagnostics...' : 'Retry Diagnostics'}
-              </Text>
-            </TouchableOpacity>
+              loading={retrying}
+              variant="danger"
+              icon={<RefreshCw size={20} color="white" />}
+            />
 
-            <TouchableOpacity
-              className="bg-white border border-vj-danger/30 p-4 rounded-xl flex-row justify-center items-center gap-3 shadow-sm"
+            <GlassButton
+              title="Restore Backup"
               onPress={() =>
                 Alert.alert(
                   'Manual Restore',
                   'To restore a healthy backup, please reinstall the app to access the "Restore from Backup" option on the welcome screen.'
                 )
               }
-            >
-              <HardDriveUpload size={20} color="#ef4444" />
-              <Text className="text-vj-danger font-bold text-lg">Restore Backup</Text>
-            </TouchableOpacity>
+              variant="secondary"
+              icon={<HardDriveUpload size={20} color="#ef4444" />}
+            />
 
             <TouchableOpacity
               onPress={() => setShowUnlock(true)}
@@ -157,32 +154,29 @@ export default function SafeModeScreen() {
             </TouchableOpacity>
           </View>
         ) : (
-          <View className="bg-white p-6 rounded-xl border-2 border-vj-danger/30 shadow-sm">
+          <GlassCard>
             <View className="flex-row justify-between items-center mb-4">
               <Text className="text-vj-danger font-bold text-lg">Admin Access</Text>
               <TouchableOpacity onPress={() => setShowUnlock(false)}>
                 <X size={24} color="#999" />
               </TouchableOpacity>
             </View>
-            <Text className="text-gray-600 text-xs mb-3">
+            <Text className="text-gray-400 text-xs mb-3">
               Enter the emergency bypass code.
             </Text>
-            <TextInput
+            <GlassInput
               value={unlockCode}
               onChangeText={setUnlockCode}
               placeholder="Enter Code"
               secureTextEntry
               keyboardType="number-pad"
-              autoFocus
-              className="bg-gray-100 p-4 rounded-lg text-center text-xl font-bold tracking-widest border border-gray-200 mb-4"
             />
-            <TouchableOpacity
+            <GlassButton
+              title="UNLOCK SYSTEM"
               onPress={submitUnlock}
-              className="bg-vj-danger p-4 rounded-lg items-center"
-            >
-              <Text className="text-white font-bold">UNLOCK SYSTEM</Text>
-            </TouchableOpacity>
-          </View>
+              variant="danger"
+            />
+          </GlassCard>
         )}
       </ScrollView>
     </KeyboardAvoidingView>

@@ -9,13 +9,13 @@ export const urdPurchaseRepository = {
     return result[0];
   },
 
-  async getById(id: string): Promise<URDPurchase | null> {
-    const result = await db.select().from(urdPurchases).where(eq(urdPurchases.id, id)).limit(1);
+  async getById(tx: DrizzleTransaction, firmId: string, id: string): Promise<URDPurchase | null> {
+    const result = await tx.select().from(urdPurchases).where(and(eq(urdPurchases.id, id), eq(urdPurchases.firmId, firmId))).limit(1);
     return result[0] || null;
   },
 
-  async update(tx: DrizzleTransaction, id: string, data: Partial<typeof urdPurchases.$inferInsert>): Promise<void> {
-    await tx.update(urdPurchases).set(data).where(eq(urdPurchases.id, id));
+  async update(tx: DrizzleTransaction, firmId: string, id: string, data: Partial<typeof urdPurchases.$inferInsert>): Promise<void> {
+    await tx.update(urdPurchases).set(data).where(and(eq(urdPurchases.id, id), eq(urdPurchases.firmId, firmId)));
   },
 
   async findByFirmId(firmId: string): Promise<URDPurchase[]> {

@@ -20,7 +20,7 @@
 // Drizzle layer is not yet running transactions — raw sync reads are safe here.
 
 import { safeModeService, bootstrapComplete } from './safeModeService';
-import { initializeDeviceId, auditDeviceIdIfNew, getDeviceId } from '../utils/deviceId';
+import { getDeviceId, getOrGenerateDeviceId, auditDeviceIdIfNew } from '../utils/deviceId';
 import { verifyService } from './verifyService';
 import { useSafeModeStore } from '../store/safeModeStore';
 import { db, expoDb } from '../db/client'; // FIX: import expoDb singleton — do NOT call openDatabaseSync() again
@@ -31,6 +31,9 @@ import { STORAGE_PATHS } from '../constants/storagePaths';
 import { storage } from '../utils/storage';
 import { eq, isNotNull } from 'drizzle-orm';
 import { SafeModeTrigger } from '../store/safeModeStore';
+import { differenceInDays, parseISO } from 'date-fns';
+import { purgeExpiredAuditLogs } from './auditRetentionService';
+import { useAppSettingsStore } from '../store/appSettingsStore';
 
 // In-memory flag: defers audit for Step 0 failure until DB is ready (v2.7)
 let premigrationSnapshotFailed = false;
@@ -121,8 +124,8 @@ export const bootstrapService = {
         await tx.delete(writerLeases);
       });
 
-      // Step 4: HARDENING 5 — Initialize device ID Phase A (generate + persist to MMKV, no audit log yet)
-      await initializeDeviceId();
+      // Step 4: HARDENING 5 — Initialize device identity if missing (persists to MMKV, no DB touch).
+      await getOrGenerateDeviceId();
 
       // -----------------------------------------------------------------------
       // Step 5: HARDENING 2 — Load Safe Mode state from DB.
@@ -133,6 +136,9 @@ export const bootstrapService = {
       // → storage corruption → activate STORAGE_CORRUPTION_DETECTED.
       // FY_INTEGRITY_BROKEN is reserved exclusively for firms with no active FY.
       // -----------------------------------------------------------------------
+      // v7.14 FIX-V714-4: crash flag named vjbilling_boot_was_interrupted
+      await storage.setItem('vjbilling_boot_was_interrupted', 'true');
+      
       const safeModeRows = await db.select().from(safeModeState).limit(1);
 
       if (safeModeRows.length === 0) {
@@ -144,8 +150,12 @@ export const bootstrapService = {
             '[Bootstrap] SAFE-MODE-ROW-GUARD: safe_mode_state row missing after confirmed ' +
             'migration zero. Activating STORAGE_CORRUPTION_DETECTED.'
           );
-          await safeModeService.activate('STORAGE_CORRUPTION_DETECTED' as SafeModeTrigger);
+          await safeModeService.activate('STORAGE_CORRUPTION_DETECTED' as SafeModeTrigger, {
+            missingTable: 'safe_mode_state',
+            schemaVersionConfirmed: true,
+          });
           bootstrapComplete.value = true;
+          await storage.setItem('vjbilling_boot_was_interrupted', 'false');
           return 'SAFE_MODE';
         } else {
           console.log(
@@ -187,6 +197,13 @@ export const bootstrapService = {
       // After this point, assertNotInSafeMode() will check the Zustand store
       // (which is now loaded from DB) instead of throwing BOOTSTRAP_INCOMPLETE.
       bootstrapComplete.value = true;
+      await storage.setItem('vjbilling_boot_was_interrupted', 'false');
+
+      // v7.10 AUDIT-RETENTION-MONTHLY: Bootstrap integration (fire-and-forget)
+      const last = useAppSettingsStore.getState().auditRetentionLastRunAt;
+      if (!last || differenceInDays(new Date(), parseISO(last)) >= 30) {
+        purgeExpiredAuditLogs().catch(console.error);
+      }
 
       // If Safe Mode was already active from Step 5, route to Safe Mode UI
       if (useSafeModeStore.getState().isActive) {

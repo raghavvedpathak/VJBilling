@@ -23,7 +23,8 @@ export const safeModeState = sqliteTable('safe_mode_state', {
 export const appSettings = sqliteTable('app_settings', {
   id: integer('id').primaryKey().default(1), // Single row
   theme: text('theme').notNull().default('system'),
-  auditRetentionDays: integer('audit_retention_days').notNull().default(365),
+  auditRetentionDays: integer('audit_retention_days').notNull().default(30), // v7.10: was 365
+  auditRetentionLastRunAt: text('audit_retention_last_run_at'), // v7.10: nullable ISO-8601
   currency: text('currency').notNull().default('INR'),           // v6.2 G67: Indian Rupee — read-only, not user-changeable
   currencySymbol: text('currency_symbol').notNull().default('Rs'), // v6.2 G67
   currencyDecimalPlaces: integer('currency_decimal_places').notNull().default(2), // v6.2 G67: paise = 2dp
@@ -114,6 +115,12 @@ export const auditLogs = sqliteTable('audit_logs', {
   deviceId: text('device_id').notNull(),  // UUID from deviceId util
   payload: text('payload'),               // JSON string — event-specific data, nullable
   createdAt: text('created_at').notNull(), // ISO-8601
+});
+
+// v7.10 AUDIT-RETENTION-MONTHLY
+export const auditDeleteGate = sqliteTable('audit_delete_gate', {
+  id: integer('id').primaryKey().default(1),
+  gateOpen: integer('gate_open').notNull().default(0),
 });
 
 // 7. BIS LOGOS (Soft-delete only — v2.9 Gap B fix)

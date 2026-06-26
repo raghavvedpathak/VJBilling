@@ -1,5 +1,5 @@
 import { db } from '../db/client';
-import { eq, sql } from 'drizzle-orm';
+import { eq, sql, and, lte, gte } from 'drizzle-orm';
 import { fyRepository } from '../repositories/fyRepository';
 import { auditRepository } from '../repositories/auditRepository';
 import { itemRepository } from '../repositories/itemRepository';
@@ -10,7 +10,8 @@ import { phase2VerifyService } from './verifyService';
 import { getDeviceId } from '../utils/deviceId';
 import { now } from '../utils/now';
 import * as Crypto from 'expo-crypto';
-import { oldGoldLots, appSettings } from '../db/schema';
+import { oldGoldLots, appSettings, financialYears, FYStatus } from '../db/schema';
+import { purgeExpiredAuditLogs } from './auditRetentionService';
 import type { DrizzleTransaction, VerifyIssue } from '../types/phase2.types';
 
 const fyCloseHooks: Array<(tx: DrizzleTransaction, firmId: string, fyId: string) => Promise<void>> = [];
@@ -21,7 +22,7 @@ export function registerFYCloseHook(fn: (tx: DrizzleTransaction, firmId: string,
 
 export async function preCloseChecks(fyId: string, firmId: string): Promise<{ canClose: boolean; issues: VerifyIssue[] }> {
   const issues: VerifyIssue[] = [];
-  const fy = await fyRepository.getById(fyId);
+  const fy = await fyRepository.getById(db as any, firmId, fyId);
   
   if (!fy || fy.firmId !== firmId) { 
     issues.push({ code: 'FY_OWNERSHIP_MISMATCH', severity: 'CRITICAL', message: 'Financial year does not belong to this firm' }); 
@@ -60,18 +61,18 @@ export async function closeFY(fyId: string, firmId: string): Promise<void> {
   const leaseId = await leaseService.acquire('WRITE', firmId);
   
   try {
+    const draftItems = await itemRepository.findByStatus(firmId, 'DRAFT');
+    if (draftItems.length > 0) throw new Error('FY_CLOSE_BLOCKED_DRAFT_ITEMS');
+
+    const verifyIssues = await phase2VerifyService.runVerify(firmId);
+    if (verifyIssues.some((i: VerifyIssue) => i.severity === 'CRITICAL')) {
+      throw new Error('FY_CLOSE_BLOCKED_CRITICAL_VERIFY');
+    }
+
     await db.transaction(async (tx) => {
-      const fy = await fyRepository.getById(fyId);
+      const fy = await fyRepository.getById(tx, firmId, fyId);
       if (!fy || fy.firmId !== firmId) throw new Error('FY_OWNERSHIP_MISMATCH');
       if (fy.status !== 'ACTIVE') throw new Error('FY_NOT_ACTIVE');
-
-      const draftItems = await itemRepository.findByStatus(firmId, 'DRAFT');
-      if (draftItems.length > 0) throw new Error('FY_CLOSE_BLOCKED_DRAFT_ITEMS');
-
-      const verifyIssues = await phase2VerifyService.runVerify(firmId);
-      if (verifyIssues.some((i: VerifyIssue) => i.severity === 'CRITICAL')) {
-        throw new Error('FY_CLOSE_BLOCKED_CRITICAL_VERIFY');
-      }
 
       if (fyCloseHooks.length === 0) {
         console.warn('FY_CLOSE_NO_HOOKS: closeFY() running with no registered hooks. Phase 4 karigar/refinery outstanding fine balance will be 0. Phase 4 MUST call registerFYCloseHook() before this runs in production.');
@@ -121,26 +122,34 @@ export async function closeFY(fyId: string, firmId: string): Promise<void> {
         eventType: 'FY_ARCHIVE_INDEXED', firmId, entityId: fyId, deviceId, 
         payload: JSON.stringify({ fyId, fyLabel: fy.label, rowCount: auditRowCount }) 
       });
-
-      const [settings] = await tx.select().from(appSettings).limit(1);
-      const retentionDays = settings?.auditRetentionDays || 90;
-      
-      await tx.run(sql`
-        DELETE FROM audit_logs
-        WHERE firm_id = ${firmId}
-        AND created_at < datetime('now', '-' || ${retentionDays} || ' days')
-        AND created_at NOT BETWEEN ${fy.startDate} AND ${fy.endDate}
-      `);
     });
   } finally {
     await leaseService.release(leaseId);
   }
+
+  // Run audit purge OUTSIDE transaction and OUTSIDE lease (prevent guard conflicts)
+  await purgeExpiredAuditLogs().catch(console.error);
 }
 
 export const fyService = {
   async getActiveFY(firmId: string) { return fyRepository.getActiveFY(firmId); },
-  async resolveTransactionFyId(firmId: string, entryDate: string) { return fyRepository.resolveTransactionFyId(firmId, entryDate); },
+  resolveTransactionFyId,
   closeFY,
   preCloseChecks,
   registerFYCloseHook
 };
+
+export async function resolveTransactionFyId(
+  firmId: string, entryDate: string
+): Promise<string> {
+  const match = await db.select().from(financialYears).where(
+    and(
+      eq(financialYears.firmId, firmId),
+      eq(financialYears.status, FYStatus.ACTIVE),
+      lte(financialYears.startDate, entryDate),
+      gte(financialYears.endDate, entryDate),
+    )
+  ).limit(1);
+  if (!match.length) throw new Error('ENTRY_DATE_IN_CLOSED_FY');
+  return match[0].id;
+}

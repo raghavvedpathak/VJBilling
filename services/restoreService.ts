@@ -12,16 +12,18 @@ import * as Updates from 'expo-updates';
 import { Alert } from 'react-native';
 import { db } from '../db/client';
 import {
-  firms,
-  financialYears,
-  auditLogs,
-  safeModeState,
-  writerLeases,
-  appSettings,
-  bisLogos,
+  firms as firmsTable,
+  financialYears as financialYearsTable,
+  auditLogs as auditLogsTable,
+  safeModeState as safeModeStateTable,
+  writerLeases as writerLeasesTable,
+  appSettings as appSettingsTable,
+  bisLogos as bisLogosTable,
   categories, designs, stones, hsnCodes, items, itemEvents,
-  gemstoneLots, designCategoryMap, sequenceCounters, oldGoldLots, urdPurchases
+  gemstoneLots, designCategoryMap, sequenceCounters, oldGoldLots, urdPurchases,
+  auditDeleteGate as auditDeleteGateTable
 } from '../db/schema';
+import { eq } from 'drizzle-orm';
 import { leaseService } from './leaseService';
 import { auditRepository } from '../repositories/auditRepository';
 import { getDeviceId } from '../utils/deviceId';
@@ -145,93 +147,75 @@ export const restoreService = {
     try {
       const currentDeviceId = await getDeviceId();
 
-      await db.transaction(async (tx) => {
+      // v7.16 FIX-V716-4: JSI driver requires synchronous tx callback — async removed
+      db.transaction((tx) => {
+        // v7.13 FIX-V713-1: gate MUST be opened before this delete — v7.10's prevent_audit_delete trigger ABORTs otherwise
+        tx.update(auditDeleteGateTable).set({ gateOpen: 1 }).where(eq(auditDeleteGateTable.id, 1)).run();
+        tx.delete(auditLogsTable).run();
+        tx.update(auditDeleteGateTable).set({ gateOpen: 0 }).where(eq(auditDeleteGateTable.id, 1)).run(); // gate closes same tx
+        tx.delete(bisLogosTable).run();
+        tx.delete(financialYearsTable).run();
+        tx.delete(writerLeasesTable).run(); // Step 9: invalidate leases
+        tx.delete(firmsTable).run();
+        tx.delete(appSettingsTable).run();
+        tx.delete(safeModeStateTable).run();
+
         // A. Wipe existing data — child tables first
         // DELETE order — reverse FK dependency (Phase 2 tables only; Phase 1 tables deleted separately)
-        // urd_purchases → old_gold_lots → sequence_counters → design_category_map →
-        // gemstone_lots → item_events → items → hsn_codes → designs → stones → categories
-        await tx.delete(urdPurchases);
-        await tx.delete(oldGoldLots);
-        await tx.delete(sequenceCounters);
-        await tx.delete(designCategoryMap);
-        await tx.delete(gemstoneLots);
-        await tx.delete(itemEvents);
-        await tx.delete(items);
-        await tx.delete(hsnCodes);
-        await tx.delete(designs);
-        await tx.delete(stones);
-        await tx.delete(categories);
+        tx.delete(urdPurchases).run();
+        tx.delete(oldGoldLots).run();
+        tx.delete(sequenceCounters).run();
+        tx.delete(designCategoryMap).run();
+        tx.delete(gemstoneLots).run();
+        tx.delete(itemEvents).run();
+        tx.delete(items).run();
+        tx.delete(hsnCodes).run();
+        tx.delete(designs).run();
+        tx.delete(stones).run();
+        tx.delete(categories).run();
 
-        await tx.delete(writerLeases);
-        await tx.delete(auditLogs);
-        await tx.delete(bisLogos);
-        await tx.delete(financialYears);
-        await tx.delete(appSettings);
-        await tx.delete(firms);
-        await tx.delete(safeModeState);
-
-        // B. Insert backup data
-        if (backupFirms.length > 0) await tx.insert(firms).values(backupFirms);
-        if (backupFYs?.length > 0) await tx.insert(financialYears).values(backupFYs);
-        if (backupLogs?.length > 0) await tx.insert(auditLogs).values(backupLogs);
-        if (backupBisLogos?.length > 0) await tx.insert(bisLogos).values(backupBisLogos);
-
-        // Settings restore
-        if (backupSettings?.length > 0) {
-          await tx.insert(appSettings).values(backupSettings);
-        } else {
-          // Older backups missing settings — insert full default row.
-          // G67-LINT: currency symbol as Unicode escape — NOT '₹' string literal.
-          // now() used for updatedAt — consistent with centralized time utility.
-          await tx.insert(appSettings).values({
-            id: 1,
-            theme: 'system',
-            auditRetentionDays: 365,
-            currency: 'INR',
-            currencySymbol: '\u20B9', // ₹ — Unicode escape per G67-LINT
-            currencyDecimalPlaces: 2,
-            dateFormatToken: 'dd/MM/yyyy',
-            warnUnsavedChanges: 1,
-            updatedAt: now(),           // was new Date().toISOString()
-          });
-        }
-
-        // INSERT order — FK dependency order (children after parents)
-        if (backupCategories?.length > 0) await tx.insert(categories).values(backupCategories);
-        if (backupDesigns?.length > 0) await tx.insert(designs).values(backupDesigns);
-        if (backupStones?.length > 0) await tx.insert(stones).values(backupStones);
-        if (backupHsnCodes?.length > 0) await tx.insert(hsnCodes).values(backupHsnCodes);
-        if (backupItems?.length > 0) await tx.insert(items).values(backupItems);
-        if (backupItemEvents?.length > 0) await tx.insert(itemEvents).values(backupItemEvents);
-        if (backupGemstoneLots?.length > 0) await tx.insert(gemstoneLots).values(backupGemstoneLots);
-        if (backupDesignCategoryMap?.length > 0) await tx.insert(designCategoryMap).values(backupDesignCategoryMap);
-        if (backupSequenceCounters?.length > 0) await tx.insert(sequenceCounters).values(backupSequenceCounters);
-        if (backupOldGoldLots?.length > 0) await tx.insert(oldGoldLots).values(backupOldGoldLots);
-        if (backupUrdPurchases?.length > 0) await tx.insert(urdPurchases).values(backupUrdPurchases);
-
-        // C. Restore Safe Mode state
-        if (backupSmState?.id) {
-          await tx.insert(safeModeState).values(backupSmState);
+        // INSERT backup data
+        if (backupFirms.length > 0) tx.insert(firmsTable).values(backupFirms).run();
+        if (backupFYs?.length > 0) tx.insert(financialYearsTable).values(backupFYs).run();
+        if (backupSettings?.length > 0) tx.insert(appSettingsTable).values(backupSettings).run();
+        if (backupLogs?.length > 0) tx.insert(auditLogsTable).values(backupLogs).run();
+        if (backupBisLogos?.length > 0) tx.insert(bisLogosTable).values(backupBisLogos).run(); // v5.1 G49: C1 fix
+        
+        if (backupSmState) {
+          tx.insert(safeModeStateTable).values(backupSmState)
+            .onConflictDoUpdate({ target: safeModeStateTable.id, set: backupSmState }).run();
           if (backupSmState.isActive === 1) hasIssues = true;
         } else {
-          await tx.insert(safeModeState).values({
+          tx.insert(safeModeStateTable).values({
             id: 1, isActive: 0, reason: null, activatedAt: null, clearedAt: null,
-          });
+          }).run();
         }
-      });
 
-      // RESTORE_COMPLETED — separate new transaction (not inside main restore tx)
-      // This mirrors BACKUP_CREATED pattern per v7.4 known limitation.
-      await db.transaction(async (tx) => {
-        await auditRepository.create(
-          {
-            firmId: null,
-            eventType: 'RESTORE_COMPLETED',
-            payload: JSON.stringify({ backupExportedAt: backup.exportedAt }),
-            deviceId: currentDeviceId,
-          },
-          tx
-        );
+        // Phase 2 tables
+        if (backupCategories?.length > 0) tx.insert(categories).values(backupCategories).run();
+        if (backupDesigns?.length > 0) tx.insert(designs).values(backupDesigns).run();
+        if (backupStones?.length > 0) tx.insert(stones).values(backupStones).run();
+        if (backupHsnCodes?.length > 0) tx.insert(hsnCodes).values(backupHsnCodes).run();
+        if (backupItems?.length > 0) tx.insert(items).values(backupItems).run();
+        if (backupItemEvents?.length > 0) tx.insert(itemEvents).values(backupItemEvents).run();
+        if (backupGemstoneLots?.length > 0) tx.insert(gemstoneLots).values(backupGemstoneLots).run();
+        if (backupDesignCategoryMap?.length > 0) tx.insert(designCategoryMap).values(backupDesignCategoryMap).run();
+        if (backupSequenceCounters?.length > 0) tx.insert(sequenceCounters).values(backupSequenceCounters).run();
+        if (backupOldGoldLots?.length > 0) tx.insert(oldGoldLots).values(backupOldGoldLots).run();
+        if (backupUrdPurchases?.length > 0) tx.insert(urdPurchases).values(backupUrdPurchases).run();
+
+        // RESTORE_COMPLETED written here — AFTER all data inserted (architecturally correct)
+        auditRepository.log(tx, { 
+          eventType: 'RESTORE_COMPLETED', 
+          firmId: null, 
+          deviceId: currentDeviceId,
+          payload: JSON.stringify({ 
+            backupSchema: backup.schemaVersion, 
+            backupDate: backup.exportedAt, 
+            firmCount: backupFirms.length, 
+            restoredAt: new Date().toISOString() 
+          }) 
+        });
       });
 
       // STEP 9: INVALIDATE LEASES & CLEAR SAFE MODE

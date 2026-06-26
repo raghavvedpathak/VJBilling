@@ -18,6 +18,7 @@ import { storage } from '../utils/storage';
 type AppSettingsSlice = {
   theme: string;
   auditRetentionDays: number;
+  auditRetentionLastRunAt: string | null;
   currency: string;
   currencySymbol: string;
   currencyDecimalPlaces: number;
@@ -35,7 +36,8 @@ export const useAppSettingsStore = create<AppSettingsSlice>()(
     (set) => ({
       // Defaults match the seed row inserted by db/client.ts Migration Zero fallback.
       theme: 'system',
-      auditRetentionDays: 365,
+      auditRetentionDays: 30, // matches schema v7.10 default
+      auditRetentionLastRunAt: null,
       currency: 'INR',
       currencySymbol: '\u20B9', // ₹ — Unicode escape per G67-LINT
       currencyDecimalPlaces: 2,

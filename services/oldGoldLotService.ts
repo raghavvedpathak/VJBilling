@@ -83,7 +83,7 @@ export const oldGoldLotService = {
     safeModeService.assertNotInSafeMode();
 
     return db.transaction(async (tx) => {
-      const lot = await oldGoldLotRepository.getById(lotId);
+      const lot = await oldGoldLotRepository.getById(tx, firmId, lotId);
       if (!lot || lot.firmId !== firmId) throw new Error('OLD_GOLD_LOT_NOT_FOUND_OR_WRONG_FIRM');
 
       const allowed = VALID_LOT_TRANSITIONS[lot.status as OldGoldLotStatus];

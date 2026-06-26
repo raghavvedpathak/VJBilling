@@ -64,16 +64,8 @@ export const useFirmStore = create<FirmState>()(
 
         if (currentFirmId === firmId) return;
 
-        try {
-          // Concurrency guard: block if a backup/sync lease is active
-          await leaseService.assertNoActiveLease();
-
-          // Update store state only — DB writes are firmService's responsibility
-          set({ activeFirmId: firmId });
-        } catch (error) {
-          console.error('[FirmStore] Firm switch blocked by system guard:', error);
-          throw error;
-        }
+        // Update store state only — DB writes and guards are firmService's responsibility
+        set({ activeFirmId: firmId });
       },
     }),
     {

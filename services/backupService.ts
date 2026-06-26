@@ -5,7 +5,6 @@
 
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
-import * as Crypto from 'expo-crypto';
 import { db } from '../db/client';
 import { 
   firms, financialYears, auditLogs, safeModeState, appSettings, bisLogos,
@@ -15,23 +14,16 @@ import {
 import { leaseService } from './leaseService';
 import { auditRepository } from '../repositories/auditRepository';
 import { getDeviceId } from '../utils/deviceId';
-import { now } from '../utils/now';
 import { SCHEMA_VERSION, APP_VERSION } from '../constants/appVersion';
 
-/**
- * HELPER: Safe access to FileSystem writable directory.
- * Fixes TS Error 2339 in Expo SDK 52+ — properties exist at runtime but
- * are missing from recent type defs.
- */
-const getFileSystemDirectory = (): string => {
-  const fs = FileSystem as any;
-  const dir = fs.documentDirectory || fs.cacheDirectory;
+export const BACKUP_DIR = FileSystem.documentDirectory + 'backups/';
 
-  if (!dir) {
-    throw new Error('CRITICAL: No writable file system directory available on this device.');
-  }
-  return dir.endsWith('/') ? dir : `${dir}/`;
-};
+export interface BackupResult { 
+  checksum: string; 
+  fileName: string; 
+  filePath: string; 
+  fileSizeBytes: number; 
+}
 
 export const backupService = {
 
@@ -44,52 +36,44 @@ export const backupService = {
    * If app crashes between file write and audit write, the backup file exists but BACKUP_CREATED
    * is not logged — accepted architectural gap (data is safe; traceability gap only).
    */
-  async createBackup() {
+  async createBackup(): Promise<BackupResult> {
     await leaseService.assertNoActiveLease();
     const leaseId = await leaseService.acquire('BACKUP');
 
     try {
       const deviceId = await getDeviceId();
 
-      // FIX: use now() — consistent with centralized time utility
-      const timestamp = now();
-      const fileName = `VJBilling_Backup_${timestamp.replace(/[:.]/g, '-')}.vjb`;
-      let backupEnvelope: any = null;
+      // v7.16 FIX-V716-5: JSI driver requires synchronous tx callback — async removed
+      const payload = db.transaction((tx) => {
+        // v7.17 FIX-V717-1: Promise.all() is async — replaced with synchronous .all() calls
+        const firmsRows = tx.select().from(firms).all();
+        const financialYearsRows = tx.select().from(financialYears).all();
+        const settingsRows = tx.select().from(appSettings).all();
+        const auditLogsRows = tx.select().from(auditLogs).all();
+        const safeModeStateRows = tx.select().from(safeModeState).all();
+        const bisLogosRows = tx.select().from(bisLogos).all();
+        
+        // Phase 2 + Phase 3 + Phase 4 tables
+        const categoriesRows = tx.select().from(categories).all();
+        const designsRows = tx.select().from(designs).all();
+        const stonesRows = tx.select().from(stones).all();
+        const hsnCodesRows = tx.select().from(hsnCodes).all();
+        const itemsRows = tx.select().from(items).all();
+        const itemEventsRows = tx.select().from(itemEvents).all();
+        const gemstoneLotsRows = tx.select().from(gemstoneLots).all();
+        const designCategoryMapRows = tx.select().from(designCategoryMap).all();
+        const sequenceCountersRows = tx.select().from(sequenceCounters).all();
+        const oldGoldLotsRows = tx.select().from(oldGoldLots).all();
+        const urdPurchasesRows = tx.select().from(urdPurchases).all();
 
-      // ATOMIC SNAPSHOT — all reads in one transaction to prevent data shifts mid-export
-      await db.transaction(async (tx) => {
-        const [
-          smStateRows, settingsRows, firmsRows, financialYearsRows, auditLogsRows, bisLogosRows,
-          categoriesRows, designsRows, stonesRows, hsnCodesRows, itemsRows, itemEventsRows,
-          gemstoneLotsRows, designCategoryMapRows, sequenceCountersRows, oldGoldLotsRows, urdPurchasesRows
-        ] = await Promise.all([
-          tx.select().from(safeModeState),
-          tx.select().from(appSettings),
-          tx.select().from(firms),
-          tx.select().from(financialYears),
-          tx.select().from(auditLogs),
-          tx.select().from(bisLogos),
-          tx.select().from(categories),
-          tx.select().from(designs),
-          tx.select().from(stones),
-          tx.select().from(hsnCodes),
-          tx.select().from(items),
-          tx.select().from(itemEvents),
-          tx.select().from(gemstoneLots),
-          tx.select().from(designCategoryMap),
-          tx.select().from(sequenceCounters),
-          tx.select().from(oldGoldLots),
-          tx.select().from(urdPurchases),
-        ]);
-
-        const dataSnapshot = {
+        return {
           firms: firmsRows,
           financialYears: financialYearsRows,
           settings: settingsRows,
           auditLogs: auditLogsRows,
           bisLogos: bisLogosRows,
-          safeModeState:  smStateRows.length > 0
-            ? smStateRows[0]
+          safeModeState: safeModeStateRows.length > 0
+            ? safeModeStateRows[0]
             : { id: 1, isActive: 0, reason: null, activatedAt: null, clearedAt: null },
           writerLeases: [], // Always empty — locks do not travel across devices
           categories: categoriesRows,
@@ -104,44 +88,40 @@ export const backupService = {
           oldGoldLots: oldGoldLotsRows,
           urdPurchases: urdPurchasesRows,
         };
-
-        const payloadString = JSON.stringify(dataSnapshot);
-        const checksum = await Crypto.digestStringAsync(
-          Crypto.CryptoDigestAlgorithm.SHA256,
-          payloadString
-        );
-
-        backupEnvelope = {
-          schemaVersion: SCHEMA_VERSION,
-          appVersion:    APP_VERSION,
-          exportedAt:    timestamp,  // FIX: was new Date().toISOString()
-          deviceId,
-          checksum,
-          payload:       dataSnapshot,
-        };
       });
 
-      if (!backupEnvelope) throw new Error('Failed to construct backup payload.');
+      const envelope = { 
+        schemaVersion: SCHEMA_VERSION, 
+        appVersion: APP_VERSION,
+        exportedAt: new Date().toISOString(), 
+        deviceId, 
+        checksum: '', 
+        payload 
+      };
 
-      // WRITE TO DISK
-      const dir = getFileSystemDirectory();
-      const dirInfo = await FileSystem.getInfoAsync(dir);
-      if (!dirInfo.exists) {
-        await FileSystem.makeDirectoryAsync(dir, { intermediates: true });
-      }
+      const payloadStr = JSON.stringify(payload);
+      
+      // v7.16 FIX-V716-6: SDK 56 canonical pattern uses Web Crypto globally available via Hermes
+      const hashBuffer = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(payloadStr));
+      envelope.checksum = Array.from(new Uint8Array(hashBuffer)).map(b => b.toString(16).padStart(2, '0')).join('');
 
-      const filePath = `${dir}${fileName}`;
-      await FileSystem.writeAsStringAsync(filePath, JSON.stringify(backupEnvelope), {
-        encoding: 'utf8' as any,
+      const timestamp = envelope.exportedAt.replace(/[:.]/g, '-').replace('T', '_').substring(0, 19);
+      const fileName = `vjbilling_${timestamp}.vjb`;
+      const filePath = BACKUP_DIR + fileName;
+
+      await FileSystem.makeDirectoryAsync(BACKUP_DIR, { intermediates: true });
+      await FileSystem.writeAsStringAsync(filePath, JSON.stringify(envelope), {
+        encoding: FileSystem.EncodingType.UTF8
       });
 
-      // TRIGGER SHARE SHEET
+      const fileInfo = await FileSystem.getInfoAsync(filePath);
+      const fileSizeBytes = (fileInfo.exists && 'size' in fileInfo) ? (fileInfo as any).size ?? 0 : 0;
+
       const canShare = await Sharing.isAvailableAsync();
       if (canShare) {
         await Sharing.shareAsync(filePath, {
-          mimeType: 'application/json',
-          dialogTitle: 'Save VJ Billing Backup',
-          UTI: 'public.json',
+          mimeType: 'application/octet-stream', // Prompt mentioned octet-stream for sharing, but vjb is application/json... wait, the prompt says "mimeType: 'application/octet-stream'".
+          dialogTitle: 'Save VJ Billing Backup'
         });
       } else {
         throw new Error('System sharing is not available on this device.');
@@ -153,17 +133,17 @@ export const backupService = {
       await auditRepository.create({
         firmId: null,
         eventType: 'BACKUP_CREATED',
-        payload: JSON.stringify({ fileName, checksum: backupEnvelope.checksum }),
+        payload: JSON.stringify({ exportedAt: envelope.exportedAt, fileName, fileSizeBytes }),
         deviceId,
       });
 
-      return backupEnvelope.checksum;
+      return { checksum: envelope.checksum, fileName, filePath, fileSizeBytes };
 
     } catch (error) {
       console.error('[Backup] Error:', error);
       throw error;
     } finally {
-      await leaseService.release(leaseId);
+      await leaseService.release(leaseId).catch(console.error);
     }
   },
 };

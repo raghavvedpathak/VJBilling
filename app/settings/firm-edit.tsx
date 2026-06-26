@@ -2,6 +2,8 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { View, Text, TouchableOpacity, ScrollView, Alert, Image, KeyboardAvoidingView, Platform, ActivityIndicator, Modal } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
+import { manipulateAsync, SaveFormat } from 'expo-image-manipulator';
+import * as FileSystem from 'expo-file-system/legacy';
 import { TwoToneWrapper } from '../../components/TwoToneWrapper';
 import { firmService } from '../../services/firmService';
 import { useFirmStore } from '../../store/firmStore';
@@ -89,13 +91,70 @@ export default function EditFirmScreen() {
   useUnsavedChangesGuard(isDirty);
 
   const pickImage = async (field: 'logoUri' | 'bisLogoUri') => {
-    const result = await ImagePicker.launchImageLibraryAsync({
+    Alert.alert(
+      "Select Image Source",
+      "Choose where to pick the image from:",
+      [
+        { text: "Camera", onPress: () => handleImageSelection(field, 'camera') },
+        { text: "Gallery", onPress: () => handleImageSelection(field, 'gallery') },
+        { text: "Cancel", style: "cancel" }
+      ]
+    );
+  };
+
+  const handleImageSelection = async (field: 'logoUri' | 'bisLogoUri', source: 'camera' | 'gallery') => {
+    let result;
+    const options: ImagePicker.ImagePickerOptions = {
       mediaTypes: ['images'], 
       allowsEditing: true,
       quality: 0.8,
-    });
-    if (!result.canceled) {
-      setForm(prev => ({ ...prev, [field]: result.assets[0].uri }));
+    };
+
+    if (source === 'camera') {
+      const permission = await ImagePicker.requestCameraPermissionsAsync();
+      if (!permission.granted) {
+        Alert.alert("Permission Required", "Camera access is needed.");
+        return;
+      }
+      result = await ImagePicker.launchCameraAsync(options);
+    } else {
+      result = await ImagePicker.launchImageLibraryAsync(options);
+    }
+
+    if (!result.canceled && result.assets && result.assets.length > 0) {
+      const asset = result.assets[0];
+      const mimeType = asset.mimeType || '';
+      if (!mimeType.includes('jpeg') && !mimeType.includes('png') && !asset.uri.toLowerCase().endsWith('.jpg') && !asset.uri.toLowerCase().endsWith('.png') && !asset.uri.toLowerCase().endsWith('.jpeg')) {
+        Alert.alert("Invalid Type", "Only PNG or JPEG images are accepted.");
+        return;
+      }
+
+      let finalUri = asset.uri;
+      
+      if (asset.width > 1024 || asset.height > 1024) {
+        const manipResult = await manipulateAsync(
+          asset.uri,
+          [{ resize: { width: asset.width > asset.height ? 1024 : undefined, height: asset.height > asset.width ? 1024 : undefined } }],
+          { compress: 0.8, format: SaveFormat.JPEG }
+        );
+        finalUri = manipResult.uri;
+      }
+
+      const fileInfo = await FileSystem.getInfoAsync(finalUri);
+      if (!fileInfo.exists) return;
+      if (fileInfo.size && fileInfo.size > 2 * 1024 * 1024) {
+        Alert.alert("File Too Large", "Image too large. Please choose a smaller image.");
+        return;
+      }
+
+      const logosDir = FileSystem.documentDirectory + 'logos/';
+      await FileSystem.makeDirectoryAsync(logosDir, { intermediates: true });
+      
+      const fileName = field === 'logoUri' ? `firm_${id}.jpg` : `bis_firm_${id}.jpg`;
+      const destPath = logosDir + fileName;
+      
+      await FileSystem.copyAsync({ from: finalUri, to: destPath });
+      setForm(prev => ({ ...prev, [field]: destPath }));
     }
   };
 
@@ -163,7 +222,7 @@ export default function EditFirmScreen() {
 
   const headerLogoPicker = (
     <View className="items-center pb-4">
-      <TouchableOpacity onPress={() => pickImage('logoUri')} className="h-28 w-28 rounded-full justify-center items-center overflow-hidden border-4 border-vj-bg/20 shadow-lg bg-white/10">
+      <TouchableOpacity onPress={() => pickImage('logoUri')} className="h-[120px] w-[120px] rounded-full justify-center items-center overflow-hidden border-4 border-vj-bg/20 shadow-lg bg-white/10">
         {form.logoUri ? (
           <Image source={{ uri: form.logoUri }} className="w-full h-full resize-mode-contain" />
         ) : (
@@ -217,7 +276,7 @@ export default function EditFirmScreen() {
                 </TouchableOpacity>
               </View>
             )}
-            {form.bisLogoUri && <Image source={{ uri: form.bisLogoUri }} className="h-16 w-32 resize-mode-contain mt-2 self-center" />}
+            {form.bisLogoUri && <Image source={{ uri: form.bisLogoUri }} className="h-[120px] w-[120px] resize-mode-contain mt-2 self-center" />}
           </GlassCard>
 
           <GlassCard style={{ borderWidth: 0 }}>

@@ -1,13 +1,19 @@
 CREATE TABLE `app_settings` (
 	`id` integer PRIMARY KEY DEFAULT 1 NOT NULL,
 	`theme` text DEFAULT 'system' NOT NULL,
-	`audit_retention_days` integer DEFAULT 365 NOT NULL,
+	`audit_retention_days` integer DEFAULT 30 NOT NULL,
+	`audit_retention_last_run_at` text,
 	`currency` text DEFAULT 'INR' NOT NULL,
 	`currency_symbol` text DEFAULT 'Rs' NOT NULL,
 	`currency_decimal_places` integer DEFAULT 2 NOT NULL,
 	`date_format_token` text DEFAULT 'dd/MM/yyyy' NOT NULL,
 	`warn_unsaved_changes` integer DEFAULT 1 NOT NULL,
 	`updated_at` text NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE `audit_delete_gate` (
+	`id` integer PRIMARY KEY DEFAULT 1 NOT NULL,
+	`gate_open` integer DEFAULT 0 NOT NULL
 );
 --> statement-breakpoint
 CREATE TABLE `audit_archive_index` (
@@ -350,3 +356,55 @@ CREATE INDEX `idx_items_unreconciled_phantom` ON `items` (`firm_id`, `status`, `
 -- DORMANT BOUNDARY ENFORCEMENT WARNINGS
 -- TODO: PHASE 3 STEP 0 BOUNDARY. DO NOT import or query tax_rates, tax_groups, tax_group_components from Phase 1/2 service code.
 -- TODO: FUTURE SYNC PHASE BOUNDARY. DO NOT import or query sync_devices, sync_log from Phase 1-7 service code.
+
+-- =============================================================================
+-- MIGRATION ZERO SEED ROWS AND CONSTITUTIONAL TRIGGERS
+-- =============================================================================
+
+INSERT INTO safe_mode_state (id, is_active) VALUES (1, 0);
+
+INSERT INTO app_settings (id, date_format_token, theme, audit_retention_days, audit_retention_last_run_at, currency, currency_symbol, currency_decimal_places, warn_unsaved_changes, updated_at) 
+VALUES (1, 'dd/MM/yyyy', 'system', 30, NULL, 'INR', '₹', 2, 1, datetime('now'));
+
+INSERT INTO schema_version (id, current_version) VALUES (1, 1);
+
+INSERT INTO audit_delete_gate (id, gate_open) VALUES (1, 0);
+
+CREATE TRIGGER prevent_audit_update BEFORE UPDATE ON audit_logs
+BEGIN 
+  SELECT RAISE(ABORT, 'AUDIT_LOG_IMMUTABLE: audit logs cannot be changed'); 
+END;
+
+CREATE TRIGGER prevent_audit_delete BEFORE DELETE ON audit_logs
+BEGIN 
+  SELECT CASE 
+    WHEN (SELECT gate_open FROM audit_delete_gate WHERE id = 1) = 0
+    THEN RAISE(ABORT, 'AUDIT_LOG_IMMUTABLE: audit logs cannot be deleted outside the retention job') 
+  END; 
+END;
+
+CREATE TRIGGER prevent_firm_code_update BEFORE UPDATE OF firm_code ON firms
+BEGIN 
+  SELECT RAISE(ABORT, 'FIRM_CODE_IMMUTABLE: firm_code cannot be changed after creation'); 
+END;
+
+-- =============================================================================
+-- PHASE 1 CUSTOM INDEXES
+-- =============================================================================
+
+CREATE INDEX IF NOT EXISTS idx_writer_leases_expires ON writer_leases(expires_at);
+CREATE INDEX IF NOT EXISTS idx_audit_logs_firm_date ON audit_logs(firm_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_audit_logs_event_type ON audit_logs(event_type, firm_id);
+CREATE INDEX IF NOT EXISTS idx_financial_years_firm_status ON financial_years(firm_id, status);
+CREATE INDEX IF NOT EXISTS idx_financial_years_firm_dates ON financial_years(firm_id, start_date, end_date);
+CREATE INDEX IF NOT EXISTS idx_firms_archived ON firms(is_archived, id);
+CREATE INDEX IF NOT EXISTS idx_bis_logos_firm_active ON bis_logos(firm_id, is_archived);
+
+CREATE INDEX IF NOT EXISTS idx_tax_rates_firm_active ON tax_rates(firm_id, is_active);
+CREATE INDEX IF NOT EXISTS idx_tax_groups_firm_active ON tax_groups(firm_id, is_active);
+CREATE INDEX IF NOT EXISTS idx_tax_group_components_group ON tax_group_components(tax_group_id);
+CREATE INDEX IF NOT EXISTS idx_tax_group_components_rate ON tax_group_components(tax_rate_id);
+
+CREATE INDEX IF NOT EXISTS idx_sync_log_firm_date ON sync_log(device_id, occurred_at DESC);
+CREATE INDEX IF NOT EXISTS idx_sync_devices_firm ON sync_devices(device_id, is_enabled);
+CREATE INDEX IF NOT EXISTS idx_audit_archive_firm_fy ON audit_archive_index(firm_id, fy_id);

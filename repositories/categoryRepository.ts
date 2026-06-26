@@ -12,22 +12,11 @@ export const categoryRepository = {
     return inserted;
   },
 
-  async getById(txOrId: DrizzleTransaction | string, id?: string): Promise<Category | null> {
-    let tx: DrizzleTransaction | typeof db;
-    let categoryId: string;
-
-    if (typeof txOrId === 'string') {
-      tx = db;
-      categoryId = txOrId;
-    } else {
-      tx = txOrId as DrizzleTransaction;
-      categoryId = id as string;
-    }
-
+  async getById(tx: DrizzleTransaction, firmId: string, id: string): Promise<Category | null> {
     const [category] = await tx
       .select()
       .from(categories)
-      .where(eq(categories.id, categoryId))
+      .where(and(eq(categories.id, id), eq(categories.firmId, firmId)))
       .limit(1);
 
     return category || null;
@@ -45,17 +34,17 @@ export const categoryRepository = {
       );
   },
 
-  async update(tx: DrizzleTransaction, id: string, data: Partial<Pick<Category, 'name' | 'lowStockThreshold'>>): Promise<void> {
+  async update(tx: DrizzleTransaction, firmId: string, id: string, data: Partial<Pick<Category, 'name' | 'lowStockThreshold'>>): Promise<void> {
     await tx
       .update(categories)
       .set({ ...data, updatedAt: now() })
-      .where(eq(categories.id, id));
+      .where(and(eq(categories.id, id), eq(categories.firmId, firmId)));
   },
 
-  async softDelete(tx: DrizzleTransaction, id: string): Promise<void> {
+  async softDelete(tx: DrizzleTransaction, firmId: string, id: string): Promise<void> {
     await tx
       .update(categories)
       .set({ isActive: 0, updatedAt: now() })
-      .where(eq(categories.id, id));
+      .where(and(eq(categories.id, id), eq(categories.firmId, firmId)));
   }
 };

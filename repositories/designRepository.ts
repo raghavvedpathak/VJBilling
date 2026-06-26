@@ -7,22 +7,11 @@ import { now } from '../utils/now';
 type NewDesign = typeof designs.$inferInsert;
 
 export const designRepository = {
-  async getById(txOrId: DrizzleTransaction | string, id?: string): Promise<Design | null> {
-    let tx: DrizzleTransaction | typeof db;
-    let designId: string;
-
-    if (typeof txOrId === 'string') {
-      tx = db;
-      designId = txOrId;
-    } else {
-      tx = txOrId as DrizzleTransaction;
-      designId = id as string;
-    }
-
+  async getById(tx: DrizzleTransaction, firmId: string, id: string): Promise<Design | null> {
     const [design] = await tx
       .select()
       .from(designs)
-      .where(eq(designs.id, designId))
+      .where(and(eq(designs.id, id), eq(designs.firmId, firmId)))
       .limit(1);
 
     return design || null;
@@ -45,18 +34,18 @@ export const designRepository = {
       );
   },
 
-  async softDelete(tx: DrizzleTransaction, id: string): Promise<void> {
+  async softDelete(tx: DrizzleTransaction, firmId: string, id: string): Promise<void> {
     await tx
       .update(designs)
       .set({ isActive: 0, updatedAt: now() })
-      .where(eq(designs.id, id));
+      .where(and(eq(designs.id, id), eq(designs.firmId, firmId)));
   },
 
-  async update(tx: DrizzleTransaction, id: string, data: Partial<Pick<Design, 'name' | 'defaultHsn'>>): Promise<void> {
+  async update(tx: DrizzleTransaction, firmId: string, id: string, data: Partial<Pick<Design, 'name' | 'defaultHsn'>>): Promise<void> {
     await tx
       .update(designs)
       .set({ ...data, updatedAt: now() })
-      .where(eq(designs.id, id));
+      .where(and(eq(designs.id, id), eq(designs.firmId, firmId)));
   },
 
   async searchStock(firmId: string, query: string): Promise<DesignStockResult[]> {

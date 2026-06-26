@@ -188,7 +188,7 @@ export default function DesignItemsScreen() {
 
 const s = StyleSheet.create({
   listContainer: { flex: 1 },
-  headerCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#ffffff', borderRadius: 16, padding: 16, marginBottom: 12, borderWidth: 1, borderColor: 'rgba(46,29,0,0.08)' },
+  headerCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(255, 255, 255, 0.65)', borderRadius: 16, padding: 16, marginBottom: 12, borderWidth: 1, borderColor: 'rgba(255, 255, 255, 0.5)' },
   headerCardContent: { flex: 1 },
   headerTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6 },
   headerDesignName: { color: COLORS.vjText, fontSize: 16, fontWeight: '700', maxWidth: '70%' },

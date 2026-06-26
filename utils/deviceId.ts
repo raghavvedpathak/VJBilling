@@ -16,11 +16,12 @@ export const generateId = () => Crypto.randomUUID();
 
 /**
  * Returns the persisted device ID from MMKV/AsyncStorage.
- * Returns 'UNKNOWN_DEVICE' if not yet initialized (should not happen after bootstrap).
+ * Throws if not initialized according to Hardening 5.
  */
 export async function getDeviceId(): Promise<string> {
   const deviceId = await storage.getItem(DEVICE_ID_KEY);
-  return deviceId || 'UNKNOWN_DEVICE';
+  if (!deviceId) throw new Error('DEVICE_ID_NOT_INITIALIZED');
+  return deviceId;
 }
 
 /**
@@ -28,16 +29,17 @@ export async function getDeviceId(): Promise<string> {
  * Called early in bootstrap before DB is ready.
  * Safe from circular dependencies (does not touch auditRepository).
  */
-export async function initializeDeviceId(): Promise<string> {
-  let deviceId = await storage.getItem(DEVICE_ID_KEY);
+export async function getOrGenerateDeviceId(): Promise<string> {
+  const existingId = await storage.getItem(DEVICE_ID_KEY);
 
-  if (!deviceId) {
-    deviceId = Crypto.randomUUID();
-    await storage.setItem(DEVICE_ID_KEY, deviceId);
-    console.log('[DeviceID] Phase A: New Stable Identity Generated:', deviceId);
+  if (!existingId) {
+    const newId = Crypto.randomUUID();
+    await storage.setItem(DEVICE_ID_KEY, newId);
+    console.log('[DeviceID] Phase A: New Stable Identity Generated:', newId);
+    return newId;
   }
 
-  return deviceId;
+  return existingId;
 }
 
 /**

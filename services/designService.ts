@@ -27,7 +27,7 @@ export const designService = {
     safeModeService.assertNotInSafeMode();
 
     return db.transaction(async (tx) => {
-      const design = await designRepository.getById(tx, designId);
+      const design = await designRepository.getById(tx, firmId, designId);
       if (!design || design.firmId !== firmId) throw new Error('DESIGN_NOT_FOUND_OR_WRONG_FIRM');
 
       const activeItems = await itemRepository.findByDesignId(designId, firmId);
@@ -38,7 +38,7 @@ export const designService = {
 
       if (blocked.length > 0) throw new Error('DESIGN_HAS_ACTIVE_ITEMS');
 
-      await designRepository.softDelete(tx, designId);
+      await designRepository.softDelete(tx, firmId, designId);
 
       await auditRepository.log(tx, {
         eventType: 'DESIGN_SOFT_DELETED',
@@ -60,7 +60,7 @@ export const designService = {
     safeModeService.assertNotInSafeMode();
 
     return db.transaction(async (tx) => {
-      const design = await designRepository.getById(tx, designId);
+      const design = await designRepository.getById(tx, firmId, designId);
       if (!design || design.firmId !== firmId) throw new Error('DESIGN_NOT_FOUND_OR_WRONG_FIRM');
 
       const updateData: Partial<Pick<Design, 'name' | 'defaultHsn'>> = {};
@@ -75,7 +75,7 @@ export const designService = {
       }
 
       try {
-        await designRepository.update(tx, designId, updateData);
+        await designRepository.update(tx, firmId, designId, updateData);
       } catch (e: any) {
         // Name uniqueness: UNIQUE(name, metal, firmId) index enforces at DB level
         if (e.message?.includes('UNIQUE constraint failed') || e.code === 'SQLITE_CONSTRAINT_UNIQUE') {

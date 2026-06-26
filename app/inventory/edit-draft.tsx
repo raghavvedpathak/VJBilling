@@ -1,4 +1,5 @@
 // app/inventory/edit-draft.tsx
+import { db } from '../../db/client';
 import React, { useState, useEffect, useMemo } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator, Alert, ScrollView, Modal } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -52,7 +53,7 @@ export default function EditDraftScreen() {
     const loadItem = async () => {
       if (!activeFirmId || !itemId) return;
       try {
-        const item = await itemRepository.getById(itemId);
+        const item = await itemRepository.getById(db as any, activeFirmId, itemId);
         if (active && item) {
           if (item.status !== 'DRAFT') {
             setErrorMessage('Only DRAFT items can be edited here.');

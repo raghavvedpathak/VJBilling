@@ -57,8 +57,9 @@ export const verifyService = {
       try {
         const cachedStatus = await storage.getItem(CACHE_KEY_STATUS);
         const cachedAt     = await storage.getItem(CACHE_KEY_AT);
+        const bootInterrupted = await storage.getItem('vjbilling_boot_was_interrupted');
 
-        if (cachedStatus === 'HEALTHY' && cachedAt) {
+        if (cachedStatus === 'HEALTHY' && cachedAt && bootInterrupted === 'false') {
           const elapsed = Date.now() - new Date(cachedAt).getTime();
           if (elapsed < CACHE_TTL_MS) {
             console.log('[Verify] VERIFY-BOOT-CACHE: Returning cached HEALTHY result (elapsed:', Math.round(elapsed / 1000), 's)');

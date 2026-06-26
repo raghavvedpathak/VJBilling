@@ -1,4 +1,4 @@
-import { validateGSTIN } from './validateGSTIN';
+import { validateGSTIN } from '../../utils/validateGSTIN';
 
 /**
  * GSTIN LUHN MOD-36 ALGORITHM - WORKED EXAMPLE (AUDITABLE REFERENCE)

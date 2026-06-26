@@ -6,7 +6,7 @@
 // ALL 8 tests MUST PASS on real Android device before Phase 2 begins.
 // Run: npx jest tests/currency.test.ts
 
-import { amountToWords } from '../utils/currency';
+import { amountToWords } from '../../utils/currency';
 
 // ─── HAPPY PATH ────────────────────────────────────────────────────────────
 
