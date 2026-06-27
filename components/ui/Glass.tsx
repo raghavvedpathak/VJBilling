@@ -14,7 +14,7 @@ interface GlassCardProps extends ViewProps {
 }
 export function GlassCard({ children, style, intensity = 30, ...props }: GlassCardProps) {
   return (
-    <View className="rounded-3xl overflow-hidden mb-6 bg-white/5" style={style} {...props}>
+    <View className="rounded-3xl overflow-hidden mb-6 bg-white/60 border border-white" style={style} {...props}>
       <BlurView intensity={intensity} tint="light" className="p-5">
         {children}
       </BlurView>
@@ -56,7 +56,7 @@ export function GlassInput({
       {label && (
         <Text
           className={`font-bold text-xs uppercase tracking-wider mb-2 ml-1 ${
-            readOnly ? 'text-vj-text/30' : 'text-vj-text/60'
+            readOnly ? 'text-vj-text/40' : 'text-vj-text/70'
           }`}
         >
           {label}
@@ -64,10 +64,10 @@ export function GlassInput({
       )}
       <View
         className={`flex-row items-center rounded-2xl px-4 py-3 border ${
-          readOnly ? 'bg-gray-50/50 border-gray-100' : 'bg-vj-glass border-white/20'
+          readOnly ? 'bg-gray-100/50 border-gray-300' : 'bg-white border-vj-text/30'
         }`}
       >
-        {icon && <View className="mr-3 opacity-50">{icon}</View>}
+        {icon && <View className="mr-3 opacity-60 text-vj-text">{icon}</View>}
         <TextInput
           className="flex-1 text-vj-text font-semibold text-base"
           placeholder={placeholder}
@@ -87,14 +87,6 @@ export function GlassInput({
 
 // ============================================================================
 // 3. GLASS BUTTON
-//
-// BUG FIX: ActivityIndicator color was:
-//   variant === 'primary' ? "#FAF3E0" : "#2E1D00"
-// This showed dark brown (#2E1D00) on the red danger variant — invisible
-// against the red background. Fixed to a proper 3-way map:
-//   primary  → #FAF3E0 (cream, visible on dark background)
-//   secondary → #2E1D00 (dark brown, visible on glass/white background)
-//   danger   → #ffffff  (white, visible on red background)
 // ============================================================================
 interface GlassButtonProps {
   title: string;
@@ -116,7 +108,7 @@ export function GlassButton({
 
   const variants = {
     primary: 'bg-vj-text',
-    secondary: 'bg-vj-glass border border-white/20',
+    secondary: 'bg-white/60 border border-white',
     danger: 'bg-vj-danger/90',
   };
 
@@ -126,10 +118,9 @@ export function GlassButton({
     danger: 'text-white',
   };
 
-  // Explicit per-variant spinner colors — do NOT collapse back to a ternary.
   const spinnerColors = {
-    primary: '#FAF3E0',   // cream on dark brown
-    secondary: '#2E1D00', // dark brown on glass/white
+    primary: '#FCFBF8',   // Light on dark button
+    secondary: '#5C1623', // Dark on light button
     danger: '#ffffff',    // white on red
   };
 
@@ -138,14 +129,14 @@ export function GlassButton({
       onPress={onPress}
       disabled={disabled || loading}
       activeOpacity={0.8}
-      className={`${baseStyle} ${variants[variant]} ${disabled ? 'opacity-60' : ''}`}
+      className={`${baseStyle} ${variants[variant]} ${disabled ? 'opacity-50' : ''} relative`}
     >
       {loading ? (
         <ActivityIndicator color={spinnerColors[variant]} />
       ) : (
         <>
-          {icon && <View className="mr-2">{icon}</View>}
-          <Text className={`${textColors[variant]} font-bold text-lg`}>{title}</Text>
+          {icon && <View className="absolute left-6">{icon}</View>}
+          <Text className={`${textColors[variant]} font-bold text-lg text-center`}>{title}</Text>
         </>
       )}
     </TouchableOpacity>

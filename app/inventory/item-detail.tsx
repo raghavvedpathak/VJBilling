@@ -26,9 +26,9 @@ const formatCurrency = (paise: number | null): string => {
 };
 
 const COLORS = {
-  vjText: '#2E1D00',
-  vjBg: '#FAF3E0',
-  vjAccent: '#B87333',
+  vjText: '#5C1623',
+  vjBg: '#FCFBF8',
+  vjAccent: '#D4AF37',
   gold: '#C8860A',
   silver: '#6B7280',
   info: '#3B82F6',
@@ -174,7 +174,7 @@ export default function ItemDetailScreen() {
     return (
       <TwoToneWrapper title="" showBack>
         <View style={s.emptyContainer}>
-          <Package size={48} color="rgba(46,29,0,0.2)" />
+          <Package size={48} color="rgba(92,22,35,0.2)" />
           <Text style={s.emptyTitle}>Item Not Found</Text>
         </View>
       </TwoToneWrapper>
@@ -315,7 +315,7 @@ export default function ItemDetailScreen() {
 
           {item.timeline.length === 0 ? (
             <View style={s.timelineEmpty}>
-              <Shield size={32} color="rgba(46,29,0,0.15)" />
+              <Shield size={32} color="rgba(92,22,35,0.15)" />
               <Text style={s.timelineEmptyText}>No events recorded</Text>
             </View>
           ) : (
@@ -339,15 +339,15 @@ export default function ItemDetailScreen() {
 const s = StyleSheet.create({
   // --- Loading / Empty ---
   loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 12 },
-  loadingText: { color: 'rgba(46,29,0,0.4)', fontSize: 14, fontWeight: '600' },
+  loadingText: { color: 'rgba(92,22,35,0.4)', fontSize: 14, fontWeight: '600' },
   emptyContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 8 },
-  emptyTitle: { color: 'rgba(46,29,0,0.5)', fontSize: 18, fontWeight: '700' },
+  emptyTitle: { color: 'rgba(92,22,35,0.5)', fontSize: 18, fontWeight: '700' },
 
   // --- Header ---
   headerTopRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 12 },
   headerMetalBadge: {
     width: 48, height: 48, borderRadius: 14,
-    backgroundColor: 'rgba(255,255,255,0.1)',
+    backgroundColor: 'rgba(255,255,255,0.6)',
     justifyContent: 'center', alignItems: 'center', borderWidth: 1.5,
   },
   headerPhantomBadge: {
@@ -360,11 +360,11 @@ const s = StyleSheet.create({
   // --- Sections ---
   section: { marginBottom: 24 },
   sectionTitle: {
-    color: 'rgba(46,29,0,0.45)', fontSize: 11, fontWeight: '800',
+    color: 'rgba(92,22,35,0.45)', fontSize: 11, fontWeight: '800',
     textTransform: 'uppercase', letterSpacing: 1, marginBottom: 10, marginLeft: 2,
   },
   sectionCard: {
-    backgroundColor: 'rgba(255, 255, 255, 0.65)', borderRadius: 16, padding: 4,
+    backgroundColor: 'rgba(255,255,255,0.6)', borderRadius: 16, padding: 4,
     borderWidth: 1, borderColor: 'rgba(255, 255, 255, 0.5)',
   },
 
@@ -373,10 +373,10 @@ const s = StyleSheet.create({
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
     paddingVertical: 12, paddingHorizontal: 14,
   },
-  divider: { height: 1, backgroundColor: 'rgba(46,29,0,0.04)', marginHorizontal: 14 },
+  divider: { height: 1, backgroundColor: 'rgba(92,22,35,0.04)', marginHorizontal: 14 },
   detailLabelRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   detailIcon: { opacity: 0.7 },
-  detailLabel: { color: 'rgba(46,29,0,0.5)', fontSize: 13, fontWeight: '600' },
+  detailLabel: { color: 'rgba(92,22,35,0.5)', fontSize: 13, fontWeight: '600' },
   detailValue: { color: COLORS.vjText, fontSize: 14, fontWeight: '700', maxWidth: '60%', textAlign: 'right' },
 
   // --- Costs Highlight ---
@@ -394,20 +394,20 @@ const s = StyleSheet.create({
 
   // --- Timeline ---
   timelineTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 14, marginLeft: 2 },
-  timelineCountBadge: { backgroundColor: 'rgba(46,29,0,0.06)', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 8 },
-  timelineCountText: { color: 'rgba(46,29,0,0.5)', fontSize: 11, fontWeight: '800' },
+  timelineCountBadge: { backgroundColor: 'rgba(92,22,35,0.06)', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 8 },
+  timelineCountText: { color: 'rgba(92,22,35,0.5)', fontSize: 11, fontWeight: '800' },
   timelineRow: { flexDirection: 'row', gap: 12, marginBottom: 4 },
   timelineLine: { width: 24, alignItems: 'center' },
   timelineDot: { width: 10, height: 10, borderRadius: 5, marginTop: 4 },
-  timelineConnector: { width: 2, flex: 1, backgroundColor: 'rgba(46,29,0,0.08)', marginTop: 4 },
+  timelineConnector: { width: 2, flex: 1, backgroundColor: 'rgba(92,22,35,0.08)', marginTop: 4 },
   timelineCard: {
-    flex: 1, backgroundColor: 'rgba(255, 255, 255, 0.65)', borderRadius: 12, padding: 12,
+    flex: 1, backgroundColor: 'rgba(255,255,255,0.6)', borderRadius: 12, padding: 12,
     borderWidth: 1, borderColor: 'rgba(255, 255, 255, 0.5)', marginBottom: 8,
   },
   timelineHeader: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 },
   timelineEventType: { fontSize: 13, fontWeight: '700' },
-  timelineReason: { color: 'rgba(46,29,0,0.6)', fontSize: 12, marginBottom: 4 },
-  timelineDate: { color: 'rgba(46,29,0,0.35)', fontSize: 10, fontWeight: '600', marginTop: 4 },
+  timelineReason: { color: 'rgba(92,22,35,0.6)', fontSize: 12, marginBottom: 4 },
+  timelineDate: { color: 'rgba(92,22,35,0.35)', fontSize: 10, fontWeight: '600', marginTop: 4 },
   timelineEmpty: { alignItems: 'center', paddingVertical: 30, gap: 8 },
-  timelineEmptyText: { color: 'rgba(46,29,0,0.35)', fontSize: 13 },
+  timelineEmptyText: { color: 'rgba(92,22,35,0.35)', fontSize: 13 },
 });

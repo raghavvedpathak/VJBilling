@@ -12,9 +12,9 @@ import { Lock, ShieldAlert, ShieldCheck, HardDriveDownload, AlertTriangle, Check
 import type { VerifyIssue } from '../../types/phase2.types';
 
 const COLORS = {
-  vjText: '#2E1D00',
-  vjBg: '#FAF3E0',
-  vjAccent: '#B87333',
+  vjText: '#5C1623',
+  vjBg: '#FCFBF8',
+  vjAccent: '#D4AF37',
   danger: '#EF4444',
   success: '#10B981',
   warning: '#F59E0B',
@@ -91,7 +91,7 @@ export default function CloseFYWizard() {
     return (
       <TwoToneWrapper title="Close Financial Year" showBack>
         <View style={s.centerBox}>
-          <Lock size={48} color="rgba(46,29,0,0.2)" />
+          <Lock size={48} color="rgba(92,22,35,0.2)" />
           <Text style={s.emptyTitle}>No Active FY</Text>
           <Text style={s.emptySub}>You do not have an active financial year to close.</Text>
         </View>
@@ -152,7 +152,7 @@ export default function CloseFYWizard() {
       </View>
 
       <GlassCard style={{ padding: 24, marginBottom: 24, alignItems: 'center' }}>
-        <Text style={{ textAlign: 'center', color: 'rgba(46,29,0,0.6)', marginBottom: 20, lineHeight: 22 }}>
+        <Text style={{ textAlign: 'center', color: 'rgba(92,22,35,0.6)', marginBottom: 20, lineHeight: 22 }}>
           Closing the financial year will lock all current records, index the audit logs, and calculate opening balances for the new year.
         </Text>
         <GlassButton 
@@ -232,26 +232,26 @@ export default function CloseFYWizard() {
 const s = StyleSheet.create({
   centerBox: { flex: 1, justifyContent: 'center', alignItems: 'center', marginTop: 80, paddingHorizontal: 20 },
   emptyTitle: { fontSize: 24, fontWeight: '800', color: COLORS.vjText, marginBottom: 8 },
-  emptySub: { fontSize: 14, color: 'rgba(46,29,0,0.6)', textAlign: 'center', lineHeight: 22 },
+  emptySub: { fontSize: 14, color: 'rgba(92,22,35,0.6)', textAlign: 'center', lineHeight: 22 },
   
   stepper: { flexDirection: 'row', justifyContent: 'center', gap: 16, marginBottom: 32, marginTop: 16 },
-  stepDot: { width: 32, height: 32, borderRadius: 16, backgroundColor: 'rgba(46,29,0,0.1)', justifyContent: 'center', alignItems: 'center' },
+  stepDot: { width: 32, height: 32, borderRadius: 16, backgroundColor: 'rgba(92,22,35,0.1)', justifyContent: 'center', alignItems: 'center' },
   stepDotActive: { backgroundColor: COLORS.vjAccent },
   stepDotSuccess: { backgroundColor: COLORS.success },
-  stepText: { color: 'rgba(46,29,0,0.4)', fontWeight: '800', fontSize: 14 },
+  stepText: { color: 'rgba(92,22,35,0.4)', fontWeight: '800', fontSize: 14 },
   stepTextActive: { color: '#fff' },
 
   headerBox: { alignItems: 'center', marginBottom: 24, paddingHorizontal: 20 },
   headerTitle: { fontSize: 22, fontWeight: '800', color: COLORS.vjText, marginTop: 12, marginBottom: 6, textAlign: 'center' },
-  headerDesc: { fontSize: 13, color: 'rgba(46,29,0,0.6)', textAlign: 'center', lineHeight: 20 },
+  headerDesc: { fontSize: 13, color: 'rgba(92,22,35,0.6)', textAlign: 'center', lineHeight: 20 },
 
   successBox: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 16, backgroundColor: 'rgba(16,185,129,0.1)', borderRadius: 12 },
   successText: { fontSize: 14, fontWeight: '700', color: COLORS.success },
 
   issueWarningTitle: { fontSize: 13, fontWeight: '800', color: COLORS.vjText, marginBottom: 16, textTransform: 'uppercase' },
-  issueRow: { flexDirection: 'row', gap: 12, marginBottom: 16, borderBottomWidth: 1, borderBottomColor: 'rgba(46,29,0,0.05)', paddingBottom: 16 },
+  issueRow: { flexDirection: 'row', gap: 12, marginBottom: 16, borderBottomWidth: 1, borderBottomColor: 'rgba(92,22,35,0.05)', paddingBottom: 16 },
   issueCode: { fontSize: 12, fontWeight: '800', color: COLORS.vjText, marginBottom: 2, fontFamily: 'monospace' },
-  issueMessage: { fontSize: 13, color: 'rgba(46,29,0,0.6)', lineHeight: 18 },
+  issueMessage: { fontSize: 13, color: 'rgba(92,22,35,0.6)', lineHeight: 18 },
 
   confirmInput: { backgroundColor: '#fff', borderRadius: 12, padding: 16, fontSize: 18, fontWeight: '800', color: COLORS.danger, borderWidth: 1, borderColor: 'rgba(239,68,68,0.2)', textAlign: 'center' },
 });

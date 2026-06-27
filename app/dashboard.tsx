@@ -71,7 +71,7 @@ export default function Dashboard() {
           </View>
 
           <TouchableOpacity onPress={() => setShowLogoutModal(true)} className="bg-white/10 p-3 rounded-full border border-white/20 active:bg-vj-danger/50">
-            <LogOut size={20} color="#FAF3E0" />
+            <LogOut size={20} color="#FCFBF8" />
           </TouchableOpacity>
         </View>
 
@@ -109,13 +109,13 @@ export default function Dashboard() {
           <MenuTile 
             title="Inventory & Stock" 
             subtitle="Phase 2 Layer" 
-            icon={<Package size={24} color="#2E1D00" />} 
+            icon={<Package size={24} color="#5C1623" />} 
             onPress={() => router.push('/inventory')} 
           />
 
-          <MenuTile title="Billing & Sales" subtitle="Phase 3 Layer" icon={<FileText size={24} color="#B87333" />} disabled />
-          <MenuTile title="Vault & Refinery" subtitle="Phase 4 Layer" icon={<Landmark size={24} color="#B87333" />} disabled />
-          <MenuTile title="Business Reports" subtitle="Phase 6 Layer" icon={<TrendingUp size={24} color="#B87333" />} disabled />
+          <MenuTile title="Billing & Sales" subtitle="Phase 3 Layer" icon={<FileText size={24} color="#D4AF37" />} disabled />
+          <MenuTile title="Vault & Refinery" subtitle="Phase 4 Layer" icon={<Landmark size={24} color="#D4AF37" />} disabled />
+          <MenuTile title="Business Reports" subtitle="Phase 6 Layer" icon={<TrendingUp size={24} color="#D4AF37" />} disabled />
         </View>
 
         <Text className="text-vj-text/60 text-xs font-bold uppercase tracking-widest mb-4 mt-8 ml-1">
@@ -126,19 +126,19 @@ export default function Dashboard() {
           <GlassCard style={{ padding: 0 }}>
             <View className="flex-row items-center gap-4 p-4">
               <View className="bg-vj-glass p-3 rounded-full border border-white/20">
-                <Settings size={24} color="#2E1D00" />
+                <Settings size={24} color="#5C1623" />
               </View>
               <View className="flex-1">
                 <Text className="text-vj-text font-bold text-lg">Firm Settings</Text>
                 <Text className="text-vj-text/60 text-xs">Manage Identity, Backup & Restore</Text>
               </View>
-              <ChevronRight size={20} color="#B87333" className="opacity-50" />
+              <ChevronRight size={20} color="#D4AF37" className="opacity-50" />
             </View>
           </GlassCard>
         </TouchableOpacity>
 
         <View className="mt-8 items-center opacity-30 mb-8">
-          <Gem size={20} color="#2E1D00" />
+          <Gem size={20} color="#5C1623" />
           <Text className="text-[10px] font-bold text-vj-text mt-2">
             VJ BILLING • HUB ARCHITECTURE
           </Text>

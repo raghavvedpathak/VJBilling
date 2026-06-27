@@ -14,9 +14,9 @@ import QRCode from 'react-native-qrcode-svg';
 import type { BarcodeLabel } from '../../types/phase2.types';
 
 const COLORS = {
-  vjText: '#2E1D00',
-  vjBg: '#FAF3E0',
-  vjAccent: '#B87333',
+  vjText: '#5C1623',
+  vjBg: '#FCFBF8',
+  vjAccent: '#D4AF37',
 };
 
 export default function BarcodePrintScreen() {
@@ -185,7 +185,7 @@ export default function BarcodePrintScreen() {
     <TwoToneWrapper title="" showBack headerContent={headerContent}>
       <View style={{ flex: 1, paddingTop: 16 }}>
         
-        <Text style={{ fontSize: 13, fontWeight: '700', color: 'rgba(46,29,0,0.5)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 12, marginLeft: 4 }}>Live Tag Preview</Text>
+        <Text style={{ fontSize: 13, fontWeight: '700', color: 'rgba(92,22,35,0.5)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 12, marginLeft: 4 }}>Live Tag Preview</Text>
         
         <GlassCard style={{ padding: 24, marginBottom: 24 }}>
           {/* Virtual "Dumbbell Tag" representation */}
@@ -231,9 +231,9 @@ export default function BarcodePrintScreen() {
           </View>
         </GlassCard>
 
-        <View style={{ backgroundColor: 'rgba(46,29,0,0.04)', padding: 16, borderRadius: 12, marginBottom: 24, flexDirection: 'row', gap: 12, alignItems: 'flex-start' }}>
+        <View style={{ backgroundColor: 'rgba(92,22,35,0.04)', padding: 16, borderRadius: 12, marginBottom: 24, flexDirection: 'row', gap: 12, alignItems: 'flex-start' }}>
           <RefreshCcw size={20} color={COLORS.vjAccent} style={{ marginTop: 2 }} />
-          <Text style={{ flex: 1, fontSize: 13, color: 'rgba(46,29,0,0.7)', lineHeight: 20 }}>
+          <Text style={{ flex: 1, fontSize: 13, color: 'rgba(92,22,35,0.7)', lineHeight: 20 }}>
             Printing or saving this label will securely log a <Text style={{ fontWeight: '800' }}>BARCODE_REPRINTED</Text> event in the item's timeline to ensure audit traceability.
           </Text>
         </View>
@@ -252,7 +252,7 @@ export default function BarcodePrintScreen() {
             style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 16, borderRadius: 12, backgroundColor: 'rgba(184,115,51,0.1)' }}
           >
             <Share size={20} color={COLORS.vjAccent} />
-            <Text style={{ fontSize: 16, fontWeight: '700', color: COLORS.vjAccent }}>Save / Share PDF Tag</Text>
+            <Text style={{ fontSize: 16, fontWeight: '700', color: COLORS.vjAccent, textAlign: 'center' }}>Save / Share PDF Tag</Text>
           </TouchableOpacity>
         </View>
 
@@ -321,7 +321,7 @@ const s = StyleSheet.create({
   },
   successSubtitle: {
     fontSize: 14,
-    color: 'rgba(46,29,0,0.6)',
+    color: 'rgba(92,22,35,0.6)',
     textAlign: 'center',
     marginBottom: 24,
   },

@@ -122,13 +122,13 @@ export default function AddGemstoneScreen() {
         
         <GlassCard style={{ marginBottom: 16 }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 16 }}>
-            <Gem size={20} color="#B87333" />
-            <Text style={{ fontSize: 18, fontWeight: '700', color: '#2E1D00' }}>Stone Definition</Text>
+            <Gem size={20} color="#D4AF37" />
+            <Text style={{ fontSize: 18, fontWeight: '700', color: '#5C1623' }}>Stone Definition</Text>
           </View>
           
-          <TouchableOpacity onPress={() => setShowStoneModal(true)} style={{ marginBottom: 16, backgroundColor: 'rgba(255,255,255,0.4)', padding: 16, borderRadius: 12, borderWidth: 1, borderColor: 'rgba(46,29,0,0.2)' }}>
-            <Text style={{ fontSize: 12, fontWeight: '700', color: 'rgba(46,29,0,0.6)', textTransform: 'uppercase', marginBottom: 4 }}>Stone Master Type</Text>
-            <Text style={{ fontSize: 16, fontWeight: '600', color: '#2E1D00' }}>{selectedStone ? `${selectedStone.name} (${selectedStone.type})` : 'Select Stone Type...'}</Text>
+          <TouchableOpacity onPress={() => setShowStoneModal(true)} style={{ marginBottom: 16, backgroundColor: 'rgba(255,255,255,0.6)', padding: 16, borderRadius: 12, borderWidth: 1, borderColor: 'rgba(92,22,35,0.2)' }}>
+            <Text style={{ fontSize: 12, fontWeight: '700', color: 'rgba(92,22,35,0.6)', textTransform: 'uppercase', marginBottom: 4 }}>Stone Master Type</Text>
+            <Text style={{ fontSize: 16, fontWeight: '600', color: '#5C1623' }}>{selectedStone ? `${selectedStone.name} (${selectedStone.type})` : 'Select Stone Type...'}</Text>
           </TouchableOpacity>
 
           <GlassInput label="Lot Description Name *" placeholder="e.g. Round Brilliant 0.50ct" value={lotName} onChangeText={setLotName} />
@@ -138,8 +138,8 @@ export default function AddGemstoneScreen() {
 
         <GlassCard style={{ marginBottom: 16 }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 16 }}>
-            <Diamond size={20} color="#B87333" />
-            <Text style={{ fontSize: 18, fontWeight: '700', color: '#2E1D00' }}>Physical Stock</Text>
+            <Diamond size={20} color="#D4AF37" />
+            <Text style={{ fontSize: 18, fontWeight: '700', color: '#5C1623' }}>Physical Stock</Text>
           </View>
 
           <View style={{ flexDirection: 'row', gap: 12 }}>
@@ -154,15 +154,15 @@ export default function AddGemstoneScreen() {
 
         <GlassCard style={{ marginBottom: 24 }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 16 }}>
-            <Banknote size={20} color="#B87333" />
-            <Text style={{ fontSize: 18, fontWeight: '700', color: '#2E1D00' }}>Purchase Value (Optional)</Text>
+            <Banknote size={20} color="#D4AF37" />
+            <Text style={{ fontSize: 18, fontWeight: '700', color: '#5C1623' }}>Purchase Value (Optional)</Text>
           </View>
 
           <GlassInput label={`Rate Per Carat (${getCurrencySymbol()})`} placeholder="e.g. 50000" keyboardType="numeric" value={ratePerCarat} onChangeText={setRatePerCarat} />
           
-          <View style={{ backgroundColor: '#2E1D00', padding: 16, borderRadius: 12, marginTop: 8 }}>
+          <View style={{ backgroundColor: '#5C1623', padding: 16, borderRadius: 12, marginTop: 8 }}>
             <Text style={{ fontSize: 12, color: 'rgba(255,255,255,0.7)', textTransform: 'uppercase', fontWeight: '700', marginBottom: 4 }}>Total Lot Value</Text>
-            <Text style={{ fontSize: 28, fontWeight: '800', color: '#FAF3E0', fontFamily: 'monospace' }}>{getCurrencySymbol()}{previewData.total.toLocaleString('en-IN')}</Text>
+            <Text style={{ fontSize: 28, fontWeight: '800', color: '#FCFBF8', fontFamily: 'monospace' }}>{getCurrencySymbol()}{previewData.total.toLocaleString('en-IN')}</Text>
           </View>
         </GlassCard>
 
@@ -213,7 +213,7 @@ const s = StyleSheet.create({
     padding: 24,
   },
   successModalContent: {
-    backgroundColor: '#FAF3E0',
+    backgroundColor: '#FCFBF8',
     width: '100%',
     maxWidth: 400,
     borderRadius: 24,
@@ -236,12 +236,12 @@ const s = StyleSheet.create({
   successTitle: {
     fontSize: 24,
     fontWeight: '800',
-    color: '#2E1D00',
+    color: '#5C1623',
     marginBottom: 8,
   },
   successSubtitle: {
     fontSize: 14,
-    color: 'rgba(46,29,0,0.6)',
+    color: 'rgba(92,22,35,0.6)',
     textAlign: 'center',
     marginBottom: 24,
   },

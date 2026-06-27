@@ -17,9 +17,9 @@ import { Check, ClipboardList, PackageSearch, Edit3, CheckCircle } from 'lucide-
 const formatWeight = (mg: number): string => (mg / 1000).toFixed(3) + ' g';
 
 const COLORS = {
-  vjText: '#2E1D00',
-  vjBg: '#FAF3E0',
-  vjAccent: '#B87333',
+  vjText: '#5C1623',
+  vjBg: '#FCFBF8',
+  vjAccent: '#D4AF37',
   gold: '#C8860A',
   silver: '#6B7280',
   success: '#22c55e'
@@ -156,7 +156,7 @@ export default function DraftsScreen() {
             showsVerticalScrollIndicator={false}
             ListEmptyComponent={
               <View style={s.emptyContainer}>
-                <PackageSearch size={48} color="rgba(46,29,0,0.2)" />
+                <PackageSearch size={48} color="rgba(92,22,35,0.2)" />
                 <Text style={s.emptyTitle}>No Drafts Found</Text>
                 <Text style={s.emptySubtitle}>All items have been verified.</Text>
               </View>
@@ -261,7 +261,7 @@ const s = StyleSheet.create({
     borderRadius: 16,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: 'rgba(46,29,0,0.08)',
+    borderColor: 'rgba(92,22,35,0.08)',
     paddingRight: 12,
     gap: 12,
   },
@@ -296,7 +296,7 @@ const s = StyleSheet.create({
     letterSpacing: 0.5,
   },
   designName: {
-    color: 'rgba(46,29,0,0.6)',
+    color: 'rgba(92,22,35,0.6)',
     fontWeight: '600',
     fontSize: 13,
     marginBottom: 8,
@@ -312,7 +312,7 @@ const s = StyleSheet.create({
     fontWeight: '700',
   },
   weightDivider: {
-    color: 'rgba(46,29,0,0.3)',
+    color: 'rgba(92,22,35,0.3)',
     fontSize: 10,
   },
   actionRow: {
@@ -362,7 +362,7 @@ const s = StyleSheet.create({
     marginBottom: 4,
   },
   headerSubtitle: {
-    color: 'rgba(250,243,224,0.55)',
+    color: 'rgba(252,251,248,0.55)',
     fontSize: 12,
     fontWeight: '600',
     letterSpacing: 0.3,
@@ -375,7 +375,7 @@ const s = StyleSheet.create({
     gap: 12,
   },
   loadingText: {
-    color: 'rgba(46,29,0,0.4)',
+    color: 'rgba(92,22,35,0.4)',
     fontSize: 14,
     fontWeight: '600',
   },
@@ -385,12 +385,12 @@ const s = StyleSheet.create({
     gap: 8,
   },
   emptyTitle: {
-    color: 'rgba(46,29,0,0.5)',
+    color: 'rgba(92,22,35,0.5)',
     fontSize: 18,
     fontWeight: '700',
   },
   emptySubtitle: {
-    color: 'rgba(46,29,0,0.35)',
+    color: 'rgba(92,22,35,0.35)',
     fontSize: 13,
   },
   
@@ -431,7 +431,7 @@ const s = StyleSheet.create({
   },
   successSubtitle: {
     fontSize: 14,
-    color: 'rgba(46,29,0,0.6)',
+    color: 'rgba(92,22,35,0.6)',
     textAlign: 'center',
     marginBottom: 24,
   },

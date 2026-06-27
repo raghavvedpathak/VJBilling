@@ -17,9 +17,9 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { percentToKarat } from '../../utils/purity.constants';
 
 const COLORS = {
-  vjText: '#2E1D00',
-  vjBg: '#FAF3E0',
-  vjAccent: '#B87333',
+  vjText: '#5C1623',
+  vjBg: '#FCFBF8',
+  vjAccent: '#D4AF37',
 };
 
 const BULK_ITEM_MAX = 50;
@@ -40,7 +40,7 @@ const SelectModal = ({ visible, title, options, onSelect, onClose, searchPlaceho
           <Text className="text-xl font-bold text-vj-text mb-4">{title}</Text>
           {searchPlaceholder && (
             <TextInput
-              style={{ backgroundColor: '#fff', borderRadius: 12, padding: 12, fontSize: 16, marginBottom: 12, borderWidth: 1, borderColor: 'rgba(46,29,0,0.1)' }}
+              style={{ backgroundColor: '#fff', borderRadius: 12, padding: 12, fontSize: 16, marginBottom: 12, borderWidth: 1, borderColor: 'rgba(92,22,35,0.3)' }}
               placeholder={searchPlaceholder}
               value={searchQuery}
               onChangeText={setSearchQuery}
@@ -149,7 +149,7 @@ const BulkItemRow = ({ index, row, updateRow, removeRow, openStoneModal }: any) 
       {calculations.isValid && row.purchaseRate !== '' && (
         <View style={s.liveMathBox}>
           <View style={s.mathHeader}>
-            <Calculator size={14} color="#B87333" />
+            <Calculator size={14} color="#D4AF37" />
             <Text style={s.mathTitle}>Live Cost Breakdown</Text>
           </View>
           <View style={s.mathRow}>
@@ -365,11 +365,11 @@ export default function BulkAddScreen() {
         
         <GlassCard style={{ marginBottom: 16 }}>
           <View className="flex-row items-center gap-2 mb-4">
-            <Layers size={20} color="#B87333" />
+            <Layers size={20} color="#D4AF37" />
             <Text className="text-lg font-bold text-vj-text">Batch Classification</Text>
           </View>
           
-          <Text style={{ fontSize: 12, color: 'rgba(46,29,0,0.6)', marginBottom: 16 }}>
+          <Text style={{ fontSize: 12, color: 'rgba(92,22,35,0.6)', marginBottom: 16 }}>
             These attributes will be applied to all items in this bulk batch.
           </Text>
 
@@ -390,7 +390,7 @@ export default function BulkAddScreen() {
         </GlassCard>
 
         <View style={s.itemsHeader}>
-          <Package size={20} color="#2E1D00" />
+          <Package size={20} color="#5C1623" />
           <Text style={s.itemsTitle}>Items ({rows.length} / {BULK_ITEM_MAX})</Text>
         </View>
 
@@ -406,7 +406,7 @@ export default function BulkAddScreen() {
         ))}
 
         <TouchableOpacity style={s.addBtn} onPress={addRow} activeOpacity={0.7}>
-          <Plus size={20} color="#B87333" />
+          <Plus size={20} color="#D4AF37" />
           <Text style={s.addBtnText}>Add Another Item</Text>
         </TouchableOpacity>
 
@@ -497,18 +497,18 @@ export default function BulkAddScreen() {
 
 const s = StyleSheet.create({
   itemsHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12, marginTop: 8, marginLeft: 4 },
-  itemsTitle: { fontSize: 18, fontWeight: '800', color: '#2E1D00' },
+  itemsTitle: { fontSize: 18, fontWeight: '800', color: '#5C1623' },
   
   rowContainer: { 
-    backgroundColor: 'rgba(255,255,255,0.4)', 
+    backgroundColor: 'rgba(255,255,255,0.6)', 
     borderRadius: 16, 
     padding: 16, 
     marginBottom: 16,
     borderWidth: 1, 
-    borderColor: 'rgba(46,29,0,0.1)' 
+    borderColor: 'rgba(92,22,35,0.3)' 
   },
   rowHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
-  rowTitle: { fontSize: 14, fontWeight: '800', color: '#B87333', textTransform: 'uppercase', letterSpacing: 1 },
+  rowTitle: { fontSize: 14, fontWeight: '800', color: '#D4AF37', textTransform: 'uppercase', letterSpacing: 1 },
   
   inputGrid: { flexDirection: 'row', gap: 8, marginBottom: 12 },
   inputCol: { flex: 1 },
@@ -522,10 +522,10 @@ const s = StyleSheet.create({
     borderColor: 'rgba(184,115,51,0.2)' 
   },
   mathHeader: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 8 },
-  mathTitle: { fontSize: 11, fontWeight: '800', color: '#B87333', textTransform: 'uppercase' },
+  mathTitle: { fontSize: 11, fontWeight: '800', color: '#D4AF37', textTransform: 'uppercase' },
   mathRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 },
-  mathLabel: { fontSize: 12, color: 'rgba(46,29,0,0.6)', fontWeight: '600' },
-  mathValue: { fontSize: 12, fontWeight: '700', color: '#2E1D00', fontFamily: 'monospace' },
+  mathLabel: { fontSize: 12, color: 'rgba(92,22,35,0.6)', fontWeight: '600' },
+  mathValue: { fontSize: 12, fontWeight: '700', color: '#5C1623', fontFamily: 'monospace' },
   mathHighlight: { fontSize: 13, fontWeight: '800', color: '#92400E', fontFamily: 'monospace' },
 
   addBtn: { 
@@ -540,7 +540,8 @@ const s = StyleSheet.create({
     borderColor: 'rgba(184,115,51,0.3)',
     borderStyle: 'dashed'
   },
-  addBtnText: { fontSize: 14, fontWeight: '800', color: '#B87333' }
+  addBtnText: {
+    textAlign: 'center', fontSize: 14, fontWeight: '800', color: '#D4AF37' }
 });
 
 const styles = StyleSheet.create({
@@ -580,7 +581,7 @@ const styles = StyleSheet.create({
   },
   successSubtitle: {
     fontSize: 14,
-    color: 'rgba(46,29,0,0.6)',
+    color: 'rgba(92,22,35,0.6)',
     textAlign: 'center',
     marginBottom: 24,
   },

@@ -6,14 +6,14 @@ module.exports = {
   theme: {
     extend: {
       colors: {
-        // The "Soft Cream" background from your screenshot
-        'vj-bg': "#FAF3E0", 
+        // The Pearl Ivory background (lower side)
+        'vj-bg': "#FCFBF8", 
         
-        // The "Deep Espresso" text/header color
-        'vj-text': "#2E1D00", 
+        // The Royal Ruby text/header color (upper side)
+        'vj-text': "#5C1623", 
         
-        // The "Metallic Copper" button/badge color
-        'vj-accent': "#B87333",
+        // The Rich Gold accent color
+        'vj-accent': "#D4AF37",
         
         // Active/Success green
         'vj-success': "#15803d",
@@ -21,8 +21,8 @@ module.exports = {
         // Error/Archive red (for Safe Mode & destructive actions)
         'vj-danger': "#ef4444",
         
-        // The glassmorphism background
-        'vj-glass': "rgba(255, 255, 255, 0.4)",
+        // The glassmorphism background (bright glass for light backgrounds)
+        'vj-glass': "rgba(255, 255, 255, 0.65)",
       },
       fontFamily: {
         // standard system fonts for now, can add custom fonts later

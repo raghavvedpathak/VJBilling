@@ -149,7 +149,7 @@ export default function CreateFirmScreen() {
 
   // G69: ACTIVE — this hook shows a confirmation dialog if the user tries to
   // navigate away from a dirty form (when warnUnsavedChanges setting is ON).
-  useUnsavedChangesGuard(isDirty);
+  const unsavedModal = useUnsavedChangesGuard(isDirty);
 
   // -------------------------------------------------------------------------
   // G58: Image picker — allowsEditing: true, aspect: undefined (free crop),
@@ -257,7 +257,7 @@ export default function CreateFirmScreen() {
           />
         ) : (
           <View className="items-center">
-            <ImagePlus size={28} color="#FAF3E0" />
+            <ImagePlus size={28} color="#FCFBF8" />
             <Text className="text-[10px] text-vj-bg/80 font-bold mt-2 tracking-widest">
               FIRM LOGO
             </Text>
@@ -280,13 +280,13 @@ export default function CreateFirmScreen() {
           <GlassCard style={{ borderWidth: 0 }}>
             <GlassInput
               label="Firm Name *"
-              icon={<Building2 size={18} color="#B87333" />}
+              icon={<Building2 size={18} color="#D4AF37" />}
               value={form.name}
               onChangeText={(t) => setForm({ ...form, name: t })}
             />
             <GlassInput
               label="Firm Code *"
-              icon={<Tag size={18} color="#B87333" />}
+              icon={<Tag size={18} color="#D4AF37" />}
               value={form.firmCode}
               onChangeText={(t) => setForm({ ...form, firmCode: t })}
               maxLength={10}
@@ -294,7 +294,7 @@ export default function CreateFirmScreen() {
             />
             <GlassInput
               label="Proprietor *"
-              icon={<User size={18} color="#B87333" />}
+              icon={<User size={18} color="#D4AF37" />}
               value={form.proprietor}
               onChangeText={(t) => setForm({ ...form, proprietor: t })}
             />
@@ -303,7 +303,7 @@ export default function CreateFirmScreen() {
           <GlassCard style={{ borderWidth: 0 }}>
             <GlassInput
               label="GSTIN (Optional)"
-              icon={<Hash size={18} color="#B87333" />}
+              icon={<Hash size={18} color="#D4AF37" />}
               value={form.gstin}
               onChangeText={(t) => setForm({ ...form, gstin: t })}
               maxLength={15}
@@ -315,7 +315,7 @@ export default function CreateFirmScreen() {
 
             <GlassInput
               label="BIS Licence (Optional)"
-              icon={<ShieldCheck size={18} color="#B87333" />}
+              icon={<ShieldCheck size={18} color="#D4AF37" />}
               value={form.bisLicence}
               onChangeText={(t) => setForm({ ...form, bisLicence: t })}
             />
@@ -351,7 +351,7 @@ export default function CreateFirmScreen() {
           <GlassCard style={{ borderWidth: 0 }}>
             <GlassInput
               label="Primary Mobile *"
-              icon={<Phone size={18} color="#B87333" />}
+              icon={<Phone size={18} color="#D4AF37" />}
               value={form.phone1}
               onChangeText={(t) => setForm({ ...form, phone1: t })}
               keyboardType="numeric"
@@ -382,7 +382,7 @@ export default function CreateFirmScreen() {
           <GlassCard style={{ borderWidth: 0 }}>
             <GlassInput
               label="Address Line 1 *"
-              icon={<MapPin size={18} color="#B87333" />}
+              icon={<MapPin size={18} color="#D4AF37" />}
               value={form.addressLine1}
               onChangeText={(t) => setForm({ ...form, addressLine1: t })}
             />
@@ -403,7 +403,7 @@ export default function CreateFirmScreen() {
                 <Text className="text-vj-text text-base font-semibold">
                   {form.stateCode} - {form.stateName}
                 </Text>
-                <ChevronDown size={20} color="#B87333" />
+                <ChevronDown size={20} color="#D4AF37" />
               </TouchableOpacity>
             </View>
 
@@ -430,7 +430,7 @@ export default function CreateFirmScreen() {
           <View className="mt-4 mb-10">
             <GlassButton
               title="Establish Firm Identity"
-              icon={<Save size={20} color="#FAF3E0" />}
+              icon={<Save size={20} color="#FCFBF8" />}
               onPress={handleSave}
               loading={loading}
             />
@@ -448,7 +448,7 @@ export default function CreateFirmScreen() {
                 onPress={() => setShowStatePicker(false)}
                 className="p-1 bg-black/5 rounded-full"
               >
-                <X size={20} color="#2E1D00" />
+                <X size={20} color="#5C1623" />
               </TouchableOpacity>
             </View>
             <ScrollView showsVerticalScrollIndicator={false}>
@@ -490,7 +490,7 @@ export default function CreateFirmScreen() {
             <View className="w-full">
               <GlassButton
                 title="Enter Dashboard"
-                icon={<ArrowRight size={20} color="#FAF3E0" />}
+                icon={<ArrowRight size={20} color="#FCFBF8" />}
                 onPress={() => {
                   setShowSuccessModal(false);
                   router.replace('/dashboard');
@@ -500,6 +500,7 @@ export default function CreateFirmScreen() {
           </View>
         </View>
       </Modal>
+      {unsavedModal}
     </TwoToneWrapper>
   );
 }

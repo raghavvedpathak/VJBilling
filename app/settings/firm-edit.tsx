@@ -88,7 +88,7 @@ export default function EditFirmScreen() {
   }, [form, originalFirm]);
 
   // ARCHITECT FIX: Apply the G69 Unsaved Changes Guard
-  useUnsavedChangesGuard(isDirty);
+  const unsavedModal = useUnsavedChangesGuard(isDirty);
 
   const pickImage = async (field: 'logoUri' | 'bisLogoUri') => {
     Alert.alert(
@@ -218,7 +218,7 @@ export default function EditFirmScreen() {
     await executeUpdate();
   };
 
-  if (initialLoad) return <ActivityIndicator size="large" className="mt-10" color="#B87333" />;
+  if (initialLoad) return <ActivityIndicator size="large" className="mt-10" color="#D4AF37" />;
 
   const headerLogoPicker = (
     <View className="items-center pb-4">
@@ -227,7 +227,7 @@ export default function EditFirmScreen() {
           <Image source={{ uri: form.logoUri }} className="w-full h-full resize-mode-contain" />
         ) : (
           <View className="items-center">
-            <ImagePlus size={24} color="#FAF3E0" />
+            <ImagePlus size={24} color="#FCFBF8" />
             <Text className="text-[10px] text-vj-bg/80 font-bold mt-2 tracking-widest">CHANGE LOGO</Text>
           </View>
         )}
@@ -241,7 +241,7 @@ export default function EditFirmScreen() {
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 350, paddingTop: 10 }}>
           
           <GlassCard style={{ borderWidth: 0 }}>
-            <GlassInput label="Firm Name" value={form.name} onChangeText={(t) => setForm({...form, name: t})} icon={<Building2 size={18} color="#B87333" />} />
+            <GlassInput label="Firm Name" value={form.name} onChangeText={(t) => setForm({...form, name: t})} icon={<Building2 size={18} color="#D4AF37" />} />
             <View className="mb-4">
               <Text className="text-vj-text/70 font-bold text-xs uppercase tracking-wider mb-2 ml-1">Firm Code (Locked)</Text>
               <View className="flex-row items-center bg-gray-100/50 rounded-2xl px-5 py-3 border border-gray-200">
@@ -249,7 +249,7 @@ export default function EditFirmScreen() {
                 <Text className="text-gray-500 font-bold text-base">{form.firmCode}</Text>
               </View>
             </View>
-            <GlassInput label="Proprietor" value={form.proprietor} onChangeText={(t) => setForm({...form, proprietor: t})} icon={<User size={18} color="#B87333" />} />
+            <GlassInput label="Proprietor" value={form.proprietor} onChangeText={(t) => setForm({...form, proprietor: t})} icon={<User size={18} color="#D4AF37" />} />
           </GlassCard>
 
           <GlassCard style={{ borderWidth: 0 }}>
@@ -261,7 +261,7 @@ export default function EditFirmScreen() {
               </View>
             </View>
 
-            <GlassInput label="BIS Licence" value={form.bisLicence} onChangeText={(t) => setForm({...form, bisLicence: t})} icon={<ShieldCheck size={18} color="#B87333" />} />
+            <GlassInput label="BIS Licence" value={form.bisLicence} onChangeText={(t) => setForm({...form, bisLicence: t})} icon={<ShieldCheck size={18} color="#D4AF37" />} />
             
             {!form.bisLicence ? (
               <View className="mt-4 p-4 bg-white/40 rounded-2xl border border-white/50">
@@ -280,13 +280,13 @@ export default function EditFirmScreen() {
           </GlassCard>
 
           <GlassCard style={{ borderWidth: 0 }}>
-            <GlassInput label="Primary Mobile" value={form.phone1} onChangeText={(t) => setForm({...form, phone1: t})} icon={<Phone size={18} color="#B87333" />} keyboardType="numeric" maxLength={10} />
+            <GlassInput label="Primary Mobile" value={form.phone1} onChangeText={(t) => setForm({...form, phone1: t})} icon={<Phone size={18} color="#D4AF37" />} keyboardType="numeric" maxLength={10} />
             <GlassInput label="Phone 2" value={form.phone2} onChangeText={(t) => setForm({...form, phone2: t})} placeholder="Optional" keyboardType="numeric" maxLength={10} />
             <GlassInput label="Phone 3" value={form.phone3} onChangeText={(t) => setForm({...form, phone3: t})} placeholder="Optional" keyboardType="numeric" maxLength={10} />
           </GlassCard>
 
           <GlassCard style={{ borderWidth: 0 }}>
-            <GlassInput label="Line 1" value={form.addressLine1} onChangeText={(t) => setForm({...form, addressLine1: t})} icon={<MapPin size={18} color="#B87333" />} />
+            <GlassInput label="Line 1" value={form.addressLine1} onChangeText={(t) => setForm({...form, addressLine1: t})} icon={<MapPin size={18} color="#D4AF37" />} />
             <GlassInput label="Line 2" value={form.addressLine2} onChangeText={(t) => setForm({...form, addressLine2: t})} />
             
             <View className="mb-4">
@@ -296,7 +296,7 @@ export default function EditFirmScreen() {
                 className={`flex-row items-center justify-between rounded-2xl px-5 py-3 border ${form.gstin ? 'bg-gray-100/50 border-gray-200' : 'bg-white/40 border-white/50'}`}
               >
                 <Text className={form.gstin ? 'text-gray-500' : 'text-vj-text font-semibold'}>{form.stateCode} - {form.stateName}</Text>
-                {!form.gstin && <ChevronDown size={20} color="#B87333" />}
+                {!form.gstin && <ChevronDown size={20} color="#D4AF37" />}
               </TouchableOpacity>
             </View>
 
@@ -305,7 +305,7 @@ export default function EditFirmScreen() {
           </GlassCard>
 
           <View className="mt-4 mb-10">
-            <GlassButton title="Save Changes" icon={<Save size={20} color="#FAF3E0" />} onPress={handleUpdate} loading={loading} />
+            <GlassButton title="Save Changes" icon={<Save size={20} color="#FCFBF8" />} onPress={handleUpdate} loading={loading} />
           </View>
 
         </ScrollView>
@@ -317,7 +317,7 @@ export default function EditFirmScreen() {
             <View className="flex-row justify-between items-center mb-4 border-b border-black/10 pb-4">
               <Text className="text-xl font-bold text-vj-text">Select Jurisdiction</Text>
               <TouchableOpacity onPress={() => setShowStatePicker(false)} className="p-1 bg-black/5 rounded-full">
-                <X size={20} color="#2E1D00" />
+                <X size={20} color="#5C1623" />
               </TouchableOpacity>
             </View>
             <ScrollView showsVerticalScrollIndicator={false}>
@@ -349,13 +349,14 @@ export default function EditFirmScreen() {
             <View className="w-full">
               <GlassButton 
                 title="Return to List" 
-                icon={<ArrowLeft size={20} color="#FAF3E0" />} 
+                icon={<ArrowLeft size={20} color="#FCFBF8" />} 
                 onPress={() => { setShowSuccessModal(false); router.back(); }} 
               />
             </View>
           </View>
         </View>
       </Modal>
+      {unsavedModal}
     </TwoToneWrapper>
   );
 }

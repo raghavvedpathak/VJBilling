@@ -13,9 +13,9 @@ import { Gem, Plus, Diamond, Banknote, ShieldAlert, CheckCircle } from 'lucide-r
 import type { GemstoneLot } from '../../types/phase2.types';
 
 const COLORS = {
-  vjText: '#2E1D00',
-  vjBg: '#FAF3E0',
-  vjAccent: '#B87333',
+  vjText: '#5C1623',
+  vjBg: '#FCFBF8',
+  vjAccent: '#D4AF37',
   success: '#10B981',
   error: '#EF4444',
 };
@@ -43,7 +43,7 @@ const LotRow = memo(({ item }: { item: GemstoneLot }) => {
 
       <View style={s.cardMiddle}>
         <View style={s.detailCol}>
-          <View style={s.iconRow}><Diamond size={14} color="rgba(46,29,0,0.4)" /><Text style={s.detailLabel}>Weight</Text></View>
+          <View style={s.iconRow}><Diamond size={14} color="rgba(92,22,35,0.4)" /><Text style={s.detailLabel}>Weight</Text></View>
           <Text style={s.detailValue}>{formatCarats(item.weightCaratX100)}</Text>
         </View>
         
@@ -53,7 +53,7 @@ const LotRow = memo(({ item }: { item: GemstoneLot }) => {
         </View>
 
         <View style={s.detailCol}>
-          <View style={s.iconRow}><Banknote size={14} color="rgba(46,29,0,0.4)" /><Text style={s.detailLabel}>Total Value</Text></View>
+          <View style={s.iconRow}><Banknote size={14} color="rgba(92,22,35,0.4)" /><Text style={s.detailLabel}>Total Value</Text></View>
           <Text style={s.detailValue}>{formatCurrency(item.totalPurchaseAmountPaise)}</Text>
         </View>
       </View>
@@ -121,7 +121,7 @@ export default function GemstonesInventoryScreen() {
             showsVerticalScrollIndicator={false}
             ListEmptyComponent={
               <View style={s.emptyContainer}>
-                <Gem size={48} color="rgba(46,29,0,0.2)" />
+                <Gem size={48} color="rgba(92,22,35,0.2)" />
                 <Text style={s.emptyTitle}>No Gemstones Found</Text>
                 <Text style={s.emptySubtitle}>Tap the + button to add a new physical lot.</Text>
               </View>
@@ -142,26 +142,26 @@ const s = StyleSheet.create({
   headerIconRow: { marginBottom: 12 },
   headerIconCircle: { width: 52, height: 52, borderRadius: 16, backgroundColor: 'rgba(255,255,255,0.12)', justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: 'rgba(255,255,255,0.15)' },
   headerTitle: { color: COLORS.vjBg, fontSize: 28, fontWeight: '800', letterSpacing: -0.5, marginBottom: 4 },
-  headerSubtitle: { color: 'rgba(250,243,224,0.55)', fontSize: 12, fontWeight: '600', textTransform: 'uppercase' },
+  headerSubtitle: { color: 'rgba(252,251,248,0.55)', fontSize: 12, fontWeight: '600', textTransform: 'uppercase' },
   emptyContainer: { alignItems: 'center', marginTop: 60, gap: 8 },
-  emptyTitle: { color: 'rgba(46,29,0,0.5)', fontSize: 18, fontWeight: '700' },
-  emptySubtitle: { color: 'rgba(46,29,0,0.35)', fontSize: 13 },
+  emptyTitle: { color: 'rgba(92,22,35,0.5)', fontSize: 18, fontWeight: '700' },
+  emptySubtitle: { color: 'rgba(92,22,35,0.35)', fontSize: 13 },
   fab: { position: 'absolute', bottom: 40, right: 24, width: 64, height: 64, borderRadius: 32, backgroundColor: COLORS.vjAccent, justifyContent: 'center', alignItems: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 6, elevation: 8 },
   
   card: { padding: 16, marginBottom: 12 },
   cardTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 },
   lotName: { fontSize: 16, fontWeight: '800', color: COLORS.vjText, maxWidth: '75%', marginBottom: 2 },
-  supplierName: { fontSize: 12, color: 'rgba(46,29,0,0.5)' },
+  supplierName: { fontSize: 12, color: 'rgba(92,22,35,0.5)' },
   statusBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 },
   statusText: { fontSize: 10, fontWeight: '800', letterSpacing: 0.5 },
   
-  cardMiddle: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: 'rgba(46,29,0,0.03)', padding: 12, borderRadius: 12 },
+  cardMiddle: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: 'rgba(92,22,35,0.03)', padding: 12, borderRadius: 12 },
   detailCol: { gap: 4 },
   iconRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  detailLabel: { fontSize: 11, color: 'rgba(46,29,0,0.5)', fontWeight: '600', textTransform: 'uppercase' },
+  detailLabel: { fontSize: 11, color: 'rgba(92,22,35,0.5)', fontWeight: '600', textTransform: 'uppercase' },
   detailValue: { fontSize: 14, fontWeight: '700', color: COLORS.vjText, fontFamily: 'monospace' },
   
-  certRow: { marginTop: 12, flexDirection: 'row', alignItems: 'center', gap: 6, paddingTop: 12, borderTopWidth: 1, borderTopColor: 'rgba(46,29,0,0.06)' },
-  certLabel: { fontSize: 11, fontWeight: '700', color: 'rgba(46,29,0,0.4)', textTransform: 'uppercase' },
+  certRow: { marginTop: 12, flexDirection: 'row', alignItems: 'center', gap: 6, paddingTop: 12, borderTopWidth: 1, borderTopColor: 'rgba(92,22,35,0.06)' },
+  certLabel: { fontSize: 11, fontWeight: '700', color: 'rgba(92,22,35,0.4)', textTransform: 'uppercase' },
   certValue: { fontSize: 12, fontWeight: '600', color: COLORS.vjAccent, fontFamily: 'monospace' },
 });

@@ -33,8 +33,8 @@ const EVENT_MAPPING: Record<string, string> = {
 };
 
 const colors = {
-  vjText: '#2E1D00',
-  vjBg: '#FAF3E0',
+  vjText: '#5C1623',
+  vjBg: '#FCFBF8',
   vjAccent: '#C8860A',
   success: '#16a34a',
   danger: '#dc2626',
@@ -176,7 +176,7 @@ const AuditLogItem = memo(({
 
 const s = StyleSheet.create({
   card: {
-    backgroundColor: 'rgba(255, 255, 255, 0.65)',
+    backgroundColor: 'rgba(255,255,255,0.6)',
     marginBottom: 12,
     borderRadius: 16,
     borderWidth: 1,
@@ -220,15 +220,15 @@ const s = StyleSheet.create({
     marginTop: 4,
   },
   dateText: {
-    color: 'rgba(46,29,0,0.50)',
+    color: 'rgba(92,22,35,0.50)',
     fontSize: 12,
     fontWeight: '500',
   },
   expandedBody: {
-    backgroundColor: 'rgba(46,29,0,0.05)',
+    backgroundColor: 'rgba(92,22,35,0.05)',
     padding: 16,
     borderTopWidth: 1,
-    borderTopColor: 'rgba(46,29,0,0.10)',
+    borderTopColor: 'rgba(92,22,35,0.10)',
   },
   deviceBadge: {
     flexDirection: 'row',
@@ -240,16 +240,16 @@ const s = StyleSheet.create({
     borderRadius: 8,
     alignSelf: 'flex-start',
     borderWidth: 1,
-    borderColor: 'rgba(46,29,0,0.10)',
+    borderColor: 'rgba(92,22,35,0.10)',
   },
   deviceText: {
-    color: 'rgba(46,29,0,0.70)',
+    color: 'rgba(92,22,35,0.70)',
     fontSize: 11,
     fontWeight: '700',
     letterSpacing: 0.8,
   },
   payloadCard: {
-    backgroundColor: 'rgba(255, 255, 255, 0.65)',
+    backgroundColor: 'rgba(255,255,255,0.6)',
     padding: 16,
     borderRadius: 12,
     borderWidth: 1,
@@ -259,11 +259,11 @@ const s = StyleSheet.create({
     flexDirection: 'row',
     paddingVertical: 8,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(46,29,0,0.05)',
+    borderBottomColor: 'rgba(92,22,35,0.05)',
     alignItems: 'flex-start',
   },
   payloadKey: {
-    color: 'rgba(46,29,0,0.60)',
+    color: 'rgba(92,22,35,0.60)',
     fontSize: 11,
     fontWeight: '700',
     width: '40%',
@@ -271,20 +271,20 @@ const s = StyleSheet.create({
     paddingTop: 2,
   },
   payloadVal: {
-    color: 'rgba(46,29,0,0.90)',
+    color: 'rgba(92,22,35,0.90)',
     fontSize: 13,
     flex: 1,
     fontWeight: '500',
   },
   payloadEmpty: {
-    color: 'rgba(46,29,0,0.50)',
+    color: 'rgba(92,22,35,0.50)',
     fontSize: 13,
     fontStyle: 'italic',
     textAlign: 'center',
     paddingVertical: 8,
   },
   refId: {
-    color: 'rgba(46,29,0,0.30)',
+    color: 'rgba(92,22,35,0.30)',
     fontSize: 10,
     marginTop: 16,
     fontWeight: '700',
@@ -361,13 +361,13 @@ export default function AuditLogScreen() {
     <View>
       <View className="flex-row justify-between items-center mb-6">
         <View className="bg-white/10 p-4 rounded-full border border-white/20">
-          <FileText size={32} color="#FAF3E0" />
+          <FileText size={32} color="#FCFBF8" />
         </View>
         <TouchableOpacity
           onPress={handleExport}
           className="flex-row items-center gap-2 bg-vj-accent px-4 py-2 rounded-full border border-vj-accent/50 shadow-sm"
         >
-          <Share2 size={16} color="#FAF3E0" />
+          <Share2 size={16} color="#FCFBF8" />
           <Text className="text-vj-bg text-sm font-bold">Export Logs</Text>
         </TouchableOpacity>
       </View>

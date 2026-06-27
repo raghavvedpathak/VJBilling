@@ -168,10 +168,10 @@ export default function SettingsScreen() {
         <SectionHeader title="General" />
         
         <View className="px-1 mb-2">
-          <GlassCard style={{ opacity: 0.7 }}>
+          <GlassCard style={{ opacity: 0.7, borderWidth: 1, borderColor: 'rgba(92,22,35,0.2)' }}>
             <View className="flex-row items-center gap-4" accessibilityRole="text" accessibilityLabel="Currency: Indian Rupee, fixed">
               <View className="bg-vj-glass p-3 rounded-full border border-white/20">
-                <IndianRupee size={24} color="#2E1D00" />
+                <IndianRupee size={24} color="#5C1623" />
               </View>
               <View className="flex-1">
                 <Text className="text-vj-text font-bold text-base">Currency</Text>
@@ -185,16 +185,16 @@ export default function SettingsScreen() {
         <GlassSettingsTile
           title="Date Format"
           subtitle={getTodayPreview(dateFormat)}
-          icon={<CalendarClock size={24} color="#2E1D00" />}
+          icon={<CalendarClock size={24} color="#5C1623" />}
           onPress={() => setShowDateModal(true)}
         />
 
         <View className="px-1 mb-2">
-          <GlassCard>
+          <GlassCard style={{ borderWidth: 1, borderColor: 'rgba(92,22,35,0.2)' }}>
             <View className="flex-row items-center justify-between">
               <View className="flex-row items-center gap-4 flex-1">
                 <View className="bg-vj-glass p-3 rounded-full border border-white/20">
-                  <AlertCircle size={24} color="#B87333" />
+                  <AlertCircle size={24} color="#D4AF37" />
                 </View>
                 <View className="flex-1">
                   <Text className="text-vj-text font-bold text-base">Unsaved Changes</Text>
@@ -204,8 +204,8 @@ export default function SettingsScreen() {
               <Switch
                 value={unsavedWarning}
                 onValueChange={toggleUnsavedWarning}
-                trackColor={{ false: "#D1D1D1", true: "#B87333" }}
-                thumbColor={"#FAF3E0"}
+                trackColor={{ false: "#D1D1D1", true: "#D4AF37" }}
+                thumbColor={"#FCFBF8"}
               />
             </View>
           </GlassCard>
@@ -214,14 +214,14 @@ export default function SettingsScreen() {
         <GlassSettingsTile
           title="App Theme"
           subtitle="Light (System Default)"
-          icon={<Palette size={24} color="#2E1D00" />}
+          icon={<Palette size={24} color="#5C1623" />}
           onPress={() => Alert.alert("Coming Soon", "Theme Engine is locked for Phase 2 Polish.")}
         />
 
         <GlassSettingsTile
           title="Invoice Settings"
           subtitle="Prefixes, Terms & Conditions"
-          icon={<FileBox size={24} color="#2E1D00" />}
+          icon={<FileBox size={24} color="#5C1623" />}
           onPress={() => Alert.alert("Coming Soon", "Invoice customization unlocks in Phase 4.")}
         />
 
@@ -229,7 +229,7 @@ export default function SettingsScreen() {
         <GlassSettingsTile
           title="Firm Identity"
           subtitle="Manage Firms, Addresses & Logos"
-          icon={<Building2 size={24} color="#B87333" />}
+          icon={<Building2 size={24} color="#D4AF37" />}
           onPress={() => router.push('/settings/firms')}
         />
 
@@ -237,7 +237,7 @@ export default function SettingsScreen() {
         <GlassSettingsTile
           title="Close Financial Year"
           subtitle="Lock current year data"
-          icon={<Lock size={24} color="#B87333" />}
+          icon={<Lock size={24} color="#D4AF37" />}
           onPress={() => router.push('/settings/close-fy')}
         />
 
@@ -245,13 +245,13 @@ export default function SettingsScreen() {
         <GlassSettingsTile
           title="GST Tax Rates"
           subtitle="Manage CGST/SGST groups"
-          icon={<Percent size={24} color="#2E1D00" />}
+          icon={<Percent size={24} color="#5C1623" />}
           onPress={() => Alert.alert("Phase 3 Feature", "GST settings are configured in the full setup. Available after Phase 3.")}
         />
         <GlassSettingsTile
           title="Paired Devices"
           subtitle="Primary/Secondary Sync setup"
-          icon={<MonitorSmartphone size={24} color="#2E1D00" />}
+          icon={<MonitorSmartphone size={24} color="#5C1623" />}
           onPress={() => Alert.alert("Future Feature", "Device sync is available in a future update.")}
         />
 
@@ -259,14 +259,14 @@ export default function SettingsScreen() {
         <GlassSettingsTile
           title="Data Utilities"
           subtitle="Export Ledgers & Inventory"
-          icon={<Wrench size={24} color="#2E1D00" />}
+          icon={<Wrench size={24} color="#5C1623" />}
           onPress={() => Alert.alert("Phase 6 Feature", "Data Utilities unlock in Phase 6.")}
         />
         
         <GlassSettingsTile
           title="Audit Logs"
           subtitle="View immutable system events"
-          icon={<FileText size={24} color="#2E1D00" />}
+          icon={<FileText size={24} color="#5C1623" />}
           onPress={() => router.push('/settings/audit-logs')}
           disabled={restoring}
         />
@@ -274,27 +274,27 @@ export default function SettingsScreen() {
         <GlassSettingsTile
           title={backingUp ? "Generating Backup..." : "Backup Data"}
           subtitle="Export secure .vjb file"
-          icon={backingUp ? <ActivityIndicator size="small" color="#B87333" /> : <HardDriveDownload size={24} color="#2E1D00" />}
+          icon={backingUp ? <ActivityIndicator size="small" color="#D4AF37" /> : <HardDriveDownload size={24} color="#5C1623" />}
           onPress={handleBackup}
           disabled={backingUp || restoring}
         />
         <GlassSettingsTile
           title={restoring ? "Restoring..." : "Restore Data"}
           subtitle="Import from .vjb file"
-          icon={restoring ? <ActivityIndicator size="small" color="#B87333" /> : <HardDriveUpload size={24} color="#2E1D00" />}
+          icon={restoring ? <ActivityIndicator size="small" color="#D4AF37" /> : <HardDriveUpload size={24} color="#5C1623" />}
           onPress={handleRestore}
           disabled={backingUp || restoring}
         />
         <GlassSettingsTile
           title="Verify My Data"
           subtitle="Run deep integrity scan"
-          icon={<ShieldAlert size={24} color="#2E1D00" />}
+          icon={<ShieldAlert size={24} color="#5C1623" />}
           onPress={() => router.push('/settings/verify')}
           disabled={restoring}
         />
 
         <View className="mt-8 items-center opacity-40 mb-10">
-          <Database size={20} color="#2E1D00" />
+          <Database size={20} color="#5C1623" />
           <Text className="text-[10px] font-bold text-vj-text mt-2">
             VJ BILLING • PHASE 2 • INVENTORY
           </Text>
@@ -314,7 +314,7 @@ export default function SettingsScreen() {
             <View className="flex-row justify-between items-center mb-6">
               <Text className="text-vj-text font-bold text-xl">Date Format</Text>
               <TouchableOpacity onPress={() => setShowDateModal(false)} className="p-1 bg-black/5 rounded-full">
-                <X size={20} color="#2E1D00" />
+                <X size={20} color="#5C1623" />
               </TouchableOpacity>
             </View>
 
@@ -333,7 +333,7 @@ export default function SettingsScreen() {
                   <Text className={`font-bold text-base ${dateFormat === fmt.token ? 'text-vj-bg' : 'text-vj-text'}`}>{fmt.label}</Text>
                   <Text className={`text-xs ${dateFormat === fmt.token ? 'text-vj-bg/70' : 'text-vj-text/60'}`}>{getTodayPreview(fmt.token)}</Text>
                 </View>
-                {dateFormat === fmt.token && <CheckCircle2 size={24} color="#FAF3E0" />}
+                {dateFormat === fmt.token && <CheckCircle2 size={24} color="#FCFBF8" />}
               </TouchableOpacity>
             ))}
           </View>
@@ -355,7 +355,7 @@ function SectionHeader({ title }: { title: string }) {
 function GlassSettingsTile({ title, subtitle, icon, onPress, disabled }: any) {
   return (
     <TouchableOpacity onPress={onPress} disabled={disabled} activeOpacity={0.7} className="mb-2">
-      <GlassCard style={{ padding: 16 }}>
+      <GlassCard style={{ padding: 16, borderWidth: 1, borderColor: 'rgba(92,22,35,0.2)' }}>
         <View className={`flex-row items-center gap-4 ${disabled ? 'opacity-50' : ''}`}>
           <View className="bg-white/40 p-3 rounded-full border border-white/50">
             {icon}
@@ -365,7 +365,7 @@ function GlassSettingsTile({ title, subtitle, icon, onPress, disabled }: any) {
             <Text className="text-vj-text/60 text-xs">{subtitle}</Text>
           </View>
           <View className="opacity-50">
-             <ChevronRight size={20} color="#B87333" />
+             <ChevronRight size={20} color="#D4AF37" />
           </View>
         </View>
       </GlassCard>

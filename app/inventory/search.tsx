@@ -10,16 +10,16 @@ import type { ItemSearchResult } from '../../types/phase2.types';
 const TEMP_FIRM_ID = 'FIRM-1'; 
 
 const COLORS = {
-  vjText: '#2E1D00',
-  vjBg: '#FAF3E0',
+  vjText: '#5C1623',
+  vjBg: '#FCFBF8',
   surface: '#FFFFFF',
-  border: 'rgba(46,29,0,0.08)',
+  border: 'rgba(92,22,35,0.08)',
   goldAccent: '#D97706',
   silverAccent: '#9CA3AF',
   phantom: '#8B5CF6',
   danger: '#DC2626',
   highlight: '#FDE047', // Yellow Highlight
-  muted: 'rgba(46,29,0,0.5)',
+  muted: 'rgba(92,22,35,0.5)',
 };
 
 // --- Custom Component: Smart Text Highlighter ---
@@ -201,7 +201,7 @@ const s = StyleSheet.create({
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.65)',
+    backgroundColor: 'rgba(255,255,255,0.6)',
     borderRadius: 12,
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.5)',
@@ -229,7 +229,7 @@ const s = StyleSheet.create({
     paddingBottom: 40,
   },
   card: {
-    backgroundColor: 'rgba(255, 255, 255, 0.65)',
+    backgroundColor: 'rgba(255,255,255,0.6)',
     borderRadius: 12,
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.5)',

@@ -19,9 +19,9 @@ import { percentToKarat } from '../../utils/purity.constants';
 import { formatSKUDisplay } from '../../utils/skuDisplay'; // <-- IMPORTED SKU FORMATTER
 
 const COLORS = {
-  vjText: '#2E1D00',
-  vjBg: '#FAF3E0',
-  vjAccent: '#B87333',
+  vjText: '#5C1623',
+  vjBg: '#FCFBF8',
+  vjAccent: '#D4AF37',
 };
 
 const SelectModal = ({ visible, title, options, onSelect, onClose, searchPlaceholder }: any) => {
@@ -40,7 +40,7 @@ const SelectModal = ({ visible, title, options, onSelect, onClose, searchPlaceho
           <Text className="text-xl font-bold text-vj-text mb-4">{title}</Text>
           {searchPlaceholder && (
             <TextInput
-              style={{ backgroundColor: '#fff', borderRadius: 12, padding: 12, fontSize: 16, marginBottom: 12, borderWidth: 1, borderColor: 'rgba(46,29,0,0.1)' }}
+              style={{ backgroundColor: '#fff', borderRadius: 12, padding: 12, fontSize: 16, marginBottom: 12, borderWidth: 1, borderColor: 'rgba(92,22,35,0.3)' }}
               placeholder={searchPlaceholder}
               value={searchQuery}
               onChangeText={setSearchQuery}
@@ -256,7 +256,7 @@ export default function AddStockScreen() {
         {/* Classification */}
         <GlassCard>
           <View className="flex-row items-center gap-2 mb-4">
-            <Package size={20} color="#B87333" />
+            <Package size={20} color="#D4AF37" />
             <Text className="text-lg font-bold text-vj-text">Classification</Text>
           </View>
           
@@ -285,7 +285,7 @@ export default function AddStockScreen() {
         {/* Weights */}
         <GlassCard>
           <View className="flex-row items-center gap-2 mb-4">
-            <Scale size={20} color="#B87333" />
+            <Scale size={20} color="#D4AF37" />
             <Text className="text-lg font-bold text-vj-text">Weights (Grams)</Text>
           </View>
 
@@ -299,15 +299,15 @@ export default function AddStockScreen() {
         {/* Purity & Wastage */}
         <GlassCard>
           <View className="flex-row items-center gap-2 mb-4">
-            <Percent size={20} color="#B87333" />
+            <Percent size={20} color="#D4AF37" />
             <Text className="text-lg font-bold text-vj-text">Purity & Wastage</Text>
           </View>
 
           <View style={{ flexDirection: 'row', gap: 12, alignItems: 'flex-start' }}>
             <View style={{ flex: 1 }}>
               <View className="flex-row justify-between items-center mb-1">
-                <Text style={{ fontSize: 12, fontWeight: '700', color: 'rgba(46,29,0,0.6)', textTransform: 'uppercase' }}>Purity % *</Text>
-                {computedKarat ? <Text style={{ fontSize: 12, fontWeight: '800', color: '#B87333' }}>{computedKarat}</Text> : null}
+                <Text style={{ fontSize: 12, fontWeight: '700', color: 'rgba(92,22,35,0.6)', textTransform: 'uppercase' }}>Purity % *</Text>
+                {computedKarat ? <Text style={{ fontSize: 12, fontWeight: '800', color: '#D4AF37' }}>{computedKarat}</Text> : null}
               </View>
               <GlassInput placeholder="e.g. 91.6" keyboardType="numeric" value={purityPercent} onChangeText={setPurityPercent} />
             </View>
@@ -320,7 +320,7 @@ export default function AddStockScreen() {
         {/* Tracking & Stones */}
         <GlassCard>
           <View className="flex-row items-center gap-2 mb-4">
-            <MapPin size={20} color="#B87333" />
+            <MapPin size={20} color="#D4AF37" />
             <Text className="text-lg font-bold text-vj-text">Tracking & Stones</Text>
           </View>
 
@@ -342,7 +342,7 @@ export default function AddStockScreen() {
         {/* Costs */}
         <GlassCard>
           <View className="flex-row items-center gap-2 mb-4">
-            <Wallet size={20} color="#B87333" />
+            <Wallet size={20} color="#D4AF37" />
             <Text className="text-lg font-bold text-vj-text">Purchase Costs (₹)</Text>
           </View>
 
@@ -356,9 +356,9 @@ export default function AddStockScreen() {
         {/* Mandated UI Display — Live Cost Preview */}
         {liveWastageSeparation.isValid && (
           <View className="px-1 mb-4 mt-2">
-            <GlassCard style={{ backgroundColor: 'rgba(46, 29, 0, 0.04)', borderColor: '#B87333', borderWidth: 1 }}>
+            <GlassCard style={{ backgroundColor: 'rgba(92,22,35, 0.04)', borderColor: '#D4AF37', borderWidth: 1 }}>
               <View className="flex-row items-center gap-2 mb-3">
-                <Calculator size={18} color="#B87333" />
+                <Calculator size={18} color="#D4AF37" />
                 <Text className="text-xs font-black uppercase tracking-wider text-vj-accent">Live Cost Breakdown</Text>
               </View>
               
@@ -522,7 +522,7 @@ const styles = StyleSheet.create({
   },
   successSubtitle: {
     fontSize: 14,
-    color: 'rgba(46,29,0,0.6)',
+    color: 'rgba(92,22,35,0.6)',
     textAlign: 'center',
     marginBottom: 24,
   },
@@ -540,7 +540,7 @@ const styles = StyleSheet.create({
   skuBadgeLabel: {
     fontSize: 10,
     fontWeight: '800',
-    color: '#B87333',
+    color: '#D4AF37',
     letterSpacing: 1,
     marginBottom: 4,
   },

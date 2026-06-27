@@ -15,9 +15,9 @@ import { FileDown, Plus, Scale, Banknote, ShieldAlert, CheckCircle, Printer } fr
 import type { URDPurchase } from '../../types/phase2.types';
 
 const COLORS = {
-  vjText: '#2E1D00',
-  vjBg: '#FAF3E0',
-  vjAccent: '#B87333',
+  vjText: '#5C1623',
+  vjBg: '#FCFBF8',
+  vjAccent: '#D4AF37',
   gold: '#C8860A',
   silver: '#6B7280',
   success: '#10B981',
@@ -112,11 +112,11 @@ export default function URDPurchasesScreen() {
 
         <View style={s.cardMiddle}>
           <View style={s.detailCol}>
-            <View style={s.iconRow}><Scale size={14} color="rgba(46,29,0,0.4)" /><Text style={s.detailLabel}>Net</Text></View>
+            <View style={s.iconRow}><Scale size={14} color="rgba(92,22,35,0.4)" /><Text style={s.detailLabel}>Net</Text></View>
             <Text style={s.detailValue}>{formatWeight(item.fineWeightMg)}</Text>
           </View>
           <View style={s.detailCol}>
-            <View style={s.iconRow}><Banknote size={14} color="rgba(46,29,0,0.4)" /><Text style={s.detailLabel}>Total</Text></View>
+            <View style={s.iconRow}><Banknote size={14} color="rgba(92,22,35,0.4)" /><Text style={s.detailLabel}>Total</Text></View>
             <Text style={s.detailValue}>{formatCurrency(item.totalValuePaise)}</Text>
           </View>
           <View style={s.detailCol}>
@@ -167,7 +167,7 @@ export default function URDPurchasesScreen() {
             showsVerticalScrollIndicator={false}
             ListEmptyComponent={
               <View style={s.emptyContainer}>
-                <FileDown size={48} color="rgba(46,29,0,0.2)" />
+                <FileDown size={48} color="rgba(92,22,35,0.2)" />
                 <Text style={s.emptyTitle}>No URD Bills</Text>
                 <Text style={s.emptySubtitle}>Purchase gold from a customer to start.</Text>
               </View>
@@ -207,32 +207,33 @@ const s = StyleSheet.create({
   headerIconRow: { marginBottom: 12 },
   headerIconCircle: { width: 52, height: 52, borderRadius: 16, backgroundColor: 'rgba(255,255,255,0.12)', justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: 'rgba(255,255,255,0.15)' },
   headerTitle: { color: COLORS.vjBg, fontSize: 28, fontWeight: '800', letterSpacing: -0.5, marginBottom: 4 },
-  headerSubtitle: { color: 'rgba(250,243,224,0.55)', fontSize: 12, fontWeight: '600', textTransform: 'uppercase' },
+  headerSubtitle: { color: 'rgba(252,251,248,0.55)', fontSize: 12, fontWeight: '600', textTransform: 'uppercase' },
   emptyContainer: { alignItems: 'center', marginTop: 60, gap: 8 },
-  emptyTitle: { color: 'rgba(46,29,0,0.5)', fontSize: 18, fontWeight: '700' },
-  emptySubtitle: { color: 'rgba(46,29,0,0.35)', fontSize: 13 },
+  emptyTitle: { color: 'rgba(92,22,35,0.5)', fontSize: 18, fontWeight: '700' },
+  emptySubtitle: { color: 'rgba(92,22,35,0.35)', fontSize: 13 },
   fab: { position: 'absolute', bottom: 40, right: 24, width: 64, height: 64, borderRadius: 32, backgroundColor: COLORS.vjAccent, justifyContent: 'center', alignItems: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 6, elevation: 8 },
   
   card: { padding: 16, marginBottom: 12 },
   cardTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 },
   customerName: { fontSize: 16, fontWeight: '800', color: COLORS.vjText, maxWidth: '75%', marginBottom: 2 },
   billNumber: { fontSize: 13, fontWeight: '700', color: COLORS.vjAccent, fontFamily: 'monospace' },
-  draftDate: { fontSize: 12, color: 'rgba(46,29,0,0.5)' },
+  draftDate: { fontSize: 12, color: 'rgba(92,22,35,0.5)' },
   statusBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 },
   statusText: { fontSize: 10, fontWeight: '800', letterSpacing: 0.5 },
   
-  cardMiddle: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: 'rgba(46,29,0,0.03)', padding: 12, borderRadius: 12, marginBottom: 12 },
+  cardMiddle: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: 'rgba(92,22,35,0.03)', padding: 12, borderRadius: 12, marginBottom: 12 },
   detailCol: { gap: 4 },
   iconRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  detailLabel: { fontSize: 11, color: 'rgba(46,29,0,0.5)', fontWeight: '600', textTransform: 'uppercase' },
+  detailLabel: { fontSize: 11, color: 'rgba(92,22,35,0.5)', fontWeight: '600', textTransform: 'uppercase' },
   detailValue: { fontSize: 14, fontWeight: '700', color: COLORS.vjText },
   metalPill: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8, borderWidth: 1 },
   metalPillText: { fontSize: 10, fontWeight: '800', letterSpacing: 0.5 },
 
-  cardActions: { borderTopWidth: 1, borderTopColor: 'rgba(46,29,0,0.06)', paddingTop: 12, alignItems: 'flex-end' },
-  actionBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 8, paddingHorizontal: 16, borderRadius: 8, backgroundColor: 'rgba(46,29,0,0.05)' },
+  cardActions: { borderTopWidth: 1, borderTopColor: 'rgba(92,22,35,0.06)', paddingTop: 12, alignItems: 'flex-end' },
+  actionBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 8, paddingHorizontal: 16, borderRadius: 8, backgroundColor: 'rgba(92,22,35,0.05)' },
   confirmBtn: { backgroundColor: COLORS.success },
-  actionText: { fontSize: 13, fontWeight: '700', color: COLORS.vjText },
+  actionText: {
+    textAlign: 'center', fontSize: 13, fontWeight: '700', color: COLORS.vjText },
   
   modalOverlayCenter: {
     flex: 1,
@@ -270,7 +271,7 @@ const s = StyleSheet.create({
   },
   successSubtitle: {
     fontSize: 14,
-    color: 'rgba(46,29,0,0.6)',
+    color: 'rgba(92,22,35,0.6)',
     textAlign: 'center',
     marginBottom: 24,
   },

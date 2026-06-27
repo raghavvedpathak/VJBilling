@@ -20,9 +20,9 @@ import { ChevronRight, Layers, Tag } from 'lucide-react-native';
 const formatWeight = (mg: number): string => (mg / 1000).toFixed(3) + ' g';
 
 const COLORS = {
-  vjText: '#2E1D00',
-  vjBg: '#FAF3E0',
-  vjAccent: '#B87333',
+  vjText: '#5C1623',
+  vjBg: '#FCFBF8',
+  vjAccent: '#D4AF37',
   gold: '#C8860A',
   silver: '#6B7280',
 };
@@ -61,7 +61,7 @@ const DesignRow = memo(({ item, onPress }: DesignRowProps) => {
         <Text style={s.countLabel}>items</Text>
       </View>
 
-      <ChevronRight size={18} color="rgba(46,29,0,0.25)" />
+      <ChevronRight size={18} color="rgba(92,22,35,0.25)" />
     </TouchableOpacity>
   );
 });
@@ -138,7 +138,7 @@ export default function CategoryItemsScreen() {
             showsVerticalScrollIndicator={false}
             ListEmptyComponent={
               <View style={s.emptyContainer}>
-                <Layers size={48} color="rgba(46,29,0,0.2)" />
+                <Layers size={48} color="rgba(92,22,35,0.2)" />
                 <Text style={s.emptyTitle}>No Designs Found</Text>
                 <Text style={s.emptySubtitle}>This category has no available stock</Text>
               </View>
@@ -155,7 +155,7 @@ const s = StyleSheet.create({
   card: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.65)', // Pseudo-glass
+    backgroundColor: 'rgba(255,255,255,0.6)', // Pseudo-glass
     marginBottom: 10,
     borderRadius: 16,
     overflow: 'hidden',
@@ -195,13 +195,13 @@ const s = StyleSheet.create({
     letterSpacing: 0.5,
   },
   weightText: {
-    color: 'rgba(46,29,0,0.5)',
+    color: 'rgba(92,22,35,0.5)',
     fontSize: 12,
     fontWeight: '600',
   },
   countBadge: {
     alignItems: 'center',
-    backgroundColor: 'rgba(46,29,0,0.04)',
+    backgroundColor: 'rgba(92,22,35,0.04)',
     paddingHorizontal: 10,
     paddingVertical: 6,
     borderRadius: 10,
@@ -212,7 +212,7 @@ const s = StyleSheet.create({
     fontWeight: '800',
   },
   countLabel: {
-    color: 'rgba(46,29,0,0.4)',
+    color: 'rgba(92,22,35,0.4)',
     fontSize: 9,
     fontWeight: '700',
     textTransform: 'uppercase',
@@ -239,7 +239,7 @@ const s = StyleSheet.create({
     marginBottom: 4,
   },
   headerSubtitle: {
-    color: 'rgba(250,243,224,0.55)',
+    color: 'rgba(252,251,248,0.55)',
     fontSize: 12,
     fontWeight: '600',
     letterSpacing: 0.3,
@@ -252,7 +252,7 @@ const s = StyleSheet.create({
     gap: 12,
   },
   loadingText: {
-    color: 'rgba(46,29,0,0.4)',
+    color: 'rgba(92,22,35,0.4)',
     fontSize: 14,
     fontWeight: '600',
   },
@@ -262,12 +262,12 @@ const s = StyleSheet.create({
     gap: 8,
   },
   emptyTitle: {
-    color: 'rgba(46,29,0,0.5)',
+    color: 'rgba(92,22,35,0.5)',
     fontSize: 18,
     fontWeight: '700',
   },
   emptySubtitle: {
-    color: 'rgba(46,29,0,0.35)',
+    color: 'rgba(92,22,35,0.35)',
     fontSize: 13,
   },
 });

@@ -42,7 +42,7 @@ export default function VerifyDataScreen() {
   const headerContent = (
     <View className="items-center pb-6">
       <View className="bg-white/10 p-6 rounded-full mb-4 border border-white/20 shadow-sm">
-        <ShieldCheck size={48} color="#FAF3E0" />
+        <ShieldCheck size={48} color="#FCFBF8" />
       </View>
       <Text className="text-vj-bg font-bold text-2xl text-center">
         System Integrity
@@ -62,7 +62,7 @@ export default function VerifyDataScreen() {
             title={scanning ? "Scanning Deep Layers..." : "Run Deep Scan"}
             onPress={runScan}
             loading={scanning}
-            icon={!scanning && <Activity size={20} color="#FAF3E0" />}
+            icon={!scanning && <Activity size={20} color="#FCFBF8" />}
           />
         </View>
 

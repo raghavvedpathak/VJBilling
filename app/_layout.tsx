@@ -129,7 +129,7 @@ function AppMigratorAndRunner() {
   // After router.replace() fires, render the Slot (which will show the routed screen)
   return (
     <SafeAreaProvider>
-      <StatusBar barStyle="dark-content" backgroundColor="#FAF3E0" />
+      <StatusBar barStyle="dark-content" backgroundColor="#FCFBF8" />
       <Stack screenOptions={{ headerShown: false }} />
     </SafeAreaProvider>
   );
@@ -139,7 +139,7 @@ function LoadingScreen({ message }: { message: string }) {
   return (
     <SafeAreaProvider>
       <View className="flex-1 justify-center items-center bg-vj-bg">
-        <ActivityIndicator size="large" color="#B87333" />
+        <ActivityIndicator size="large" color="#D4AF37" />
         <Text className="text-vj-text mt-4 font-bold">{message}</Text>
       </View>
     </SafeAreaProvider>
@@ -277,14 +277,14 @@ function DatabaseErrorScreen({ title, message }: { title: string; message: strin
               placeholder="Type DELETE here"
               autoCapitalize="characters"
               autoFocus
-              className="border border-vj-danger/40 rounded-lg px-4 py-3 text-center font-bold text-lg mb-4 tracking-widest"
+              className="bg-white border border-vj-danger/40 rounded-lg px-4 py-3 text-center font-bold text-lg mb-4 tracking-widest"
             />
             <View className="flex-row gap-3">
               <TouchableOpacity
                 onPress={() => setShowResetModal(false)}
                 className="flex-1 border border-gray-300 p-3 rounded-xl items-center"
               >
-                <Text className="font-bold text-gray-600">Cancel</Text>
+                <Text className="text-center font-bold text-gray-600">Cancel</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 onPress={handleConfirmReset}

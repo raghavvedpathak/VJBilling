@@ -14,7 +14,8 @@ import {
   FileDown, 
   Diamond,
   Database,
-  ChevronRight
+  ChevronRight,
+  Search
 } from 'lucide-react-native';
 
 export default function InventoryHubScreen() {
@@ -32,6 +33,25 @@ export default function InventoryHubScreen() {
           </View>
         )}
 
+        {/* Global Smart Search */}
+        <TouchableOpacity
+          activeOpacity={0.8}
+          onPress={() => router.push('/inventory/search')}
+          className="mb-6"
+        >
+          <GlassCard style={{ padding: 0 }}>
+            <View className="flex-row items-center p-4 bg-white/40">
+              <Search size={20} color="#5C1623" />
+              <Text className="flex-1 ml-3 text-vj-text/60 font-semibold text-base">
+                Search SKU, HUID, or Design...
+              </Text>
+              <View className="bg-vj-text px-3 py-1.5 rounded-full">
+                <Text className="text-white text-xs font-bold text-center">SEARCH</Text>
+              </View>
+            </View>
+          </GlassCard>
+        </TouchableOpacity>
+
         <Text className="text-vj-text/60 text-xs font-bold uppercase tracking-widest mb-4 ml-1">
           Stock Operations
         </Text>
@@ -40,14 +60,14 @@ export default function InventoryHubScreen() {
           <MenuTile 
             title="Stock Ledger" 
             subtitle="Drill-Down View" 
-            icon={<PackageSearch size={24} color="#2E1D00" />} 
+            icon={<PackageSearch size={24} color="#5C1623" />} 
             onPress={() => router.push('/inventory/drill-down')} 
           />
 
           <MenuTile 
             title="Draft Items" 
             subtitle="Pending Verification" 
-            icon={<ClipboardList size={24} color="#2E1D00" />} 
+            icon={<ClipboardList size={24} color="#5C1623" />} 
             onPress={() => router.push('/inventory/drafts')} 
           />
         </View>
@@ -60,14 +80,14 @@ export default function InventoryHubScreen() {
           <MenuTile 
             title="Single Item Add" 
             subtitle="Detailed Entry" 
-            icon={<PackagePlus size={24} color="#2E1D00" />} 
+            icon={<PackagePlus size={24} color="#5C1623" />} 
             onPress={() => router.push('/inventory/add-stock')} 
           />
 
           <MenuTile 
             title="Bulk Add Matrix" 
             subtitle="Rapid Batch Entry" 
-            icon={<Layers size={24} color="#2E1D00" />} 
+            icon={<Layers size={24} color="#5C1623" />} 
             onPress={() => router.push('/inventory/bulk-add')} 
           />
         </View>
@@ -80,14 +100,14 @@ export default function InventoryHubScreen() {
           <MenuTile 
             title="URD Purchases" 
             subtitle="Scrap & Old Gold" 
-            icon={<FileDown size={24} color="#2E1D00" />} 
+            icon={<FileDown size={24} color="#5C1623" />} 
             onPress={() => router.push('/inventory/urd-purchases')} 
           />
 
           <MenuTile 
             title="Gemstone Lots" 
             subtitle="Physical Intake" 
-            icon={<Diamond size={24} color="#2E1D00" />} 
+            icon={<Diamond size={24} color="#5C1623" />} 
             onPress={() => router.push('/inventory/gemstones')} 
           />
         </View>
@@ -101,13 +121,13 @@ export default function InventoryHubScreen() {
           <GlassCard style={{ padding: 0 }}>
             <View className="flex-row items-center gap-4 p-4">
               <View className="bg-vj-glass p-3 rounded-full border border-white/20">
-                <Database size={24} color="#2E1D00" />
+                <Database size={24} color="#5C1623" />
               </View>
               <View className="flex-1">
                 <Text className="text-vj-text font-bold text-lg">Master Catalogs</Text>
                 <Text className="text-vj-text/60 text-xs">Categories, Designs, Stones, HSN</Text>
               </View>
-              <ChevronRight size={20} color="#B87333" className="opacity-50" />
+              <ChevronRight size={20} color="#D4AF37" className="opacity-50" />
             </View>
           </GlassCard>
         </TouchableOpacity>

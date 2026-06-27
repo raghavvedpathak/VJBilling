@@ -13,9 +13,9 @@ import { Edit3, Save, Calculator, CheckCircle } from 'lucide-react-native';
 import { GlassButton } from '../../components/ui/Glass';
 
 const COLORS = {
-  vjText: '#2E1D00',
-  vjBg: '#FAF3E0',
-  vjAccent: '#B87333',
+  vjText: '#5C1623',
+  vjBg: '#FCFBF8',
+  vjAccent: '#D4AF37',
   inputBg: '#F3F4F6',
   inputBorder: '#D1D5DB',
   success: '#10B981',
@@ -265,9 +265,9 @@ export default function EditDraftScreen() {
           {/* Mandated UI Display — Live Cost Preview */}
           {liveWastageSeparation.isValid && (
             <View className="mb-5 mt-2">
-              <View style={[s.card, { backgroundColor: 'rgba(46, 29, 0, 0.04)', borderColor: '#B87333', marginBottom: 0 }]}>
+              <View style={[s.card, { backgroundColor: 'rgba(92,22,35, 0.04)', borderColor: '#D4AF37', marginBottom: 0 }]}>
                 <View className="flex-row items-center gap-2 mb-3">
-                  <Calculator size={18} color="#B87333" />
+                  <Calculator size={18} color="#D4AF37" />
                   <Text className="text-xs font-black uppercase tracking-wider text-vj-accent">Live Cost Breakdown</Text>
                 </View>
                 
@@ -373,7 +373,7 @@ const s = StyleSheet.create({
     borderRadius: 16,
     padding: 16,
     borderWidth: 1,
-    borderColor: 'rgba(46,29,0,0.08)',
+    borderColor: 'rgba(92,22,35,0.08)',
     marginBottom: 16,
   },
   sectionTitle: {
@@ -385,7 +385,7 @@ const s = StyleSheet.create({
   inputGroup: { marginBottom: 12 },
   row: { flexDirection: 'row' },
   label: {
-    color: 'rgba(46,29,0,0.6)',
+    color: 'rgba(92,22,35,0.6)',
     fontSize: 10,
     fontWeight: '700',
     marginBottom: 6,
@@ -418,6 +418,7 @@ const s = StyleSheet.create({
   },
   saveBtnDisabled: { opacity: 0.7 },
   saveBtnText: {
+    textAlign: 'center',
     color: '#fff',
     fontSize: 16,
     fontWeight: '700',
@@ -441,7 +442,7 @@ const s = StyleSheet.create({
     marginBottom: 4,
   },
   headerSubtitle: {
-    color: 'rgba(250,243,224,0.55)',
+    color: 'rgba(252,251,248,0.55)',
     fontSize: 14,
     fontWeight: '700',
     letterSpacing: 1,
@@ -482,7 +483,7 @@ const s = StyleSheet.create({
   },
   successSubtitle: {
     fontSize: 14,
-    color: 'rgba(46,29,0,0.6)',
+    color: 'rgba(92,22,35,0.6)',
     textAlign: 'center',
     marginBottom: 24,
   },

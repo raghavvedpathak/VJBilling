@@ -13,9 +13,9 @@ import { db } from '../../db/client';
 import type { Stone } from '../../types/phase2.types';
 
 const COLORS = {
-  vjText: '#2E1D00',
-  vjBg: '#FAF3E0',
-  vjAccent: '#B87333',
+  vjText: '#5C1623',
+  vjBg: '#FCFBF8',
+  vjAccent: '#D4AF37',
 };
 
 type StoneType = 'DIAMOND' | 'RUBY' | 'EMERALD' | 'SAPPHIRE';
@@ -123,10 +123,10 @@ export default function StonesScreen() {
           </View>
           <View style={s.toggleContainer}>
             <TouchableOpacity onPress={() => setViewMode('list')} style={[s.toggleIconBtn, viewMode === 'list' && s.toggleIconActive]}>
-              <ListIcon size={20} color={viewMode === 'list' ? '#B87333' : 'rgba(46,29,0,0.4)'} />
+              <ListIcon size={20} color={viewMode === 'list' ? '#D4AF37' : 'rgba(92,22,35,0.4)'} />
             </TouchableOpacity>
             <TouchableOpacity onPress={() => setViewMode('grid')} style={[s.toggleIconBtn, viewMode === 'grid' && s.toggleIconActive]}>
-              <LayoutGrid size={20} color={viewMode === 'grid' ? '#B87333' : 'rgba(46,29,0,0.4)'} />
+              <LayoutGrid size={20} color={viewMode === 'grid' ? '#D4AF37' : 'rgba(92,22,35,0.4)'} />
             </TouchableOpacity>
           </View>
         </View>
@@ -169,7 +169,7 @@ export default function StonesScreen() {
             <View className="flex-row justify-between items-center mb-6 border-b border-black/10 pb-4">
               <Text className="text-xl font-bold text-vj-text">New Stone Type</Text>
               <TouchableOpacity onPress={() => setShowAddModal(false)} className="p-1 bg-black/5 rounded-full">
-                <X size={20} color="#2E1D00" />
+                <X size={20} color="#5C1623" />
               </TouchableOpacity>
             </View>
             
@@ -237,9 +237,9 @@ const s = StyleSheet.create({
   headerIconRow: { marginBottom: 12 },
   headerIconCircle: { width: 52, height: 52, borderRadius: 16, backgroundColor: 'rgba(255,255,255,0.12)', justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: 'rgba(255,255,255,0.15)' },
   headerTitle: { color: COLORS.vjBg, fontSize: 28, fontWeight: '800', letterSpacing: -0.5, marginBottom: 4 },
-  headerSubtitle: { color: 'rgba(250,243,224,0.55)', fontSize: 12, fontWeight: '600', textTransform: 'uppercase' },
+  headerSubtitle: { color: 'rgba(252,251,248,0.55)', fontSize: 12, fontWeight: '600', textTransform: 'uppercase' },
   controlsRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 8, marginTop: 4 },
-  toggleContainer: { flexDirection: 'row', backgroundColor: 'rgba(46,29,0,0.05)', borderRadius: 12, padding: 4 },
+  toggleContainer: { flexDirection: 'row', backgroundColor: 'rgba(92,22,35,0.05)', borderRadius: 12, padding: 4 },
   toggleIconBtn: { padding: 8, borderRadius: 8 },
   toggleIconActive: { backgroundColor: '#fff' },
   
@@ -256,15 +256,15 @@ const s = StyleSheet.create({
   stoneTypeText: { color: COLORS.vjAccent, fontSize: 10, fontWeight: '800', letterSpacing: 0.5 },
   
   actionRow: { flexDirection: 'row', gap: 8 },
-  actionBtn: { padding: 8, backgroundColor: 'rgba(46,29,0,0.05)', borderRadius: 8 },
+  actionBtn: { padding: 8, backgroundColor: 'rgba(92,22,35,0.05)', borderRadius: 8 },
   
   formGroup: { marginBottom: 16 },
-  label: { fontSize: 12, fontWeight: '700', color: 'rgba(46,29,0,0.6)', textTransform: 'uppercase', marginBottom: 8 },
-  input: { backgroundColor: '#fff', borderRadius: 12, padding: 16, fontSize: 16, color: COLORS.vjText, borderWidth: 1, borderColor: 'rgba(46,29,0,0.1)' },
+  label: { fontSize: 12, fontWeight: '700', color: 'rgba(92,22,35,0.6)', textTransform: 'uppercase', marginBottom: 8 },
+  input: { backgroundColor: '#fff', borderRadius: 12, padding: 16, fontSize: 16, color: COLORS.vjText, borderWidth: 1, borderColor: 'rgba(92,22,35,0.3)' },
   typeGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  typeBtn: { width: '48%', padding: 14, borderRadius: 12, borderWidth: 1, borderColor: 'rgba(46,29,0,0.1)', alignItems: 'center', backgroundColor: '#fff' },
+  typeBtn: { width: '48%', padding: 14, borderRadius: 12, borderWidth: 1, borderColor: 'rgba(92,22,35,0.3)', alignItems: 'center', backgroundColor: '#fff' },
   typeBtnActive: { backgroundColor: COLORS.vjAccent, borderColor: COLORS.vjAccent },
-  typeText: { fontSize: 13, fontWeight: '700', color: 'rgba(46,29,0,0.6)' },
+  typeText: { fontSize: 13, fontWeight: '700', color: 'rgba(92,22,35,0.6)' },
   typeTextActive: { color: '#fff' },
 
   // Success Modal Styles
@@ -304,7 +304,7 @@ const s = StyleSheet.create({
   },
   successSubtitle: {
     fontSize: 14,
-    color: 'rgba(46,29,0,0.6)',
+    color: 'rgba(92,22,35,0.6)',
     textAlign: 'center',
     marginBottom: 24,
   },

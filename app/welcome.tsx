@@ -67,7 +67,7 @@ export default function WelcomeScreen() {
     return (
       <TwoToneWrapper title="">
         <View className="flex-1 justify-center items-center gap-4 py-20">
-          <ActivityIndicator size="large" color="#B87333" />
+          <ActivityIndicator size="large" color="#D4AF37" />
           <Text className="text-vj-text/50 font-bold text-xs uppercase tracking-widest">Scanning Device for Backups...</Text>
         </View>
       </TwoToneWrapper>
@@ -78,7 +78,7 @@ export default function WelcomeScreen() {
   const welcomeHeader = (
     <View className="items-center pb-6">
       <View className="bg-white/10 p-6 rounded-full mb-6 border border-white/20 shadow-sm">
-        <ShieldCheck size={56} color="#FAF3E0" />
+        <ShieldCheck size={56} color="#FCFBF8" />
       </View>
       <Text className="text-vj-bg/80 font-bold text-xs uppercase tracking-widest mb-1">
         Welcome To
@@ -105,7 +105,7 @@ export default function WelcomeScreen() {
             <GlassCard style={{ backgroundColor: 'rgba(220, 252, 231, 0.4)', borderColor: 'rgba(22, 163, 74, 0.3)', marginBottom: 16 }}>
               <GlassButton 
                 title={restoring ? "Restoring Data..." : "Restore from Backup"}
-                icon={!restoring && <HardDriveUpload size={20} color="#FAF3E0" />}
+                icon={!restoring && <HardDriveUpload size={20} color="#FCFBF8" />}
                 onPress={handleRestore}
                 loading={restoring}
               />
@@ -114,7 +114,7 @@ export default function WelcomeScreen() {
             <View className="mt-4">
               <GlassButton 
                 title="Set Up New Firm Instead"
-                icon={<Plus size={20} color="#FAF3E0" />}
+                icon={<Plus size={20} color="#FCFBF8" />}
                 onPress={() => router.push('/create-firm')}
                 disabled={restoring}
               />
@@ -128,7 +128,7 @@ export default function WelcomeScreen() {
             <View className="mb-6">
               <GlassButton 
                 title="Establish New Firm"
-                icon={<Plus size={20} color="#FAF3E0" />}
+                icon={<Plus size={20} color="#FCFBF8" />}
                 onPress={() => router.push('/create-firm')}
               />
             </View>
@@ -140,7 +140,7 @@ export default function WelcomeScreen() {
                 </Text>
                 <GlassButton 
                   title="Manual Restore"
-                  icon={<Search size={18} color="#FAF3E0" />}
+                  icon={<Search size={18} color="#FCFBF8" />}
                   onPress={handleRestore}
                   disabled={restoring}
                 />

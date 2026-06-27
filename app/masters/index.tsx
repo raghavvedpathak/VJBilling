@@ -7,9 +7,9 @@ import { GlassCard } from '../../components/ui/Glass';
 import { Settings2, Layers, Tag, ChevronRight, Gem } from 'lucide-react-native';
 
 const COLORS = {
-  vjText: '#2E1D00',
-  vjBg: '#FAF3E0',
-  vjAccent: '#B87333',
+  vjText: '#5C1623',
+  vjBg: '#FCFBF8',
+  vjAccent: '#D4AF37',
 };
 
 export default function MastersIndexScreen() {
@@ -36,13 +36,13 @@ export default function MastersIndexScreen() {
           <GlassCard style={s.tile}>
             <View style={s.tileContent}>
               <View style={s.iconWrapper}>
-                <Layers size={24} color="#2E1D00" />
+                <Layers size={24} color="#5C1623" />
               </View>
               <View style={s.textWrapper}>
                 <Text style={s.tileTitle}>Categories</Text>
                 <Text style={s.tileSubtitle}>Manage gold and silver product categories</Text>
               </View>
-              <ChevronRight size={20} color="#B87333" style={{ opacity: 0.5 }} />
+              <ChevronRight size={20} color="#D4AF37" style={{ opacity: 0.5 }} />
             </View>
           </GlassCard>
         </TouchableOpacity>
@@ -51,13 +51,13 @@ export default function MastersIndexScreen() {
           <GlassCard style={s.tile}>
             <View style={s.tileContent}>
               <View style={s.iconWrapper}>
-                <Tag size={24} color="#2E1D00" />
+                <Tag size={24} color="#5C1623" />
               </View>
               <View style={s.textWrapper}>
                 <Text style={s.tileTitle}>Designs</Text>
                 <Text style={s.tileSubtitle}>Manage design names under each category</Text>
               </View>
-              <ChevronRight size={20} color="#B87333" style={{ opacity: 0.5 }} />
+              <ChevronRight size={20} color="#D4AF37" style={{ opacity: 0.5 }} />
             </View>
           </GlassCard>
         </TouchableOpacity>
@@ -68,13 +68,13 @@ export default function MastersIndexScreen() {
           <GlassCard style={s.tile}>
             <View style={s.tileContent}>
               <View style={s.iconWrapper}>
-                <Gem size={24} color="#2E1D00" />
+                <Gem size={24} color="#5C1623" />
               </View>
               <View style={s.textWrapper}>
                 <Text style={s.tileTitle}>Stone Master</Text>
                 <Text style={s.tileSubtitle}>Define diamond and precious stone types</Text>
               </View>
-              <ChevronRight size={20} color="#B87333" style={{ opacity: 0.5 }} />
+              <ChevronRight size={20} color="#D4AF37" style={{ opacity: 0.5 }} />
             </View>
           </GlassCard>
         </TouchableOpacity>
@@ -99,12 +99,12 @@ const s = StyleSheet.create({
     letterSpacing: -0.5, marginBottom: 4,
   },
   headerSubtitle: {
-    color: 'rgba(250,243,224,0.55)',
+    color: 'rgba(252,251,248,0.55)',
     fontSize: 12, fontWeight: '600',
     letterSpacing: 0.3, textTransform: 'uppercase',
   },
   sectionTitle: {
-    color: 'rgba(46,29,0,0.6)',
+    color: 'rgba(92,22,35,0.6)',
     fontSize: 12,
     fontWeight: '800',
     textTransform: 'uppercase',
@@ -124,7 +124,7 @@ const s = StyleSheet.create({
     gap: 16,
   },
   iconWrapper: {
-    backgroundColor: 'rgba(255,255,255,0.4)',
+    backgroundColor: 'rgba(255,255,255,0.6)',
     padding: 12,
     borderRadius: 100,
     borderWidth: 1,
@@ -140,7 +140,7 @@ const s = StyleSheet.create({
     marginBottom: 2,
   },
   tileSubtitle: {
-    color: 'rgba(46,29,0,0.6)',
+    color: 'rgba(92,22,35,0.6)',
     fontSize: 12,
   },
 });

@@ -14,9 +14,9 @@ import type { ItemSearchResult } from '../../types/phase2.types';
 const formatWeight = (mg: number): string => (mg / 1000).toFixed(3) + ' g';
 
 const COLORS = {
-  vjText: '#2E1D00',
-  vjBg: '#FAF3E0',
-  vjAccent: '#B87333',
+  vjText: '#5C1623',
+  vjBg: '#FCFBF8',
+  vjAccent: '#D4AF37',
   gold: '#C8860A',
   silver: '#6B7280',
 };
@@ -62,7 +62,7 @@ const GroupHeader = memo(({
       </View>
 
       <View style={s.headerChevron}>
-        <ChevronRight size={20} color="rgba(46,29,0,0.4)" />
+        <ChevronRight size={20} color="rgba(92,22,35,0.4)" />
       </View>
     </TouchableOpacity>
   );
@@ -174,7 +174,7 @@ export default function DesignItemsScreen() {
             showsVerticalScrollIndicator={false}
             ListEmptyComponent={
               <View style={s.emptyContainer}>
-                <Tag size={48} color="rgba(46,29,0,0.2)" />
+                <Tag size={48} color="rgba(92,22,35,0.2)" />
                 <Text style={s.emptyTitle}>No Items Found</Text>
                 <Text style={s.emptySubtitle}>No available stock for this design</Text>
               </View>
@@ -188,24 +188,24 @@ export default function DesignItemsScreen() {
 
 const s = StyleSheet.create({
   listContainer: { flex: 1 },
-  headerCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(255, 255, 255, 0.65)', borderRadius: 16, padding: 16, marginBottom: 12, borderWidth: 1, borderColor: 'rgba(255, 255, 255, 0.5)' },
+  headerCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.6)', borderRadius: 16, padding: 16, marginBottom: 12, borderWidth: 1, borderColor: 'rgba(255, 255, 255, 0.5)' },
   headerCardContent: { flex: 1 },
   headerTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6 },
   headerDesignName: { color: COLORS.vjText, fontSize: 16, fontWeight: '700', maxWidth: '70%' },
   metalPill: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 6, borderWidth: 1 },
   metalPillText: { fontSize: 10, fontWeight: '800', letterSpacing: 0.5 },
   headerMetaRow: { flexDirection: 'row', alignItems: 'center' },
-  headerCount: { color: 'rgba(46,29,0,0.6)', fontSize: 13, fontWeight: '600' },
-  dotDivider: { width: 4, height: 4, borderRadius: 2, backgroundColor: 'rgba(46,29,0,0.2)', marginHorizontal: 8 },
+  headerCount: { color: 'rgba(92,22,35,0.6)', fontSize: 13, fontWeight: '600' },
+  dotDivider: { width: 4, height: 4, borderRadius: 2, backgroundColor: 'rgba(92,22,35,0.2)', marginHorizontal: 8 },
   headerWeight: { color: COLORS.vjText, fontSize: 13, fontWeight: '700' },
   headerChevron: { paddingLeft: 12 },
   headerIconRow: { marginBottom: 12 },
   headerIconCircle: { width: 52, height: 52, borderRadius: 16, backgroundColor: 'rgba(255,255,255,0.12)', justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: 'rgba(255,255,255,0.15)' },
   headerTitle: { color: COLORS.vjBg, fontSize: 28, fontWeight: '800', letterSpacing: -0.5, marginBottom: 4 },
-  headerSubtitle: { color: 'rgba(250,243,224,0.55)', fontSize: 12, fontWeight: '600', textTransform: 'uppercase' },
+  headerSubtitle: { color: 'rgba(252,251,248,0.55)', fontSize: 12, fontWeight: '600', textTransform: 'uppercase' },
   loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 12 },
-  loadingText: { color: 'rgba(46,29,0,0.4)', fontSize: 14, fontWeight: '600' },
+  loadingText: { color: 'rgba(92,22,35,0.4)', fontSize: 14, fontWeight: '600' },
   emptyContainer: { alignItems: 'center', marginTop: 60, gap: 8 },
-  emptyTitle: { color: 'rgba(46,29,0,0.5)', fontSize: 18, fontWeight: '700' },
-  emptySubtitle: { color: 'rgba(46,29,0,0.35)', fontSize: 13 },
+  emptyTitle: { color: 'rgba(92,22,35,0.5)', fontSize: 18, fontWeight: '700' },
+  emptySubtitle: { color: 'rgba(92,22,35,0.35)', fontSize: 13 },
 });

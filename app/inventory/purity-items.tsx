@@ -15,9 +15,9 @@ import type { ItemSearchResult } from '../../types/phase2.types';
 const formatWeight = (mg: number): string => (mg / 1000).toFixed(3) + ' g';
 
 const COLORS = {
-  vjText: '#2E1D00',
-  vjBg: '#FAF3E0',
-  vjAccent: '#B87333',
+  vjText: '#5C1623',
+  vjBg: '#FCFBF8',
+  vjAccent: '#D4AF37',
   gold: '#C8860A',
   silver: '#6B7280',
 };
@@ -80,7 +80,7 @@ const SkuRow = React.memo(({
         </View>
 
         <View style={s.locationRow}>
-          <MapPin size={12} color="rgba(46,29,0,0.3)" />
+          <MapPin size={12} color="rgba(92,22,35,0.3)" />
           <Text style={s.locationText}>{item.location?.replace(/_/g, ' ') || '—'}</Text>
         </View>
       </View>
@@ -93,7 +93,7 @@ const SkuRow = React.memo(({
         >
           <Printer size={20} color={COLORS.vjAccent} />
         </TouchableOpacity>
-        <ChevronRight size={20} color="rgba(46,29,0,0.2)" />
+        <ChevronRight size={20} color="rgba(92,22,35,0.2)" />
       </View>
     </TouchableOpacity>
   );
@@ -181,7 +181,7 @@ export default function PurityItemsScreen() {
             showsVerticalScrollIndicator={false}
             ListEmptyComponent={
               <View style={s.emptyContainer}>
-                <Tag size={48} color="rgba(46,29,0,0.2)" />
+                <Tag size={48} color="rgba(92,22,35,0.2)" />
                 <Text style={s.emptyTitle}>No Items Found</Text>
                 <Text style={s.emptySubtitle}>No available stock for this purity</Text>
               </View>
@@ -198,7 +198,7 @@ const s = StyleSheet.create({
   itemCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.65)',
+    backgroundColor: 'rgba(255,255,255,0.6)',
     marginBottom: 8,
     borderRadius: 16,
     overflow: 'hidden',
@@ -213,25 +213,25 @@ const s = StyleSheet.create({
   badgeRow: { flexDirection: 'row', gap: 6 },
   huidBadge: { backgroundColor: 'rgba(59,130,246,0.1)', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6, borderWidth: 1, borderColor: 'rgba(59,130,246,0.2)' },
   huidText: { color: '#3B82F6', fontSize: 10, fontWeight: '800', letterSpacing: 0.5 },
-  noHuidBadge: { backgroundColor: 'rgba(46,29,0,0.04)', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
-  noHuidText: { color: 'rgba(46,29,0,0.4)', fontSize: 10, fontWeight: '700' },
-  barcodeText: { color: 'rgba(46,29,0,0.4)', fontSize: 11, fontFamily: 'monospace', marginBottom: 8 },
+  noHuidBadge: { backgroundColor: 'rgba(92,22,35,0.04)', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
+  noHuidText: { color: 'rgba(92,22,35,0.4)', fontSize: 10, fontWeight: '700' },
+  barcodeText: { color: 'rgba(92,22,35,0.4)', fontSize: 11, fontFamily: 'monospace', marginBottom: 8 },
   itemMetaRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 8 },
   itemMetaBlock: { paddingRight: 12 },
-  metaDivider: { width: 1, height: 18, backgroundColor: 'rgba(46,29,0,0.08)', marginRight: 12 },
-  itemMetaLabel: { color: 'rgba(46,29,0,0.4)', fontSize: 9, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 2 },
+  metaDivider: { width: 1, height: 18, backgroundColor: 'rgba(92,22,35,0.08)', marginRight: 12 },
+  itemMetaLabel: { color: 'rgba(92,22,35,0.4)', fontSize: 9, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 2 },
   itemMetaValue: { color: COLORS.vjText, fontSize: 13, fontWeight: '700' },
-  locationRow: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: 'rgba(46,29,0,0.02)', alignSelf: 'flex-start', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 },
-  locationText: { color: 'rgba(46,29,0,0.5)', fontSize: 11, fontWeight: '600', textTransform: 'uppercase' },
+  locationRow: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: 'rgba(92,22,35,0.02)', alignSelf: 'flex-start', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 },
+  locationText: { color: 'rgba(92,22,35,0.5)', fontSize: 11, fontWeight: '600', textTransform: 'uppercase' },
   actionContainer: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   printBtn: { width: 44, height: 44, borderRadius: 12, backgroundColor: 'rgba(184,115,51,0.1)', justifyContent: 'center', alignItems: 'center' },
   headerIconRow: { marginBottom: 12 },
   headerIconCircle: { width: 52, height: 52, borderRadius: 16, backgroundColor: 'rgba(255,255,255,0.12)', justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: 'rgba(255,255,255,0.15)' },
   headerTitle: { color: COLORS.vjBg, fontSize: 28, fontWeight: '800', letterSpacing: -0.5, marginBottom: 4 },
-  headerSubtitle: { color: 'rgba(250,243,224,0.55)', fontSize: 12, fontWeight: '600', textTransform: 'uppercase' },
+  headerSubtitle: { color: 'rgba(252,251,248,0.55)', fontSize: 12, fontWeight: '600', textTransform: 'uppercase' },
   loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 12 },
-  loadingText: { color: 'rgba(46,29,0,0.4)', fontSize: 14, fontWeight: '600' },
+  loadingText: { color: 'rgba(92,22,35,0.4)', fontSize: 14, fontWeight: '600' },
   emptyContainer: { alignItems: 'center', marginTop: 60, gap: 8 },
-  emptyTitle: { color: 'rgba(46,29,0,0.5)', fontSize: 18, fontWeight: '700' },
-  emptySubtitle: { color: 'rgba(46,29,0,0.35)', fontSize: 13 },
+  emptyTitle: { color: 'rgba(92,22,35,0.5)', fontSize: 18, fontWeight: '700' },
+  emptySubtitle: { color: 'rgba(92,22,35,0.35)', fontSize: 13 },
 });

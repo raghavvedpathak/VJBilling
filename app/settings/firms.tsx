@@ -139,11 +139,11 @@ export default function FirmManagerScreen() {
                 >
                   <View className={`h-12 w-12 rounded-full justify-center items-center overflow-hidden border border-white/50 ${isActive ? 'bg-vj-success/20' : isArchived ? 'bg-gray-200' : 'bg-vj-glass'}`}>
                     {isLoading ? (
-                       <ActivityIndicator color={isActive ? '#15803d' : '#2E1D00'} />
+                       <ActivityIndicator color={isActive ? '#15803d' : '#5C1623'} />
                     ) : displayLogo ? (
                        <Image source={{ uri: displayLogo }} className="w-full h-full resize-mode-contain" />
                     ) : (
-                       <Building2 size={24} color={isActive ? '#15803d' : isArchived ? '#999' : '#2E1D00'} />
+                       <Building2 size={24} color={isActive ? '#15803d' : isArchived ? '#999' : '#5C1623'} />
                     )}
                   </View>
 
@@ -177,7 +177,7 @@ export default function FirmManagerScreen() {
                     disabled={isLoading}
                     className="p-3 rounded-full active:bg-white/40"
                   >
-                    <Pencil size={18} color="#B87333" />
+                    <Pencil size={18} color="#D4AF37" />
                   </TouchableOpacity>
 
                   {!isActive && (
@@ -207,8 +207,8 @@ export default function FirmManagerScreen() {
           }`}
           disabled={!canAddFirm}
         >
-          <Plus size={20} color={canAddFirm ? "#2E1D00" : "#999"} />
-          <Text className={`font-bold ${canAddFirm ? 'text-vj-text' : 'text-gray-400'}`}>
+          <Plus size={20} color={canAddFirm ? "#5C1623" : "#999"} />
+          <Text className={`text-center font-bold ${canAddFirm ? 'text-vj-text' : 'text-gray-400'}`}>
             {canAddFirm ? "Establish New Firm" : "Maximum Limit Reached"}
           </Text>
         </TouchableOpacity>
@@ -222,9 +222,9 @@ export default function FirmManagerScreen() {
             <View className="w-full bg-vj-bg rounded-3xl p-8 shadow-xl items-center border border-white/50">
               
               <View className={`p-6 rounded-full mb-6 border ${dialog.type === 'ARCHIVE' && !dialog.isArchived ? 'bg-vj-danger/10 border-vj-danger/30' : 'bg-vj-accent/20 border-vj-accent/30'}`}>
-                {dialog.type === 'INFO' ? <AlertTriangle size={48} color="#B87333" /> : 
+                {dialog.type === 'INFO' ? <AlertTriangle size={48} color="#D4AF37" /> : 
                  dialog.type === 'ARCHIVE' && !dialog.isArchived ? <Archive size={48} color="#ef4444" /> :
-                 <Building2 size={48} color="#B87333" />}
+                 <Building2 size={48} color="#D4AF37" />}
               </View>
 
               <Text className="text-2xl font-bold text-vj-text mb-2 text-center tracking-tight">{dialog.title}</Text>
