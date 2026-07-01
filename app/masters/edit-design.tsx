@@ -4,6 +4,7 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import { TwoToneWrapper } from '../../components/TwoToneWrapper';
 import { GlassButton } from '../../components/ui/Glass';
 import { Edit2, CheckCircle } from 'lucide-react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFirmStore } from '../../store/firmStore';
 import { designService } from '../../services/designService';
 
@@ -16,6 +17,7 @@ const COLORS = {
 export default function EditDesignScreen() {
   const router = useRouter();
   const { activeFirmId } = useFirmStore();
+  const insets = useSafeAreaInsets();
   
   // Get initial params from routing
   const { id, initialName } = useLocalSearchParams<{ id: string; initialName: string }>();
@@ -64,11 +66,8 @@ export default function EditDesignScreen() {
 
   return (
     <TwoToneWrapper title="" showBack headerContent={headerContent}>
-      <KeyboardAvoidingView 
-        style={{ flex: 1 }} 
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      >
-        <ScrollView style={s.container} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 60 }}>
+      <View style={{ flex: 1 }}>
+        <ScrollView style={s.container} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingTop: 32, paddingBottom: 350 }} keyboardShouldPersistTaps="handled">
           <View style={s.card}>
             <View style={s.formGroup}>
               <Text style={s.label}>Design Name</Text>
@@ -80,17 +79,16 @@ export default function EditDesignScreen() {
               />
               <Text style={s.helpText}>No special characters. Max 2 words.</Text>
             </View>
-
-            <View style={{ marginTop: 32 }}>
-              <GlassButton 
-                title={isSubmitting ? 'Saving...' : 'Update Design'} 
-                onPress={handleEditSubmit} 
-                disabled={isSubmitting} 
-              />
-            </View>
           </View>
         </ScrollView>
-      </KeyboardAvoidingView>
+        <View style={{ paddingHorizontal: 24, paddingBottom: insets.bottom || 24, paddingTop: 16 }}>
+          <GlassButton 
+            title={isSubmitting ? 'Saving...' : 'Update Design'} 
+            onPress={handleEditSubmit} 
+            disabled={isSubmitting} 
+          />
+        </View>
+      </View>
 
       {/* Modern Success Modal */}
       <Modal visible={!!successMessage} transparent animationType="fade">

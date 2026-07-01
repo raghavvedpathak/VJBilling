@@ -52,7 +52,7 @@ export default function EditFirmScreen() {
           name: firmToEdit.name,
           firmCode: firmToEdit.firmCode,
           proprietor: firmToEdit.proprietor,
-          logoUri: firmToEdit.firmLogoRef || null, // ARCHITECT FIX: Correctly read from firmLogoRef
+          logoUri: firmToEdit.firmLogoRef || null, 
           gstin: firmToEdit.gstin || '',
           bisLicence: firmToEdit.bisLicence || '',
           bisLogoUri: firmToEdit.bisLogoRef || null, 
@@ -71,7 +71,6 @@ export default function EditFirmScreen() {
     }
   }, [id, firms]);
 
-  // ARCHITECT FIX: Expanded dirty check to catch logo/licence changes
   const isDirty = useMemo(() => {
     if (!originalFirm) return false;
     return form.name !== originalFirm.name || 
@@ -87,7 +86,6 @@ export default function EditFirmScreen() {
            form.bisLicence !== (originalFirm.bisLicence || '');
   }, [form, originalFirm]);
 
-  // ARCHITECT FIX: Apply the G69 Unsaved Changes Guard
   const unsavedModal = useUnsavedChangesGuard(isDirty);
 
   const pickImage = async (field: 'logoUri' | 'bisLogoUri') => {
@@ -106,7 +104,7 @@ export default function EditFirmScreen() {
     let result;
     const options: ImagePicker.ImagePickerOptions = {
       mediaTypes: ['images'], 
-      allowsEditing: true,
+      allowsEditing: true, // G58: FREE crop, no aspect ratio locked
       quality: 0.8,
     };
 
@@ -124,6 +122,8 @@ export default function EditFirmScreen() {
     if (!result.canceled && result.assets && result.assets.length > 0) {
       const asset = result.assets[0];
       const mimeType = asset.mimeType || '';
+      
+      // G58: Strict MIME type check
       if (!mimeType.includes('jpeg') && !mimeType.includes('png') && !asset.uri.toLowerCase().endsWith('.jpg') && !asset.uri.toLowerCase().endsWith('.png') && !asset.uri.toLowerCase().endsWith('.jpeg')) {
         Alert.alert("Invalid Type", "Only PNG or JPEG images are accepted.");
         return;
@@ -131,15 +131,22 @@ export default function EditFirmScreen() {
 
       let finalUri = asset.uri;
       
+      // G58: Downscale if > 1024x1024 preserving aspect ratio
       if (asset.width > 1024 || asset.height > 1024) {
+        // FIX: Ensure perfectly square massive images don't evaluate to undefined
+        const resizeAction = asset.width > asset.height 
+          ? { width: 1024 } 
+          : { height: 1024 }; 
+
         const manipResult = await manipulateAsync(
           asset.uri,
-          [{ resize: { width: asset.width > asset.height ? 1024 : undefined, height: asset.height > asset.width ? 1024 : undefined } }],
+          [{ resize: resizeAction }],
           { compress: 0.8, format: SaveFormat.JPEG }
         );
         finalUri = manipResult.uri;
       }
 
+      // G58: Max 2MB check AFTER manipulation
       const fileInfo = await FileSystem.getInfoAsync(finalUri);
       if (!fileInfo.exists) return;
       if (fileInfo.size && fileInfo.size > 2 * 1024 * 1024) {
@@ -147,6 +154,7 @@ export default function EditFirmScreen() {
         return;
       }
 
+      // G58: Deterministic storage
       const logosDir = FileSystem.documentDirectory + 'logos/';
       await FileSystem.makeDirectoryAsync(logosDir, { intermediates: true });
       
@@ -175,13 +183,12 @@ export default function EditFirmScreen() {
       try {
         setLoading(true);
         
-        // ARCHITECT FIX: Assemble payload securely
         const updatePayload: any = {
           name: form.name,
           proprietor: form.proprietor,
           bisLicence: form.bisLicence || null,
-          bisLogoRef: form.bisLogoUri !== originalFirm.bisLogoRef ? form.bisLogoUri : undefined, // FIX: bisLogoRef
-          firmLogoRef: form.logoUri !== originalFirm.firmLogoRef ? form.logoUri : undefined,   // FIX: firmLogoRef
+          bisLogoRef: form.bisLogoUri !== originalFirm.bisLogoRef ? form.bisLogoUri : undefined, 
+          firmLogoRef: form.logoUri !== originalFirm.firmLogoRef ? form.logoUri : undefined,  
           phone1: form.phone1,
           phone2: form.phone2 || null,
           phone3: form.phone3 || null,
@@ -191,7 +198,6 @@ export default function EditFirmScreen() {
           pincode: form.pincode,
         };
 
-        // ARCHITECT FIX (v7.9 FIX-V79-5): Conditionally add state properties ONLY if no GSTIN exists
         if (!originalFirm.gstin) {
           updatePayload.stateCode = form.stateCode;
           updatePayload.stateName = form.stateName;
@@ -206,6 +212,7 @@ export default function EditFirmScreen() {
       }
     };
 
+    // G47: BIS Logo State Transition Check
     if (originalFirm?.bisLogoRef && !form.bisLicence) {
       Alert.alert(
         "Archive BIS Logo?",
@@ -224,40 +231,56 @@ export default function EditFirmScreen() {
     <View className="items-center pb-4">
       <TouchableOpacity onPress={() => pickImage('logoUri')} className="h-[120px] w-[120px] rounded-full justify-center items-center overflow-hidden border-4 border-vj-bg/20 shadow-lg bg-white/10">
         {form.logoUri ? (
-          <Image source={{ uri: form.logoUri }} className="w-full h-full resize-mode-contain" />
+          <Image 
+            source={{ uri: form.logoUri }} 
+            className="w-full h-full resize-mode-contain"
+            // G59: Fallback on load error
+            onError={() => {
+              console.warn('[FirmEdit] Failed to load firm logo thumbnail. Dead URI.');
+              setForm(prev => ({...prev, logoUri: null}));
+            }} 
+          />
         ) : (
           <View className="items-center">
             <ImagePlus size={24} color="#FCFBF8" />
-            <Text className="text-[10px] text-vj-bg/80 font-bold mt-2 tracking-widest">CHANGE LOGO</Text>
+            <Text className="text-[10px] text-vj-bg/80 font-bold mt-2 tracking-widest text-center px-2">
+              NO LOGO UPLOADED
+            </Text>
           </View>
         )}
+      </TouchableOpacity>
+      
+      {/* G59: Label matches spec exactly */}
+      <TouchableOpacity onPress={() => pickImage('logoUri')} className="mt-3 bg-white/20 px-4 py-1.5 rounded-full border border-white/30">
+        <Text className="text-[11px] text-white font-bold tracking-widest uppercase">
+          {form.logoUri ? "CHANGE LOGO" : "UPLOAD LOGO"}
+        </Text>
       </TouchableOpacity>
     </View>
   );
 
   return (
     <TwoToneWrapper title="Edit Firm" showBack headerContent={headerLogoPicker}>
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} className="flex-1">
-        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 350, paddingTop: 10 }}>
+        <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={{paddingBottom: 350, paddingTop: 32, paddingHorizontal: 16}}>
           
-          <GlassCard style={{ borderWidth: 0 }}>
+          <GlassCard>
             <GlassInput label="Firm Name" value={form.name} onChangeText={(t) => setForm({...form, name: t})} icon={<Building2 size={18} color="#D4AF37" />} />
             <View className="mb-4">
               <Text className="text-vj-text/70 font-bold text-xs uppercase tracking-wider mb-2 ml-1">Firm Code (Locked)</Text>
-              <View className="flex-row items-center bg-gray-100/50 rounded-2xl px-5 py-3 border border-gray-200">
+              <View className="flex-row items-center bg-white/20 rounded-2xl px-5 py-3 border border-white/30">
                 <View className="mr-3 opacity-50"><Tag size={18} color="#999" /></View>
-                <Text className="text-gray-500 font-bold text-base">{form.firmCode}</Text>
+                <Text className="text-vj-text/60 font-bold text-base" style={{ includeFontPadding: false }}>{form.firmCode}</Text>
               </View>
             </View>
             <GlassInput label="Proprietor" value={form.proprietor} onChangeText={(t) => setForm({...form, proprietor: t})} icon={<User size={18} color="#D4AF37" />} />
           </GlassCard>
 
-          <GlassCard style={{ borderWidth: 0 }}>
+          <GlassCard>
             <View className="mb-4">
               <Text className="text-vj-text/70 font-bold text-xs uppercase tracking-wider mb-2 ml-1">GSTIN (Statutory Lock)</Text>
-              <View className="flex-row items-center bg-gray-100/50 rounded-2xl px-5 py-3 border border-gray-200">
+              <View className="flex-row items-center bg-white/20 rounded-2xl px-5 py-3 border border-white/30">
                 <View className="mr-3 opacity-50"><Hash size={18} color="#999" /></View>
-                <Text className="text-gray-500 font-bold text-base">{form.gstin || "Unregistered (Bill of Supply)"}</Text>
+                <Text className="text-vj-text/60 font-bold text-base" style={{ includeFontPadding: false }}>{form.gstin || "Unregistered (Bill of Supply)"}</Text>
               </View>
             </View>
 
@@ -272,20 +295,32 @@ export default function EditFirmScreen() {
               <View className="mt-4 p-3 bg-white/60 rounded-2xl border border-white/50 flex-row items-center justify-between">
                 <Text className="text-vj-text font-bold text-xs ml-2">BIS Hallmark Logo</Text>
                 <TouchableOpacity onPress={() => pickImage('bisLogoUri')} className="bg-white/80 px-4 py-2 rounded-full shadow-sm border border-white">
-                  <Text className="text-xs font-bold text-vj-accent">{form.bisLogoUri ? "Change" : "Upload"}</Text>
+                  {/* G59: Label matches spec exactly */}
+                  <Text className="text-xs font-bold text-vj-accent">{form.bisLogoUri ? "Change Logo" : "Upload Logo"}</Text>
                 </TouchableOpacity>
               </View>
             )}
-            {form.bisLogoUri && <Image source={{ uri: form.bisLogoUri }} className="h-[120px] w-[120px] resize-mode-contain mt-2 self-center" />}
+            
+            {form.bisLogoUri && (
+              <Image 
+                source={{ uri: form.bisLogoUri }} 
+                className="h-[120px] w-[120px] resize-mode-contain mt-3 self-center" 
+                // G59: Fallback on load error
+                onError={() => {
+                  console.warn('[FirmEdit] Failed to load BIS logo thumbnail. Dead URI.');
+                  setForm(prev => ({...prev, bisLogoUri: null}));
+                }} 
+              />
+            )}
           </GlassCard>
 
-          <GlassCard style={{ borderWidth: 0 }}>
+          <GlassCard>
             <GlassInput label="Primary Mobile" value={form.phone1} onChangeText={(t) => setForm({...form, phone1: t})} icon={<Phone size={18} color="#D4AF37" />} keyboardType="numeric" maxLength={10} />
             <GlassInput label="Phone 2" value={form.phone2} onChangeText={(t) => setForm({...form, phone2: t})} placeholder="Optional" keyboardType="numeric" maxLength={10} />
             <GlassInput label="Phone 3" value={form.phone3} onChangeText={(t) => setForm({...form, phone3: t})} placeholder="Optional" keyboardType="numeric" maxLength={10} />
           </GlassCard>
 
-          <GlassCard style={{ borderWidth: 0 }}>
+          <GlassCard>
             <GlassInput label="Line 1" value={form.addressLine1} onChangeText={(t) => setForm({...form, addressLine1: t})} icon={<MapPin size={18} color="#D4AF37" />} />
             <GlassInput label="Line 2" value={form.addressLine2} onChangeText={(t) => setForm({...form, addressLine2: t})} />
             
@@ -309,7 +344,6 @@ export default function EditFirmScreen() {
           </View>
 
         </ScrollView>
-      </KeyboardAvoidingView>
 
       <Modal visible={showStatePicker} animationType="slide" transparent={true}>
         <View className="flex-1 bg-black/50 justify-end">

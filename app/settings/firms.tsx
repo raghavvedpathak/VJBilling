@@ -119,7 +119,7 @@ export default function FirmManagerScreen() {
 
   return (
     <TwoToneWrapper title="My Firms" showBack headerContent={capacityHeader}>
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 100, paddingTop: 10 }}>
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{paddingBottom: 100, paddingTop: 32}}>
 
         {firms.map((firm) => {
           const isActive = firm.id === activeFirmId;

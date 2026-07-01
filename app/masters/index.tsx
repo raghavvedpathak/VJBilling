@@ -22,14 +22,14 @@ export default function MastersIndexScreen() {
           <Settings2 size={28} color={COLORS.vjBg} />
         </View>
       </View>
-      <Text style={s.headerTitle}>Master Catalogs</Text>
+      <Text style={s.headerTitle}>Metal Master</Text>
       <Text style={s.headerSubtitle}>Manage Core Entities</Text>
     </View>
   );
 
   return (
     <TwoToneWrapper title="" showBack headerContent={headerContent}>
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 100 }}>
+      <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingTop: 32, paddingBottom: 100 }}>
         <Text style={s.sectionTitle}>Inventory Structure</Text>
 
         <TouchableOpacity activeOpacity={0.8} onPress={() => router.push('/masters/categories')}>

@@ -25,7 +25,8 @@ import {
   schemaVersion,
 } from '../db/schema';
 import { safeModeService } from './safeModeService';
-import { useVerifyStore } from '../store/verifyStore';
+// FIX: Imported the correctly named Zustand store instance
+import { verifyStore } from '../store/verifyStore';
 import { storage } from '../utils/storage';
 import { now } from '../utils/now';
 import { SCHEMA_VERSION } from '../constants/appVersion';
@@ -63,7 +64,7 @@ export const verifyService = {
           const elapsed = Date.now() - new Date(cachedAt).getTime();
           if (elapsed < CACHE_TTL_MS) {
             console.log('[Verify] VERIFY-BOOT-CACHE: Returning cached HEALTHY result (elapsed:', Math.round(elapsed / 1000), 's)');
-            useVerifyStore.getState().setScanResults([]);
+            verifyStore.getState().setScanResults([]);
             return { status: 'HEALTHY', findings: [] };
           }
         }
@@ -83,9 +84,10 @@ export const verifyService = {
     // ✅ FIX-CLEAN-INSTALL-HANG: On clean install with no firms, skip all checks
     // and return HEALTHY immediately. Safe Mode cannot be active with no firms.
     // This avoids safeModeService.clear() db.transaction() hang on first boot.
+    // ✅ DRIZZLE GUARD: This early return mathematically guarantees notInArray([]) is never called.
     if (allFirmIds.length === 0) {
       console.log('[Verify] Clean install detected — no firms. Skipping all checks, returning HEALTHY.');
-      useVerifyStore.getState().setScanResults([]);
+      verifyStore.getState().setScanResults([]);
 
       if (!firmId) {
         try {
@@ -245,10 +247,6 @@ export const verifyService = {
     }
     console.log('[Verify] Check 8 done');
 
-    // Check 9: Counter integrity — Phase 1 no-op. Activates in Phase 2.
-    // Phase 2: validate invoice/receipt counter monotonicity per firm per FY.
-    // DO NOT REMOVE this comment.
-
     // Determine overall status
     let status: VerifyStatus = 'HEALTHY';
     if (findings.some(f => f.severity === 'CRITICAL')) status = 'CRITICAL';
@@ -259,10 +257,9 @@ export const verifyService = {
     // PATH 1 RESOLUTION
     if (status === 'CRITICAL') {
       console.error('[Verify] Critical Integrity Failure Detected. Activating Safe Mode.');
-      await safeModeService.activate('VERIFY_CRITICAL_ISSUE' as any);
+      // FIX: Removed unnecessary `as any` cast
+      await safeModeService.activate('VERIFY_CRITICAL_ISSUE');
     } else if (status === 'HEALTHY') {
-      // ✅ FIX-CLEAN-INSTALL-HANG: Only call clear() when firms exist.
-      // We already returned early above for the no-firms case.
       console.log('[Verify] Clearing Safe Mode (HEALTHY)...');
       await safeModeService.clear();
       console.log('[Verify] Safe Mode cleared.');
@@ -278,7 +275,8 @@ export const verifyService = {
       }
     }
 
-    useVerifyStore.getState().setScanResults(findings);
+    // FIX: Using the correct store name
+    verifyStore.getState().setScanResults(findings);
 
     // v7.8 FIX-V78-5: structural firmId filtering
     const filteredFindings = firmId
@@ -298,6 +296,7 @@ export const verifyService = {
     }
   },
 };
+
 // --- APPENDED PHASE 2 INVENTORY VERIFY ---
 import { items, designs, categories } from '../db/schema';
 import { inArray, isNull, gt } from 'drizzle-orm';

@@ -1,6 +1,8 @@
 // v7.0 G70 Canonical Implementation
 import { VALID_STATE_CODE_SET } from './indianStates';
 
+const GSTIN_PATTERN = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/;
+
 export function verifyGSTINChecksum(gstin: string): boolean {
   const CHARSET = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ';
   let sum = 0;
@@ -20,36 +22,19 @@ export function verifyGSTINChecksum(gstin: string): boolean {
   return CHARSET.indexOf(gstin[14]) === expectedVal;
 }
 
-export function validateGSTIN(gstin?: string | null): void {
-  // Unregistered firms leave GSTIN empty (Bill of Supply)
-  if (!gstin || gstin.trim() === '') return;
-  
-  if (gstin.length !== 15) {
-    throw new Error('INVALID_GSTIN: must be exactly 15 chars');
+export function validateGSTIN(gstin: string): void {
+  if (!gstin || gstin.length !== 15) {
+    throw new Error('INVALID_GSTIN: must be 15 characters');
   }
   
   const upper = gstin.toUpperCase();
   
-  // v7.0 FIX: Single source of truth from indianStates.ts
-  const stateCode = upper.slice(0, 2);
-  if (!VALID_STATE_CODE_SET.has(stateCode)) {
+  if (!VALID_STATE_CODE_SET.has(upper.slice(0, 2))) {
     throw new Error('INVALID_GSTIN: invalid state code');
   }
   
-  // Check PAN segment (Chars 3-12: 5 Letters, 4 Numbers, 1 Letter)
-  const panSegment = upper.slice(2, 12);
-  if (!/^[A-Z]{5}[0-9]{4}[A-Z]{1}$/.test(panSegment)) {
-    throw new Error('INVALID_GSTIN: invalid PAN segment');
-  }
-
-  // Check Entity Code (Char 13: 1-9 or A-Z)
-  if (!/^[1-9A-Z]{1}$/.test(upper[12])) {
-     throw new Error('INVALID_GSTIN: invalid entity code');
-  }
-  
-  // Check 'Z' constraint (Char 14 must be Z)
-  if (upper[13] !== 'Z') {
-    throw new Error('INVALID_GSTIN: character 14 must be Z');
+  if (!GSTIN_PATTERN.test(upper)) {
+    throw new Error('INVALID_GSTIN: format mismatch');
   }
   
   if (!verifyGSTINChecksum(upper)) {

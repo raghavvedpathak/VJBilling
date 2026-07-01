@@ -34,6 +34,7 @@ import {
   ArrowRight,
   ChevronDown,
   X,
+  AlertTriangle,
 } from 'lucide-react-native';
 
 // ============================================================================
@@ -113,6 +114,7 @@ export default function CreateFirmScreen() {
   const [loading, setLoading] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [showStatePicker, setShowStatePicker] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const [form, setForm] = useState({
     name: '',
@@ -187,11 +189,11 @@ export default function CreateFirmScreen() {
       !form.city ||
       !form.pincode
     ) {
-      Alert.alert('Missing Fields', 'Please fill all required fields.');
+      setErrorMessage('Please fill all required fields.');
       return;
     }
     if (form.bisLicence && !validateBis(form.bisLicence)) {
-      Alert.alert('Invalid BIS Licence', 'Please enter a valid BIS Licence Number.');
+      setErrorMessage('Please enter a valid BIS Licence Number.');
       return;
     }
 
@@ -237,7 +239,7 @@ export default function CreateFirmScreen() {
       setActiveFirm(newFirm.id);
       setShowSuccessModal(true);
     } catch (error: any) {
-      Alert.alert('Error', error.message);
+      setErrorMessage(error.message);
     } finally {
       setLoading(false);
     }
@@ -269,15 +271,12 @@ export default function CreateFirmScreen() {
 
   return (
     <TwoToneWrapper title="New Firm" showBack headerContent={headerLogoPicker}>
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        className="flex-1"
-      >
         <ScrollView
           showsVerticalScrollIndicator={false}
-          contentContainerStyle={{ paddingBottom: 350, paddingTop: 10 }}
+          keyboardShouldPersistTaps="handled"
+          contentContainerStyle={{paddingTop: 32, paddingBottom: 350, paddingHorizontal: 16}}
         >
-          <GlassCard style={{ borderWidth: 0 }}>
+          <GlassCard>
             <GlassInput
               label="Firm Name *"
               icon={<Building2 size={18} color="#D4AF37" />}
@@ -300,7 +299,7 @@ export default function CreateFirmScreen() {
             />
           </GlassCard>
 
-          <GlassCard style={{ borderWidth: 0 }}>
+          <GlassCard>
             <GlassInput
               label="GSTIN (Optional)"
               icon={<Hash size={18} color="#D4AF37" />}
@@ -436,7 +435,6 @@ export default function CreateFirmScreen() {
             />
           </View>
         </ScrollView>
-      </KeyboardAvoidingView>
 
       {/* STATE PICKER MODAL */}
       <Modal visible={showStatePicker} animationType="slide" transparent>
@@ -495,6 +493,30 @@ export default function CreateFirmScreen() {
                   setShowSuccessModal(false);
                   router.replace('/dashboard');
                 }}
+              />
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ERROR MODAL */}
+      <Modal animationType="fade" transparent visible={!!errorMessage}>
+        <View className="flex-1 bg-black/50 justify-center items-center px-6">
+          <View className="w-full bg-vj-bg rounded-3xl p-8 shadow-xl items-center border border-white/50">
+            <View className="bg-red-500/20 p-6 rounded-full mb-6 border border-red-500/30">
+              <AlertTriangle size={48} color="#ef4444" />
+            </View>
+            <Text className="text-2xl font-bold text-vj-text mb-2 text-center tracking-tight">
+              Action Required
+            </Text>
+            <Text className="text-vj-text/60 text-center mb-8 font-medium">
+              {errorMessage}
+            </Text>
+            <View className="w-full">
+              <GlassButton
+                title="Dismiss"
+                variant="danger"
+                onPress={() => setErrorMessage(null)}
               />
             </View>
           </View>

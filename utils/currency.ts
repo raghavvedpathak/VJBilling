@@ -125,6 +125,8 @@ export function amountToWords(paise: number): string {
   return `${rupeeWords} Only`;
 }
 
+import { appSettingsStore } from '../store/appSettingsStore';
+
 export function getCurrencySymbol(): string {
-  return '₹';
+  return appSettingsStore.getState().currencySymbol ?? '\u20B9';
 }

@@ -1,7 +1,7 @@
 // app/inventory/add-gemstone.tsx
 import React, { useState, useMemo, useEffect } from 'react';
 import { View, Text, ScrollView, Alert, TouchableOpacity, Modal, TextInput } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
 import { TwoToneWrapper } from '../../components/TwoToneWrapper';
 import { GlassCard, GlassInput, GlassButton } from '../../components/ui/Glass';
 import { useFirmStore } from '../../store/firmStore';
@@ -19,7 +19,7 @@ const SelectModal = ({ visible, title, options, onSelect, onClose }: any) => {
       <View className="flex-1 bg-black/50 justify-end">
         <View className="bg-vj-bg w-full rounded-t-3xl p-6" style={{ paddingBottom: Math.max(insets.bottom, 24), maxHeight: '60%' }}>
           <Text className="text-xl font-bold text-vj-text mb-4">{title}</Text>
-          <ScrollView>
+          <ScrollView className="flex-1">
             {options.map((opt: any) => (
               <TouchableOpacity 
                 key={opt.id} 
@@ -58,18 +58,20 @@ export default function AddGemstoneScreen() {
   const [loading, setLoading] = useState(false);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (!activeFirmId) return;
-    const fetchStones = async () => {
-      try {
-        const results = await stoneRepository.findByFirmId(activeFirmId);
-        setStones(results);
-      } catch (e) {
-        console.error(e);
-      }
-    };
-    fetchStones();
-  }, [activeFirmId]);
+  useFocusEffect(
+    React.useCallback(() => {
+      if (!activeFirmId) return;
+      const fetchStones = async () => {
+        try {
+          const results = await stoneRepository.findByFirmId(activeFirmId);
+          setStones(results);
+        } catch (e) {
+          console.error(e);
+        }
+      };
+      fetchStones();
+    }, [activeFirmId])
+  );
 
   // Preview totals: carats * rate
   const previewData = useMemo(() => {
@@ -118,7 +120,7 @@ export default function AddGemstoneScreen() {
 
   return (
     <TwoToneWrapper title="New Gemstone Lot" showBack>
-      <ScrollView contentContainerStyle={{ paddingBottom: 100 }} showsVerticalScrollIndicator={false}>
+      <ScrollView contentContainerStyle={{ paddingTop: 32, paddingBottom: 350 }} showsVerticalScrollIndicator={false}>
         
         <GlassCard style={{ marginBottom: 16 }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 16 }}>

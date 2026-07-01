@@ -6,8 +6,7 @@ import { Search, ArrowLeft, PackageSearch, Ghost, Hash } from 'lucide-react-nati
 import { inventorySearchService } from '../../services/inventorySearchService';
 import type { ItemSearchResult } from '../../types/phase2.types';
 
-// Hardcoded for testing. In Phase 3, this will come from your AuthContext/Zustand store.
-const TEMP_FIRM_ID = 'FIRM-1'; 
+import { useFirmStore } from '../../store/firmStore';
 
 const COLORS = {
   vjText: '#5C1623',
@@ -45,6 +44,7 @@ const HighlightText = ({ text, query, style }: { text?: string | null, query: st
 
 export default function InventorySearchScreen() {
   const router = useRouter();
+  const { activeFirmId } = useFirmStore();
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<ItemSearchResult[]>([]);
   const [isSearching, setIsSearching] = useState(false);
@@ -53,7 +53,7 @@ export default function InventorySearchScreen() {
   useEffect(() => {
     const trimmedQuery = query.trim();
     
-    if (trimmedQuery.length < 2) {
+    if (trimmedQuery.length < 2 || !activeFirmId) {
       setResults([]);
       setIsSearching(false);
       return;
@@ -62,7 +62,7 @@ export default function InventorySearchScreen() {
     setIsSearching(true);
     const delayDebounceFn = setTimeout(async () => {
       try {
-        const data = await inventorySearchService.searchItems(TEMP_FIRM_ID, trimmedQuery);
+        const data = await inventorySearchService.searchItems(activeFirmId, trimmedQuery);
         setResults(data);
       } catch (error) {
         console.error('[Search] Failed to fetch results:', error);
@@ -226,6 +226,7 @@ const s = StyleSheet.create({
   },
   listPadding: {
     padding: 16,
+    paddingTop: 32,
     paddingBottom: 40,
   },
   card: {

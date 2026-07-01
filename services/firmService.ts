@@ -71,25 +71,26 @@ export const firmService = {
     const currentYear = new Date().getFullYear();
     const hasClockSkew = currentYear < 2020 || currentYear > 2040;
 
-    const result = await db.transaction(async (tx) => {
+    // FIX-V718-1: Synchronous transaction callback (no async/await inside)
+    const result = await db.transaction((tx) => {
       // RACE CONDITION FIX: count inside transaction
-      const count = await firmRepository.countFirms(tx);
+      const count = firmRepository.countFirms(tx);
       if (count >= 3) {
         throw new Error('MAX_FIRMS_REACHED: Cannot create more than 3 firms total.');
       }
 
       const { bisLogoUri, ...dbInput } = input;
-      const newFirm = await firmRepository.create(dbInput, tx);
+      const newFirm = firmRepository.create(dbInput, tx);
 
-      await fyRepository.createInitialFY(newFirm.id, tx);
+      fyRepository.createInitialFY(newFirm.id, tx);
 
       if (bisLogoUri) {
-        const logoId = await bisLogoRepository.insert({ firmId: newFirm.id, fileRef: bisLogoUri }, tx);
-        await firmRepository.update(newFirm.id, { bisLogoRef: logoId }, tx);
+        const logoId = bisLogoRepository.insert({ firmId: newFirm.id, fileRef: bisLogoUri }, tx);
+        firmRepository.update(newFirm.id, { bisLogoRef: logoId }, tx);
       }
 
       // FIX: now() for assignedAt — was new Date().toISOString()
-      await auditRepository.create(
+      auditRepository.create(
         {
           firmId: newFirm.id,
           eventType: 'FIRM_CODE_SET',
@@ -103,7 +104,7 @@ export const firmService = {
         tx
       );
 
-      await auditRepository.create(
+      auditRepository.create(
         {
           firmId: newFirm.id,
           eventType: 'FIRM_CREATED',
@@ -118,7 +119,7 @@ export const firmService = {
       );
 
       if (hasClockSkew) {
-        await auditRepository.create(
+        auditRepository.create(
           {
             firmId: newFirm.id,
             eventType: 'FY_CLOCK_SKEW',
@@ -135,6 +136,7 @@ export const firmService = {
       return newFirm;
     });
 
+    // FIX-V718-5: Zustand update outside tx
     await this.refreshStore();
     return result;
   },
@@ -182,23 +184,24 @@ export const firmService = {
         throw new Error('ILLEGAL_OPERATION: Cannot upload a BIS Logo without a valid BIS Licence.');
       }
 
-      const updatedFirm = await db.transaction(async (tx) => {
+      // FIX-V718-1: Synchronous transaction callback (no async/await inside)
+      const updatedFirm = await db.transaction((tx) => {
         // Gap B: Archive BIS logo when bisLicence is removed
         if ('bisLicence' in input && !input.bisLicence && existingFirm.bisLogoRef) {
           updatePayload.bisLogoRef = null;
-          await bisLogoRepository.archive(existingFirm.id, existingFirm.bisLogoRef, 'licence_removed', tx);
+          bisLogoRepository.archive(existingFirm.id, existingFirm.bisLogoRef, 'licence_removed', tx);
           auditEvents.push({
             eventType: 'BIS_LOGO_ARCHIVED',
             payload: JSON.stringify({ reason: 'licence_removed' }),
           });
         } else if (bisLogoUri) {
-          const logoId = await bisLogoRepository.insert({ firmId: existingFirm.id, fileRef: bisLogoUri }, tx);
+          const logoId = bisLogoRepository.insert({ firmId: existingFirm.id, fileRef: bisLogoUri }, tx);
           updatePayload.bisLogoRef = logoId;
         }
 
-        const result = await firmRepository.update(firmId, updatePayload, tx);
+        const result = firmRepository.update(firmId, updatePayload, tx);
 
-        await auditRepository.create(
+        auditRepository.create(
           {
             firmId,
             eventType: 'FIRM_UPDATED',
@@ -209,7 +212,7 @@ export const firmService = {
         );
 
         for (const event of auditEvents) {
-          await auditRepository.create(
+          auditRepository.create(
             { firmId, eventType: event.eventType, payload: event.payload, deviceId },
             tx
           );
@@ -218,6 +221,7 @@ export const firmService = {
         return result;
       });
 
+      // FIX-V718-5: Zustand update outside tx
       await this.refreshStore();
       return updatedFirm;
 
@@ -232,14 +236,15 @@ export const firmService = {
 
     try {
       const deviceId = await getDeviceId();
-      await db.transaction(async (tx) => {
-        const target = await tx.select().from(firms).where(eq(firms.id, firmId)).limit(1);
+      // FIX-V718-1: Synchronous transaction callback with .all() and .run() explicitly called
+      await db.transaction((tx) => {
+        const target = tx.select().from(firms).where(eq(firms.id, firmId)).limit(1).all();
         if (!target.length || target[0].isArchived) throw new Error('FIRM_NOT_FOUND: ' + firmId);
         
-        await tx.update(firms).set({ isActive: 0 });
-        await tx.update(firms).set({ isActive: 1 }).where(eq(firms.id, firmId));
+        tx.update(firms).set({ isActive: 0 }).run();
+        tx.update(firms).set({ isActive: 1 }).where(eq(firms.id, firmId)).run();
         
-        await auditRepository.create(
+        auditRepository.create(
           {
             firmId,
             eventType: 'FIRM_SWITCHED',
@@ -250,6 +255,7 @@ export const firmService = {
         );
       });
 
+      // FIX-V718-5: Zustand update outside tx
       await this.refreshStore();
       useFirmStore.getState().switchFirm(firmId);
     } finally {
@@ -269,20 +275,21 @@ export const firmService = {
     try {
       const deviceId = await getDeviceId();
 
-      await db.transaction(async (tx) => {
-        const activeCount = await firmRepository.countActiveFirms(tx);
+      // FIX-V718-1: Synchronous transaction callback (no async/await inside)
+      await db.transaction((tx) => {
+        const activeCount = firmRepository.countActiveFirms(tx);
         if (activeCount <= 1) {
           throw new Error('LAST_FIRM: Cannot archive the only active firm.');
         }
 
-        const activeFirmId = await firmRepository.getActiveFirmId(tx);
+        const activeFirmId = firmRepository.getActiveFirmId(tx);
         if (firmId === activeFirmId) {
           throw new Error('CANNOT_ARCHIVE_ACTIVE_FIRM: Switch to another firm first.');
         }
 
-        await firmRepository.update(firmId, { isArchived: 1, isActive: 0 }, tx);
+        firmRepository.update(firmId, { isArchived: 1, isActive: 0 }, tx);
 
-        await auditRepository.create(
+        auditRepository.create(
           {
             firmId,
             eventType: 'FIRM_UPDATED',
@@ -293,6 +300,7 @@ export const firmService = {
         );
       });
 
+      // FIX-V718-5: Zustand update outside tx
       await this.refreshStore();
     } finally {
       await leaseService.release(leaseId);
@@ -310,15 +318,16 @@ export const firmService = {
     try {
       const deviceId = await getDeviceId();
 
-      await db.transaction(async (tx) => {
-        const activeCount = await firmRepository.countActiveFirms(tx);
+      // FIX-V718-1: Synchronous transaction callback (no async/await inside)
+      await db.transaction((tx) => {
+        const activeCount = firmRepository.countActiveFirms(tx);
         if (activeCount >= 3) {
           throw new Error('MAX_FIRMS_REACHED: Unarchive would exceed 3 active firms.');
         }
 
-        await firmRepository.update(firmId, { isArchived: 0 }, tx);
+        firmRepository.update(firmId, { isArchived: 0 }, tx);
 
-        await auditRepository.create(
+        auditRepository.create(
           {
             firmId,
             eventType: 'FIRM_UPDATED',
@@ -329,6 +338,7 @@ export const firmService = {
         );
       });
 
+      // FIX-V718-5: Zustand update outside tx
       await this.refreshStore();
     } finally {
       await leaseService.release(leaseId);

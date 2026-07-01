@@ -15,7 +15,7 @@ interface GlassCardProps extends ViewProps {
 export function GlassCard({ children, style, intensity = 30, ...props }: GlassCardProps) {
   return (
     <View className="rounded-3xl overflow-hidden mb-6 bg-white/60 border border-white" style={style} {...props}>
-      <BlurView intensity={intensity} tint="light" className="p-5">
+      <BlurView intensity={intensity} tint="light" style={{ padding: 20 }}>
         {children}
       </BlurView>
     </View>
@@ -38,6 +38,9 @@ interface GlassInputProps {
   autoCapitalize?: any;
   readOnly?: boolean;
   secureTextEntry?: boolean;
+  onFocus?: () => void;
+  onBlur?: () => void;
+  onSubmitEditing?: () => void;
 }
 export function GlassInput({
   label,
@@ -50,6 +53,9 @@ export function GlassInput({
   autoCapitalize,
   readOnly,
   secureTextEntry,
+  onFocus,
+  onBlur,
+  onSubmitEditing,
 }: GlassInputProps) {
   return (
     <View className="mb-4">
@@ -70,6 +76,7 @@ export function GlassInput({
         {icon && <View className="mr-3 opacity-60 text-vj-text">{icon}</View>}
         <TextInput
           className="flex-1 text-vj-text font-semibold text-base"
+          style={{ paddingVertical: 0, textAlignVertical: 'center', includeFontPadding: false }}
           placeholder={placeholder}
           placeholderTextColor="#A0A0A0"
           value={value}
@@ -79,6 +86,9 @@ export function GlassInput({
           autoCapitalize={autoCapitalize}
           editable={!readOnly}
           secureTextEntry={secureTextEntry}
+          onFocus={onFocus}
+          onBlur={onBlur}
+          onSubmitEditing={onSubmitEditing}
         />
       </View>
     </View>
@@ -136,9 +146,141 @@ export function GlassButton({
       ) : (
         <>
           {icon && <View className="absolute left-6">{icon}</View>}
-          <Text className={`${textColors[variant]} font-bold text-lg text-center`}>{title}</Text>
+          <Text className={`${textColors[variant]} font-bold text-lg text-center`} style={{ includeFontPadding: false, textAlignVertical: 'center' }}>{title}</Text>
         </>
       )}
     </TouchableOpacity>
+  );
+}
+
+// ============================================================================
+// 4. GLASS SMART SEARCH (INLINE COMBOBOX)
+// ============================================================================
+interface SmartSearchOption {
+  id: string;
+  label: string;
+  sublabel?: string;
+}
+
+interface GlassSmartSearchProps {
+  label?: string;
+  placeholder?: string;
+  options: SmartSearchOption[];
+  selectedId: string | null;
+  onSelect: (option: SmartSearchOption | null) => void;
+  onFocusFetch?: () => void; // Triggered when input is focused to load fresh data
+}
+
+export function GlassSmartSearch({
+  label,
+  placeholder,
+  options,
+  selectedId,
+  onSelect,
+  onFocusFetch,
+}: GlassSmartSearchProps) {
+  const [query, setQuery] = React.useState('');
+  const [isFocused, setIsFocused] = React.useState(false);
+
+  // Sync input display text with selected item when not typing
+  React.useEffect(() => {
+    if (!isFocused) {
+      if (selectedId) {
+        const selectedOpt = options.find((o) => o.id === selectedId);
+        setQuery(selectedOpt ? selectedOpt.label : '');
+      } else {
+        setQuery('');
+      }
+    }
+  }, [isFocused, selectedId, options]);
+
+  const isTypingNewQuery = React.useMemo(() => {
+    if (!isFocused) return false;
+    const searchStr = query.toLowerCase();
+    if (!searchStr) return false; // Empty input means not searching yet
+
+    if (selectedId) {
+      const selectedOpt = options.find((o) => o.id === selectedId);
+      if (selectedOpt && searchStr === selectedOpt.label.toLowerCase()) {
+        return false; // Still displaying the selected item's label, haven't typed anything new
+      }
+    }
+    return true;
+  }, [isFocused, query, options, selectedId]);
+
+  // Compute filtered options up to 5 items to keep it inline-friendly
+  const filteredOptions = React.useMemo(() => {
+    if (!isTypingNewQuery) return [];
+    
+    const searchStr = query.toLowerCase();
+    const filtered = (options || []).filter((opt) => {
+      const labelMatch = opt.label ? String(opt.label).toLowerCase().includes(searchStr) : false;
+      const sublabelMatch = opt.sublabel ? String(opt.sublabel).toLowerCase().includes(searchStr) : false;
+      return labelMatch || sublabelMatch;
+    });
+
+    return filtered.slice(0, 5); // Max 5 items inline
+  }, [isTypingNewQuery, query, options]);
+
+  return (
+    <View style={{ zIndex: isFocused ? 50 : 1, position: 'relative' }}>
+      <GlassInput
+        label={label}
+        placeholder={placeholder}
+        value={query}
+        onChangeText={(text) => {
+          setQuery(text);
+          if (selectedId) onSelect(null); // Clear selection if they start typing a new query
+        }}
+        onFocus={() => {
+          setIsFocused(true);
+          if (onFocusFetch) onFocusFetch();
+        }}
+        onBlur={() => {
+          // Add a small delay so tap on list item registers before blur hides it
+          setTimeout(() => setIsFocused(false), 200);
+        }}
+      />
+      
+      {/* Inline Dropdown List - ONLY SHOWS WHEN TYPING */}
+      {isTypingNewQuery && (
+        <View style={{ 
+          marginTop: -10, 
+          marginBottom: 16, 
+          backgroundColor: '#FCFBF8', 
+          borderRadius: 16, 
+          padding: 8,
+          borderWidth: 1,
+          borderColor: 'rgba(92,22,35,0.1)',
+          shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.1, shadowRadius: 10, elevation: 4
+        }}>
+          {filteredOptions.length === 0 ? (
+            <Text style={{ textAlign: 'center', color: 'rgba(92,22,35,0.5)', padding: 12, fontWeight: '500' }}>
+              No results found
+            </Text>
+          ) : (
+            filteredOptions.map((opt) => (
+              <TouchableOpacity
+                key={opt.id}
+                onPress={() => {
+                  onSelect(opt);
+                  setQuery(opt.label);
+                  setIsFocused(false);
+                }}
+                style={{
+                  paddingVertical: 12,
+                  paddingHorizontal: 12,
+                  borderBottomWidth: 1,
+                  borderBottomColor: 'rgba(92,22,35,0.05)',
+                }}
+              >
+                <Text style={{ fontSize: 16, fontWeight: '600', color: '#5C1623' }}>{opt.label}</Text>
+                {opt.sublabel ? <Text style={{ fontSize: 12, color: 'rgba(92,22,35,0.6)', marginTop: 2 }}>{opt.sublabel}</Text> : null}
+              </TouchableOpacity>
+            ))
+          )}
+        </View>
+      )}
+    </View>
   );
 }

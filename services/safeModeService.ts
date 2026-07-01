@@ -14,16 +14,16 @@ export const safeModeService = {
     const currentTime = now(); 
     const deviceId = await getDeviceId();
 
-    // 1. ATOMIC DB WRITE 
-    await db.transaction(async (tx) => { 
-      await safeModeRepository.upsert({ 
+    // 1. ATOMIC DB WRITE - FIX-V718-1: Synchronous transaction callback
+    await db.transaction((tx) => { 
+      safeModeRepository.upsert({ 
         isActive: 1,  
         reason: reason, 
         activatedAt: currentTime,
         clearedAt: null 
       }, tx); 
 
-      await auditRepository.create({ 
+      auditRepository.create({ 
         firmId: null, 
         eventType: 'SAFE_MODE_ACTIVATED', 
         payload: JSON.stringify({ reason, ...details }), 
@@ -31,7 +31,7 @@ export const safeModeService = {
       }, tx); 
     }); 
 
-    // 2. Mirror to UI Store AFTER commit
+    // 2. Mirror to UI Store AFTER commit (FIX-V718-5/6)
     useSafeModeStore.getState().setState({ 
       isActive: true, 
       reason: reason, 
@@ -44,15 +44,16 @@ export const safeModeService = {
     const currentTime = now();
     const deviceId = await getDeviceId();
 
-    await db.transaction(async (tx) => { 
-      await safeModeRepository.upsert({ 
+    // FIX-V718-1: Synchronous transaction callback
+    await db.transaction((tx) => { 
+      safeModeRepository.upsert({ 
         isActive: 0, 
         reason: null, 
         activatedAt: null,
         clearedAt: currentTime 
       }, tx); 
 
-      await auditRepository.create({ 
+      auditRepository.create({ 
         firmId: null, 
         eventType: 'SAFE_MODE_CLEARED', 
         payload: JSON.stringify({}), 
@@ -60,6 +61,7 @@ export const safeModeService = {
       }, tx); 
     }); 
 
+    // Mirror to UI Store AFTER commit (FIX-V718-5/6)
     useSafeModeStore.getState().setState({  
       isActive: false,  
       reason: null,  

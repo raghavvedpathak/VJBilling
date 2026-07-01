@@ -6,18 +6,21 @@ import type { DrizzleTransaction, Item, ItemSearchResult } from '../types/phase2
 import { now } from '../utils/now';
 
 export const itemRepository = {
-  async getById(tx: DrizzleTransaction, firmId: string, id: string): Promise<Item | null> {
-    const result = await tx.select().from(items).where(and(eq(items.id, id), eq(items.firmId, firmId))).limit(1);
-    return result[0] || null;
+  // FIX-V718-1: Synchronous execution using .get()
+  getById(tx: DrizzleTransaction, firmId: string, id: string): Item | null {
+    const result = tx.select().from(items).where(and(eq(items.id, id), eq(items.firmId, firmId))).limit(1).get();
+    return (result as unknown as Item) || null;
   },
 
-  async updateBarcodeReprintFlag(tx: DrizzleTransaction, firmId: string, itemId: string, flag: boolean): Promise<void> {
-    await tx
-      .update(items)
+  // FIX-V718-1: Synchronous execution using .run()
+  updateBarcodeReprintFlag(tx: DrizzleTransaction, firmId: string, itemId: string, flag: boolean): void {
+    tx.update(items)
       .set({ barcodeReprintRequired: flag ? 1 : 0, updatedAt: now() })
-      .where(and(eq(items.id, itemId), eq(items.firmId, firmId)));
+      .where(and(eq(items.id, itemId), eq(items.firmId, firmId)))
+      .run();
   },
 
+  // Operates on global async db - left as async
   async findByStatus(firmId: string, status: string): Promise<Item[]> {
     return db
       .select()
@@ -31,8 +34,9 @@ export const itemRepository = {
       );
   },
   
+  // FIX-V718-1: Synchronous execution using .all()
   // SQL: SELECT * FROM items WHERE category_id = ? AND firm_id = ?
-  async findByCategoryId(tx: DrizzleTransaction, categoryId: string, firmId: string): Promise<Item[]> {
+  findByCategoryId(tx: DrizzleTransaction, categoryId: string, firmId: string): Item[] {
     return tx
       .select()
       .from(items)
@@ -41,9 +45,11 @@ export const itemRepository = {
           eq(items.categoryId, categoryId),
           eq(items.firmId, firmId)
         )
-      );
+      )
+      .all() as unknown as Item[];
   },
 
+  // Operates on global async db - left as async
   async findByDesignId(designId: string, firmId: string): Promise<Item[]> {
     return db
       .select()
@@ -56,37 +62,65 @@ export const itemRepository = {
       );
   },
 
-  async update(tx: DrizzleTransaction, firmId: string, id: string, data: Partial<Item>): Promise<void> {
-    await tx.update(items).set(data).where(and(eq(items.id, id), eq(items.firmId, firmId)));
+  async getAvailableStockForDesign(designId: string, firmId: string): Promise<{ totalNetWeightMg: number, count: number }> {
+    const result = await db
+      .select({
+        totalNetWeightMg: sql<number>`SUM(${items.grossWeightMg} - COALESCE(${items.stoneWeightMg}, 0) - COALESCE(${items.beadsWeightMg}, 0))`,
+        count: sql<number>`COUNT(${items.id})`
+      })
+      .from(items)
+      .where(
+        and(
+          eq(items.designId, designId),
+          eq(items.firmId, firmId),
+          eq(items.status, 'AVAILABLE')
+        )
+      );
+    return {
+      totalNetWeightMg: result[0]?.totalNetWeightMg || 0,
+      count: result[0]?.count || 0
+    };
   },
 
-  async updateStatus(tx: DrizzleTransaction, firmId: string, id: string, status: string): Promise<void> {
-    await tx.update(items).set({ status: status as any, updatedAt: now() }).where(and(eq(items.id, id), eq(items.firmId, firmId)));
+  // FIX-V718-1: Synchronous execution using .run()
+  update(tx: DrizzleTransaction, firmId: string, id: string, data: Partial<Item>): void {
+    tx.update(items).set(data).where(and(eq(items.id, id), eq(items.firmId, firmId))).run();
   },
 
-  async insert(tx: DrizzleTransaction, data: any): Promise<Item> {
-    const result = await tx.insert(items).values(data).returning();
-    return result[0];
+  // FIX-V718-1: Synchronous execution using .run()
+  updateStatus(tx: DrizzleTransaction, firmId: string, id: string, status: string): void {
+    tx.update(items).set({ status: status as any, updatedAt: now() }).where(and(eq(items.id, id), eq(items.firmId, firmId))).run();
   },
 
+  // FIX-V718-1: Synchronous execution using .returning().get()
+  insert(tx: DrizzleTransaction, data: any): Item {
+    const result = tx.insert(items).values(data).returning().get();
+    return result as unknown as Item;
+  },
+
+  // Operates on global async db - left as async
   async findBySku(firmId: string, sku: string): Promise<Item | null> {
     const result = await db.select().from(items).where(and(eq(items.sku, sku), eq(items.firmId, firmId))).limit(1);
     return result[0] || null;
   },
 
+  // Operates on global async db - left as async
   async findByHUID(firmId: string, huid: string): Promise<Item | null> {
     const result = await db.select().from(items).where(and(eq(items.huid, huid), eq(items.firmId, firmId))).limit(1);
     return result[0] || null;
   },
 
+  // Operates on global async db - left as async
   async findByFirmId(firmId: string): Promise<Item[]> {
     return db.select().from(items).where(eq(items.firmId, firmId));
   },
 
-  async delete(tx: DrizzleTransaction, firmId: string, id: string): Promise<void> {
-    await tx.delete(items).where(and(eq(items.id, id), eq(items.firmId, firmId)));
+  // FIX-V718-1: Synchronous execution using .run()
+  delete(tx: DrizzleTransaction, firmId: string, id: string): void {
+    tx.delete(items).where(and(eq(items.id, id), eq(items.firmId, firmId))).run();
   },
 
+  // Operates on global async db - left as async
   async getStockWeightSummary(firmId: string) {
     const rows = await db
       .select({
@@ -140,6 +174,7 @@ export const itemRepository = {
     return summary;
   },
 
+  // Operates on global async db - left as async
   async search(firmId: string, query: string): Promise<ItemSearchResult[]> {
     const safeQuery = `%${query}%`;
     const results = await db

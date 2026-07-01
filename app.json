@@ -10,7 +10,7 @@
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
-      "backgroundColor": "#FAF3E0"
+      "backgroundColor": "#5C1623"
     },
     "ios": {
       "supportsTablet": true,
@@ -19,7 +19,7 @@
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#FAF3E0"
+        "backgroundColor": "#5C1623"
       },
       "package": "com.vjbilling.app",
       "permissions": [
@@ -33,7 +33,10 @@
     },
     "plugins": [
       "expo-router",
-      "expo-font"
+      "expo-font",
+      "expo-sharing",
+      "expo-sqlite",
+      "expo-status-bar"
     ],
     "extra": {
       "router": {},

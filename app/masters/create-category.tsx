@@ -102,11 +102,8 @@ export default function CreateCategoryScreen() {
 
   return (
     <TwoToneWrapper title="" showBack headerContent={headerContent}>
-      <KeyboardAvoidingView 
-        style={{ flex: 1 }} 
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      >
-        <ScrollView style={s.container} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 60 }}>
+      <View style={{ flex: 1 }}>
+        <ScrollView style={s.container} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingTop: 32, paddingBottom: 350 }} keyboardShouldPersistTaps="handled">
           <View style={s.card}>
             <View style={s.formGroup}>
               <Text style={s.label}>Category Name</Text>
@@ -135,18 +132,16 @@ export default function CreateCategoryScreen() {
                 </TouchableOpacity>
               </View>
             </View>
-
-            <View style={{ marginTop: 32 }}>
-              <GlassButton 
-                title={isSubmitting ? 'Saving...' : 'Save Category'} 
-                onPress={handleAdd} 
-                disabled={isSubmitting} 
-              />
-            </View>
           </View>
         </ScrollView>
-      </KeyboardAvoidingView>
-
+        <View style={{ paddingHorizontal: 16, paddingBottom: 32, paddingTop: 16 }}>
+          <GlassButton 
+            title={isSubmitting ? 'Saving...' : 'Save Category'} 
+            onPress={handleAdd} 
+            disabled={isSubmitting} 
+          />
+        </View>
+      </View>
       {/* Modern Success Modal */}
       <Modal visible={!!successMessage} transparent animationType="fade">
         <View style={s.modalOverlayCenter}>

@@ -48,7 +48,7 @@ export default function Dashboard() {
 
       <View className="py-2">
         <View className="flex-row items-center gap-4 mb-4">
-          <View className="h-16 w-16 bg-vj-bg rounded-full border border-white/20 justify-center items-center overflow-hidden shadow-sm">
+          <View className="h-16 w-16 bg-vj-bg rounded-full border border-white/20 justify-center items-center overflow-hidden">
             {displayLogo ? (
               <Image 
                 source={{ uri: displayLogo }} 
@@ -76,7 +76,7 @@ export default function Dashboard() {
         </View>
 
         <View className="flex-row gap-2 flex-wrap">
-          <View className="bg-vj-bg px-3 py-1.5 rounded-full shadow-sm">
+          <View className="bg-vj-bg px-3 py-1.5 rounded-full">
             <Text className="text-vj-text text-xs font-bold">
               {activeFY ? activeFY.label : 'NO ACTIVE FY'}
             </Text>
@@ -99,7 +99,7 @@ export default function Dashboard() {
 
   return (
     <TwoToneWrapper title="" headerContent={dashboardHeader}>
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 100 }}>
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{paddingTop: 32, paddingBottom: 100}}>
 
         <Text className="text-vj-text/60 text-xs font-bold uppercase tracking-widest mb-4 ml-1">
           Core Modules
@@ -149,7 +149,7 @@ export default function Dashboard() {
       {/* MODAL */}
       <Modal animationType="fade" transparent={true} visible={showLogoutModal}>
         <View className="flex-1 bg-black/50 justify-center items-center px-6">
-          <View className="w-full bg-vj-bg rounded-3xl p-8 shadow-xl items-center border border-white/50">
+          <View className="w-full bg-vj-bg rounded-3xl p-8 items-center border border-white/50">
             <View className="p-6 rounded-full mb-6 border bg-vj-danger/10 border-vj-danger/30">
                <LogOut size={48} color="#ef4444" />
             </View>
@@ -176,8 +176,8 @@ function MenuTile({ title, subtitle, icon, disabled, onPress }: any) {
          activeOpacity={0.7}
        >
         <GlassCard style={{ height: 140, marginBottom: 0, opacity: disabled ? 0.6 : 1 }}>
-          <View className="h-full justify-between">
-            <View className="bg-white/40 p-2.5 rounded-xl self-start border border-white/30 shadow-sm">
+          <View style={{ height: 100 }} className="justify-between">
+            <View className="bg-white/40 p-2.5 rounded-xl self-start border border-white/30">
               {icon}
             </View>
             <View>

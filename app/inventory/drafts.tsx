@@ -3,7 +3,7 @@ import React, { useState, useCallback, memo } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, Alert, Modal } from 'react-native';
 import { FlashList } from '@shopify/flash-list';
 import { useRouter } from 'expo-router';
-import { useFocusEffect } from '@react-navigation/native';
+import { useFocusEffect } from 'expo-router';
 import { TwoToneWrapper } from '../../components/TwoToneWrapper';
 import { GlassButton } from '../../components/ui/Glass';
 import { useFirmStore } from '../../store/firmStore';
@@ -152,7 +152,7 @@ export default function DraftsScreen() {
             )}
             // @ts-ignore: estimatedItemSize required by spec
             estimatedItemSize={100}
-            contentContainerStyle={{ paddingBottom: 100, paddingTop: 8 }}
+            contentContainerStyle={{paddingBottom: 100, paddingTop: 32}}
             showsVerticalScrollIndicator={false}
             ListEmptyComponent={
               <View style={s.emptyContainer}>

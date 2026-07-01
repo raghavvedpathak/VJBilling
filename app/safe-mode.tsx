@@ -86,7 +86,7 @@ export default function SafeModeScreen() {
       className="flex-1 bg-vj-danger/10"
     >
       <ScrollView
-        contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', padding: 24 }}
+        contentContainerStyle={{ paddingTop: 32, flexGrow: 1, justifyContent: 'center', padding: 24 }}
       >
         {/* ICON */}
         <View className="items-center mb-8">

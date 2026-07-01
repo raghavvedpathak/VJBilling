@@ -8,38 +8,42 @@ type DbOrTx = any;
 
 export const bisLogoRepository = {
 
-  async insert(entry: { firmId: string; fileRef: string }, tx: DbOrTx = db): Promise<string> {
+  // FIX-V718-1: Synchronous execution, returns string
+  insert(entry: { firmId: string; fileRef: string }, tx: DbOrTx = db): string {
     const id = Crypto.randomUUID();
 
-    await tx.insert(bisLogos).values({
+    tx.insert(bisLogos).values({
       id,
       firmId: entry.firmId,
       fileRef: entry.fileRef,
       isArchived: 0,
       createdAt: now(),
-    });
+    }).run();
 
     return id;
   },
 
-  async archive(firmId: string, bisLogoId: string, reason: string = 'licence_removed', tx: DbOrTx = db): Promise<void> {
-    await tx
-      .update(bisLogos)
+  // FIX-V718-1: Synchronous execution
+  archive(firmId: string, bisLogoId: string, reason: string = 'licence_removed', tx: DbOrTx = db): void {
+    tx.update(bisLogos)
       .set({
         isArchived: 1,
         archivedAt: now(),
         archivedReason: reason,
       })
-      .where(and(eq(bisLogos.id, bisLogoId), eq(bisLogos.firmId, firmId)));
+      .where(and(eq(bisLogos.id, bisLogoId), eq(bisLogos.firmId, firmId)))
+      .run();
   },
 
   // v6.6 BUG FIX: Required by updateFirm() to get the UUID id of the active bis_logo row
-  async findActiveByFirmId(firmId: string, tx: DbOrTx = db): Promise<any> {
-    const rows = await tx
+  // FIX-V718-1: Synchronous execution using .get()
+  findActiveByFirmId(firmId: string, tx: DbOrTx = db): any {
+    const row = tx
       .select()
       .from(bisLogos)
       .where(and(eq(bisLogos.firmId, firmId), eq(bisLogos.isArchived, 0)))
-      .limit(1);
-    return rows[0] ?? null;
+      .limit(1)
+      .get();
+    return row ?? null;
   },
 };

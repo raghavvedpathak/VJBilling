@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, StyleSheet, TextInput, Alert, Modal, KeyboardAvoidingView, ScrollView, Platform, Keyboard, TouchableOpacity } from 'react-native';
 import { useRouter } from 'expo-router';
-import { useFocusEffect } from '@react-navigation/native';
+import { useFocusEffect } from 'expo-router';
 import { TwoToneWrapper } from '../../components/TwoToneWrapper';
-import { GlassButton } from '../../components/ui/Glass';
+import { GlassButton, GlassSmartSearch } from '../../components/ui/Glass';
 import { Tag, CheckCircle } from 'lucide-react-native';
 import { useFirmStore } from '../../store/firmStore';
 import { db } from '../../db/client';
@@ -59,8 +59,20 @@ export default function CreateDesignScreen() {
   const loadCategories = useCallback(async () => {
     if (!activeFirmId) return;
     try {
-      const results = await db.select().from(categoriesTable).where(and(eq(categoriesTable.firmId, activeFirmId), eq(categoriesTable.isActive, 1)));
-      setCategories(results);
+      const results = await db
+        .select({
+          category: categoriesTable,
+          linkCount: sql<number>`(SELECT COUNT(*) FROM design_category_map WHERE category_id = categories.id)`,
+          linkedDesigns: sql<string>`(
+            SELECT GROUP_CONCAT(d.name, ', ') 
+            FROM design_category_map m 
+            JOIN designs d ON m.design_id = d.id 
+            WHERE m.category_id = categories.id AND d.is_active = 1
+          )`
+        })
+        .from(categoriesTable)
+        .where(and(eq(categoriesTable.firmId, activeFirmId), eq(categoriesTable.isActive, 1)));
+      setCategories(results.map(r => ({ ...r.category, linkCount: r.linkCount, linkedDesigns: r.linkedDesigns })) as any);
     } catch (e) {
       console.error(e);
     }
@@ -186,11 +198,8 @@ export default function CreateDesignScreen() {
 
   return (
     <TwoToneWrapper title="" showBack headerContent={headerContent}>
-      <KeyboardAvoidingView 
-        style={{ flex: 1 }} 
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      >
-        <ScrollView style={s.container} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 60 }} keyboardShouldPersistTaps="handled">
+      <View style={{ flex: 1 }}>
+        <ScrollView style={s.container} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingTop: 32, paddingBottom: 350 }} keyboardShouldPersistTaps="handled">
           <View style={s.card}>
             <View style={s.formGroup}>
               <Text style={s.label}>Design Name</Text>
@@ -229,66 +238,41 @@ export default function CreateDesignScreen() {
             </View>
 
             <View style={[s.formGroup, { zIndex: 50 }]}>
-              <Text style={s.label}>Link to Category</Text>
-              <TextInput 
-                style={[
-                  s.input, 
-                  showDropdown && categorySearchQuery.trim().length > 0 && categories.filter(c => c.metal === newMetal).length > 0 
-                    ? { borderBottomLeftRadius: 0, borderBottomRightRadius: 0 } 
-                    : {}
-                ]}
+              <GlassSmartSearch
+                label="Link to Category"
                 placeholder="Search categories..."
-                value={categorySearchQuery}
-                onFocus={() => setShowDropdown(true)}
-                onChangeText={(text) => {
-                  setCategorySearchQuery(text);
-                  setShowDropdown(true);
+                options={categories
+                  .filter(c => c.metal === newMetal)
+                  .map(c => ({
+                    id: c.id,
+                    label: c.name,
+                    sublabel: (c as any).linkedDesigns 
+                      ? `Linked: ${(c as any).linkedDesigns}`
+                      : ((c as any).linkCount > 0 ? `${(c as any).linkCount} Linked` : undefined),
+                  }))
+                }
+                selectedId={selectedCategoryId}
+                onSelect={(option) => {
+                  if (option) {
+                    handleCategorySelect(option.id, option.label);
+                  } else {
+                    setSelectedCategoryId('');
+                    setCategorySearchQuery('');
+                  }
                 }}
               />
-              
-              {showDropdown && categorySearchQuery.trim().length > 0 && (
-                <View style={s.categoryDropdownWrapper}>
-                  <ScrollView style={{ maxHeight: 200 }} nestedScrollEnabled showsVerticalScrollIndicator={true} keyboardShouldPersistTaps="handled">
-                    <View style={s.categoryDropdown}>
-                      {categories.length === 0 && <Text style={s.emptyDropdownMsg}>No categories exist. Create one first.</Text>}
-                      {categories
-                        .filter(c => c.metal === newMetal && c.name.toLowerCase().includes(categorySearchQuery.toLowerCase()))
-                        .map((c, index, arr) => (
-                          <TouchableOpacity 
-                            key={c.id} 
-                            style={[
-                              s.dropdownItem, 
-                              selectedCategoryId === c.id && s.dropdownItemActive,
-                              index === arr.length - 1 && { borderBottomWidth: 0 }
-                            ]}
-                            onPress={() => handleCategorySelect(c.id, c.name)}
-                          >
-                            <HighlightText 
-                              text={c.name} 
-                              query={categorySearchQuery} 
-                              baseStyle={[s.dropdownItemText, selectedCategoryId === c.id && s.dropdownItemTextActive]} 
-                            />
-                          </TouchableOpacity>
-                      ))}
-                      {categories.filter(c => c.metal === newMetal).length > 0 && 
-                       categories.filter(c => c.metal === newMetal && c.name.toLowerCase().includes(categorySearchQuery.toLowerCase())).length === 0 && 
-                       <Text style={s.emptyDropdownMsg}>No matching categories found.</Text>}
-                    </View>
-                  </ScrollView>
-                </View>
-              )}
             </View>
 
-            <View style={{ marginTop: 32, zIndex: 1 }}>
-              <GlassButton 
-                title={isSubmitting ? 'Saving...' : 'Save Design'} 
-                onPress={handleAdd} 
-                disabled={isSubmitting || !selectedCategoryId} 
-              />
-            </View>
           </View>
         </ScrollView>
-      </KeyboardAvoidingView>
+        <View style={{ paddingHorizontal: 16, paddingBottom: 32, paddingTop: 16 }}>
+          <GlassButton 
+            title={isSubmitting ? 'Saving...' : 'Save Design'} 
+            onPress={handleAdd} 
+            disabled={isSubmitting || !selectedCategoryId} 
+          />
+        </View>
+      </View>
 
       {/* Modern Success Modal */}
       <Modal visible={!!successMessage} transparent animationType="fade">
@@ -383,7 +367,6 @@ const s = StyleSheet.create({
     shadowOffset: { width: 0, height: 10 },
     shadowOpacity: 0.25,
     shadowRadius: 20,
-    elevation: 10,
   },
   successIconContainer: {
     marginBottom: 16,
@@ -402,5 +385,18 @@ const s = StyleSheet.create({
     color: 'rgba(92,22,35,0.6)',
     textAlign: 'center',
     marginBottom: 24,
+  },
+  linkBadge: {
+    backgroundColor: 'rgba(212, 175, 55, 0.2)', // Accent color with low opacity
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+    marginLeft: 8,
+  },
+  linkBadgeText: {
+    color: '#D4AF37',
+    fontSize: 10,
+    fontWeight: '700',
+    textTransform: 'uppercase',
   },
 });

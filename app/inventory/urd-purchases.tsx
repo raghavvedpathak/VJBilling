@@ -3,7 +3,7 @@ import React, { useState, useCallback } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Alert, Modal } from 'react-native';
 import { FlashList } from '@shopify/flash-list';
 import { useRouter } from 'expo-router';
-import { useFocusEffect } from '@react-navigation/native';
+import { useFocusEffect } from 'expo-router';
 import * as Print from 'expo-print'; // Auto-generates PDF/Print dialogs from HTML
 import { TwoToneWrapper } from '../../components/TwoToneWrapper';
 import { GlassCard, GlassButton } from '../../components/ui/Glass';
@@ -163,7 +163,7 @@ export default function URDPurchasesScreen() {
             renderItem={renderItem}
             // @ts-ignore: estimatedItemSize required by spec even if missing from standard local FlashList type signatures
             estimatedItemSize={140}
-            contentContainerStyle={{ paddingBottom: 120, paddingTop: 8 }}
+            contentContainerStyle={{paddingBottom: 120, paddingTop: 32}}
             showsVerticalScrollIndicator={false}
             ListEmptyComponent={
               <View style={s.emptyContainer}>

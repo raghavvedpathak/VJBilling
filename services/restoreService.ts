@@ -3,7 +3,7 @@
 // SDK 54 FIX: expo-file-system/legacy required for all file reads.
 // v7.6 Step 13: Updates.reloadAsync() + MMKV logo check flag + safeModeService.clear()
 // G41: RESTORE_OLD_SCHEMA and RESTORE_COMPLETED are exempt from tx requirement.
-// RESTORE_COMPLETED written OUTSIDE transaction (mirror of BACKUP_CREATED pattern).
+// RESTORE_COMPLETED written inside transaction (architecturally correct).
 
 import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system/legacy';
@@ -82,12 +82,12 @@ export const restoreService = {
 
     // STEP 4 & 6: DRY-RUN & FIRM-COUNT VALIDATION
     const {
-      firms:          backupFirms,
+      firms:         backupFirms,
       financialYears: backupFYs,
-      auditLogs:      backupLogs,
-      safeModeState:  backupSmState,
-      settings:       backupSettings,
-      bisLogos:       backupBisLogos,
+      auditLogs:     backupLogs,
+      safeModeState: backupSmState,
+      settings:      backupSettings,
+      bisLogos:      backupBisLogos,
       categories: backupCategories,
       designs: backupDesigns,
       stones: backupStones,
@@ -161,7 +161,7 @@ export const restoreService = {
         tx.delete(safeModeStateTable).run();
 
         // A. Wipe existing data — child tables first
-        // DELETE order — reverse FK dependency (Phase 2 tables only; Phase 1 tables deleted separately)
+        // DELETE order — reverse FK dependency
         tx.delete(urdPurchases).run();
         tx.delete(oldGoldLots).run();
         tx.delete(sequenceCounters).run();
@@ -179,7 +179,7 @@ export const restoreService = {
         if (backupFYs?.length > 0) tx.insert(financialYearsTable).values(backupFYs).run();
         if (backupSettings?.length > 0) tx.insert(appSettingsTable).values(backupSettings).run();
         if (backupLogs?.length > 0) tx.insert(auditLogsTable).values(backupLogs).run();
-        if (backupBisLogos?.length > 0) tx.insert(bisLogosTable).values(backupBisLogos).run(); // v5.1 G49: C1 fix
+        if (backupBisLogos?.length > 0) tx.insert(bisLogosTable).values(backupBisLogos).run(); 
         
         if (backupSmState) {
           tx.insert(safeModeStateTable).values(backupSmState)
@@ -235,18 +235,16 @@ export const restoreService = {
       return hasIssues ? 'COMPLETED_WITH_ISSUES' : 'COMPLETED';
 
     } catch (error: any) {
+      // FIX-V718-1: Synchronous transaction block for audit logging failure
       try {
         const failDeviceId = await getDeviceId();
-        await db.transaction(async (tx) => {
-          await auditRepository.create(
-            {
-              firmId: null,
-              eventType: 'RESTORE_FAILED',
-              payload: JSON.stringify({ reason: error.message }),
-              deviceId: failDeviceId,
-            },
-            tx
-          );
+        db.transaction((tx) => {
+          auditRepository.log(tx, {
+            firmId: null,
+            eventType: 'RESTORE_FAILED',
+            payload: JSON.stringify({ reason: error.message }),
+            deviceId: failDeviceId,
+          });
         });
       } catch (auditError) {
         console.error('[Restore] Failed to write RESTORE_FAILED audit (non-fatal):', auditError);
@@ -285,11 +283,15 @@ export const restoreService = {
 
     if (schemaVersion < SCHEMA_VERSION) {
       const deviceId = await getDeviceId();
-      await auditRepository.create({
-        firmId: null,
+      // FIX-V718-1: Use global async DB execution directly since this is G41-exempt
+      await db.insert(auditLogsTable).values({
+        id: Crypto.randomUUID(),
         eventType: 'RESTORE_OLD_SCHEMA',
-        payload: JSON.stringify({ backupSchema: schemaVersion, appSchema: SCHEMA_VERSION }),
+        firmId: null,
+        entityId: null,
         deviceId,
+        payload: JSON.stringify({ backupSchema: schemaVersion, appSchema: SCHEMA_VERSION }),
+        createdAt: now(),
       });
     }
   },

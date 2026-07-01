@@ -24,11 +24,11 @@ export default function InventoryHubScreen() {
 
   return (
     <TwoToneWrapper title="Inventory Hub" showBack>
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 100 }}>
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingTop: 32, paddingBottom: 100 }}>
         
         {/* The Live Jewelry Stock Display now lives here natively */}
         {activeFirmId && (
-          <View className="mb-6 -mt-2">
+          <View className="mb-6">
             <InventoryStockSummary firmId={activeFirmId} />
           </View>
         )}
@@ -124,7 +124,7 @@ export default function InventoryHubScreen() {
                 <Database size={24} color="#5C1623" />
               </View>
               <View className="flex-1">
-                <Text className="text-vj-text font-bold text-lg">Master Catalogs</Text>
+                <Text className="text-vj-text font-bold text-lg">Metal Master</Text>
                 <Text className="text-vj-text/60 text-xs">Categories, Designs, Stones, HSN</Text>
               </View>
               <ChevronRight size={20} color="#D4AF37" className="opacity-50" />
@@ -146,8 +146,8 @@ function MenuTile({ title, subtitle, icon, disabled, onPress }: any) {
          activeOpacity={0.7}
        >
         <GlassCard style={{ height: 140, marginBottom: 0, opacity: disabled ? 0.6 : 1 }}>
-          <View className="h-full justify-between">
-            <View className="bg-white/40 p-2.5 rounded-xl self-start border border-white/30 shadow-sm">
+          <View style={{ height: 100 }} className="justify-between">
+            <View className="bg-white/40 p-2.5 rounded-xl self-start border border-white/30">
               {icon}
             </View>
             <View>

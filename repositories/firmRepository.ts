@@ -42,21 +42,22 @@ export const firmRepository = {
    * also calls setActiveFirm() on the Zustand store. Both the DB column (here)
    * and the store must be set — neither alone is sufficient.
    */
-  async create(
+  create(
     input: Omit<NewFirm, 'id' | 'createdAt' | 'updatedAt' | 'isActive' | 'isArchived'>,
     tx: DbOrTx = db
-  ) {
+  ): Firm {
     const newId = Crypto.randomUUID();
     const timestamp = now();
 
-    const [createdFirm] = await tx.insert(firms).values({
+    // FIX-V718-1: Synchronous execution using .returning().get()
+    const createdFirm = tx.insert(firms).values({
       ...input,
       id: newId,
       createdAt: timestamp,
       updatedAt: timestamp,
       isActive: 1,   // plain integer — new firm is immediately active
       isArchived: 0, // plain integer — not archived at creation
-    }).returning();
+    }).returning().get();
 
     return createdFirm;
   },
@@ -65,8 +66,9 @@ export const firmRepository = {
    * Count ALL firms (active + archived) — used for the max-3-firms gate.
    * Must run inside the same transaction as the insert to prevent race conditions.
    */
-  async countFirms(tx: DbOrTx = db) {
-    const result = await tx.select({ id: firms.id }).from(firms);
+  countFirms(tx: DbOrTx = db): number {
+    // FIX-V718-1: Synchronous execution using .all()
+    const result = tx.select({ id: firms.id }).from(firms).all();
     return result.length;
   },
 
@@ -74,11 +76,14 @@ export const firmRepository = {
    * Count non-archived firms — used for archive/unarchive gates.
    * isArchived=0 means not archived (plain integer — NOT false).
    */
-  async countActiveFirms(tx: DbOrTx = db) {
-    const result = await tx
+  countActiveFirms(tx: DbOrTx = db): number {
+    // FIX-V718-1: Synchronous execution using .all()
+    const result = tx
       .select({ id: firms.id })
       .from(firms)
-      .where(eq(firms.isArchived, 0)); // plain integer — NOT false
+      .where(eq(firms.isArchived, 0)) // plain integer — NOT false
+      .all();
+      
     return result.length;
   },
 
@@ -88,11 +93,14 @@ export const firmRepository = {
    * archiveFirm() uses this to prevent archiving the currently active firm.
    * isActive=1 is a plain integer — NOT true.
    */
-  async getActiveFirmId(tx: DbOrTx = db) {
-    const [firm] = await tx
+  getActiveFirmId(tx: DbOrTx = db): string | null {
+    // FIX-V718-1: Synchronous execution using .get()
+    const firm = tx
       .select({ id: firms.id })
       .from(firms)
-      .where(eq(firms.isActive, 1)); // plain integer — NOT true
+      .where(eq(firms.isActive, 1)) // plain integer — NOT true
+      .get();
+      
     return firm?.id ?? null;
   },
 
@@ -100,15 +108,17 @@ export const firmRepository = {
    * Get all firms ordered by createdAt desc (most recently created first).
    * Used by Firm Manager screen and firmService.refreshStore().
    */
-  async getAll(tx: DbOrTx = db) {
-    return await tx.select().from(firms).orderBy(desc(firms.createdAt));
+  getAll(tx: DbOrTx = db): Firm[] {
+    // FIX-V718-1: Synchronous execution using .all()
+    return tx.select().from(firms).orderBy(desc(firms.createdAt)).all();
   },
 
   /**
    * Get a single firm by its UUID primary key.
    */
-  async getById(id: string, tx: DbOrTx = db) {
-    const [firm] = await tx.select().from(firms).where(eq(firms.id, id));
+  getById(id: string, tx: DbOrTx = db): Firm | null {
+    // FIX-V718-1: Synchronous execution using .get()
+    const firm = tx.select().from(firms).where(eq(firms.id, id)).get();
     return firm ?? null;
   },
 
@@ -117,14 +127,17 @@ export const firmRepository = {
    * NEVER pass isArchived: true/false or isActive: true/false — always 0/1.
    * Returns the updated row via a second SELECT (Drizzle expo-sqlite returning() support varies).
    */
-  async update(id: string, input: Partial<NewFirm>, tx: DbOrTx = db) {
+  update(id: string, input: Partial<NewFirm>, tx: DbOrTx = db): Firm {
     const timestamp = now();
 
-    await tx.update(firms)
+    // FIX-V718-1: Synchronous execution using .run()
+    tx.update(firms)
       .set({ ...input, updatedAt: timestamp })
-      .where(eq(firms.id, id));
+      .where(eq(firms.id, id))
+      .run();
 
-    const [updated] = await tx.select().from(firms).where(eq(firms.id, id));
+    // FIX-V718-1: Synchronous execution using .get()
+    const updated = tx.select().from(firms).where(eq(firms.id, id)).get();
     return updated;
   },
 };

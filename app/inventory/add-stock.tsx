@@ -1,7 +1,7 @@
 // app/inventory/add-stock.tsx
 import React, { useState, useEffect, useMemo } from 'react';
 import { View, Text, ScrollView, Alert, Modal, TouchableOpacity, TextInput, StyleSheet } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
 import { TwoToneWrapper } from '../../components/TwoToneWrapper';
 import { storage } from '../../utils/storage';
 import { GlassCard, GlassInput, GlassButton } from '../../components/ui/Glass';
@@ -11,12 +11,14 @@ import { designRepository } from '../../repositories/designRepository';
 import { categoryRepository } from '../../repositories/categoryRepository';
 import { hsnMasterRepository } from '../../repositories/hsnMasterRepository';
 import { stoneRepository } from '../../repositories/stoneRepository';
+import { designCategoryMapRepository } from '../../repositories/designCategoryMapRepository';
+import { itemRepository } from '../../repositories/itemRepository';
 import type { Design, Category, HsnCode, Stone } from '../../types/phase2.types';
-import { Package, Scale, Percent, MapPin, Calculator, Wallet, CheckCircle } from 'lucide-react-native';
+import { Package, Scale, Percent, MapPin, Calculator, Wallet, CheckCircle, RefreshCw } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { seedHsnCodes } from '../../db/seed';
 import { percentToKarat } from '../../utils/purity.constants';
-import { formatSKUDisplay } from '../../utils/skuDisplay'; // <-- IMPORTED SKU FORMATTER
+import { formatSKUDisplay } from '../../utils/skuDisplay';
 
 const COLORS = {
   vjText: '#5C1623',
@@ -24,49 +26,7 @@ const COLORS = {
   vjAccent: '#D4AF37',
 };
 
-const SelectModal = ({ visible, title, options, onSelect, onClose, searchPlaceholder }: any) => {
-  const insets = useSafeAreaInsets();
-  const [searchQuery, setSearchQuery] = useState('');
-
-  const filteredOptions = options.filter((opt: any) => 
-    opt.label.toLowerCase().includes(searchQuery.toLowerCase()) || 
-    (opt.sublabel && opt.sublabel.toLowerCase().includes(searchQuery.toLowerCase()))
-  );
-
-  return (
-    <Modal visible={visible} animationType="fade" transparent>
-      <View className="flex-1 bg-black/50 justify-center items-center p-4">
-        <View className="bg-vj-bg w-full max-w-[500px] rounded-3xl p-6 shadow-2xl" style={{ maxHeight: '85%' }}>
-          <Text className="text-xl font-bold text-vj-text mb-4">{title}</Text>
-          {searchPlaceholder && (
-            <TextInput
-              style={{ backgroundColor: '#fff', borderRadius: 12, padding: 12, fontSize: 16, marginBottom: 12, borderWidth: 1, borderColor: 'rgba(92,22,35,0.3)' }}
-              placeholder={searchPlaceholder}
-              value={searchQuery}
-              onChangeText={setSearchQuery}
-            />
-          )}
-          <ScrollView>
-            {filteredOptions.length === 0 && <Text className="text-center text-vj-text/50 mt-4 font-medium">No matching results found.</Text>}
-            {filteredOptions.map((opt: any) => (
-              <TouchableOpacity 
-                key={opt.id} 
-                onPress={() => { onSelect(opt); setSearchQuery(''); onClose(); }}
-                className="py-4 border-b border-gray-200"
-              >
-                <Text className="text-lg font-semibold text-vj-text">{opt.label}</Text>
-                {opt.sublabel && <Text className="text-sm text-vj-text/60">{opt.sublabel}</Text>}
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
-          <View className="mt-4">
-            <GlassButton title="Cancel" variant="secondary" onPress={() => { setSearchQuery(''); onClose(); }} />
-          </View>
-        </View>
-      </View>
-    </Modal>
-  );
-};
+import { GlassSmartSearch } from '../../components/ui/Glass';
 
 export default function AddStockScreen() {
   const router = useRouter();
@@ -96,51 +56,48 @@ export default function AddStockScreen() {
   const [location, setLocation] = useState('');
   const [huid, setHuid] = useState('');
 
-  const [showDesignModal, setShowDesignModal] = useState(false);
-  const [showCategoryModal, setShowCategoryModal] = useState(false);
-  const [showHsnModal, setShowHsnModal] = useState(false);
-  const [showStoneModal, setShowStoneModal] = useState(false);
-
   const [loading, setLoading] = useState(false);
-  const [successSku, setSuccessSku] = useState<string | null>(null); // <-- NEW: State for Modern Success Modal
+  const [successSku, setSuccessSku] = useState<string | null>(null); 
+  const [designStock, setDesignStock] = useState<{ totalNetWeightMg: number, count: number } | null>(null);
 
   useEffect(() => {
-    if (!activeFirmId) return;
-    const loadData = async () => {
-      let h = await hsnMasterRepository.findByChapter('71');
-      if (h.length === 0) {
-        await seedHsnCodes();
-        h = await hsnMasterRepository.findByChapter('71');
-      }
-      const d = await designRepository.findByFirmId(activeFirmId);
-      const c = await categoryRepository.findByFirmId(activeFirmId);
-      const s = await stoneRepository.findByFirmId(activeFirmId);
-      
-      setDesigns(d);
-      setCategories(c);
-      setHsnCodes(h);
-      setStones(s);
-
-      // High-Speed MMKV Restore: Pre-fill last used classification
-      const lastDesign = await storage.getItem(`@add_lastDesign_${activeFirmId}`);
-      const lastCategory = await storage.getItem(`@add_lastCat_${activeFirmId}`);
-      const lastHsn = await storage.getItem(`@add_lastHsn_${activeFirmId}`);
-
-      if (lastDesign) {
-        const found = d.find(x => x.id === lastDesign);
-        if (found) setSelectedDesign(found);
-      }
-      if (lastCategory) {
-        const found = c.find(x => x.id === lastCategory);
-        if (found) setSelectedCategory(found);
-      }
-      if (lastHsn) {
-        const found = h.find(x => x.id === lastHsn);
-        if (found) setSelectedHsn(found);
+    if (!activeFirmId || !selectedDesign) {
+      setDesignStock(null);
+      return;
+    }
+    const fetchStock = async () => {
+      try {
+        const stock = await itemRepository.getAvailableStockForDesign(selectedDesign.id, activeFirmId);
+        setDesignStock(stock);
+      } catch (err) {
+        console.warn('Failed to fetch stock for design:', err);
       }
     };
-    loadData();
-  }, [activeFirmId]);
+    fetchStock();
+  }, [selectedDesign, activeFirmId]);
+
+  useFocusEffect(
+    React.useCallback(() => {
+      if (!activeFirmId) return;
+      const loadData = async () => {
+        let h = await hsnMasterRepository.findByChapter('71');
+        if (h.length === 0) {
+          await seedHsnCodes();
+          h = await hsnMasterRepository.findByChapter('71');
+        }
+        const d = await designRepository.findByFirmId(activeFirmId);
+        const c = await categoryRepository.findByFirmId(activeFirmId);
+        const s = await stoneRepository.findByFirmId(activeFirmId);
+        
+        setDesigns(d || []);
+        setCategories(c || []);
+        setHsnCodes(h || []);
+        setStones(s || []);
+
+      };
+      loadData();
+    }, [activeFirmId])
+  );
 
   const computedKarat = useMemo(() => {
     const p = parseFloat(purityPercent);
@@ -149,7 +106,6 @@ export default function AddStockScreen() {
     return k > 0 ? `${k}K` : '';
   }, [purityPercent]);
 
-  // FIX: Pure Wholesale "Touch" Costing Engine
   const liveWastageSeparation = useMemo(() => {
     const gross = parseFloat(grossWeight) || 0;
     const stone = parseFloat(stoneWeight) || 0;
@@ -239,7 +195,6 @@ export default function AddStockScreen() {
         metalSource: 'SUPPLIER_PURCHASE',
       }, activeFirmId!);
       
-      // TRIGGER MODERN SUCCESS MODAL INSTEAD OF SYSTEM ALERT
       setSuccessSku(item.sku);
       
     } catch (e: any) {
@@ -251,13 +206,15 @@ export default function AddStockScreen() {
 
   return (
     <TwoToneWrapper title="Add Stock" showBack>
-      <ScrollView contentContainerStyle={{ paddingBottom: 100 }} showsVerticalScrollIndicator={false}>
+      <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingTop: 32, paddingBottom: 350, paddingHorizontal: 16 }} showsVerticalScrollIndicator={false}>
         
         {/* Classification */}
         <GlassCard>
-          <View className="flex-row items-center gap-2 mb-4">
-            <Package size={20} color="#D4AF37" />
-            <Text className="text-lg font-bold text-vj-text">Classification</Text>
+          <View className="flex-row items-center justify-between mb-4">
+            <View className="flex-row items-center gap-2">
+              <Package size={20} color="#D4AF37" />
+              <Text className="text-lg font-bold text-vj-text">Classification</Text>
+            </View>
           </View>
           
           {designs.length === 0 && (
@@ -266,20 +223,87 @@ export default function AddStockScreen() {
             </View>
           )}
 
-          <TouchableOpacity onPress={() => setShowDesignModal(true)} className="mb-4 bg-white/40 p-4 rounded-xl border border-white/20">
-            <Text className="text-xs font-bold text-vj-text/60 uppercase mb-1">Design *</Text>
-            <Text className="text-base font-semibold text-vj-text">{selectedDesign ? selectedDesign.name : 'Select Design...'}</Text>
-          </TouchableOpacity>
+          <View style={{ zIndex: 40 }}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+              <Text style={{ fontSize: 12, fontWeight: '700', color: 'rgba(92,22,35,0.6)', textTransform: 'uppercase' }}>Design *</Text>
+              {designStock && designStock.count > 0 && (
+                <View style={{ backgroundColor: 'rgba(16, 185, 129, 0.15)', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 12, borderWidth: 1, borderColor: 'rgba(16, 185, 129, 0.3)' }}>
+                  <Text style={{ fontSize: 10, fontWeight: '800', color: '#047857' }}>
+                    STOCK: {designStock.count} ({ (designStock.totalNetWeightMg / 1000).toFixed(3) } g)
+                  </Text>
+                </View>
+              )}
+            </View>
+            <GlassSmartSearch 
+              placeholder="Search designs..."
+              options={designs.map(d => ({ id: d.id, label: d.name || 'Unnamed Design', sublabel: d.metal || 'Unknown' }))}
+              selectedId={selectedDesign?.id || null}
+              onFocusFetch={async () => {
+                if (activeFirmId) {
+                  const d = await designRepository.findByFirmId(activeFirmId);
+                  setDesigns(d || []);
+                }
+              }}
+              onSelect={async (opt) => {
+                if (!opt) return setSelectedDesign(null);
+                const selDesign = designs.find(d => d.id === opt.id)!;
+                setSelectedDesign(selDesign);
+                
+                if (activeFirmId) {
+                  try {
+                    const mappings = await designCategoryMapRepository.findByDesignId(selDesign.id, activeFirmId);
+                    if (mappings.length === 1) {
+                      const linkedCat = categories.find(c => c.id === mappings[0].categoryId);
+                      if (linkedCat) {
+                        setSelectedCategory(linkedCat);
+                        return;
+                      }
+                    }
+                  } catch (err) {
+                    console.warn("Failed to auto-select category:", err);
+                  }
+                }
+      
+                if (selectedCategory && selectedCategory.metal !== selDesign.metal) {
+                  setSelectedCategory(null);
+                }
+              }}
+            />
+          </View>
 
-          <TouchableOpacity onPress={() => setShowCategoryModal(true)} className="mb-4 bg-white/40 p-4 rounded-xl border border-white/20">
-            <Text className="text-xs font-bold text-vj-text/60 uppercase mb-1">Category *</Text>
-            <Text className="text-base font-semibold text-vj-text">{selectedCategory ? selectedCategory.name : 'Select Category...'}</Text>
-          </TouchableOpacity>
+          <View style={{ zIndex: 30 }}>
+            <GlassSmartSearch 
+              label="Category *"
+              placeholder="Search categories..."
+              options={categories.filter(c => selectedDesign ? c.metal === selectedDesign.metal : true).map(c => ({ id: c.id, label: c.name || 'Unnamed Category', sublabel: c.metal || 'Unknown' }))}
+              selectedId={selectedCategory?.id || null}
+              onFocusFetch={async () => {
+                if (activeFirmId) {
+                  const c = await categoryRepository.findByFirmId(activeFirmId);
+                  setCategories(c || []);
+                }
+              }}
+              onSelect={(opt) => {
+                if (!opt) return setSelectedCategory(null);
+                const selCat = categories.find(c => c.id === opt.id)!;
+                setSelectedCategory(selCat);
+              }}
+            />
+          </View>
 
-          <TouchableOpacity onPress={() => setShowHsnModal(true)} className="mb-4 bg-white/40 p-4 rounded-xl border border-white/20">
-            <Text className="text-xs font-bold text-vj-text/60 uppercase mb-1">HSN Code *</Text>
-            <Text className="text-base font-semibold text-vj-text">{selectedHsn ? `${selectedHsn.code} - ${selectedHsn.description}` : 'Select HSN...'}</Text>
-          </TouchableOpacity>
+          <View style={{ zIndex: 20 }}>
+            <GlassSmartSearch 
+              label="HSN Code *"
+              placeholder="Search HSN codes..."
+              options={hsnCodes.map(h => ({ id: h.id, label: h.code || 'No Code', sublabel: h.description || '' }))}
+              selectedId={selectedHsn?.id || null}
+              onSelect={(opt) => {
+                if (!opt) return setSelectedHsn(null);
+                const selHsn = hsnCodes.find(h => h.id === opt.id)!;
+                setSelectedHsn(selHsn);
+              }}
+            />
+          </View>
         </GlassCard>
 
         {/* Weights */}
@@ -324,10 +348,19 @@ export default function AddStockScreen() {
             <Text className="text-lg font-bold text-vj-text">Tracking & Stones</Text>
           </View>
 
-          <TouchableOpacity onPress={() => setShowStoneModal(true)} className="mb-4 bg-white/40 p-4 rounded-xl border border-white/20">
-            <Text className="text-xs font-bold text-vj-text/60 uppercase mb-1">Primary Stone (Optional)</Text>
-            <Text className="text-base font-semibold text-vj-text">{selectedStone ? `${selectedStone.name} (${selectedStone.type})` : 'Select Stone...'}</Text>
-          </TouchableOpacity>
+          <View style={{ zIndex: 10 }}>
+            <GlassSmartSearch 
+              label="Primary Stone (Optional)"
+              placeholder="Select Stone..."
+              options={[{ id: 'NONE', label: 'No Stone', sublabel: 'Clear selection' }, ...stones.map(s => ({ id: s.id, label: s.name || 'Unnamed', sublabel: s.type || '' }))]}
+              selectedId={selectedStone?.id || 'NONE'}
+              onSelect={(opt) => {
+                if (!opt || opt.id === 'NONE') return setSelectedStone(null);
+                const selStone = stones.find(s => s.id === opt.id)!;
+                setSelectedStone(selStone);
+              }}
+            />
+          </View>
 
           <View style={{ flexDirection: 'row', gap: 12 }}>
             <View style={{ flex: 1 }}>
@@ -356,7 +389,7 @@ export default function AddStockScreen() {
         {/* Mandated UI Display — Live Cost Preview */}
         {liveWastageSeparation.isValid && (
           <View className="px-1 mb-4 mt-2">
-            <GlassCard style={{ backgroundColor: 'rgba(92,22,35, 0.04)', borderColor: '#D4AF37', borderWidth: 1 }}>
+            <GlassCard style={{ backgroundColor: 'rgba(252,251,248, 0.95)', borderColor: '#D4AF37', borderWidth: 1 }}>
               <View className="flex-row items-center gap-2 mb-3">
                 <Calculator size={18} color="#D4AF37" />
                 <Text className="text-xs font-black uppercase tracking-wider text-vj-accent">Live Cost Breakdown</Text>
@@ -368,22 +401,22 @@ export default function AddStockScreen() {
               </View>
 
               <View className="flex-row justify-between py-1 border-b border-black/5">
-                <Text className="text-xs text-vj-text/60 font-medium">Total Touch (Purity + Wastage):</Text>
+                <Text className="text-xs text-vj-text/60 font-medium flex-1 pr-2">Total Touch:</Text>
                 <Text className="text-xs text-vj-text font-bold font-mono">{liveWastageSeparation.totalTouch}</Text>
               </View>
 
               <View className="flex-row justify-between py-1 border-b border-black/5">
-                <Text className="text-xs text-vj-text/60 font-medium">Physical Fine Gold (Vault Truth):</Text>
+                <Text className="text-xs text-vj-text/60 font-medium flex-1 pr-2">Vault Truth (Fine):</Text>
                 <Text className="text-xs text-emerald-700 font-bold font-mono">{liveWastageSeparation.vaultTruth}</Text>
               </View>
 
               <View className="flex-row justify-between py-1 border-b border-black/5">
-                <Text className="text-xs text-vj-text/60 font-medium">Wastage Gold Paid:</Text>
+                <Text className="text-xs text-vj-text/60 font-medium flex-1 pr-2">Wastage Gold:</Text>
                 <Text className="text-xs text-rose-700 font-bold font-mono">{liveWastageSeparation.wastageGold}</Text>
               </View>
 
               <View className="flex-row justify-between py-1 border-b border-black/5">
-                <Text className="text-xs text-vj-text/60 font-medium">Fine Gold Billed (Cost Truth):</Text>
+                <Text className="text-xs text-vj-text/60 font-medium flex-1 pr-2">Cost Truth (Fine):</Text>
                 <Text className="text-xs text-amber-700 font-bold font-mono">{liveWastageSeparation.costTruth}</Text>
               </View>
 
@@ -407,52 +440,6 @@ export default function AddStockScreen() {
 
       </ScrollView>
 
-      {/* Select Modals connected to AsyncStorage */}
-      <SelectModal 
-        visible={showDesignModal} title="Select Design" searchPlaceholder="Search designs..."
-        options={designs.map(d => ({ id: d.id, label: d.name, sublabel: d.metal }))}
-        onSelect={(opt: any) => {
-          const selDesign = designs.find(d => d.id === opt.id)!;
-          setSelectedDesign(selDesign);
-          storage.setItem(`@add_lastDesign_${activeFirmId}`, selDesign.id);
-          if (selectedCategory && selectedCategory.metal !== selDesign.metal) {
-            setSelectedCategory(null);
-            storage.removeItem(`@add_lastCat_${activeFirmId}`);
-          }
-        }}
-        onClose={() => setShowDesignModal(false)}
-      />
-      <SelectModal 
-        visible={showCategoryModal} title="Select Category" searchPlaceholder="Search categories..."
-        options={categories.filter(c => selectedDesign ? c.metal === selectedDesign.metal : true).map(c => ({ id: c.id, label: c.name, sublabel: c.metal }))}
-        onSelect={(opt: any) => {
-          const selCat = categories.find(c => c.id === opt.id)!;
-          setSelectedCategory(selCat);
-          storage.setItem(`@add_lastCat_${activeFirmId}`, selCat.id);
-        }}
-        onClose={() => setShowCategoryModal(false)}
-      />
-      <SelectModal 
-        visible={showHsnModal} title="Select HSN Code" searchPlaceholder="Search HSN codes..."
-        options={hsnCodes.map(h => ({ id: h.id, label: h.code, sublabel: h.description }))}
-        onSelect={(opt: any) => {
-          const selHsn = hsnCodes.find(h => h.id === opt.id)!;
-          setSelectedHsn(selHsn);
-          storage.setItem(`@add_lastHsn_${activeFirmId}`, selHsn.id);
-        }}
-        onClose={() => setShowHsnModal(false)}
-      />
-      <SelectModal 
-        visible={showStoneModal} title="Select Primary Stone"
-        options={[{ id: 'NONE', label: 'No Stone', sublabel: 'Clear selection' }, ...stones.map(s => ({ id: s.id, label: s.name, sublabel: s.type }))]}
-        onSelect={(opt: any) => {
-          if (opt.id === 'NONE') setSelectedStone(null);
-          else setSelectedStone(stones.find(s => s.id === opt.id)!);
-        }}
-        onClose={() => setShowStoneModal(false)}
-      />
-
-      {/* NEW: Modern Success Modal */}
       <Modal visible={!!successSku} transparent animationType="fade">
         <View style={styles.modalOverlay}>
           <View style={styles.successModalContent}>
@@ -464,7 +451,6 @@ export default function AddStockScreen() {
             
             <View style={styles.skuBadge}>
               <Text style={styles.skuBadgeLabel}>GENERATED SKU</Text>
-              {/* Uses your imported short-format logic */}
               <Text style={styles.skuBadgeText} selectable>{successSku ? formatSKUDisplay(successSku) : ''}</Text>
             </View>
 

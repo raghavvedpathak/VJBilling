@@ -1,9 +1,9 @@
 import { format, parseISO } from 'date-fns';
-import { useAppSettingsStore } from '@/store/appSettingsStore';
+import { appSettingsStore } from '../store/appSettingsStore';
 
 export function formatDate(isoString: string): string {
   if (!isoString) return '';
-  const token = useAppSettingsStore.getState().dateFormatToken ?? 'dd/MM/yyyy'; // date-fns v3 token — lowercase dd and yyyy
+  const token = appSettingsStore.getState().dateFormatToken ?? 'dd/MM/yyyy'; // date-fns v3 token — lowercase dd and yyyy
   try {
     return format(parseISO(isoString), token);
   } catch (e) {

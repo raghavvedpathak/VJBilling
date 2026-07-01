@@ -4,6 +4,7 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import { TwoToneWrapper } from '../../components/TwoToneWrapper';
 import { GlassButton } from '../../components/ui/Glass';
 import { Edit2, CheckCircle } from 'lucide-react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFirmStore } from '../../store/firmStore';
 import { categoryService } from '../../services/categoryService';
 
@@ -16,6 +17,7 @@ const COLORS = {
 export default function EditCategoryScreen() {
   const router = useRouter();
   const { activeFirmId } = useFirmStore();
+  const insets = useSafeAreaInsets();
   
   // Get initial params from routing
   const { id, initialName } = useLocalSearchParams<{ id: string; initialName: string }>();
@@ -60,32 +62,28 @@ export default function EditCategoryScreen() {
 
   return (
     <TwoToneWrapper title="" showBack headerContent={headerContent}>
-      <KeyboardAvoidingView 
-        style={{ flex: 1 }} 
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      >
-        <ScrollView style={s.container} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 60 }}>
+      <View style={{ flex: 1 }}>
+        <ScrollView style={s.container} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingTop: 32, paddingBottom: 350 }} keyboardShouldPersistTaps="handled">
           <View style={s.card}>
             <View style={s.formGroup}>
-              <Text style={s.label}>Category Name</Text>
-              <TextInput 
-                style={s.input}
-                value={newName}
-                onChangeText={setNewName}
-                placeholder="e.g. Gold Rings"
-              />
-            </View>
-
-            <View style={{ marginTop: 32 }}>
-              <GlassButton 
-                title={isSubmitting ? 'Saving...' : 'Update Category'} 
-                onPress={handleEditSubmit} 
-                disabled={isSubmitting} 
-              />
+               <Text style={s.label}>Category Name</Text>
+               <TextInput 
+                 style={s.input}
+                 value={newName}
+                 onChangeText={setNewName}
+                 placeholder="e.g. Gold Rings"
+               />
             </View>
           </View>
         </ScrollView>
-      </KeyboardAvoidingView>
+        <View style={{ paddingHorizontal: 24, paddingBottom: insets.bottom || 24, paddingTop: 16 }}>
+          <GlassButton 
+            title={isSubmitting ? 'Saving...' : 'Update Category'} 
+            onPress={handleEditSubmit} 
+            disabled={isSubmitting} 
+          />
+        </View>
+      </View>
 
       {/* Modern Success Modal */}
       <Modal visible={!!successMessage} transparent animationType="fade">

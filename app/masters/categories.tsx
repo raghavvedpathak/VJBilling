@@ -1,7 +1,7 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Modal, Alert, ActivityIndicator } from 'react-native';
 import { useRouter } from 'expo-router';
-import { useFocusEffect } from '@react-navigation/native';
+import { useFocusEffect } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { TwoToneWrapper } from '../../components/TwoToneWrapper';
 import { GlassCard, GlassButton } from '../../components/ui/Glass';
@@ -113,10 +113,10 @@ export default function CategoriesScreen() {
           <ActivityIndicator size="large" color={COLORS.vjAccent} style={{ marginTop: 40 }} />
         ) : (
           <ScrollView 
-            style={{ marginTop: 8 }} 
+            style={{ flex: 1, marginTop: 8 }} 
             showsVerticalScrollIndicator={false} 
             contentContainerStyle={[
-              { paddingBottom: 100 },
+              { paddingBottom: 150 },
               viewMode === 'grid' && { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' }
             ]}
           >
@@ -286,7 +286,6 @@ const s = StyleSheet.create({
     shadowOffset: { width: 0, height: 10 },
     shadowOpacity: 0.25,
     shadowRadius: 20,
-    elevation: 10,
   },
   successIconContainer: {
     marginBottom: 16,

@@ -162,137 +162,273 @@ export const urdPurchaseService = {
     const symbol = getCurrencySymbol();
     
     const html = `
-<div style="font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; border: 2px solid #000; padding: 0; box-sizing: border-box; background: white;">
-  
-  <!-- Header Section -->
-  <div style="padding: 10px; text-align: center; position: relative;">
-    <div style="position: absolute; top: 10px; right: 10px; font-size: 10px;">
-      <div style="margin-bottom: 5px;">Subject to ${firm.city || 'Local'} Jurisdiction</div>
-      <div style="display: flex; gap: 5px; font-weight: bold; justify-content: flex-end;">
-        <div style="border: 1px solid #000; padding: 2px 15px;">CASH ${urd.paymentMode === 'CASH' ? '✓' : ''}</div>
-        <div style="border: 1px solid #000; padding: 2px 15px;">CREDIT ${urd.paymentMode !== 'CASH' ? '✓' : ''}</div>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap');
+  @page {
+    size: A5 portrait;
+    margin: 5mm;
+  }
+  body {
+    font-family: 'Poppins', Arial, sans-serif;
+    margin: 0;
+    padding: 0;
+    background: #f0f0f0;
+  }
+  .invoice-container {
+    width: 100%;
+    max-width: 148mm;
+    min-height: auto;
+    margin: 0 auto;
+    background: white;
+    border: 1px solid #ccc;
+    box-sizing: border-box;
+    position: relative;
+    box-shadow: 0 0 10px rgba(0,0,0,0.1);
+  }
+  .header {
+    background-color: #8b2538;
+    color: white;
+    padding: 15px 15px;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+  }
+  .header-left {
+    font-size: 9px;
+    line-height: 1.4;
+  }
+  .header-center {
+    text-align: center;
+    flex-grow: 1;
+    padding: 0 10px;
+  }
+  .header-center h1 {
+    margin: 0;
+    font-size: 28px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    line-height: 1.1;
+  }
+  .header-center p {
+    margin: 5px 0 0 0;
+    font-size: 11px;
+    opacity: 0.9;
+  }
+  .header-center .tax-invoice {
+    font-size: 11px;
+    color: #f7d273;
+    margin-bottom: 3px;
+    font-weight: 600;
+    letter-spacing: 1px;
+  }
+  .header-right {
+    font-size: 9px;
+    text-align: right;
+    line-height: 1.4;
+  }
+  .info-section {
+    display: flex;
+    justify-content: space-between;
+    padding: 10px 15px;
+    border-bottom: 1.5px solid #8b2538;
+    font-size: 10px;
+    font-weight: 600;
+  }
+  .info-left, .info-right {
+    display: grid;
+    grid-template-columns: 70px 1fr;
+    gap: 4px;
+    width: 48%;
+  }
+  .info-val {
+    font-weight: 400;
+    border-bottom: 1px dotted #ccc;
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 10px;
+    position: relative;
+    z-index: 2;
+  }
+  th {
+    background-color: #fcfcfc;
+    border: 1px solid #000;
+    padding: 8px 4px;
+    text-align: center;
+    color: #333;
+  }
+  td {
+    border: 1px solid #000;
+    padding: 8px 4px;
+    text-align: center;
+    vertical-align: top;
+  }
+  .watermark {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    opacity: 0.04;
+    z-index: 1;
+    font-size: 250px;
+    font-weight: bold;
+    color: #8b2538;
+    pointer-events: none;
+    font-family: serif;
+  }
+  .footer-grid {
+    display: grid;
+    grid-template-columns: 1fr 180px;
+    border-top: 1.5px solid #8b2538;
+    font-size: 10px;
+  }
+  .amount-words {
+    padding: 10px 15px;
+    border-right: 1px solid #000;
+    border-bottom: 1px solid #000;
+    font-weight: 600;
+  }
+  .totals-table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+  .totals-table td {
+    border: none;
+    border-bottom: 1px solid #000;
+    padding: 6px 10px;
+    text-align: right;
+  }
+  .totals-table tr td:first-child {
+    border-right: 1px solid #000;
+  }
+  .signatures {
+    display: flex;
+    justify-content: space-between;
+    padding: 40px 10px 20px 10px;
+    font-size: 11px;
+    font-weight: 600;
+  }
+  .signatures > div {
+    text-align: center;
+  }
+</style>
+</head>
+<body>
+  <div class="invoice-container">
+    <div class="watermark">${firm.name.charAt(0)}</div>
+    
+    <div class="header">
+      <div class="header-left">
+        <div>Subject to ${firm.city || 'Local'} Jurisdiction</div>
+        <div>GSTIN: ${firm.gstin || 'Unregistered'}</div>
+      </div>
+      <div class="header-center">
+        <div class="tax-invoice">PURCHASE VOUCHER</div>
+        <h1>${firm.name}</h1>
+        <p>${firm.addressLine1 || ''}, ${firm.city || ''}, ${firm.stateName || ''}</p>
+      </div>
+      <div class="header-right">
+        <div>For: ${firm.proprietor || 'Proprietor'}</div>
+        <div>Mo. ${firm.phone1}</div>
+        ${firm.phone2 ? `<div>Mo. ${firm.phone2}</div>` : ''}
       </div>
     </div>
-    <div style="margin-top: 10px; color: red; font-size: 14px; font-weight: bold;">|| Shri ||</div>
-    <div style="color: red; font-size: 24px; font-weight: bold; margin: 5px 0;">${firm.name}</div>
-    <div style="color: red; font-size: 14px; margin: 5px 0;">${firm.addressLine1 || ''}</div>
-    <div style="color: red; font-size: 14px; font-weight: bold; margin: 5px 0;">${firm.ownerName ? firm.ownerName + ' - ' : ''}${firm.phone1 || ''}</div>
-  </div>
 
-  <!-- Bill Title -->
-  <div style="border-top: 2px solid #000; border-bottom: 2px solid #000; text-align: center; padding: 5px;">
-    <div style="color: red; font-size: 18px; font-weight: bold;">URD PURCHASE BILL</div>
-  </div>
-
-  <!-- Declarations & Tax Row -->
-  <div style="border-bottom: 1px solid #000; padding: 5px; font-size: 10px; text-align: center;">
-    *As per Serial No 4 & 5 of Annexure to Rule No.138 (14) of CGST Rules, 2017, E-way bill is not required to be generated for items included in this invoice.*
-  </div>
-  <div style="display: flex; border-bottom: 1px solid #000; font-size: 12px; font-weight: bold;">
-    <div style="flex: 1; padding: 5px; border-right: 1px solid #000;">Tax is Payable on Reverse Charge - (No)</div>
-    <div style="flex: 1; padding: 5px; display: flex; justify-content: space-between;">
-      <span>State Code : ${firm.stateCode || '27'} (${firm.state || 'Maharashtra'})</span>
-      <span style="color: red; font-size: 14px;">GSTIN: ${firm.gstin || ''}</span>
-    </div>
-  </div>
-
-  <!-- Bill Meta -->
-  <div style="display: flex; border-bottom: 1px solid #000; font-size: 12px;">
-    <div style="flex: 1; padding: 5px; border-right: 1px solid #000;">URD Purchase Bill No. : <strong>${urd.urdNumber}</strong></div>
-    <div style="flex: 1; padding: 5px;">URD Purchase Bill Date : <strong>${urd.purchaseDate}</strong></div>
-  </div>
-
-  <!-- Seller Details -->
-  <div style="padding: 10px 5px; font-size: 12px; border-bottom: 1px solid #000; line-height: 1.8;">
-    <strong>Details of Seller (Customer Name)</strong><br>
-    <div style="display: flex;">
-      <span style="width: 80px;">Name</span>
-      <span style="flex: 1; border-bottom: 1px dotted #000;">${urd.customerName}</span>
-    </div>
-    <div style="display: flex; margin-top: 5px;">
-      <span style="width: 80px;">Address</span>
-      <span style="flex: 1; border-bottom: 1px dotted #000;">${urd.customerAddress || ''}</span>
-    </div>
-    <div style="display: flex; margin-top: 5px;">
-      <span style="width: 80px;">Mobile No</span>
-      <span style="flex: 1; border-bottom: 1px dotted #000;">${urd.customerMobile || ''}</span>
-    </div>
-    <div style="display: flex; margin-top: 5px; align-items: center;">
-      <span style="width: 80px;">PAN No.</span>
-      <div style="display: flex; margin-right: 20px;">
-        ${(urd.customerPAN ? urd.customerPAN.padEnd(10, ' ') : '          ').split('').map(char => '<div style="width: 15px; height: 20px; border: 1px solid #000; text-align: center; line-height: 20px; text-transform: uppercase;">' + (char === ' ' ? '' : char) + '</div>').join('')}
+    <div class="info-section">
+      <div class="info-left">
+        <div>Name:</div>
+        <div class="info-val">${urd.customerName}</div>
+        <div>Address:</div>
+        <div class="info-val">${urd.customerAddress || '-'}</div>
+        <div>Mob:</div>
+        <div class="info-val">${urd.customerMobile || '-'}</div>
+        <div>PAN/Aadhar:</div>
+        <div class="info-val">${urd.customerPAN || urd.customerAadhaar || '-'}</div>
       </div>
-      <span>Aadhar Card No. : </span>
-      <span style="flex: 1; border-bottom: 1px dotted #000; margin-left: 10px;">${urd.customerAadhaar || ''}</span>
-    </div>
-  </div>
-
-  <!-- Table -->
-  <table style="width: 100%; border-collapse: collapse; text-align: center; font-size: 12px;">
-    <thead>
-      <tr style="border-bottom: 1px solid #000;">
-        <th style="border-right: 1px solid #000; padding: 5px; width: 40px;">Sr.<br>No.</th>
-        <th style="border-right: 1px solid #000; padding: 5px;">Description of Goods</th>
-        <th style="border-right: 1px solid #000; padding: 5px;">Carat</th>
-        <th style="border-right: 1px solid #000; padding: 5px;">Purity</th>
-        <th style="border-right: 1px solid #000; padding: 5px;">Qty.</th>
-        <th style="border-right: 1px solid #000; padding: 5px;">Weight<br>in Gram</th>
-        <th style="border-right: 1px solid #000; padding: 5px;">Rate<br>Per Gram</th>
-        <th style="padding: 5px;">Amount</th>
-      </tr>
-    </thead>
-    <tbody>
-      <tr style="height: 150px; vertical-align: top;">
-        <td style="border-right: 1px solid #000; padding: 5px;">1</td>
-        <td style="border-right: 1px solid #000; padding: 5px;">Old ${urd.metalType} Jewellery</td>
-        <td style="border-right: 1px solid #000; padding: 5px;">${Math.round(urd.purityPercent / 100 * 24)}K</td>
-        <td style="border-right: 1px solid #000; padding: 5px;">${urd.purityPercent}%</td>
-        <td style="border-right: 1px solid #000; padding: 5px;">1</td>
-        <td style="border-right: 1px solid #000; padding: 5px;">${(urd.grossWeightMg / 1000).toFixed(3)}</td>
-        <td style="border-right: 1px solid #000; padding: 5px;">${(urd.ratePerGramPaise / 100).toFixed(2)}</td>
-        <td style="padding: 5px;">${(urd.totalValuePaise / 100).toFixed(2)}</td>
-      </tr>
-    </tbody>
-  </table>
-
-  <!-- Footer Sections -->
-  <div style="border-top: 1px solid #000; display: flex; font-size: 12px; height: 50px;">
-    <div style="flex: 2; border-right: 1px solid #000; padding: 5px;">
-      <div style="display: flex; justify-content: space-between;">
-        <span><strong>Bank Details :</strong> Bank of :</span>
-        <span>Branch :</span>
-      </div>
-      <div style="display: flex; justify-content: space-between; margin-top: 5px;">
-        <span>A/c. No. :</span>
-        <span>IFSC Code :</span>
+      <div class="info-right">
+        <div>Date:</div>
+        <div class="info-val">${urd.purchaseDate}</div>
+        <div>Invoice No:</div>
+        <div class="info-val">${urd.urdNumber}</div>
+        <div>Pay Mode:</div>
+        <div class="info-val">${urd.paymentMode}</div>
       </div>
     </div>
-    <div style="flex: 1; display: flex; flex-direction: column;">
-      <div style="flex: 1; border-bottom: 1px solid #000; border-right: 1px solid #000; padding: 5px; font-weight: bold;">Discount</div>
-      <div style="flex: 1; border-right: 1px solid #000; padding: 5px; font-weight: bold;">Purchase Value</div>
+
+    <table>
+      <thead>
+        <tr>
+          <th style="width: 5%;">#</th>
+          <th style="width: 35%;">Description</th>
+          <th style="width: 10%;">Purity</th>
+          <th style="width: 15%;">Net Wt (g)</th>
+          <th style="width: 15%;">Rate</th>
+          <th style="width: 20%;">Amount</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr style="height: auto;">
+          <td style="padding-bottom: 25px;">1</td>
+          <td style="text-align: left; padding-bottom: 25px;">Old ${urd.metalType} Jewellery</td>
+          <td style="padding-bottom: 25px;">${urd.purityPercent}%</td>
+          <td style="padding-bottom: 25px;">${(urd.grossWeightMg / 1000).toFixed(3)}</td>
+          <td style="padding-bottom: 25px;">${(urd.ratePerGramPaise / 100).toFixed(2)}</td>
+          <td style="padding-bottom: 25px;">${(urd.totalValuePaise / 100).toFixed(2)}</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="footer-grid">
+      <div style="display: flex; flex-direction: column; justify-content: space-between;">
+        <div class="amount-words">
+          Amt. In Words: <span style="font-weight: normal; margin-left: 5px;">Rupees ${amountToWords(urd.totalValuePaise)} Only</span>
+        </div>
+        <div class="signatures">
+          <div>Customer Signature</div>
+          <div>! Thank You !</div>
+          <div style="text-align: center;">
+            <div style="margin-bottom: 30px;">For: ${firm.name}</div>
+            <div>Authorised Signatory</div>
+          </div>
+        </div>
+      </div>
+      <div>
+        <table class="totals-table">
+          <tr>
+            <td style="width: 50%;">NET TOTAL</td>
+            <td>${(urd.totalValuePaise / 100).toFixed(2)}</td>
+          </tr>
+          <tr>
+            <td>Round Off</td>
+            <td>0.00</td>
+          </tr>
+          <tr>
+            <td style="font-weight: bold; font-size: 14px;">GRAND TOTAL</td>
+            <td style="font-weight: bold; font-size: 14px;">${(urd.totalValuePaise / 100).toFixed(2)}</td>
+          </tr>
+          <tr>
+            <td>NET AMOUNT</td>
+            <td>${(urd.totalValuePaise / 100).toFixed(2)}</td>
+          </tr>
+          <tr>
+            <td>AMT PAID</td>
+            <td>${(urd.totalValuePaise / 100).toFixed(2)}</td>
+          </tr>
+          <tr>
+            <td style="border-bottom: none;">BALANCE</td>
+            <td style="border-bottom: none;">0.00</td>
+          </tr>
+        </table>
+      </div>
     </div>
-    <div style="flex: 1; display: flex; flex-direction: column;">
-      <div style="flex: 1; border-bottom: 1px solid #000; padding: 5px; text-align: right;">-</div>
-      <div style="flex: 1; padding: 5px; text-align: right; font-weight: bold;">${(urd.totalValuePaise / 100).toFixed(2)}</div>
-    </div>
   </div>
-
-  <div style="border-top: 1px solid #000; border-bottom: 1px solid #000; padding: 5px; font-size: 12px;">
-    Total Amount in words Rs. <strong>${amountToWords(urd.totalValuePaise)}</strong>
-  </div>
-
-  <!-- Declaration -->
-  <div style="padding: 5px; font-size: 10px; line-height: 1.4; border-bottom: 1px solid #000;">
-    <strong>Declaration</strong> 1) Verified that the Particulars given above are true and correct & the amount indicated Represent the price actually charge & that there is no flow additional consideration directly or indirectly from the buyer. 2) We are agreed on valuation done at the time of purchase.
-  </div>
-
-  <!-- Signatures -->
-  <div style="display: flex; justify-content: space-between; padding: 10px 20px 40px 20px; font-size: 12px; font-weight: bold;">
-    <div style="margin-top: 40px;">Customer's Signature</div>
-    <div style="color: red;">For ${firm.name}</div>
-  </div>
-
-</div>
+</body>
+</html>
 `;
     return html;
   }

@@ -84,7 +84,7 @@ export default function AddURDScreen() {
 
   return (
     <TwoToneWrapper title="New URD Purchase" showBack>
-      <ScrollView contentContainerStyle={{ paddingBottom: 100 }} showsVerticalScrollIndicator={false}>
+      <ScrollView contentContainerStyle={{ paddingTop: 32, paddingBottom: 350 }} showsVerticalScrollIndicator={false}>
         
         {/* Customer Details */}
         <GlassCard style={{ marginBottom: 16 }}>

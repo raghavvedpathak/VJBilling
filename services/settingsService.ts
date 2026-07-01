@@ -6,11 +6,8 @@ import { safeModeService } from './safeModeService';
 import { auditRepository } from '../repositories/auditRepository';
 import { getDeviceId } from '../utils/deviceId';
 import { now } from '../utils/now';
-// FIX: correct store name — useAppSettingsStore (with `use` prefix)
-// The previous import `appSettingsStore` was wrong — Zustand stores created
-// with create() are React hooks and must be named with the `use` prefix.
-// useAppSettingsStore.setState() is the correct static setState call pattern.
-import { useAppSettingsStore } from '../store/appSettingsStore';
+// FIX: Reverted to the spec-compliant appSettingsStore
+import { appSettingsStore } from '../store/appSettingsStore';
 
 export type UpdateSettingsInput = Partial<typeof appSettings.$inferInsert>;
 
@@ -33,7 +30,7 @@ export const settingsService = {
       dateFormatToken: 'dd/MM/yyyy',
       warnUnsavedChanges: 1,
       theme: 'system',
-      auditRetentionDays: 365,
+      auditRetentionDays: 30, // FIX: Updated from 365 to 30 per v7.10 spec
       currency: 'INR',
       currencySymbol: '\u20B9', // ₹ — Unicode escape per G67-LINT
       currencyDecimalPlaces: 2,
@@ -56,11 +53,11 @@ export const settingsService = {
     }
 
     const deviceId = await getDeviceId();
-    const existing = useAppSettingsStore.getState();
+    const existing = appSettingsStore.getState();
     const updated = { ...existing, ...input, updatedAt: now() };
 
     // 2. ATOMIC TRANSACTION — UPSERT prevents ghost-reset bug
-    // v7.16 FIX-V716-4: JSI driver requires synchronous tx callback — async removed
+    // FIX-V718-1: JSI driver requires synchronous tx callback
     db.transaction((tx) => {
       tx.insert(appSettings)
         .values({ id: 1, ...input, updatedAt: updated.updatedAt })
@@ -82,7 +79,6 @@ export const settingsService = {
     });
 
     // 3. Sync Zustand store — static setState on the store object
-    // FIX: useAppSettingsStore.setState() — correct Zustand static setState pattern
-    useAppSettingsStore.setState(updated as any);
+    appSettingsStore.setState(updated as any);
   },
 };

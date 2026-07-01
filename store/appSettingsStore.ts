@@ -1,18 +1,15 @@
 import { create } from 'zustand';
-import { persist, createJSONStorage } from 'zustand/middleware';
+import { persist, createJSONStorage, StateStorage } from 'zustand/middleware';
 import { storage } from '../utils/storage';
 
 // ============================================================================
-// NAMING FIX: This store was previously exported as `appSettingsStore`.
-// That name is wrong for two reasons:
-//   1. Zustand stores created with create() ARE React hooks. React's rules of
-//      hooks require all hooks to start with `use`. ESLint will error otherwise.
-//   2. useUnsavedChangesGuard calls useAppSettingsStore((s) => s.warnUnsavedChanges)
-//      as a reactive selector — this pattern only works when the export name
-//      starts with `use`. The previous name caused a silent runtime mismatch.
+// SPEC ALIGNMENT FIX: The Phase 1 Contract (G64) explicitly names this 
+// store `appSettingsStore`. Renaming it to `useAppSettingsStore` breaks 
+// the `.getState()` and `.setState()` calls in all the background services.
 //
-// The "ARCHITECT FIX: Renamed from useAppSettingsStore to appSettingsStore"
-// comment in the old file was incorrect. The correct name is useAppSettingsStore.
+// To use this in a React component without violating hooks rules:
+// import { useStore } from 'zustand';
+// const theme = useStore(appSettingsStore, (state) => state.theme);
 // ============================================================================
 
 type AppSettingsSlice = {
@@ -31,7 +28,21 @@ type AppSettingsSlice = {
   setSettings: (settings: Partial<AppSettingsSlice>) => void;
 };
 
-export const useAppSettingsStore = create<AppSettingsSlice>()(
+// Map our custom storage interface to Zustand's StateStorage
+const zustandStorage: StateStorage = {
+  setItem: async (name, value) => {
+    await storage.setItem(name, value);
+  },
+  getItem: async (name) => {
+    const value = await storage.getItem(name);
+    return value ?? null;
+  },
+  removeItem: async (name) => {
+    await storage.removeItem(name);
+  },
+};
+
+export const appSettingsStore = create<AppSettingsSlice>()(
   persist(
     (set) => ({
       // Defaults match the seed row inserted by db/client.ts Migration Zero fallback.
@@ -49,7 +60,7 @@ export const useAppSettingsStore = create<AppSettingsSlice>()(
     }),
     {
       name: 'app-settings-store',
-      storage: createJSONStorage(() => storage as any),
+      storage: createJSONStorage(() => zustandStorage),
     }
   )
 );

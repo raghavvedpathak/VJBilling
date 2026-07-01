@@ -5,7 +5,7 @@
 import React, { useState, useCallback } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { GlassCard } from './ui/Glass';
-import { useFocusEffect } from '@react-navigation/native';
+import { useFocusEffect } from 'expo-router';
 import { itemRepository } from '../repositories/itemRepository';
 import { getCurrencySymbol } from '../utils/currency';
 import { Scale, AlertCircle, Wallet, TrendingUp } from 'lucide-react-native';

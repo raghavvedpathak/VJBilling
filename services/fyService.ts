@@ -14,15 +14,18 @@ import { oldGoldLots, appSettings, financialYears, FYStatus } from '../db/schema
 import { purgeExpiredAuditLogs } from './auditRetentionService';
 import type { DrizzleTransaction, VerifyIssue } from '../types/phase2.types';
 
-const fyCloseHooks: Array<(tx: DrizzleTransaction, firmId: string, fyId: string) => Promise<void>> = [];
+// FIX-V718-1: Hooks must be strictly synchronous to execute safely inside the JSI transaction boundary
+const fyCloseHooks: Array<(tx: DrizzleTransaction, firmId: string, fyId: string) => void> = [];
 
-export function registerFYCloseHook(fn: (tx: DrizzleTransaction, firmId: string, fyId: string) => Promise<void>): void { 
+export function registerFYCloseHook(fn: (tx: DrizzleTransaction, firmId: string, fyId: string) => void): void { 
   fyCloseHooks.push(fn); 
 }
 
 export async function preCloseChecks(fyId: string, firmId: string): Promise<{ canClose: boolean; issues: VerifyIssue[] }> {
   const issues: VerifyIssue[] = [];
-  const fy = await fyRepository.getById(db as any, firmId, fyId);
+  
+  // FIX-V718-1: fyRepository.getById is now strictly synchronous
+  const fy = fyRepository.getById(db as any, firmId, fyId);
   
   if (!fy || fy.firmId !== firmId) { 
     issues.push({ code: 'FY_OWNERSHIP_MISMATCH', severity: 'CRITICAL', message: 'Financial year does not belong to this firm' }); 
@@ -69,8 +72,12 @@ export async function closeFY(fyId: string, firmId: string): Promise<void> {
       throw new Error('FY_CLOSE_BLOCKED_CRITICAL_VERIFY');
     }
 
-    await db.transaction(async (tx) => {
-      const fy = await fyRepository.getById(tx, firmId, fyId);
+    // Hoisted async call BEFORE transaction lock
+    const deviceId = await getDeviceId();
+
+    // FIX-V718-1: Completely synchronous transaction block
+    db.transaction((tx) => {
+      const fy = fyRepository.getById(tx, firmId, fyId);
       if (!fy || fy.firmId !== firmId) throw new Error('FY_OWNERSHIP_MISMATCH');
       if (fy.status !== 'ACTIVE') throw new Error('FY_NOT_ACTIVE');
 
@@ -78,32 +85,33 @@ export async function closeFY(fyId: string, firmId: string): Promise<void> {
         console.warn('FY_CLOSE_NO_HOOKS: closeFY() running with no registered hooks. Phase 4 karigar/refinery outstanding fine balance will be 0. Phase 4 MUST call registerFYCloseHook() before this runs in production.');
       }
 
-      const karigarRepository = { getOutstandingFineMg: async (_tx: DrizzleTransaction, _firmId: string) => 0 };
-      const refineryRepository = { getOutstandingFineMg: async (_tx: DrizzleTransaction, _firmId: string) => 0 };
+      // Stubs updated to synchronous signatures
+      const karigarRepository = { getOutstandingFineMg: (_tx: DrizzleTransaction, _firmId: string) => 0 };
+      const refineryRepository = { getOutstandingFineMg: (_tx: DrizzleTransaction, _firmId: string) => 0 };
 
-      const karigarOutstandingFineMg = await karigarRepository.getOutstandingFineMg(tx, firmId);
-      const refineryOutstandingFineMg = await refineryRepository.getOutstandingFineMg(tx, firmId);
+      const karigarOutstandingFineMg = karigarRepository.getOutstandingFineMg(tx, firmId);
+      const refineryOutstandingFineMg = refineryRepository.getOutstandingFineMg(tx, firmId);
       
-      const openGoldLotsRows = await tx.select().from(oldGoldLots).where(eq(oldGoldLots.firmId, firmId));
+      const openGoldLotsRows = tx.select().from(oldGoldLots).where(eq(oldGoldLots.firmId, firmId)).all();
       const openGoldLotFineMg = openGoldLotsRows
         .filter(l => !['SETTLED','SENT_TO_MELT'].includes(l.status))
         .reduce((sum, l) => sum + Math.round(l.grossWeightMg * l.purityPercent / 100), 0);
         
       const totalOpeningFineMg = karigarOutstandingFineMg + refineryOutstandingFineMg + openGoldLotFineMg;
 
-      // Close FY
-      await fyRepository.closeFY(firmId, fyId, tx);
+      // Close FY (Synchronous)
+      fyRepository.closeFY(firmId, fyId, tx);
 
-      for (const hook of fyCloseHooks) await hook(tx, firmId, fyId);
+      for (const hook of fyCloseHooks) {
+        hook(tx, firmId, fyId);
+      }
 
-      const deviceId = await getDeviceId();
-
-      await auditRepository.log(tx, { 
+      auditRepository.log(tx, { 
         eventType: 'FY_CLOSED', firmId, entityId: fyId, deviceId, 
         payload: JSON.stringify({ fyId, closedAt: now() }) 
       });
 
-      await auditRepository.log(tx, { 
+      auditRepository.log(tx, { 
         eventType: 'FY_CLOSE_FINE_BALANCE', firmId, entityId: fyId, deviceId, 
         payload: JSON.stringify({ 
           fyId, closedAt: now(), 
@@ -111,14 +119,15 @@ export async function closeFY(fyId: string, firmId: string): Promise<void> {
         }) 
       });
 
-      const auditRowCount = await auditArchiveIndexRepository.countByFirmAndFY(tx, firmId, fyId, fy);
-      await auditArchiveIndexRepository.insert(tx, {
+      // Synchronous repository calls
+      const auditRowCount = auditArchiveIndexRepository.countByFirmAndFY(tx, firmId, fyId, fy);
+      auditArchiveIndexRepository.insert(tx, {
         id: Crypto.randomUUID(), firmId, fyId,
         fyLabel: fy.label, archiveDate: now(),
         rowCount: auditRowCount, storageRef: null,
       });
 
-      await auditRepository.log(tx, { 
+      auditRepository.log(tx, { 
         eventType: 'FY_ARCHIVE_INDEXED', firmId, entityId: fyId, deviceId, 
         payload: JSON.stringify({ fyId, fyLabel: fy.label, rowCount: auditRowCount }) 
       });
@@ -132,6 +141,7 @@ export async function closeFY(fyId: string, firmId: string): Promise<void> {
 }
 
 export const fyService = {
+  // getActiveFY relies on the now-synchronous fyRepository method
   async getActiveFY(firmId: string) { return fyRepository.getActiveFY(firmId); },
   resolveTransactionFyId,
   closeFY,
@@ -142,6 +152,7 @@ export const fyService = {
 export async function resolveTransactionFyId(
   firmId: string, entryDate: string
 ): Promise<string> {
+  // Safe async block: Outer function, NO tx callback boundaries
   const match = await db.select().from(financialYears).where(
     and(
       eq(financialYears.firmId, firmId),

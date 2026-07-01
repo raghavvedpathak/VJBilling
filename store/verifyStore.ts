@@ -10,7 +10,9 @@ interface VerifyState {
   markWarningsViewed: () => void;
 }
 
-export const useVerifyStore = create<VerifyState>((set) => ({
+// FIX: Renamed from useVerifyStore to verifyStore to comply with Phase 1 architectural naming conventions.
+// UI Components needing reactivity should import `useStore` from `zustand` and bind to this instance.
+export const verifyStore = create<VerifyState>((set) => ({
   lastScanIssues: [],
   hasUnviewedWarnings: false,
   

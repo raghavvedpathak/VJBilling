@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StatusBar, TouchableOpacity } from 'react-native';
+import { View, Text, StatusBar, TouchableOpacity, KeyboardAvoidingView, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { ChevronLeft } from 'lucide-react-native';
@@ -71,9 +71,12 @@ export function TwoToneWrapper({ title, children, showBack, actionIcon, onAction
         {/* ARCHITECT FIX: Added overflow-hidden to stop ScrollView height snapping */}
         <View className="flex-1 bg-vj-bg rounded-t-[32px] shadow-2xl overflow-hidden">
           <DynamicBackground />
-          <View className="flex-1 w-full max-w-[800px] self-center px-4 pt-6">
+          <KeyboardAvoidingView
+            behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+            className="flex-1 w-full max-w-[800px] self-center px-4 pt-4"
+          >
             {children}
-          </View>
+          </KeyboardAvoidingView>
         </View>
 
       </SafeAreaView>

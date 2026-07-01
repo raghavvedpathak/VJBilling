@@ -5,26 +5,29 @@ import { auditLogs, auditDeleteGate, appSettings } from '../db/schema';
 import { leaseService } from './leaseService';
 import { safeModeService } from './safeModeService';
 import { auditRepository } from '../repositories/auditRepository';
-import { useAppSettingsStore } from '../store/appSettingsStore';
+// FIX: Imported the correct compliant store name
+import { appSettingsStore } from '../store/appSettingsStore';
 
 export async function purgeExpiredAuditLogs(): Promise<void> {
   await leaseService.assertNoActiveLease(); // GUARD 1 — Dual Guard
   safeModeService.assertNotInSafeMode(); // GUARD 2 — Dual Guard
   
-  const { auditRetentionDays } = useAppSettingsStore.getState(); // default 30
+  // FIX: Using the correct store name
+  const { auditRetentionDays } = appSettingsStore.getState(); // default 30
   const cutoff = subDays(new Date(), auditRetentionDays).toISOString();
   
   // No FY-active carve-out (removed v7.10 FIX-V710-3) — purely time-based.
   // v7.21 FIX-V721-1: `return` removed from db.transaction()
-  await db.transaction(async (tx) => {
-    await tx.update(auditDeleteGate).set({ gateOpen: 1 }).where(eq(auditDeleteGate.id, 1));
+  // FIX-V718-1: Synchronous transaction callback (no async/await inside) and explicit .run()
+  await db.transaction((tx) => {
+    tx.update(auditDeleteGate).set({ gateOpen: 1 }).where(eq(auditDeleteGate.id, 1)).run();
     
-    const result = await tx.delete(auditLogs).where(lt(auditLogs.createdAt, cutoff));
+    const result = tx.delete(auditLogs).where(lt(auditLogs.createdAt, cutoff)).run();
     
-    await tx.update(auditDeleteGate).set({ gateOpen: 0 }).where(eq(auditDeleteGate.id, 1)); // gate closes same tx
+    tx.update(auditDeleteGate).set({ gateOpen: 0 }).where(eq(auditDeleteGate.id, 1)).run(); // gate closes same tx
     
     // Purge event is an INSERT — unaffected by the DELETE trigger, stays permanent
-    await auditRepository.log(tx, { 
+    auditRepository.log(tx, { 
       eventType: 'AUDIT_RETENTION_PURGE_EXECUTED', 
       firmId: null,
       deviceId: 'SYSTEM', 
@@ -36,9 +39,10 @@ export async function purgeExpiredAuditLogs(): Promise<void> {
       }) 
     });
 
-    await tx.update(appSettings).set({ auditRetentionLastRunAt: new Date().toISOString() }).where(eq(appSettings.id, 1));
+    tx.update(appSettings).set({ auditRetentionLastRunAt: new Date().toISOString() }).where(eq(appSettings.id, 1)).run();
   });
 
   // v7.20 FIX-V720-2: appSettingsStore.setState moved OUTSIDE db.transaction() callback — SETSTATE-OUTSIDE-TX COROLLARY
-  useAppSettingsStore.setState({ auditRetentionLastRunAt: new Date().toISOString() });
+  // FIX: Using the correct store name
+  appSettingsStore.setState({ auditRetentionLastRunAt: new Date().toISOString() });
 }

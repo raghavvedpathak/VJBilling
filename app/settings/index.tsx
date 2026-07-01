@@ -157,7 +157,7 @@ export default function SettingsScreen() {
     <TwoToneWrapper title="Settings" showBack>
       <ScrollView 
         showsVerticalScrollIndicator={false} 
-        contentContainerStyle={{ paddingBottom: 120, paddingTop: 10 }}
+        contentContainerStyle={{paddingBottom: 120, paddingTop: 32}}
         keyboardShouldPersistTaps="handled"
         scrollEventThrottle={16}
         overScrollMode="never"

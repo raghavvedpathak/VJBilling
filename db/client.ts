@@ -1,4 +1,3 @@
-// db/client.ts
 import { useEffect, useState } from 'react';
 import { openDatabaseSync } from 'expo-sqlite';
 import { drizzle } from 'drizzle-orm/expo-sqlite';
@@ -45,55 +44,12 @@ export function useDatabase() {
         console.log('[DB Client] Migrations complete.');
 
         // -----------------------------------------------------------------------
-        // HARDENING TRIGGERS
+        // HARDENING TRIGGERS REMOVED FROM CLIENT.TS
         // -----------------------------------------------------------------------
-        expoDb.execSync(`
-          CREATE TRIGGER IF NOT EXISTS prevent_firm_code_update
-          BEFORE UPDATE OF firm_code ON firms
-          FOR EACH ROW
-          WHEN OLD.firm_code != NEW.firm_code
-          BEGIN
-            SELECT RAISE(ABORT, 'FIRM_CODE_IMMUTABLE: firmCode cannot be changed after creation');
-          END;
-        `);
-
-        expoDb.execSync(`
-          CREATE TRIGGER IF NOT EXISTS prevent_audit_update
-          BEFORE UPDATE ON audit_logs
-          BEGIN
-            SELECT RAISE(ABORT, 'AUDIT_LOG_IMMUTABLE: audit logs cannot be changed');
-          END;
-        `);
-
-        expoDb.execSync(`
-          CREATE TRIGGER IF NOT EXISTS prevent_audit_delete
-          BEFORE DELETE ON audit_logs
-          BEGIN
-            SELECT RAISE(ABORT, 'AUDIT_LOG_IMMUTABLE: audit logs cannot be deleted');
-          END;
-        `);
-
-        expoDb.execSync(`
-          CREATE TRIGGER IF NOT EXISTS safe_mode_row_guard
-          AFTER INSERT ON schema_version
-          WHEN (SELECT COUNT(*) FROM safe_mode_state) = 0
-          BEGIN
-            SELECT RAISE(ABORT, 'STORAGE_CORRUPTION_DETECTED: safe_mode_state row missing');
-          END;
-        `);
-
-        // PHASE 2 RED-LINE: Phantom Reconciliations are permanent
-        expoDb.execSync(`
-          CREATE TRIGGER IF NOT EXISTS prevent_phantom_stock_id_update
-          BEFORE UPDATE OF phantom_stock_id ON items
-          FOR EACH ROW
-          WHEN OLD.phantom_stock_id IS NOT NULL AND OLD.phantom_stock_id != NEW.phantom_stock_id
-          BEGIN
-            SELECT RAISE(ABORT, 'PHANTOM_STOCK_IMMUTABLE: phantom_stock_id cannot be changed once reconciled');
-          END;
-        `);
-
-        console.log('[DB Client] All hardening triggers applied successfully.');
+        // Triggers (prevent_firm_code_update, prevent_audit_update, prevent_audit_delete,
+        // safe_mode_row_guard, prevent_phantom_stock_id_update) are now STRICTLY 
+        // maintained inside the migration SQL file (0000_curious_wind_dancer.sql).
+        // Executing DDL here creates dangerous race conditions with future migrations.
 
         // -----------------------------------------------------------------------
         // MIGRATION ZERO SEED FALLBACK (NPE Safe)
@@ -121,9 +77,9 @@ export function useDatabase() {
             [
               'dd/MM/yyyy',
               'system',
-              365,
+              30, // Updated to 30 matching v7.10 requirement
               'INR',
-              '\u20B9',
+              '\u20B9', // ₹ symbol
               2,
               1,
               isoNow,

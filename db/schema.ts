@@ -3,9 +3,9 @@ import { sqliteTable, text, integer, real, foreignKey, unique } from 'drizzle-or
 export type Metal = 'GOLD' | 'SILVER';
 
 // =============================================================================
-// MIGRATION ZERO TABLE ORDER (v7.9 FIX-V79-1 — 14 tables):
+// MIGRATION ZERO TABLE ORDER (v7.9 FIX-V79-1 — 15 tables):
 // safe_mode_state, app_settings, firms, financial_years, writer_leases,
-// audit_logs, bis_logos, schema_version,
+// audit_logs, audit_delete_gate, bis_logos, schema_version,
 // tax_rates, tax_groups, tax_group_components,
 // sync_devices, sync_log, audit_archive_index
 // =============================================================================
@@ -26,7 +26,7 @@ export const appSettings = sqliteTable('app_settings', {
   auditRetentionDays: integer('audit_retention_days').notNull().default(30), // v7.10: was 365
   auditRetentionLastRunAt: text('audit_retention_last_run_at'), // v7.10: nullable ISO-8601
   currency: text('currency').notNull().default('INR'),           // v6.2 G67: Indian Rupee — read-only, not user-changeable
-  currencySymbol: text('currency_symbol').notNull().default('Rs'), // v6.2 G67
+  currencySymbol: text('currency_symbol').notNull().default('₹'), // v6.2 G67 (FIXED: was 'Rs')
   currencyDecimalPlaces: integer('currency_decimal_places').notNull().default(2), // v6.2 G67: paise = 2dp
   dateFormatToken: text('date_format_token').notNull().default('dd/MM/yyyy'), // v6.2 G68: date-fns v3 token (lowercase)
   warnUnsavedChanges: integer('warn_unsaved_changes').notNull().default(1), // v6.2 G69: 1=ON, 0=OFF
@@ -97,8 +97,7 @@ export const writerLeases = sqliteTable('writer_leases', {
   deviceId: text('device_id').notNull(),     // UUID from deviceId util
 });
 
-export const LeaseType = {
-  RESTORE: 'RESTORE',
+export const LeaseType = {  RESTORE: 'RESTORE',
   BACKUP: 'BACKUP',
   WRITE: 'WRITE', // Reserved for Phase 2 bulk-write operations — DO NOT ACQUIRE IN PHASE 1
 } as const;
@@ -197,8 +196,7 @@ export const taxGroupComponents = sqliteTable('tax_group_components', {
 // PR GATE 3: grep for mDNS, socket, WebSocket, HttpServer, sendSnapshot — hard rejection.
 // =============================================================================
 
-// 12. SYNC DEVICES — SCHEMA ONLY. Future Sync Phase implementation target.
-// -- TODO: FUTURE SYNC PHASE BOUNDARY. DO NOT import or query this table from Phase 1–7 service code. Any usage before the Future Sync Phase spec is approved is a build violation.
+// 12. SYNC DEVICES — SCHEMA ONLY. Future Sync Phase implementation target. // -- TODO: FUTURE SYNC PHASE BOUNDARY. DO NOT import or query this table from Phase 1–7 service code. Any usage before the Future Sync Phase spec is approved is a build violation.
 export const syncDevices = sqliteTable('sync_devices', {
   id: text('id').primaryKey(),              // UUID
   deviceId: text('device_id').notNull(),    // from getDeviceId() — links to deviceId util
@@ -296,7 +294,7 @@ export const categories = sqliteTable('categories', {
   updatedAt: text('updated_at').notNull(),
 }, (table) => ({
   firmFk: foreignKey({ columns: [table.firmId], foreignColumns: [firms.id] }),
-}));
+})); 
 
 // Designs
 export const designs = sqliteTable('designs', {
@@ -393,7 +391,7 @@ export const sequenceCounters = sqliteTable('sequence_counters', {
   // Documents: key = '{firmId}_{type}_{fyLabel}' — FY-scoped
 }, (table) => ({
   firmFk: foreignKey({ columns: [table.firmId], foreignColumns: [firms.id] }),
-}));
+})); 
 
 // Old Gold Lots (BLOCK-4 v1.15)
 export const oldGoldLots = sqliteTable('old_gold_lots', {

@@ -33,7 +33,8 @@ import { eq, isNotNull } from 'drizzle-orm';
 import { SafeModeTrigger } from '../store/safeModeStore';
 import { differenceInDays, parseISO } from 'date-fns';
 import { purgeExpiredAuditLogs } from './auditRetentionService';
-import { useAppSettingsStore } from '../store/appSettingsStore';
+// FIX: Import the strictly compliant store name
+import { appSettingsStore } from '../store/appSettingsStore';
 
 // In-memory flag: defers audit for Step 0 failure until DB is ready (v2.7)
 let premigrationSnapshotFailed = false;
@@ -200,7 +201,8 @@ export const bootstrapService = {
       await storage.setItem('vjbilling_boot_was_interrupted', 'false');
 
       // v7.10 AUDIT-RETENTION-MONTHLY: Bootstrap integration (fire-and-forget)
-      const last = useAppSettingsStore.getState().auditRetentionLastRunAt;
+      // FIX: Use the compliant store name
+      const last = appSettingsStore.getState().auditRetentionLastRunAt;
       if (!last || differenceInDays(new Date(), parseISO(last)) >= 30) {
         purgeExpiredAuditLogs().catch(console.error);
       }

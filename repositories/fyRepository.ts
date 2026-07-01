@@ -29,18 +29,19 @@ export const fyRepository = {
    * Creates a financial year row. Status is always ACTIVE on creation.
    * startDate and endDate MUST be YYYY-MM-DD strings — NOT ISO-8601 datetimes.
    */
-  async create(
+  // FIX-V718-1: Synchronous execution, returns raw object
+  create(
     input: Omit<NewFY, 'id' | 'createdAt' | 'status'>,
     tx: DbOrTx = db
-  ) {
+  ): any {
     const newId = Crypto.randomUUID();
 
-    const [createdFY] = await tx.insert(financialYears).values({
+    const createdFY = tx.insert(financialYears).values({
       ...input,
       id: newId,
       status: FYStatus.ACTIVE,
       createdAt: now(),
-    }).returning();
+    }).returning().get();
 
     return createdFY;
   },
@@ -57,7 +58,8 @@ export const fyRepository = {
    * Reason: resolveTransactionFyId uses lte/gte string comparison against entryDate ('YYYY-MM-DD').
    * Storing full datetimes (e.g. 'T23:59:59.000Z') would break that comparison at timezone boundaries.
    */
-  async createInitialFY(firmId: string, tx: DbOrTx = db) {
+  // FIX-V718-1: Synchronous execution
+  createInitialFY(firmId: string, tx: DbOrTx = db): any {
     const today = new Date();
     const currentMonth = today.getMonth(); // 0-indexed: Jan=0, Mar=2, Apr=3
     const currentYear = today.getFullYear();
@@ -84,7 +86,7 @@ export const fyRepository = {
     const startDate = `${startYear}-04-01`;
     const endDate   = `${endYear}-03-31`;
 
-    return await this.create({ firmId, label: fyLabel, startDate, endDate }, tx);
+    return this.create({ firmId, label: fyLabel, startDate, endDate }, tx);
   },
 
   /**
@@ -92,8 +94,9 @@ export const fyRepository = {
    * For Phase 1 reads and display only.
    * Phase 3+ write services MUST use resolveTransactionFyId() instead — NEVER this method for fyId.
    */
-  async getActiveFY(firmId: string, tx: DbOrTx = db) {
-    const [fy] = await tx
+  // FIX-V718-1: Synchronous execution using .get()
+  getActiveFY(firmId: string, tx: DbOrTx = db): any {
+    const fy = tx
       .select()
       .from(financialYears)
       .where(
@@ -101,7 +104,8 @@ export const fyRepository = {
           eq(financialYears.firmId, firmId),
           eq(financialYears.status, FYStatus.ACTIVE)
         )
-      );
+      )
+      .get();
     return fy ?? null;
   },
 
@@ -110,12 +114,14 @@ export const fyRepository = {
    * Called by fyService.closeFY() to read the FY label for the audit_archive_index row.
    * Returns null if the FY does not exist — callers must guard with ! assert.
    */
-  async getById(tx: DrizzleTransaction, firmId: string, id: string): Promise<FinancialYear | null> {
-    const [fy] = await tx
+  // FIX-V718-1: Synchronous execution using .get()
+  getById(tx: DrizzleTransaction, firmId: string, id: string): FinancialYear | null {
+    const fy = tx
       .select()
       .from(financialYears)
-      .where(and(eq(financialYears.id, id), eq(financialYears.firmId, firmId)));
-    return fy ?? null;
+      .where(and(eq(financialYears.id, id), eq(financialYears.firmId, firmId)))
+      .get();
+    return (fy as unknown as FinancialYear) ?? null;
   },
 
   /**
@@ -124,25 +130,26 @@ export const fyRepository = {
    * structurally impossible because the query will match 0 rows for a foreign firmId.
    *
    * CONSTITUTIONAL:
-   *   - Only fyService.closeFY() may call this method.
-   *   - Must always run inside a transaction (tx context mandatory).
-   *   - Does NOT open a new transaction itself — the caller owns the transaction.
-   *   - Does NOT write audit logs — fyService.closeFY() owns all audit writes.
+   * - Only fyService.closeFY() may call this method.
+   * - Must always run inside a transaction (tx context mandatory).
+   * - Does NOT open a new transaction itself — the caller owns the transaction.
+   * - Does NOT write audit logs — fyService.closeFY() owns all audit writes.
    *
    * @param firmId - Required for firm isolation — prevents cross-firm FY close
    * @param fyId   - UUID of the FY to close
    * @param tx     - Drizzle transaction context — MUST be provided by caller
    */
-  async closeFY(firmId: string, fyId: string, tx: DbOrTx = db) {
-    await tx
-      .update(financialYears)
+  // FIX-V718-1: Synchronous execution using .run()
+  closeFY(firmId: string, fyId: string, tx: DbOrTx = db): void {
+    tx.update(financialYears)
       .set({ status: FYStatus.CLOSED })
       .where(
         and(
           eq(financialYears.id, fyId),
           eq(financialYears.firmId, firmId) // firm isolation: cross-firm close structurally impossible
         )
-      );
+      )
+      .run();
   },
 
   /**
@@ -161,12 +168,13 @@ export const fyRepository = {
    * @returns fyId string (UUID) of the matching ACTIVE FY
    * @throws ENTRY_DATE_IN_CLOSED_FY if no ACTIVE FY covers the entryDate
    */
-  async resolveTransactionFyId(
+  // FIX-V718-1: Synchronous execution using .get()
+  resolveTransactionFyId(
     firmId: string,
     entryDate: string, // MUST be 'YYYY-MM-DD' — same format as stored startDate/endDate
     tx: DbOrTx = db
-  ): Promise<string> {
-    const match = await tx
+  ): string {
+    const match = tx
       .select()
       .from(financialYears)
       .where(
@@ -177,13 +185,14 @@ export const fyRepository = {
           gte(financialYears.endDate, entryDate)    // endDate >= entryDate
         )
       )
-      .limit(1);
+      .limit(1)
+      .get();
 
-    if (!match.length) {
+    if (!match) {
       throw new Error('ENTRY_DATE_IN_CLOSED_FY');
     }
 
-    return match[0].id;
+    return match.id as string;
   },
 };
 

@@ -52,16 +52,18 @@ export async function getOrGenerateDeviceId(): Promise<string> {
  */
 export async function auditDeviceIdIfNew(): Promise<void> {
   try {
-    const hasEvent = await auditRepository.hasEvent('DEVICE_ID_GENERATED');
+    // FIX: Removed unnecessary `await` — hasEvent executes synchronously via .get()
+    const hasEvent = auditRepository.hasEvent('DEVICE_ID_GENERATED');
 
     if (!hasEvent) {
       console.log('[DeviceID] Phase B: Detected un-audited device identity. Logging now.');
-      const deviceId = await getDeviceId();
+      const deviceId = await getDeviceId(); // This remains async (MMKV read)
       const deviceName = Device.modelName || 'Unknown Device';
       const osName = Device.osName || 'Unknown OS';
 
-      // FIX: now() replaces new Date().toISOString() — consistent with centralized time utility
-      await auditRepository.create({
+      // FIX: Removed unnecessary `await` — create executes synchronously via .run()
+      // tx is implicitly undefined, fulfilling G41 Call Site 2 requirement
+      auditRepository.create({
         firmId: null,
         eventType: 'DEVICE_ID_GENERATED',
         payload: JSON.stringify({

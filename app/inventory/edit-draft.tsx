@@ -367,7 +367,7 @@ export default function EditDraftScreen() {
 const s = StyleSheet.create({
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   container: { flex: 1 },
-  content: { paddingBottom: 60, paddingTop: 10 },
+  content: { paddingBottom: 350, paddingTop: 10 },
   card: {
     backgroundColor: '#fff',
     borderRadius: 16,

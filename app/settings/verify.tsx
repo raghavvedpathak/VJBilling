@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, ScrollView } from 'react-native';
 import { TwoToneWrapper } from '../../components/TwoToneWrapper';
 import { verifyService, VerifyFinding } from '../../services/verifyService';
-import { useVerifyStore } from '../../store/verifyStore';
+import { verifyStore } from '../../store/verifyStore';
 import { GlassCard, GlassButton } from '../../components/ui/Glass'; 
 import { ShieldCheck, AlertTriangle, CheckCircle, XCircle, Activity } from 'lucide-react-native';
 
@@ -11,7 +11,7 @@ export default function VerifyDataScreen() {
   const [results, setResults] = useState<VerifyFinding[] | null>(null);
   const [status, setStatus] = useState<'IDLE' | 'CLEAN' | 'ISSUES'>('IDLE');
 
-  const { lastScanIssues, markWarningsViewed } = useVerifyStore();
+  const { lastScanIssues, markWarningsViewed } = verifyStore();
 
   useEffect(() => {
     if (lastScanIssues && lastScanIssues.length > 0) {
@@ -55,7 +55,7 @@ export default function VerifyDataScreen() {
 
   return (
     <TwoToneWrapper title="" showBack headerContent={headerContent}>
-      <ScrollView className="flex-1" contentContainerStyle={{ paddingBottom: 100, paddingTop: 20 }}>
+      <ScrollView className="flex-1" contentContainerStyle={{paddingBottom: 350, paddingTop: 32}}>
         
         <View className="mb-8">
           <GlassButton 

@@ -1,7 +1,7 @@
 // app/inventory/bulk-add.tsx
 import React, { useState, useEffect, useMemo } from 'react';
 import { View, Text, ScrollView, Alert, Modal, TouchableOpacity, TextInput, StyleSheet } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
 import { TwoToneWrapper } from '../../components/TwoToneWrapper';
 import { storage } from '../../utils/storage';
 import { GlassCard, GlassInput, GlassButton } from '../../components/ui/Glass';
@@ -11,6 +11,7 @@ import { designRepository } from '../../repositories/designRepository';
 import { categoryRepository } from '../../repositories/categoryRepository';
 import { hsnMasterRepository } from '../../repositories/hsnMasterRepository';
 import { stoneRepository } from '../../repositories/stoneRepository';
+import { itemRepository } from '../../repositories/itemRepository';
 import type { Design, Category, HsnCode, Stone } from '../../types/phase2.types';
 import { Package, Plus, Trash2, Calculator, Layers, MapPin, Wallet, CheckCircle } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -24,51 +25,9 @@ const COLORS = {
 
 const BULK_ITEM_MAX = 50;
 
-const SelectModal = ({ visible, title, options, onSelect, onClose, searchPlaceholder }: any) => {
-  const insets = useSafeAreaInsets();
-  const [searchQuery, setSearchQuery] = useState('');
+import { GlassSmartSearch } from '../../components/ui/Glass';
 
-  const filteredOptions = options.filter((opt: any) => 
-    opt.label.toLowerCase().includes(searchQuery.toLowerCase()) || 
-    (opt.sublabel && opt.sublabel.toLowerCase().includes(searchQuery.toLowerCase()))
-  );
-
-  return (
-    <Modal visible={visible} animationType="fade" transparent>
-      <View className="flex-1 bg-black/50 justify-center items-center p-4">
-        <View className="bg-vj-bg w-full max-w-[500px] rounded-3xl p-6 shadow-2xl" style={{ maxHeight: '85%' }}>
-          <Text className="text-xl font-bold text-vj-text mb-4">{title}</Text>
-          {searchPlaceholder && (
-            <TextInput
-              style={{ backgroundColor: '#fff', borderRadius: 12, padding: 12, fontSize: 16, marginBottom: 12, borderWidth: 1, borderColor: 'rgba(92,22,35,0.3)' }}
-              placeholder={searchPlaceholder}
-              value={searchQuery}
-              onChangeText={setSearchQuery}
-            />
-          )}
-          <ScrollView>
-            {filteredOptions.length === 0 && <Text className="text-center text-vj-text/50 mt-4 font-medium">No matching results found.</Text>}
-            {filteredOptions.map((opt: any) => (
-              <TouchableOpacity 
-                key={opt.id} 
-                onPress={() => { onSelect(opt); setSearchQuery(''); onClose(); }}
-                className="py-4 border-b border-gray-200"
-              >
-                <Text className="text-lg font-semibold text-vj-text">{opt.label}</Text>
-                {opt.sublabel && <Text className="text-sm text-vj-text/60">{opt.sublabel}</Text>}
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
-          <View className="mt-4">
-            <GlassButton title="Cancel" variant="secondary" onPress={() => { setSearchQuery(''); onClose(); }} />
-          </View>
-        </View>
-      </View>
-    </Modal>
-  );
-};
-
-const BulkItemRow = ({ index, row, updateRow, removeRow, openStoneModal }: any) => {
+const BulkItemRow = ({ index, row, updateRow, removeRow, stones }: any) => {
   // Pure Wholesale "Touch" Costing Engine
   const calculations = useMemo(() => {
     const gross = parseFloat(row.grossWeight) || 0;
@@ -103,7 +62,7 @@ const BulkItemRow = ({ index, row, updateRow, removeRow, openStoneModal }: any) 
   }, [row.grossWeight, row.stoneWeight, row.beadsWeight, row.purityPercent, row.wastagePercent, row.purchaseRate, row.makingCharge, row.stoneCost]);
 
   return (
-    <View style={s.rowContainer}>
+    <GlassCard>
       <View style={s.rowHeader}>
         <Text style={s.rowTitle}>Item #{index + 1}</Text>
         {index > 0 && (
@@ -139,11 +98,24 @@ const BulkItemRow = ({ index, row, updateRow, removeRow, openStoneModal }: any) 
         <View style={s.inputCol}><GlassInput label="BIS HUID" value={row.huid} onChangeText={(t: string) => updateRow(index, 'huid', t)} autoCapitalize="characters" maxLength={6} /></View>
       </View>
 
-      {/* Primary Stone Button */}
-      <TouchableOpacity onPress={() => openStoneModal(index)} className="mb-2 bg-white/40 p-3 rounded-xl border border-white/20">
-        <Text className="text-[10px] font-bold text-vj-text/60 uppercase mb-1">Primary Stone (Optional)</Text>
-        <Text className="text-sm font-semibold text-vj-text">{row.stoneName || 'Select Stone...'}</Text>
-      </TouchableOpacity>
+      {/* Primary Stone Inline Search */}
+      <View style={{ zIndex: 10 }}>
+        <GlassSmartSearch 
+          label="Primary Stone (Optional)"
+          placeholder="Select Stone..."
+          options={[{ id: 'NONE', label: 'No Stone', sublabel: 'Clear selection' }, ...(stones || []).map((s: any) => ({ id: s.id, label: s.name, sublabel: s.type }))]}
+          selectedId={row.stoneId || 'NONE'}
+          onSelect={(opt) => {
+            if (!opt || opt.id === 'NONE') {
+              updateRow(index, 'stoneId', null);
+              updateRow(index, 'stoneName', '');
+            } else {
+              updateRow(index, 'stoneId', opt.id);
+              updateRow(index, 'stoneName', `${opt.label} (${opt.sublabel})`);
+            }
+          }}
+        />
+      </View>
 
       {/* Live Cost Breakdown */}
       {calculations.isValid && row.purchaseRate !== '' && (
@@ -165,11 +137,11 @@ const BulkItemRow = ({ index, row, updateRow, removeRow, openStoneModal }: any) 
             <Text style={[s.mathValue, { color: '#047857' }]}>{calculations.vaultTruth.toFixed(3)} g</Text>
           </View>
           <View style={s.mathRow}>
-            <Text style={s.mathLabel}>Wastage Gold Paid:</Text>
+            <Text style={s.mathLabel}>Wastage Gold:</Text>
             <Text style={[s.mathValue, { color: '#BE123C' }]}>{calculations.wastageGold.toFixed(3)} g</Text>
           </View>
           <View style={s.mathRow}>
-            <Text style={s.mathLabel}>Cost Truth (Billed):</Text>
+            <Text style={s.mathLabel}>Cost Truth (Fine):</Text>
             <Text style={[s.mathValue, { color: '#B45309' }]}>{calculations.costTruth.toFixed(3)} g</Text>
           </View>
           <View style={s.mathRow}>
@@ -182,7 +154,7 @@ const BulkItemRow = ({ index, row, updateRow, removeRow, openStoneModal }: any) 
           </View>
         </View>
       )}
-    </View>
+    </GlassCard>
   );
 };
 
@@ -199,14 +171,25 @@ export default function BulkAddScreen() {
   const [selectedCategory, setSelectedCategory] = useState<Category | null>(null);
   const [selectedHsn, setSelectedHsn] = useState<HsnCode | null>(null);
 
-  const [showDesignModal, setShowDesignModal] = useState(false);
-  const [showCategoryModal, setShowCategoryModal] = useState(false);
-  const [showHsnModal, setShowHsnModal] = useState(false);
-  const [showStoneModal, setShowStoneModal] = useState(false);
-  const [activeStoneRow, setActiveStoneRow] = useState<number | null>(null);
-
   const [loading, setLoading] = useState(false);
   const [successCount, setSuccessCount] = useState<number | null>(null);
+  const [designStock, setDesignStock] = useState<{ totalNetWeightMg: number, count: number } | null>(null);
+
+  useEffect(() => {
+    if (!activeFirmId || !selectedDesign) {
+      setDesignStock(null);
+      return;
+    }
+    const fetchStock = async () => {
+      try {
+        const stock = await itemRepository.getAvailableStockForDesign(selectedDesign.id, activeFirmId);
+        setDesignStock(stock);
+      } catch (err) {
+        console.warn('Failed to fetch stock for design:', err);
+      }
+    };
+    fetchStock();
+  }, [selectedDesign, activeFirmId]);
 
   const getEmptyRow = () => ({
     grossWeight: '', stoneWeight: '', beadsWeight: '',
@@ -218,38 +201,23 @@ export default function BulkAddScreen() {
 
   const [rows, setRows] = useState([getEmptyRow()]);
 
-  useEffect(() => {
-    if (!activeFirmId) return;
-    const loadData = async () => {
-      const d = await designRepository.findByFirmId(activeFirmId);
-      const c = await categoryRepository.findByFirmId(activeFirmId);
-      const h = await hsnMasterRepository.findByChapter('71');
-      const s = await stoneRepository.findByFirmId(activeFirmId);
-      setDesigns(d);
-      setCategories(c);
-      setHsnCodes(h);
-      setStones(s);
+  useFocusEffect(
+    React.useCallback(() => {
+      if (!activeFirmId) return;
+      const loadData = async () => {
+        const d = await designRepository.findByFirmId(activeFirmId);
+        const c = await categoryRepository.findByFirmId(activeFirmId);
+        const h = await hsnMasterRepository.findByChapter('71');
+        const s = await stoneRepository.findByFirmId(activeFirmId);
+        setDesigns(d);
+        setCategories(c);
+        setHsnCodes(h);
+        setStones(s);
 
-      // High-Speed MMKV Restore: Pre-fill last used classification
-      const lastDesign = await storage.getItem(`@bulk_lastDesign_${activeFirmId}`);
-      const lastCategory = await storage.getItem(`@bulk_lastCat_${activeFirmId}`);
-      const lastHsn = await storage.getItem(`@bulk_lastHsn_${activeFirmId}`);
-
-      if (lastDesign) {
-        const found = d.find(x => x.id === lastDesign);
-        if (found) setSelectedDesign(found);
-      }
-      if (lastCategory) {
-        const found = c.find(x => x.id === lastCategory);
-        if (found) setSelectedCategory(found);
-      }
-      if (lastHsn) {
-        const found = h.find(x => x.id === lastHsn);
-        if (found) setSelectedHsn(found);
-      }
-    };
-    loadData();
-  }, [activeFirmId]);
+      };
+      loadData();
+    }, [activeFirmId])
+  );
 
   const updateRow = (index: number, field: string, value: any) => {
     const newRows = [...rows];
@@ -280,11 +248,6 @@ export default function BulkAddScreen() {
 
   const removeRow = (index: number) => {
     setRows(rows.filter((_, i) => i !== index));
-  };
-
-  const openStoneModalForRow = (index: number) => {
-    setActiveStoneRow(index);
-    setShowStoneModal(true);
   };
 
   const handleSubmit = async () => {
@@ -346,12 +309,6 @@ export default function BulkAddScreen() {
       
       // TRIGGER MODERN SUCCESS MODAL
       setSuccessCount(inputs.length);
-      
-      // Cache classification for next session using MMKV
-      storage.setItem(`@bulk_lastDesign_${activeFirmId}`, selectedDesign.id);
-      storage.setItem(`@bulk_lastCat_${activeFirmId}`, selectedCategory.id);
-      storage.setItem(`@bulk_lastHsn_${activeFirmId}`, selectedHsn.code);
-      
     } catch (e: any) {
       Alert.alert('Bulk Add Failed', e.message);
     } finally {
@@ -361,7 +318,7 @@ export default function BulkAddScreen() {
 
   return (
     <TwoToneWrapper title="Bulk Add Stock" showBack>
-      <ScrollView contentContainerStyle={{ paddingBottom: 120 }} showsVerticalScrollIndicator={false}>
+      <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingTop: 32, paddingBottom: 350, paddingHorizontal: 16 }} showsVerticalScrollIndicator={false}>
         
         <GlassCard style={{ marginBottom: 16 }}>
           <View className="flex-row items-center gap-2 mb-4">
@@ -373,20 +330,71 @@ export default function BulkAddScreen() {
             These attributes will be applied to all items in this bulk batch.
           </Text>
 
-          <TouchableOpacity onPress={() => setShowDesignModal(true)} className="mb-4 bg-white/40 p-3 rounded-xl border border-white/20">
-            <Text className="text-[10px] font-bold text-vj-text/60 uppercase mb-1">Design *</Text>
-            <Text className="text-sm font-semibold text-vj-text">{selectedDesign ? selectedDesign.name : 'Select Design...'}</Text>
-          </TouchableOpacity>
+          <View style={{ zIndex: 40, marginBottom: 16 }}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+              <Text style={{ fontSize: 12, fontWeight: '700', color: 'rgba(92,22,35,0.6)', textTransform: 'uppercase' }}>Design *</Text>
+              {designStock && designStock.count > 0 && (
+                <View style={{ backgroundColor: 'rgba(16, 185, 129, 0.15)', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 12, borderWidth: 1, borderColor: 'rgba(16, 185, 129, 0.3)' }}>
+                  <Text style={{ fontSize: 10, fontWeight: '800', color: '#047857' }}>
+                    STOCK: {designStock.count} ({ (designStock.totalNetWeightMg / 1000).toFixed(3) } g)
+                  </Text>
+                </View>
+              )}
+            </View>
+            <GlassSmartSearch 
+              placeholder="Search designs..."
+              options={designs.map(d => ({ id: d.id, label: d.name, sublabel: d.metal }))}
+              selectedId={selectedDesign?.id || null}
+              onFocusFetch={async () => {
+                if (activeFirmId) {
+                  const d = await designRepository.findByFirmId(activeFirmId);
+                  setDesigns(d);
+                }
+              }}
+              onSelect={(opt) => {
+                if (!opt) return setSelectedDesign(null);
+                const selDesign = designs.find(d => d.id === opt.id)!;
+                setSelectedDesign(selDesign);
+                if (selectedCategory && selectedCategory.metal !== selDesign.metal) {
+                  setSelectedCategory(null);
+                }
+              }}
+            />
+          </View>
 
-          <TouchableOpacity onPress={() => setShowCategoryModal(true)} className="mb-4 bg-white/40 p-3 rounded-xl border border-white/20">
-            <Text className="text-[10px] font-bold text-vj-text/60 uppercase mb-1">Category *</Text>
-            <Text className="text-sm font-semibold text-vj-text">{selectedCategory ? selectedCategory.name : 'Select Category...'}</Text>
-          </TouchableOpacity>
+          <View style={{ zIndex: 30, marginBottom: 16 }}>
+            <GlassSmartSearch 
+              label="Category *"
+              placeholder="Search categories..."
+              options={categories.filter(c => selectedDesign ? c.metal === selectedDesign.metal : true).map(c => ({ id: c.id, label: c.name, sublabel: c.metal }))}
+              selectedId={selectedCategory?.id || null}
+              onFocusFetch={async () => {
+                if (activeFirmId) {
+                  const c = await categoryRepository.findByFirmId(activeFirmId);
+                  setCategories(c);
+                }
+              }}
+              onSelect={(opt) => {
+                if (!opt) return setSelectedCategory(null);
+                const selCat = categories.find(c => c.id === opt.id)!;
+                setSelectedCategory(selCat);
+              }}
+            />
+          </View>
 
-          <TouchableOpacity onPress={() => setShowHsnModal(true)} className="bg-white/40 p-3 rounded-xl border border-white/20">
-            <Text className="text-[10px] font-bold text-vj-text/60 uppercase mb-1">HSN Code *</Text>
-            <Text className="text-sm font-semibold text-vj-text">{selectedHsn ? `${selectedHsn.code} - ${selectedHsn.description}` : 'Select HSN...'}</Text>
-          </TouchableOpacity>
+          <View style={{ zIndex: 20 }}>
+            <GlassSmartSearch 
+              label="HSN Code *"
+              placeholder="Search HSN codes..."
+              options={hsnCodes.map(h => ({ id: h.id, label: h.code, sublabel: h.description }))}
+              selectedId={selectedHsn?.id || null}
+              onSelect={(opt) => {
+                if (!opt) return setSelectedHsn(null);
+                const selHsn = hsnCodes.find(h => h.id === opt.id)!;
+                setSelectedHsn(selHsn);
+              }}
+            />
+          </View>
         </GlassCard>
 
         <View style={s.itemsHeader}>
@@ -401,7 +409,7 @@ export default function BulkAddScreen() {
             row={row} 
             updateRow={updateRow} 
             removeRow={removeRow} 
-            openStoneModal={openStoneModalForRow} 
+            stones={stones} 
           />
         ))}
 
@@ -415,58 +423,6 @@ export default function BulkAddScreen() {
         </View>
 
       </ScrollView>
-
-      {/* Select Modals */}
-      <SelectModal 
-        visible={showDesignModal} title="Select Design" searchPlaceholder="Search designs..."
-        options={designs.map(d => ({ id: d.id, label: d.name, sublabel: d.metal }))}
-        onSelect={(opt: any) => {
-          const selDesign = designs.find(d => d.id === opt.id)!;
-          setSelectedDesign(selDesign);
-          storage.setItem(`@bulk_lastDesign_${activeFirmId}`, selDesign.id);
-          if (selectedCategory && selectedCategory.metal !== selDesign.metal) {
-            setSelectedCategory(null);
-            storage.removeItem(`@bulk_lastCat_${activeFirmId}`);
-          }
-        }}
-        onClose={() => setShowDesignModal(false)}
-      />
-      <SelectModal 
-        visible={showCategoryModal} title="Select Category" searchPlaceholder="Search categories..."
-        options={categories.filter(c => selectedDesign ? c.metal === selectedDesign.metal : true).map(c => ({ id: c.id, label: c.name, sublabel: c.metal }))}
-        onSelect={(opt: any) => {
-          const selCat = categories.find(c => c.id === opt.id)!;
-          setSelectedCategory(selCat);
-          storage.setItem(`@bulk_lastCat_${activeFirmId}`, selCat.id);
-        }}
-        onClose={() => setShowCategoryModal(false)}
-      />
-      <SelectModal 
-        visible={showHsnModal} title="Select HSN Code" searchPlaceholder="Search HSN codes..."
-        options={hsnCodes.map(h => ({ id: h.id, label: h.code, sublabel: h.description }))}
-        onSelect={(opt: any) => {
-          const selHsn = hsnCodes.find(h => h.id === opt.id)!;
-          setSelectedHsn(selHsn);
-          storage.setItem(`@bulk_lastHsn_${activeFirmId}`, selHsn.id);
-        }}
-        onClose={() => setShowHsnModal(false)}
-      />
-      <SelectModal 
-        visible={showStoneModal} title="Select Primary Stone"
-        options={[{ id: 'NONE', label: 'No Stone', sublabel: 'Clear selection' }, ...stones.map(s => ({ id: s.id, label: s.name, sublabel: s.type }))]}
-        onSelect={(opt: any) => {
-          if (activeStoneRow !== null) {
-            if (opt.id === 'NONE') {
-              updateRow(activeStoneRow, 'stoneId', null);
-              updateRow(activeStoneRow, 'stoneName', '');
-            } else {
-              updateRow(activeStoneRow, 'stoneId', opt.id);
-              updateRow(activeStoneRow, 'stoneName', `${opt.label} (${opt.sublabel})`);
-            }
-          }
-        }}
-        onClose={() => setShowStoneModal(false)}
-      />
 
       {/* Modern Bulk Success Modal */}
       <Modal visible={!!successCount} transparent animationType="fade">
@@ -499,14 +455,7 @@ const s = StyleSheet.create({
   itemsHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12, marginTop: 8, marginLeft: 4 },
   itemsTitle: { fontSize: 18, fontWeight: '800', color: '#5C1623' },
   
-  rowContainer: { 
-    backgroundColor: 'rgba(255,255,255,0.6)', 
-    borderRadius: 16, 
-    padding: 16, 
-    marginBottom: 16,
-    borderWidth: 1, 
-    borderColor: 'rgba(92,22,35,0.3)' 
-  },
+
   rowHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
   rowTitle: { fontSize: 14, fontWeight: '800', color: '#D4AF37', textTransform: 'uppercase', letterSpacing: 1 },
   
@@ -515,7 +464,7 @@ const s = StyleSheet.create({
 
   liveMathBox: { 
     marginTop: 8, 
-    backgroundColor: 'rgba(184,115,51,0.05)', 
+    backgroundColor: 'rgba(252,251,248,0.95)', 
     borderRadius: 12, 
     padding: 12, 
     borderWidth: 1, 
@@ -524,7 +473,7 @@ const s = StyleSheet.create({
   mathHeader: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 8 },
   mathTitle: { fontSize: 11, fontWeight: '800', color: '#D4AF37', textTransform: 'uppercase' },
   mathRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 },
-  mathLabel: { fontSize: 12, color: 'rgba(92,22,35,0.6)', fontWeight: '600' },
+  mathLabel: { fontSize: 12, color: 'rgba(92,22,35,0.6)', fontWeight: '600', flex: 1, paddingRight: 8 },
   mathValue: { fontSize: 12, fontWeight: '700', color: '#5C1623', fontFamily: 'monospace' },
   mathHighlight: { fontSize: 13, fontWeight: '800', color: '#92400E', fontFamily: 'monospace' },
 

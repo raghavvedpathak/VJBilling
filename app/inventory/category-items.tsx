@@ -9,7 +9,7 @@ import React, { useState, useCallback, memo } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
 import { FlashList } from '@shopify/flash-list';
 import { useRouter, useLocalSearchParams } from 'expo-router';
-import { useFocusEffect } from '@react-navigation/native';
+import { useFocusEffect } from 'expo-router';
 import { TwoToneWrapper } from '../../components/TwoToneWrapper';
 import { useFirmStore } from '../../store/firmStore';
 import { inventoryDrillDownService } from '../../services/inventoryDrillDownService';
@@ -134,7 +134,7 @@ export default function CategoryItemsScreen() {
             )}
             // @ts-ignore: estimatedItemSize required by spec
             estimatedItemSize={88}
-            contentContainerStyle={{ paddingBottom: 100, paddingTop: 8 }}
+            contentContainerStyle={{paddingBottom: 100, paddingTop: 32}}
             showsVerticalScrollIndicator={false}
             ListEmptyComponent={
               <View style={s.emptyContainer}>

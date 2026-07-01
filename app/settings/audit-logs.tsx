@@ -4,8 +4,9 @@ import * as Device from 'expo-device';
 import { TwoToneWrapper } from '../../components/TwoToneWrapper';
 import { auditRepository } from '../../repositories/auditRepository';
 import { useFirmStore } from '../../store/firmStore';
-// ARCHITECT FIX: Import the correctly named Zustand hook
-import { useAppSettingsStore } from '../../store/appSettingsStore';
+// FIX: Import useStore and the compliant store
+import { useStore } from 'zustand';
+import { appSettingsStore } from '../../store/appSettingsStore';
 import { getDeviceId } from '../../utils/deviceId';
 import { FileText, Smartphone, Calendar, ChevronDown, ChevronUp, Share2, Filter } from 'lucide-react-native';
 import { format, parseISO } from 'date-fns';
@@ -303,8 +304,8 @@ export default function AuditLogScreen() {
 
   const { activeFirmId } = useFirmStore();
   
-  // ARCHITECT FIX: Use reactive selector to extract token
-  const dateFormatToken = useAppSettingsStore((s) => s.dateFormatToken);
+  // FIX: Use useStore to reactively bind to the static store and strongly type 's'
+  const dateFormatToken = useStore(appSettingsStore, (s: any) => s.dateFormatToken);
 
   const toggleHandlerRef = useRef<(id: string) => void>(() => {});
   toggleHandlerRef.current = (id: string) => {
@@ -427,7 +428,7 @@ export default function AuditLogScreen() {
                 dateFormatToken={dateFormatToken}
               />
             )}
-            contentContainerStyle={{ paddingHorizontal: 4, paddingBottom: 100, paddingTop: 10 }}
+            contentContainerStyle={{paddingHorizontal: 4, paddingBottom: 100, paddingTop: 32}}
             showsVerticalScrollIndicator={false}
             ListEmptyComponent={
               <View className="items-center mt-12 bg-white/40 p-8 rounded-3xl border border-white/50">

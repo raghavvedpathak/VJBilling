@@ -31,7 +31,7 @@ export const auditRepository = {
    * In all other cases, tx must be provided to ensure atomic integrity.
    * Whitelist: RESTORE_OLD_SCHEMA, DEVICE_ID_GENERATED, BACKUP_CREATED
    */
-  async create(
+  create(
     input: {
       firmId: string | null;
       eventType: string;
@@ -39,7 +39,7 @@ export const auditRepository = {
       deviceId: string;
     },
     tx?: DbOrTx
-  ) {
+  ): void {
     if (
       !tx &&
       input.eventType !== 'RESTORE_OLD_SCHEMA' &&
@@ -54,17 +54,18 @@ export const auditRepository = {
     const dbContext = tx ?? db;
     const newId = Crypto.randomUUID();
 
-    await dbContext.insert(auditLogs).values({
+    // FIX-V718-1: Synchronous execution
+    dbContext.insert(auditLogs).values({
       id: newId,
       firmId: input.firmId,
       eventType: input.eventType as any,
       payload: input.payload,
       deviceId: input.deviceId,
       createdAt: now(),
-    });
+    }).run();
   },
 
-  async log(
+  log(
     tx: DbOrTx,
     input: {
       eventType: string;
@@ -73,7 +74,7 @@ export const auditRepository = {
       deviceId: string;
       payload: string;
     }
-  ) {
+  ): void {
     if (
       !tx &&
       input.eventType !== 'RESTORE_OLD_SCHEMA' &&
@@ -88,7 +89,8 @@ export const auditRepository = {
     const dbContext = tx ?? db;
     const newId = Crypto.randomUUID();
 
-    await dbContext.insert(auditLogs).values({
+    // FIX-V718-1: Synchronous execution
+    dbContext.insert(auditLogs).values({
       id: newId,
       firmId: input.firmId,
       entityId: input.entityId ?? null,
@@ -96,51 +98,57 @@ export const auditRepository = {
       payload: input.payload,
       deviceId: input.deviceId,
       createdAt: now(),
-    });
+    }).run();
   },
 
   /**
    * STEP 6 HARDENING: FIRM ISOLATION
    * Explicitly requires firmId. Cross-firm queries are structurally impossible.
    */
-  async getByFirmId(firmId: string, limit: number = 50, tx: DbOrTx = db) {
+  getByFirmId(firmId: string, limit: number = 50, tx: DbOrTx = db) {
     if (!firmId) {
       throw new Error('ISOLATION_VIOLATION: firmId is strictly required to fetch audit logs.');
     }
 
-    return await tx
+    // FIX-V718-1: Synchronous execution using .all()
+    return tx
       .select()
       .from(auditLogs)
       .where(eq(auditLogs.firmId, firmId))
       .orderBy(desc(auditLogs.createdAt))
-      .limit(limit);
+      .limit(limit)
+      .all();
   },
 
   /**
    * STEP 6 HARDENING: SYSTEM ISOLATION
    * Fetches only global events (Safe Mode, Bootstraps) where firmId is null.
    */
-  async getSystemLogs(limit: number = 50, tx: DbOrTx = db) {
-    return await tx
+  getSystemLogs(limit: number = 50, tx: DbOrTx = db) {
+    // FIX-V718-1: Synchronous execution using .all()
+    return tx
       .select()
       .from(auditLogs)
       .where(isNull(auditLogs.firmId))
       .orderBy(desc(auditLogs.createdAt))
-      .limit(limit);
+      .limit(limit)
+      .all();
   },
 
   /**
    * Checks if an event type exists anywhere in the audit log.
    * Used by deviceId Phase B to detect if DEVICE_ID_GENERATED was already written.
    */
-  async hasEvent(eventType: string, tx: DbOrTx = db): Promise<boolean> {
-    const result = await tx
+  hasEvent(eventType: string, tx: DbOrTx = db): boolean {
+    // FIX-V718-1: Synchronous execution using .get()
+    const result = tx
       .select({ id: auditLogs.id })
       .from(auditLogs)
       .where(eq(auditLogs.eventType, eventType as any))
-      .limit(1);
+      .limit(1)
+      .get();
 
-    return result.length > 0;
+    return !!result;
   },
 
   /**
@@ -156,16 +164,18 @@ export const auditRepository = {
    * @param fyId - UUID of the financial year — used to look up startDate/endDate
    * @param tx   - Drizzle transaction context — MUST be the same tx as closeFY caller
    */
-  async countByFy(fyId: string, tx: DbOrTx = db): Promise<number> {
+  countByFy(fyId: string, tx: DbOrTx = db): number {
     // Step 1: Resolve the FY's date range
-    const [fy] = await tx
+    // FIX-V718-1: Synchronous execution using .get()
+    const fy = tx
       .select({
         firmId: financialYears.firmId,
         startDate: financialYears.startDate,
         endDate: financialYears.endDate,
       })
       .from(financialYears)
-      .where(eq(financialYears.id, fyId));
+      .where(eq(financialYears.id, fyId))
+      .get();
 
     if (!fy) {
       // FY not found — return 0 rather than crashing the archive index write
@@ -178,7 +188,8 @@ export const auditRepository = {
     // ISO-8601 because lexicographic order == chronological order.
     // FY startDate is 'YYYY-MM-DD' → rows from start of that day onward.
     // FY endDate is 'YYYY-MM-DD' → rows up to and including that date (endDate + 'T23:59:59')
-    const rows = await tx
+    // FIX-V718-1: Synchronous execution using .all()
+    const rows = tx
       .select({ id: auditLogs.id })
       .from(auditLogs)
       .where(
@@ -187,7 +198,8 @@ export const auditRepository = {
           gte(auditLogs.createdAt, fy.startDate),           // >= '2025-04-01'
           lte(auditLogs.createdAt, fy.endDate + 'T23:59:59.999Z') // <= '2026-03-31T23:59:59.999Z'
         )
-      );
+      )
+      .all();
 
     return rows.length;
   },
@@ -215,7 +227,7 @@ export const auditRepository = {
    * @param fyId   - FY scoping (Phase 2 will use this for the date range filter)
    * @param tx     - Transaction context (Phase 2 will use this for atomicity)
    */
-  async deleteByRetention(firmId: string, fyId: string, tx: DbOrTx = db): Promise<void> {
+  deleteByRetention(firmId: string, fyId: string, tx: DbOrTx = db): void {
     // PHASE 1 NO-OP — prevent_audit_delete trigger blocks all DELETEs on audit_logs.
     // Phase 2: implement retention-scoped DELETE with auditRetentionDays from app_settings.
     console.log(

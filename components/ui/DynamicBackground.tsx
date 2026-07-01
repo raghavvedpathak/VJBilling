@@ -1,77 +1,57 @@
 import React from 'react';
-import { View, StyleSheet, useWindowDimensions } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
+import { View, StyleSheet, Dimensions } from 'react-native';
 
+const { width } = Dimensions.get('window');
+
+/**
+ * FINAL PROFESSIONAL BACKGROUND
+ * 
+ * A hyper-clean, zero-lag, static background perfectly suited for a premium fintech/billing app.
+ * Utilizes subtle, soft corner glows in the brand colors (Gold and Maroon) over a pearl white 
+ * canvas to create a high-end, distraction-free aesthetic.
+ */
 export function DynamicBackground() {
-  const { width, height } = useWindowDimensions();
-  
   return (
-    <View style={s.container} pointerEvents="none">
+    <View style={styles.container} pointerEvents="none">
       
-      {/* 1. Base Premium Ivory Gradient */}
-      <LinearGradient
-        colors={['#FCFBF8', '#F5EBE1', '#FCFBF8']}
-        locations={[0, 0.5, 1]}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={StyleSheet.absoluteFillObject}
-      />
-
-      {/* 2. Modern Abstract Geometry (Soft Gold Glow) */}
-      <LinearGradient
-        colors={['rgba(212,175,55,0.12)', 'transparent']}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={{
-          position: 'absolute',
-          top: -height * 0.2,
-          right: -width * 0.5,
-          width: width * 1.8,
-          height: width * 1.8,
-          borderRadius: width * 0.9,
-          transform: [{ scaleX: 1.2 }, { rotate: '15deg' }],
-        }}
-      />
-
-      {/* 3. Modern Abstract Geometry (Soft Ruby Glow) */}
-      <LinearGradient
-        colors={['transparent', 'rgba(92,22,35,0.06)']}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={{
-          position: 'absolute',
-          bottom: -height * 0.2,
-          left: -width * 0.4,
-          width: width * 1.6,
-          height: width * 1.6,
-          borderRadius: width * 0.8,
-          transform: [{ scaleY: 1.4 }, { rotate: '-25deg' }],
-        }}
-      />
-
-      {/* 4. Architectural Accent Lines */}
+      {/* 1. Clean Pearl White Base - Maximum contrast for billing data */}
+      <View style={[StyleSheet.absoluteFill, { backgroundColor: '#FCFBF8' }]} />
+      
+      {/* 2. Extremely subtle, elegant top glows to give depth without distraction */}
+      {/* Faint Gold Glow (Top Left) */}
       <View style={[
-        s.accentLine, 
-        { top: '30%', left: '-15%', width: width * 1.5, transform: [{ rotate: '35deg' }] }
+        styles.glow, 
+        { top: -width * 0.4, left: -width * 0.2, backgroundColor: 'rgba(212,175,55,0.06)' }
       ]} />
+      
+      {/* Faint Maroon Glow (Top Right) */}
       <View style={[
-        s.accentLine, 
-        { bottom: '20%', right: '-25%', width: width * 1.8, transform: [{ rotate: '-15deg' }] }
+        styles.glow, 
+        { top: -width * 0.3, right: -width * 0.3, backgroundColor: 'rgba(139,37,56,0.04)' }
       ]} />
+      
+      {/* 3. Fine frosted vignette to frame the interface perfectly */}
+      <View style={[StyleSheet.absoluteFill, styles.vignette]} />
       
     </View>
   );
 }
 
-const s = StyleSheet.create({
+const styles = StyleSheet.create({
   container: {
-    ...StyleSheet.absoluteFillObject,
+    ...(StyleSheet.absoluteFill as object),
     overflow: 'hidden',
     backgroundColor: '#FCFBF8',
   },
-  accentLine: {
+  glow: {
     position: 'absolute',
-    height: 1,
-    backgroundColor: 'rgba(212,175,55,0.25)', // True Gold 25% opacity
+    width: width,
+    height: width,
+    borderRadius: width / 2,
+  },
+  vignette: {
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.8)',
+    borderRadius: 32,
   }
 });

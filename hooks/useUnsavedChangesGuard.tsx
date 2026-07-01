@@ -1,12 +1,17 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, Modal, TouchableOpacity } from 'react-native';
-import { useAppSettingsStore } from '@/store/appSettingsStore';
-import { useNavigation } from '@react-navigation/native';
+// FIX: Import useStore and the compliant store
+import { useStore } from 'zustand';
+import { appSettingsStore } from '../store/appSettingsStore';
+import { useNavigation } from 'expo-router';
 import { AlertTriangle } from 'lucide-react-native';
 
 export function useUnsavedChangesGuard(isDirty: boolean) {
   const navigation = useNavigation();
-  const warnEnabled = useAppSettingsStore.getState().warnUnsavedChanges === 1;
+  // FIX: Use useStore to reactively bind to the static store
+  const warnUnsavedChanges = useStore(appSettingsStore, (s) => s.warnUnsavedChanges);
+  const warnEnabled = warnUnsavedChanges === 1;
+  
   const [showModal, setShowModal] = useState(false);
   const [pendingAction, setPendingAction] = useState<any>(null);
 

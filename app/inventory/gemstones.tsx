@@ -3,7 +3,7 @@ import React, { useState, useCallback, memo } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { FlashList } from '@shopify/flash-list';
 import { useRouter } from 'expo-router';
-import { useFocusEffect } from '@react-navigation/native';
+import { useFocusEffect } from 'expo-router';
 import { TwoToneWrapper } from '../../components/TwoToneWrapper';
 import { GlassCard } from '../../components/ui/Glass';
 import { useFirmStore } from '../../store/firmStore';
@@ -117,7 +117,7 @@ export default function GemstonesInventoryScreen() {
             renderItem={({ item }) => <LotRow item={item} />}
             // @ts-ignore
             estimatedItemSize={140}
-            contentContainerStyle={{ paddingBottom: 120, paddingTop: 8 }}
+            contentContainerStyle={{paddingBottom: 120, paddingTop: 32}}
             showsVerticalScrollIndicator={false}
             ListEmptyComponent={
               <View style={s.emptyContainer}>

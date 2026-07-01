@@ -211,7 +211,7 @@ export default function CloseFYWizard() {
 
   return (
     <TwoToneWrapper title="Close Financial Year" showBack>
-      <ScrollView contentContainerStyle={{ paddingBottom: 100 }} showsVerticalScrollIndicator={false}>
+      <ScrollView contentContainerStyle={{ paddingTop: 32, paddingBottom: 350 }} showsVerticalScrollIndicator={false}>
         <View style={s.stepper}>
           {[1, 2, 3].map((num) => (
             <View key={num} style={[s.stepDot, step >= num && s.stepDotActive, step === 4 && s.stepDotSuccess]}>
