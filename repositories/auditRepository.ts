@@ -18,6 +18,7 @@ import { eq, desc, isNull, and, gte, lte } from 'drizzle-orm';
 import { db } from '../db/client';
 import { auditLogs, financialYears } from '../db/schema';
 import { now } from '../utils/now';
+import type { AuditPayload } from '../types/audit';
 
 type DbOrTx = any;
 
@@ -34,11 +35,11 @@ export const auditRepository = {
   create(
     input: {
       firmId: string | null;
-      eventType: string;
-      payload: string;
+      eventType: AuditPayload['eventType'] | string;
+      payload: AuditPayload | string;
       deviceId: string;
     },
-    tx?: DbOrTx
+    tx?: DbOrTx | null
   ): void {
     if (
       !tx &&
@@ -53,26 +54,30 @@ export const auditRepository = {
 
     const dbContext = tx ?? db;
     const newId = Crypto.randomUUID();
+    const payloadStr = typeof input.payload === 'string' ? input.payload : JSON.stringify(input.payload);
 
     // FIX-V718-1: Synchronous execution
     dbContext.insert(auditLogs).values({
       id: newId,
       firmId: input.firmId,
       eventType: input.eventType as any,
-      payload: input.payload,
+      payload: payloadStr,
       deviceId: input.deviceId,
       createdAt: now(),
     }).run();
   },
 
+  /**
+   * Identical logic to create(), maintaining API compatibility across the codebase.
+   */
   log(
-    tx: DbOrTx,
+    tx: DbOrTx | null,
     input: {
-      eventType: string;
+      eventType: AuditPayload['eventType'] | string;
       firmId: string | null;
       entityId?: string | null;
       deviceId: string;
-      payload: string;
+      payload: AuditPayload | string;
     }
   ): void {
     if (
@@ -88,6 +93,7 @@ export const auditRepository = {
 
     const dbContext = tx ?? db;
     const newId = Crypto.randomUUID();
+    const payloadStr = typeof input.payload === 'string' ? input.payload : JSON.stringify(input.payload);
 
     // FIX-V718-1: Synchronous execution
     dbContext.insert(auditLogs).values({
@@ -95,7 +101,7 @@ export const auditRepository = {
       firmId: input.firmId,
       entityId: input.entityId ?? null,
       eventType: input.eventType as any,
-      payload: input.payload,
+      payload: payloadStr,
       deviceId: input.deviceId,
       createdAt: now(),
     }).run();
@@ -195,7 +201,7 @@ export const auditRepository = {
       .where(
         and(
           eq(auditLogs.firmId, fy.firmId),
-          gte(auditLogs.createdAt, fy.startDate),           // >= '2025-04-01'
+          gte(auditLogs.createdAt, fy.startDate),            // >= '2025-04-01'
           lte(auditLogs.createdAt, fy.endDate + 'T23:59:59.999Z') // <= '2026-03-31T23:59:59.999Z'
         )
       )

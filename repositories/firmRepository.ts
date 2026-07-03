@@ -49,17 +49,17 @@ export const firmRepository = {
     const newId = Crypto.randomUUID();
     const timestamp = now();
 
-    // FIX-V718-1: Synchronous execution using .returning().get()
-    const createdFirm = tx.insert(firms).values({
+    tx.insert(firms).values({
       ...input,
       id: newId,
       createdAt: timestamp,
       updatedAt: timestamp,
       isActive: 1,   // plain integer — new firm is immediately active
       isArchived: 0, // plain integer — not archived at creation
-    }).returning().get();
+    }).run();
 
-    return createdFirm;
+    const createdFirm = tx.select().from(firms).where(eq(firms.id, newId)).get();
+    return createdFirm as Firm;
   },
 
   /**

@@ -24,13 +24,22 @@ export function verifyGSTINChecksum(gstin: string): boolean {
 
 export function validateGSTIN(gstin: string): void {
   if (!gstin || gstin.length !== 15) {
-    throw new Error('INVALID_GSTIN: must be 15 characters');
+    throw new Error('INVALID_GSTIN: must be exactly 15 chars');
   }
   
   const upper = gstin.toUpperCase();
   
   if (!VALID_STATE_CODE_SET.has(upper.slice(0, 2))) {
     throw new Error('INVALID_GSTIN: invalid state code');
+  }
+
+  const panSegment = upper.slice(2, 12);
+  if (!/^[A-Z]{5}[0-9]{4}[A-Z]{1}$/.test(panSegment)) {
+    throw new Error('INVALID_GSTIN: invalid PAN segment');
+  }
+
+  if (upper[13] !== 'Z') {
+    throw new Error('INVALID_GSTIN: character 14 must be Z');
   }
   
   if (!GSTIN_PATTERN.test(upper)) {

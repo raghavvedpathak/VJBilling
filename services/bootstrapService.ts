@@ -8,6 +8,7 @@
 // v7.7 VERIFY-BOOT-CACHE: Cache logic is internal to verifyService.runVerify()
 // v7.8 FIX-V78-4: SAFE-MODE-ROW-GUARD uses STORAGE_CORRUPTION_DETECTED (not FY_INTEGRITY_BROKEN)
 // v7.2 FIX-V72-4 / G62: Post-restore logo integrity check via MMKV flag
+// v7.24 FIX-VSEC-14: Encrypted pre-migration snapshot using getDeviceDerivedKeyMaterial()
 //
 // CRITICAL FIX (dual-connection NPE): Step 0 previously called openDatabaseSync()
 // directly to perform the pre-migration table check. This created a second
@@ -20,9 +21,9 @@
 // Drizzle layer is not yet running transactions — raw sync reads are safe here.
 
 import { safeModeService, bootstrapComplete } from './safeModeService';
-import { getDeviceId, getOrGenerateDeviceId, auditDeviceIdIfNew } from '../utils/deviceId';
+import { getDeviceId, getOrGenerateDeviceId, auditDeviceIdIfNew, getDeviceDerivedKeyMaterial } from '../utils/deviceId';
 import { verifyService } from './verifyService';
-import { useSafeModeStore } from '../store/safeModeStore';
+import { safeModeStore } from '../store/safeModeStore'; // FIX: compliant store name
 import { db, expoDb } from '../db/client'; // FIX: import expoDb singleton — do NOT call openDatabaseSync() again
 import { firms, writerLeases, bisLogos, safeModeState, schemaVersion } from '../db/schema';
 import { auditRepository } from '../repositories/auditRepository';
@@ -36,13 +37,17 @@ import { purgeExpiredAuditLogs } from './auditRetentionService';
 // FIX: Import the strictly compliant store name
 import { appSettingsStore } from '../store/appSettingsStore';
 
+// v7.24: Centralized path for the encrypted pre-migration snapshot
+export const BACKUP_DIR = FileSystem.documentDirectory + 'backups/';
+export const PRE_MIGRATION_SNAPSHOT_PATH = BACKUP_DIR + 'vjbilling_premigration_snapshot.enc';
+
 // In-memory flag: defers audit for Step 0 failure until DB is ready (v2.7)
 let premigrationSnapshotFailed = false;
 
 export const bootstrapService = {
 
   // ==========================================================================
-  // STEP 0: PRE-MIGRATION SNAPSHOT (v2.3 HARDENING)
+  // STEP 0: PRE-MIGRATION SNAPSHOT (v2.3 HARDENING + v7.24 ENCRYPTION)
   // MUST run BEFORE migrations. DO NOT call auditRepository here.
   // Failure is non-blocking — logs console.warn only (Review Item 10 RULE 2).
   //
@@ -59,12 +64,8 @@ export const bootstrapService = {
   // expoDb.getFirstSync() and expoDb.getAllSync() are safe here.
   // ==========================================================================
   async takePreMigrationSnapshot(): Promise<void> {
-    console.log('[Bootstrap] Step 0: Executing Pre-Migration Snapshot...');
+    console.log('[Bootstrap] Step 0: Executing Encrypted Pre-Migration Snapshot...');
     try {
-      if (!STORAGE_PATHS.PRE_MIGRATION_SNAPSHOT) {
-        throw new Error('No writable file system available for snapshot.');
-      }
-
       const dbFilePath = `${STORAGE_PATHS.RAW_DB_DIR}${STORAGE_PATHS.DB_FILENAME}`;
       const dbInfo = await FileSystem.getInfoAsync(dbFilePath);
 
@@ -93,11 +94,35 @@ export const bootstrapService = {
         audit_logs: expoDb.getAllSync('SELECT * FROM audit_logs'),
       };
 
-      await FileSystem.writeAsStringAsync(
-        STORAGE_PATHS.PRE_MIGRATION_SNAPSHOT,
-        JSON.stringify(snapshot)
+      const payloadStr = JSON.stringify(snapshot);
+      const enc = new TextEncoder();
+      const keySourceMaterial = await getDeviceDerivedKeyMaterial();
+      
+      const saltBytes = crypto.getRandomValues(new Uint8Array(16));
+      const ivBytes = crypto.getRandomValues(new Uint8Array(12));
+      
+      // Cast to any to bypass Hermes vs DOM Uint8Array definition clash
+      const keyMaterial = await crypto.subtle.importKey('raw', keySourceMaterial as any, 'PBKDF2', false, ['deriveKey']);
+      const key = await crypto.subtle.deriveKey(
+        { name: 'PBKDF2', salt: saltBytes, iterations: 100000, hash: 'SHA-256' },
+        keyMaterial, { name: 'AES-GCM', length: 256 }, false, ['encrypt']
       );
-      console.log('[Bootstrap] Pre-Migration Snapshot secured at:', STORAGE_PATHS.PRE_MIGRATION_SNAPSHOT);
+
+      const cipherBuffer = await crypto.subtle.encrypt({ name: 'AES-GCM', iv: ivBytes }, key, enc.encode(payloadStr));
+      const toBase64 = (buf: ArrayBuffer) => btoa(String.fromCharCode(...new Uint8Array(buf)));
+
+      const encryptedBlob = JSON.stringify({
+        iv: toBase64(ivBytes.buffer),
+        salt: toBase64(saltBytes.buffer),
+        ciphertext: toBase64(cipherBuffer),
+      });
+
+      await FileSystem.makeDirectoryAsync(BACKUP_DIR, { intermediates: true });
+      await FileSystem.writeAsStringAsync(PRE_MIGRATION_SNAPSHOT_PATH, encryptedBlob, { 
+        encoding: FileSystem.EncodingType.UTF8 
+      });
+
+      console.log('[Bootstrap] Encrypted Pre-Migration Snapshot secured at:', PRE_MIGRATION_SNAPSHOT_PATH);
 
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e);
@@ -208,7 +233,7 @@ export const bootstrapService = {
       }
 
       // If Safe Mode was already active from Step 5, route to Safe Mode UI
-      if (useSafeModeStore.getState().isActive) {
+      if (safeModeStore.getState().isActive) {
         console.log('[Bootstrap] Safe Mode Detected from Persistence.');
         return 'SAFE_MODE';
       }
@@ -302,7 +327,12 @@ export const bootstrapService = {
       const { status: verifyStatus } = await verifyService.runVerify();
 
       try {
-        await FileSystem.deleteAsync(STORAGE_PATHS.PRE_MIGRATION_SNAPSHOT, { idempotent: true });
+        await FileSystem.deleteAsync(PRE_MIGRATION_SNAPSHOT_PATH, { idempotent: true });
+        
+        // Clean up legacy plaintext backup if it still exists from prior versions
+        if (STORAGE_PATHS.PRE_MIGRATION_SNAPSHOT) {
+          await FileSystem.deleteAsync(STORAGE_PATHS.PRE_MIGRATION_SNAPSHOT, { idempotent: true });
+        }
         console.log('[Bootstrap] Cleaned up stale pre-migration snapshot.');
       } catch (cleanupError) {
         console.warn('[Bootstrap] Failed to clean up snapshot (non-fatal):', cleanupError);

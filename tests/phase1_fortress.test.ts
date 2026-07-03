@@ -6,15 +6,19 @@
 // all instantiation happens INSIDE the mock factory.
 
 jest.mock('../db/client', () => {
-  const { createClient } = require('@libsql/client');
-  const { drizzle } = require('drizzle-orm/libsql');
+  const Database = require('better-sqlite3');
+  const { drizzle } = require('drizzle-orm/better-sqlite3');
 
   // Use a shared memory cache so Drizzle transactions share the same instance
-  const rawClient = createClient({ url: 'file::memory:?cache=shared' });
-  const dbInstance = drizzle(rawClient);
+  const sqlite = new Database(':memory:');
+  const dbInstance = drizzle(sqlite);
   
   // Attach the raw client so our test suite can access it for DDL (CREATE TABLE)
-  dbInstance.__rawClient = rawClient;
+  dbInstance.__rawClient = {
+    execute: async (query: string) => {
+      sqlite.exec(query);
+    }
+  };
 
   return {
     db: dbInstance,
@@ -33,7 +37,8 @@ jest.mock('../db/client', () => {
 import { firmService } from '../services/firmService';
 import { leaseService } from '../services/leaseService';
 import { safeModeService, bootstrapComplete } from '../services/safeModeService';
-import { useSafeModeStore } from '../store/safeModeStore';
+// FIX: Using compliant store name
+import { safeModeStore } from '../store/safeModeStore';
 import { db } from '../db/client';
 import { firms, writerLeases, auditLogs, safeModeState, financialYears } from '../db/schema';
 import { eq } from 'drizzle-orm';
@@ -122,7 +127,8 @@ beforeEach(async () => {
     .set({ isActive: 0, reason: null, activatedAt: null, clearedAt: null })
     .where(eq(safeModeState.id, 1));
 
-  useSafeModeStore.setState({ isActive: false, reason: null, activatedAt: null });
+  // FIX: Using compliant store name
+  safeModeStore.setState({ isActive: false, reason: null, activatedAt: null });
 });
 
 afterAll(async () => {

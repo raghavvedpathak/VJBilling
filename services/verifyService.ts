@@ -25,7 +25,6 @@ import {
   schemaVersion,
 } from '../db/schema';
 import { safeModeService } from './safeModeService';
-// FIX: Imported the correctly named Zustand store instance
 import { verifyStore } from '../store/verifyStore';
 import { storage } from '../utils/storage';
 import { now } from '../utils/now';
@@ -83,7 +82,6 @@ export const verifyService = {
 
     // ✅ FIX-CLEAN-INSTALL-HANG: On clean install with no firms, skip all checks
     // and return HEALTHY immediately. Safe Mode cannot be active with no firms.
-    // This avoids safeModeService.clear() db.transaction() hang on first boot.
     // ✅ DRIZZLE GUARD: This early return mathematically guarantees notInArray([]) is never called.
     if (allFirmIds.length === 0) {
       console.log('[Verify] Clean install detected — no firms. Skipping all checks, returning HEALTHY.');
@@ -257,7 +255,6 @@ export const verifyService = {
     // PATH 1 RESOLUTION
     if (status === 'CRITICAL') {
       console.error('[Verify] Critical Integrity Failure Detected. Activating Safe Mode.');
-      // FIX: Removed unnecessary `as any` cast
       await safeModeService.activate('VERIFY_CRITICAL_ISSUE');
     } else if (status === 'HEALTHY') {
       console.log('[Verify] Clearing Safe Mode (HEALTHY)...');
@@ -275,7 +272,6 @@ export const verifyService = {
       }
     }
 
-    // FIX: Using the correct store name
     verifyStore.getState().setScanResults(findings);
 
     // v7.8 FIX-V78-5: structural firmId filtering

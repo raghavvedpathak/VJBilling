@@ -19,7 +19,9 @@ type SafeModeSlice = {
   setState: (state: Partial<SafeModeSlice>) => void;
 };
 
-export const useSafeModeStore = create<SafeModeSlice>()(
+// FIX: Renamed from `useSafeModeStore` to `safeModeStore` to match spec
+// and prevent React hook violations when called from background services.
+export const safeModeStore = create<SafeModeSlice>()(
   persist(
     (set) => ({ 
       isActive: false, 

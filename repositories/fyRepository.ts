@@ -36,13 +36,14 @@ export const fyRepository = {
   ): any {
     const newId = Crypto.randomUUID();
 
-    const createdFY = tx.insert(financialYears).values({
+    tx.insert(financialYears).values({
       ...input,
       id: newId,
       status: FYStatus.ACTIVE,
       createdAt: now(),
-    }).returning().get();
+    }).run();
 
+    const createdFY = tx.select().from(financialYears).where(eq(financialYears.id, newId)).get();
     return createdFY;
   },
 

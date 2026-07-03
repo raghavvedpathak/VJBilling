@@ -20,6 +20,7 @@ import { validateFirmCode } from '../utils/validateFirmCode';
 import { validatePincode } from '../utils/validatePincode';
 import { getDeviceId } from '../utils/deviceId';
 import { now } from '../utils/now';
+import { sanitizeText } from '../utils/sanitize';
 
 type CreateFirmInput = Omit<NewFirm, 'id' | 'createdAt' | 'updatedAt' | 'isActive' | 'isArchived' | 'bisLogoRef'> & {
   firmCode: string;
@@ -67,6 +68,14 @@ export const firmService = {
     validatePincode(input.pincode);
     validateFirmCode(input.firmCode);
 
+    // v7.24 FIX-V724-2: sanitize all free-text string inputs before persistence (FIX-VSEC-7)
+    const sanitizedName = sanitizeText(input.name);
+    const sanitizedProprietor = sanitizeText(input.proprietor);
+    const sanitizedAddressLine1 = sanitizeText(input.addressLine1);
+    const sanitizedCity = sanitizeText(input.city);
+    const sanitizedAddressLine2 = input.addressLine2 ? sanitizeText(input.addressLine2) : input.addressLine2;
+    const sanitizedBisLicence = input.bisLicence ? sanitizeText(input.bisLicence) : input.bisLicence;
+
     const deviceId = await getDeviceId();
     const currentYear = new Date().getFullYear();
     const hasClockSkew = currentYear < 2020 || currentYear > 2040;
@@ -80,7 +89,17 @@ export const firmService = {
       }
 
       const { bisLogoUri, ...dbInput } = input;
-      const newFirm = firmRepository.create(dbInput, tx);
+      const newFirm = firmRepository.create({
+        ...dbInput,
+        name: sanitizedName,
+        proprietor: sanitizedProprietor,
+        addressLine1: sanitizedAddressLine1,
+        addressLine2: sanitizedAddressLine2,
+        city: sanitizedCity,
+        bisLicence: sanitizedBisLicence,
+      }, tx);
+
+      console.log('--- NEW FIRM ---', newFirm);
 
       fyRepository.createInitialFY(newFirm.id, tx);
 
@@ -158,17 +177,18 @@ export const firmService = {
 
       if ('gstin' in input && input.gstin !== existingFirm.gstin) {
         throw new Error(
-          'ILLEGAL_OPERATION: GSTIN is a statutory signal and cannot be added, removed, or changed after firm creation.'
+          'GSTIN_IMMUTABLE: GSTIN is a statutory signal and cannot be added, removed, or changed after firm creation.'
         );
       }
 
       if ('firmCode' in input && input.firmCode !== existingFirm.firmCode) {
-        throw new Error('ILLEGAL_OPERATION: Firm Code is immutable and cannot be updated.');
+        throw new Error('FIRM_CODE_IMMUTABLE: Firm Code is immutable and cannot be updated.');
       }
 
+      // FIX-V79-5: stateCode cannot be changed independently when firm has a GSTIN
       if ('stateCode' in input && input.stateCode !== existingFirm.stateCode && existingFirm.gstin) {
         throw new Error(
-          'ILLEGAL_OPERATION: State cannot be changed because it is locked to the registered GSTIN.'
+          'GSTIN_STATE_UPDATE_BLOCKED: stateCode cannot be changed independently when firm has a GSTIN — GSTIN prefix already encodes stateCode'
         );
       }
 
@@ -178,6 +198,15 @@ export const firmService = {
 
       const { bisLogoUri, ...restInput } = input;
       const updatePayload: Partial<NewFirm> = { ...restInput };
+
+      // Apply sanitization to text fields being updated
+      if (updatePayload.name) updatePayload.name = sanitizeText(updatePayload.name);
+      if (updatePayload.proprietor) updatePayload.proprietor = sanitizeText(updatePayload.proprietor);
+      if (updatePayload.addressLine1) updatePayload.addressLine1 = sanitizeText(updatePayload.addressLine1);
+      if (updatePayload.addressLine2) updatePayload.addressLine2 = sanitizeText(updatePayload.addressLine2);
+      if (updatePayload.city) updatePayload.city = sanitizeText(updatePayload.city);
+      if (updatePayload.bisLicence) updatePayload.bisLicence = sanitizeText(updatePayload.bisLicence);
+
       const auditEvents: Array<{ eventType: string; payload: string }> = [];
 
       if (bisLogoUri && !input.bisLicence && !existingFirm.bisLicence) {

@@ -1,7 +1,7 @@
 import { db } from '../db/client';
 import { safeModeRepository } from '../repositories/safeModeRepository';
 import { auditRepository } from '../repositories/auditRepository';
-import { useSafeModeStore, SafeModeTrigger } from '../store/safeModeStore';
+import { safeModeStore, SafeModeTrigger } from '../store/safeModeStore';
 import { now } from '../utils/now';
 import { getDeviceId } from '../utils/deviceId'; 
 
@@ -16,12 +16,13 @@ export const safeModeService = {
 
     // 1. ATOMIC DB WRITE - FIX-V718-1: Synchronous transaction callback
     await db.transaction((tx) => { 
-      safeModeRepository.upsert({ 
+      // FIX: Parameter order flipped to (tx, data)
+      safeModeRepository.upsert(tx, { 
         isActive: 1,  
         reason: reason, 
         activatedAt: currentTime,
         clearedAt: null 
-      }, tx); 
+      }); 
 
       auditRepository.create({ 
         firmId: null, 
@@ -32,7 +33,8 @@ export const safeModeService = {
     }); 
 
     // 2. Mirror to UI Store AFTER commit (FIX-V718-5/6)
-    useSafeModeStore.getState().setState({ 
+    // FIX: Using correct store name
+    safeModeStore.getState().setState({ 
       isActive: true, 
       reason: reason, 
       activatedAt: currentTime 
@@ -46,12 +48,13 @@ export const safeModeService = {
 
     // FIX-V718-1: Synchronous transaction callback
     await db.transaction((tx) => { 
-      safeModeRepository.upsert({ 
+      // FIX: Parameter order flipped to (tx, data)
+      safeModeRepository.upsert(tx, { 
         isActive: 0, 
         reason: null, 
         activatedAt: null,
         clearedAt: currentTime 
-      }, tx); 
+      }); 
 
       auditRepository.create({ 
         firmId: null, 
@@ -62,7 +65,8 @@ export const safeModeService = {
     }); 
 
     // Mirror to UI Store AFTER commit (FIX-V718-5/6)
-    useSafeModeStore.getState().setState({  
+    // FIX: Using correct store name
+    safeModeStore.getState().setState({  
       isActive: false,  
       reason: null,  
       activatedAt: null  
@@ -73,7 +77,8 @@ export const safeModeService = {
     const state = await safeModeRepository.get(); 
       
     if (state && state.isActive === 1) { 
-      useSafeModeStore.getState().setState({ 
+      // FIX: Using correct store name
+      safeModeStore.getState().setState({ 
         isActive: true, 
         reason: state.reason as SafeModeTrigger, 
         activatedAt: state.activatedAt 
@@ -86,7 +91,8 @@ export const safeModeService = {
       throw new Error('BOOTSTRAP_INCOMPLETE: assertNotInSafeMode called before bootstrap finished');
     }
 
-    const { isActive } = useSafeModeStore.getState(); 
+    // FIX: Using correct store name
+    const { isActive } = safeModeStore.getState(); 
     if (isActive) { 
       throw new Error('SAFE_MODE_ACTIVE: Write operations are blocked to protect data integrity.'); 
     } 

@@ -159,7 +159,7 @@ export default function AddStockScreen() {
       return;
     }
 
-    let huidUpper = undefined;
+    let huidUpper: string | null = null;
     if (huid.trim()) {
       huidUpper = huid.trim().toUpperCase();
       if (!/^[A-Z0-9]{6}$/.test(huidUpper)) {
@@ -169,9 +169,9 @@ export default function AddStockScreen() {
     }
 
     const wPercent = parseFloat(wastagePercent) || 0;
-    const pRatePaise = purchaseRate ? Math.round(parseFloat(purchaseRate) * 100) : undefined;
-    const mChargePaise = makingCharge ? Math.round(parseFloat(makingCharge) * 100) : undefined;
-    const sCostPaise = stoneCost ? Math.round(parseFloat(stoneCost) * 100) : undefined;
+    const pRatePaise = purchaseRate ? Math.round(parseFloat(purchaseRate) * 100) : null;
+    const mChargePaise = makingCharge ? Math.round(parseFloat(makingCharge) * 100) : null;
+    const sCostPaise = stoneCost ? Math.round(parseFloat(stoneCost) * 100) : null;
     const kVal = percentToKarat(purity) || 0; 
 
     try {
@@ -180,7 +180,7 @@ export default function AddStockScreen() {
         designId: selectedDesign.id,
         categoryId: selectedCategory.id,
         hsnCode: selectedHsn.code,
-        primaryStoneId: selectedStone?.id,
+        primaryStoneId: selectedStone?.id || null,
         grossWeightMg: Math.round(gross * 1000),
         stoneWeightMg: Math.round(stone * 1000),
         beadsWeightMg: Math.round(beads * 1000),
@@ -190,7 +190,7 @@ export default function AddStockScreen() {
         purchaseRatePaise: pRatePaise,
         makingChargePaise: mChargePaise,
         stoneCostPaise: sCostPaise,
-        location: location.trim() || undefined,
+        location: location.trim() || null,
         huid: huidUpper,
         metalSource: 'SUPPLIER_PURCHASE',
       }, activeFirmId!);

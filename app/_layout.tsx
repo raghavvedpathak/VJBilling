@@ -13,11 +13,14 @@ import {
   Modal,
   TextInput,
 } from "react-native";
-import * as FileSystem from "expo-file-system";
-import { deleteAsync } from "expo-file-system/legacy";
+
+// FIX: Use ONLY the legacy namespace for both constants and methods in SDK 56
+import * as FileSystem from "expo-file-system/legacy";
 import * as Sharing from "expo-sharing";
+
 import { useDatabase } from "../db/client";
-import { bootstrapService } from "../services/bootstrapService";
+import { bootstrapService, PRE_MIGRATION_SNAPSHOT_PATH } from "../services/bootstrapService";
+import { getDeviceDerivedKeyMaterial } from "../utils/deviceId";
 import { STORAGE_PATHS } from "../constants/storagePaths";
 import "./global.css";
 import { AlertTriangle, Download, LifeBuoy, Trash2 } from "lucide-react-native";
@@ -26,7 +29,6 @@ LogBox.ignoreLogs(["SafeAreaView has been deprecated", "SafeAreaView"]);
 
 // ============================================================================
 // BOOTSTRAP RESULT TYPE
-// Mirrors bootstrapService.initApp() return union exactly.
 // ============================================================================
 type BootstrapResult =
   | "DASHBOARD"
@@ -72,7 +74,6 @@ function AppMigratorAndRunner() {
     const runBootstrap = async () => {
       try {
         const result = await bootstrapService.initApp();
-        // ARCHITECT FIX: Only set state here. DO NOT ROUTE YET.
         setBootstrapResult(result);
       } catch (e: any) {
         console.error("[Layout] Bootstrap threw unexpectedly:", e);
@@ -84,12 +85,9 @@ function AppMigratorAndRunner() {
     runBootstrap();
   }, [isLoaded, dbError]);
 
-  // 2. SAFE ROUTING LIFECYCLE (Fixes the Infinite Loop Crash)
+  // 2. SAFE ROUTING LIFECYCLE
   useEffect(() => {
     if (bootstrapResult && bootstrapResult !== "DATABASE_ERROR") {
-      // ARCHITECT FIX: setTimeout ensures the <Slot /> below is fully mounted into the 
-      // native view hierarchy before Expo Router attempts to replace the route. 
-      // This completely eliminates the "Attempted to navigate before mounting" crash loop.
       setTimeout(() => {
         switch (bootstrapResult) {
           case "DASHBOARD":
@@ -107,7 +105,6 @@ function AppMigratorAndRunner() {
     }
   }, [bootstrapResult, router]);
 
-  // While migrations are running or bootstrap hasn't finished routing
   if (!isLoaded || bootstrapResult === null) {
     return (
       <LoadingScreen
@@ -116,7 +113,6 @@ function AppMigratorAndRunner() {
     );
   }
 
-  // Migration failed — render the escape-path error screen inline
   if (bootstrapResult === "DATABASE_ERROR") {
     return (
       <DatabaseErrorScreen
@@ -126,7 +122,6 @@ function AppMigratorAndRunner() {
     );
   }
 
-  // After router.replace() fires, render the Slot (which will show the routed screen)
   return (
     <SafeAreaProvider>
       <StatusBar barStyle="dark-content" backgroundColor="#FCFBF8" />
@@ -150,9 +145,10 @@ function DatabaseErrorScreen({ title, message }: { title: string; message: strin
   const [snapshotExists, setSnapshotExists] = useState(false);
   const [showResetModal, setShowResetModal] = useState(false);
   const [resetInput, setResetInput] = useState("");
+  const [isExporting, setIsExporting] = useState(false);
 
   useEffect(() => {
-    FileSystem.getInfoAsync(STORAGE_PATHS.PRE_MIGRATION_SNAPSHOT)
+    FileSystem.getInfoAsync(PRE_MIGRATION_SNAPSHOT_PATH)
       .then((info) => setSnapshotExists(info.exists))
       .catch(() => setSnapshotExists(false));
   }, []);
@@ -160,14 +156,44 @@ function DatabaseErrorScreen({ title, message }: { title: string; message: strin
   const handleExportRawData = async () => {
     if (!snapshotExists) return;
     try {
+      setIsExporting(true);
+      const fileContent = await FileSystem.readAsStringAsync(PRE_MIGRATION_SNAPSHOT_PATH, { encoding: 'utf8' });
+      const parsedBlob = JSON.parse(fileContent);
+
+      const fromBase64 = (b64: string) => Uint8Array.from(atob(b64), c => c.charCodeAt(0));
+      const saltBytes = fromBase64(parsedBlob.salt);
+      const ivBytes = fromBase64(parsedBlob.iv);
+      const cipherBytes = fromBase64(parsedBlob.ciphertext);
+
+      const keySourceMaterial = await getDeviceDerivedKeyMaterial();
+      const keyMaterial = await crypto.subtle.importKey('raw', keySourceMaterial as any, 'PBKDF2', false, ['deriveKey']);
+      const key = await crypto.subtle.deriveKey(
+        { name: 'PBKDF2', salt: saltBytes, iterations: 100000, hash: 'SHA-256' },
+        keyMaterial, { name: 'AES-GCM', length: 256 }, false, ['decrypt']
+      );
+
+      const decrypted = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: ivBytes }, key, cipherBytes);
+      const decryptedStr = new TextDecoder().decode(decrypted);
+
+      // Write temp plaintext file using FileSystem.cacheDirectory
+      const tempPath = FileSystem.cacheDirectory + 'vjbilling_premigration_decrypted.json';
+      await FileSystem.writeAsStringAsync(tempPath, decryptedStr, { encoding: FileSystem.EncodingType.UTF8 });
+
       const canShare = await Sharing.isAvailableAsync();
       if (canShare) {
-        await Sharing.shareAsync(STORAGE_PATHS.PRE_MIGRATION_SNAPSHOT, {
-          dialogTitle: "Export Pre-Migration Data Snapshot",
+        await Sharing.shareAsync(tempPath, {
+          dialogTitle: "Export Decrypted Pre-Migration Data",
+          mimeType: 'application/json'
         });
       }
+      
+      // Cleanup temp file to maintain zero-trace security
+      await FileSystem.deleteAsync(tempPath, { idempotent: true });
+
     } catch (e: any) {
-      Alert.alert("Export Failed", e.message);
+      Alert.alert("Export Failed", "Could not decrypt the snapshot. Error: " + e.message);
+    } finally {
+      setIsExporting(false);
     }
   };
 
@@ -186,7 +212,7 @@ function DatabaseErrorScreen({ title, message }: { title: string; message: strin
     }
     try {
       const dbFile = `${STORAGE_PATHS.RAW_DB_DIR}${STORAGE_PATHS.DB_FILENAME}`;
-      await deleteAsync(dbFile, { idempotent: true });
+      await FileSystem.deleteAsync(dbFile, { idempotent: true });
       setShowResetModal(false);
       Alert.alert(
         "Reset Complete",
@@ -215,20 +241,24 @@ function DatabaseErrorScreen({ title, message }: { title: string; message: strin
 
         <View className="w-full gap-3">
           <TouchableOpacity
-            onPress={snapshotExists ? handleExportRawData : undefined}
+            onPress={snapshotExists && !isExporting ? handleExportRawData : undefined}
             activeOpacity={snapshotExists ? 0.7 : 1}
             className={`bg-white flex-row items-center justify-center p-4 rounded-xl border ${
               snapshotExists ? "border-vj-danger/30" : "border-gray-200 opacity-50"
             }`}
           >
-            <Download size={20} color={snapshotExists ? "#ef4444" : "#9ca3af"} />
+            {isExporting ? (
+              <ActivityIndicator size="small" color="#ef4444" />
+            ) : (
+              <Download size={20} color={snapshotExists ? "#ef4444" : "#9ca3af"} />
+            )}
             <Text
               className={`font-bold text-center ml-2 ${
                 snapshotExists ? "text-vj-danger" : "text-gray-500 text-xs"
               }`}
             >
               {snapshotExists
-                ? "Export Pre-Migration Snapshot"
+                ? (isExporting ? "Decrypting Snapshot..." : "Export Pre-Migration Snapshot")
                 : "No snapshot available — pre-migration backup did not complete"}
             </Text>
           </TouchableOpacity>

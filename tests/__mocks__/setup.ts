@@ -3,6 +3,8 @@
 // NOTE: db/client mock is NOT here — it lives in phase1_fortress.test.ts
 // because jest.mock() module resolution must be in the same file as the test.
 
+import { AppState, Alert } from 'react-native';
+
 declare global {
   var __testLibsqlClient: any;
   var __testDrizzleDb: any;
@@ -90,14 +92,9 @@ jest.mock('@react-native-async-storage/async-storage', () => ({
 
 // ─── 7. MOCK: react-native ───────────────────────────────────────────────────
 
-jest.mock('react-native', () => ({
-  AppState: {
-    addEventListener: () => ({ remove: () => {} }),
-  },
-  Alert: {
-    alert: () => {},
-  },
-}));
+// Safely intercept React Native methods without destroying the module initialization order (RN 0.85+)
+jest.spyOn(AppState, 'addEventListener').mockImplementation(() => ({ remove: jest.fn() }) as any);
+jest.spyOn(Alert, 'alert').mockImplementation(jest.fn());
 
 // ─── 8. MOCK: expo-updates ───────────────────────────────────────────────────
 

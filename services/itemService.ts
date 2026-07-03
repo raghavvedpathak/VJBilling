@@ -144,6 +144,11 @@ export const itemService = {
     await leaseService.assertNoActiveLease();
     safeModeService.assertNotInSafeMode();
 
+    if (input.grossWeightMg <= 0) throw new Error('ITEM_GROSS_WEIGHT_INVALID');
+    if (input.purityPercent <= 0 || input.purityPercent > 100) throw new Error('ITEM_PURITY_PERCENT_INVALID');
+    const netWeightMg = input.grossWeightMg - (input.stoneWeightMg ?? 0) - (input.beadsWeightMg ?? 0);
+    if (netWeightMg <= 0) throw new Error('ITEM_NET_WEIGHT_INVALID');
+
     return db.transaction(async (tx) => {
       const design = await designRepository.getById(tx, firmId, input.designId);
       if (!design || design.firmId !== firmId) throw new Error('DESIGN_NOT_FOUND_OR_WRONG_FIRM');
@@ -153,12 +158,6 @@ export const itemService = {
 
       const hsnCode = input.hsnCode;
       await hsnMasterRepository.findByCode(tx, firmId, hsnCode);
-
-      if (input.grossWeightMg <= 0) throw new Error('ITEM_GROSS_WEIGHT_INVALID');
-      if (input.purityPercent <= 0 || input.purityPercent > 100) throw new Error('ITEM_PURITY_PERCENT_INVALID');
-
-      const netWeightMg = input.grossWeightMg - (input.stoneWeightMg ?? 0) - (input.beadsWeightMg ?? 0);
-      if (netWeightMg <= 0) throw new Error('ITEM_NET_WEIGHT_INVALID');
 
       const sku = await skuEngine.generateSKU(tx, design, firmId);
       const fineWeightMg = Math.round(netWeightMg * input.purityPercent / 100);

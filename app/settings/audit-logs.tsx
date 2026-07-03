@@ -4,7 +4,6 @@ import * as Device from 'expo-device';
 import { TwoToneWrapper } from '../../components/TwoToneWrapper';
 import { auditRepository } from '../../repositories/auditRepository';
 import { useFirmStore } from '../../store/firmStore';
-// FIX: Import useStore and the compliant store
 import { useStore } from 'zustand';
 import { appSettingsStore } from '../../store/appSettingsStore';
 import { getDeviceId } from '../../utils/deviceId';
@@ -13,6 +12,7 @@ import { format, parseISO } from 'date-fns';
 
 const ToggleHandlerRef = React.createContext<React.MutableRefObject<(id: string) => void> | null>(null);
 
+// v2.6 G16 + v7.12/v7.23 Canonical Mapping
 const EVENT_MAPPING: Record<string, string> = {
   'FIRM_CREATED': 'Firm Created',
   'FIRM_UPDATED': 'Firm Updated',
@@ -30,7 +30,9 @@ const EVENT_MAPPING: Record<string, string> = {
   'DEVICE_ID_GENERATED': 'New Device Registered',
   'BIS_LOGO_ARCHIVED': 'BIS Logo Removed',
   'PRE_MIGRATION_SNAPSHOT_FAILED': 'Pre-Migration Snapshot Failed',
-  'AUDIT_RETENTION_PURGE_EXECUTED': 'Audit Log Retention Purge Ran'
+  'AUDIT_RETENTION_PURGE_EXECUTED': 'Audit Log Retention Purge Ran',
+  'DEVICE_ID_CHANGED': 'Device ID Changed',
+  'FACTORY_RESET_EXECUTED': 'Factory Reset Executed'
 };
 
 const colors = {
@@ -46,7 +48,7 @@ const colors = {
 function getEventBgColor(type: string): string {
   if (type.includes('CREATED')) return 'rgba(22,163,74,0.12)';
   if (type.includes('UPDATED') || type.includes('SWITCHED')) return '#dbeafe';
-  if (type.includes('SAFE_MODE')) return 'rgba(220,38,38,0.12)';
+  if (type.includes('SAFE_MODE') || type.includes('FAILED') || type.includes('RESET')) return 'rgba(220,38,38,0.12)';
   if (type.includes('BACKUP') || type.includes('RESTORE')) return '#ffedd5';
   return '#ffffff';
 }
@@ -304,7 +306,6 @@ export default function AuditLogScreen() {
 
   const { activeFirmId } = useFirmStore();
   
-  // FIX: Use useStore to reactively bind to the static store and strongly type 's'
   const dateFormatToken = useStore(appSettingsStore, (s: any) => s.dateFormatToken);
 
   const toggleHandlerRef = useRef<(id: string) => void>(() => {});
@@ -320,6 +321,7 @@ export default function AuditLogScreen() {
     const id = await getDeviceId();
     setCurrentDeviceId(id);
     if (!activeFirmId) return;
+    // FIX: Using asynchronous execution from repository, matching Phase 1 architecture
     const firmLogs = await auditRepository.getByFirmId(activeFirmId);
     const systemLogs = await auditRepository.getSystemLogs();
     const combined = [...firmLogs, ...systemLogs].sort((a, b) =>

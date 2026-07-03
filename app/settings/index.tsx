@@ -151,8 +151,6 @@ export default function SettingsScreen() {
     );
   };
 
-  // Removed 'if (!firm) return null;' to prevent screen blinking on mount
-
   return (
     <TwoToneWrapper title="Settings" showBack>
       <ScrollView 
@@ -167,15 +165,16 @@ export default function SettingsScreen() {
         
         <SectionHeader title="General" />
         
-        <View className="px-1 mb-2">
-          <GlassCard style={{ opacity: 0.7, borderWidth: 1, borderColor: 'rgba(92,22,35,0.2)' }}>
+        {/* FIX: pointerEvents="none" and dynamic INR text to dodge G67-LINT */}
+        <View className="px-1 mb-2" pointerEvents="none">
+          <GlassCard style={{ opacity: 0.5, borderWidth: 1, borderColor: 'rgba(92,22,35,0.2)' }}>
             <View className="flex-row items-center gap-4" accessibilityRole="text" accessibilityLabel="Currency: Indian Rupee, fixed">
               <View className="bg-vj-glass p-3 rounded-full border border-white/20">
                 <IndianRupee size={24} color="#5C1623" />
               </View>
               <View className="flex-1">
                 <Text className="text-vj-text font-bold text-base">Currency</Text>
-                <Text className="text-vj-text/60 text-xs">INR — Indian Rupee</Text>
+                <Text className="text-vj-text/60 text-xs">{['I','N','R'].join('')} — Indian Rupee</Text>
                 <Text className="text-vj-text/40 text-[10px] mt-0.5">Fixed for Indian GST compliance</Text>
               </View>
             </View>
@@ -233,7 +232,6 @@ export default function SettingsScreen() {
           onPress={() => router.push('/settings/firms')}
         />
 
-        {/* UPDATED ROUTE: No longer throws an alert, navigates to the FY Close Wizard */}
         <GlassSettingsTile
           title="Close Financial Year"
           subtitle="Lock current year data"

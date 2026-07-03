@@ -1,5 +1,7 @@
+// services/auditService.ts
 import { auditRepository } from '../repositories/auditRepository';
 import { getDeviceId } from '../utils/deviceId';
+import type { AuditPayload } from '../types/audit';
 
 // v2.0 Hardened: Expanded Event Types aligned with db/schema.ts
 export type AuditEventType =
@@ -56,7 +58,7 @@ export const auditService = {
   async log(
     tx: any | undefined | null,
     firmId: string | null,
-    eventType: AuditEventType,
+    eventType: AuditEventType | AuditPayload['eventType'],
     payload: object,
     deviceIdOverride?: string
   ) {
@@ -65,7 +67,7 @@ export const auditService = {
 
     await auditRepository.create({
       firmId,
-      eventType,
+      eventType: eventType as string,
       payload: JSON.stringify(payload),
       deviceId,
     }, activeTx);

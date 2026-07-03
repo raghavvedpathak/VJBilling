@@ -235,9 +235,9 @@ export const inventoryDrillDownRepository = {
         newValue: r.newValue,
         reason: r.reason,
         performedBy: r.performedBy,
-        karigarName,
-        outcome,
-        changes,
+        ...(karigarName !== undefined ? { karigarName } : {}),
+        ...(outcome !== undefined ? { outcome } : {}),
+        ...(changes !== undefined ? { changes } : {}),
       };
     });
   }

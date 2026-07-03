@@ -1,10 +1,13 @@
 import React from 'react';
 import { View, Text } from 'react-native';
-import { useSafeModeStore, SafeModeTrigger } from '../store/safeModeStore';
+// FIX: Imported useStore from zustand and the specific store instance
+import { useStore } from 'zustand';
+import { safeModeStore, SafeModeTrigger } from '../store/safeModeStore';
 import { ShieldAlert } from 'lucide-react-native';
 
 export function SafeModeBanner() {
-  const { isActive, reason } = useSafeModeStore();
+  // FIX: Adapted to React hook pattern
+  const { isActive, reason } = useStore(safeModeStore);
 
   if (!isActive) return null;
 

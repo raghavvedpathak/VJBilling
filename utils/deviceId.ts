@@ -2,6 +2,7 @@
 // Stable device identity — two-phase initialization.
 // Phase A: generate + persist to MMKV (no audit log — called before DB is ready)
 // Phase B: write DEVICE_ID_GENERATED audit event (called after DB + repos are ready)
+// v7.26 FIX-VSEC-14: getDeviceDerivedKeyMaterial added for AES backup key derivation.
 
 import { storage } from './storage';
 import * as Crypto from 'expo-crypto';
@@ -52,7 +53,6 @@ export async function getOrGenerateDeviceId(): Promise<string> {
  */
 export async function auditDeviceIdIfNew(): Promise<void> {
   try {
-    // FIX: Removed unnecessary `await` — hasEvent executes synchronously via .get()
     const hasEvent = auditRepository.hasEvent('DEVICE_ID_GENERATED');
 
     if (!hasEvent) {
@@ -61,8 +61,6 @@ export async function auditDeviceIdIfNew(): Promise<void> {
       const deviceName = Device.modelName || 'Unknown Device';
       const osName = Device.osName || 'Unknown OS';
 
-      // FIX: Removed unnecessary `await` — create executes synchronously via .run()
-      // tx is implicitly undefined, fulfilling G41 Call Site 2 requirement
       auditRepository.create({
         firmId: null,
         eventType: 'DEVICE_ID_GENERATED',
@@ -78,4 +76,16 @@ export async function auditDeviceIdIfNew(): Promise<void> {
   } catch (e) {
     console.error('[DeviceID] Phase B Audit Failed (Non-fatal):', e);
   }
+}
+
+/**
+ * v7.26 FIX-VSEC-14: Backup Crypto Fallback
+ * Derives a consistent Uint8Array from the Device ID for use as 
+ * raw key material when an automated backup runs without a user password.
+ */
+export async function getDeviceDerivedKeyMaterial(): Promise<Uint8Array> {
+  const deviceId = await getDeviceId();
+  // We use the stable device ID combined with a static app salt string
+  const rawMaterial = `${deviceId}_vjbilling_internal_salt_v1`;
+  return new TextEncoder().encode(rawMaterial);
 }

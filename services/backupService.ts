@@ -1,7 +1,11 @@
 // services/backupService.ts
-// v2.8 FIX: Atomic snapshot inside transaction, BACKUP_CREATED audit OUTSIDE transaction (G41 exempt).
-// SDK 54 FIX: expo-file-system/legacy required for all file writes.
-// BACKUP_CREATED is one of 3 G41-exempt events — written without tx, outside transaction.
+// v2.9 Canonical Implementation (AES-256-GCM Encryption + Optional Password)
+// v7.28 FIX-V728-1: BackupEnvelope explicit declaration using Drizzle inferred types
+//
+// CONSTITUTIONAL RULES:
+//   - createBackup() does NOT call assertNotInSafeMode(). (Read operation exempt from Safe Mode).
+//   - BACKUP_CREATED audit is written OUTSIDE the transaction (G41 exempt).
+//   - BackupEnvelope payload is strictly typed (no any[] for core Phase 1 tables).
 
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
@@ -13,39 +17,66 @@ import {
 } from '../db/schema';
 import { leaseService } from './leaseService';
 import { auditRepository } from '../repositories/auditRepository';
-import { getDeviceId } from '../utils/deviceId';
+import { getDeviceId, getDeviceDerivedKeyMaterial } from '../utils/deviceId';
 import { SCHEMA_VERSION, APP_VERSION } from '../constants/appVersion';
 
 export const BACKUP_DIR = FileSystem.documentDirectory + 'backups/';
 
+// v7.25 FIX-V725-10: checksum field removed (AES-GCM auth tag provides integrity)
 export interface BackupResult { 
-  checksum: string; 
   fileName: string; 
   filePath: string; 
   fileSizeBytes: number; 
 }
 
+// v7.28 FIX-V728-1: Explicit typing for the decrypted payload format
+export interface BackupEnvelope {
+  schemaVersion: number;
+  appVersion: string;
+  exportedAt: string;
+  deviceId: string;
+  encryptionVersion: 1;
+  passwordProtected: boolean;
+  iv: string;
+  salt: string;
+  ciphertext: string;
+  payload: {
+    firms: (typeof firms.$inferSelect)[];
+    financialYears: (typeof financialYears.$inferSelect)[];
+    settings: (typeof appSettings.$inferSelect)[];
+    auditLogs: (typeof auditLogs.$inferSelect)[];
+    bisLogos: (typeof bisLogos.$inferSelect)[];
+    safeModeState: typeof safeModeState.$inferSelect | null;
+    writerLeases: any[];
+    
+    // Phase 2+ tables included for completeness
+    categories?: any[];
+    designs?: any[];
+    stones?: any[];
+    hsnCodes?: any[];
+    items?: any[];
+    itemEvents?: any[];
+    gemstoneLots?: any[];
+    designCategoryMap?: any[];
+    sequenceCounters?: any[];
+    oldGoldLots?: any[];
+    urdPurchases?: any[];
+  };
+}
+
 export const backupService = {
 
   /**
-   * Generates a full system backup and triggers the system Share Sheet.
-   * Locked by 'BACKUP' lease. Deliberately exempt from Safe Mode checks —
-   * backup must be possible even when Safe Mode is active (recovery path).
-   *
-   * BACKUP_CREATED audit is written OUTSIDE the transaction (G41 exempt + v7.4 known limitation).
-   * If app crashes between file write and audit write, the backup file exists but BACKUP_CREATED
-   * is not logged — accepted architectural gap (data is safe; traceability gap only).
+   * Generates an AES-256-GCM encrypted backup file.
+   * Locked by 'BACKUP' lease. Deliberately exempt from Safe Mode checks.
    */
-  async createBackup(): Promise<BackupResult> {
+  async createBackup(password?: string): Promise<BackupResult> {
     await leaseService.assertNoActiveLease();
     const leaseId = await leaseService.acquire('BACKUP');
 
     try {
-      const deviceId = await getDeviceId();
-
-      // v7.16 FIX-V716-5: JSI driver requires synchronous tx callback — async removed
+      // v7.16 FIX-V716-5: Synchronous transaction callback reads
       const payload = db.transaction((tx) => {
-        // v7.17 FIX-V717-1: Promise.all() is async — replaced with synchronous .all() calls
         const firmsRows = tx.select().from(firms).all();
         const financialYearsRows = tx.select().from(financialYears).all();
         const settingsRows = tx.select().from(appSettings).all();
@@ -53,7 +84,6 @@ export const backupService = {
         const safeModeStateRows = tx.select().from(safeModeState).all();
         const bisLogosRows = tx.select().from(bisLogos).all();
         
-        // Phase 2 + Phase 3 + Phase 4 tables
         const categoriesRows = tx.select().from(categories).all();
         const designsRows = tx.select().from(designs).all();
         const stonesRows = tx.select().from(stones).all();
@@ -94,23 +124,41 @@ export const backupService = {
         schemaVersion: SCHEMA_VERSION, 
         appVersion: APP_VERSION,
         exportedAt: new Date().toISOString(), 
-        deviceId, 
-        checksum: '', 
-        payload 
+        deviceId: await getDeviceId(), 
+        encryptionVersion: 1 as const,
+        passwordProtected: !!password
       };
 
       const payloadStr = JSON.stringify(payload);
+      const enc = new TextEncoder();
+      const keySourceMaterial = password ? enc.encode(password) : await getDeviceDerivedKeyMaterial();
       
-      // v7.16 FIX-V716-6: SDK 56 canonical pattern uses Web Crypto globally available via Hermes
-      const hashBuffer = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(payloadStr));
-      envelope.checksum = Array.from(new Uint8Array(hashBuffer)).map(b => b.toString(16).padStart(2, '0')).join('');
+      const saltBytes = crypto.getRandomValues(new Uint8Array(16));
+      const ivBytes = crypto.getRandomValues(new Uint8Array(12));
+      
+      // FIX: Cast keySourceMaterial to `any` to bypass the DOM vs Hermes TS definitions clash on Uint8Array
+      const keyMaterial = await crypto.subtle.importKey('raw', keySourceMaterial as any, 'PBKDF2', false, ['deriveKey']);
+      const key = await crypto.subtle.deriveKey(
+        { name: 'PBKDF2', salt: saltBytes, iterations: 100000, hash: 'SHA-256' },
+        keyMaterial, { name: 'AES-GCM', length: 256 }, false, ['encrypt']
+      );
+      
+      const cipherBuffer = await crypto.subtle.encrypt({ name: 'AES-GCM', iv: ivBytes }, key, enc.encode(payloadStr));
+      const toBase64 = (buf: ArrayBuffer) => btoa(String.fromCharCode(...new Uint8Array(buf)));
+      
+      const encryptedBlob = JSON.stringify({
+        ...envelope,
+        iv: toBase64(ivBytes.buffer),
+        salt: toBase64(saltBytes.buffer),
+        ciphertext: toBase64(cipherBuffer),
+      });
 
       const timestamp = envelope.exportedAt.replace(/[:.]/g, '-').replace('T', '_').substring(0, 19);
       const fileName = `vjbilling_${timestamp}.vjb`;
       const filePath = BACKUP_DIR + fileName;
 
       await FileSystem.makeDirectoryAsync(BACKUP_DIR, { intermediates: true });
-      await FileSystem.writeAsStringAsync(filePath, JSON.stringify(envelope), {
+      await FileSystem.writeAsStringAsync(filePath, encryptedBlob, {
         encoding: FileSystem.EncodingType.UTF8
       });
 
@@ -120,7 +168,7 @@ export const backupService = {
       const canShare = await Sharing.isAvailableAsync();
       if (canShare) {
         await Sharing.shareAsync(filePath, {
-          mimeType: 'application/octet-stream', // Prompt mentioned octet-stream for sharing, but vjb is application/json... wait, the prompt says "mimeType: 'application/octet-stream'".
+          mimeType: 'application/octet-stream', 
           dialogTitle: 'Save VJ Billing Backup'
         });
       } else {
@@ -130,14 +178,14 @@ export const backupService = {
       console.log('[Backup] Successfully created and shared:', fileName);
 
       // AUDIT WRITE — MUST be OUTSIDE the transaction (G41 exempt)
-      await auditRepository.create({
-        firmId: null,
+      await auditRepository.log(null, {
         eventType: 'BACKUP_CREATED',
+        firmId: null,
+        deviceId: envelope.deviceId,
         payload: JSON.stringify({ exportedAt: envelope.exportedAt, fileName, fileSizeBytes }),
-        deviceId,
       });
 
-      return { checksum: envelope.checksum, fileName, filePath, fileSizeBytes };
+      return { fileName, filePath, fileSizeBytes };
 
     } catch (error) {
       console.error('[Backup] Error:', error);

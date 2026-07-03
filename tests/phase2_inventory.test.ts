@@ -2,12 +2,24 @@
 
 // ─── MOCK db/client FIRST ──────────────────────────
 jest.mock('../db/client', () => {
-  const { createClient } = require('@libsql/client');
-  const { drizzle } = require('drizzle-orm/libsql');
-  const rawClient = createClient({ url: 'file::memory:?cache=shared' });
+  const Database = require('better-sqlite3');
+  const { drizzle } = require('drizzle-orm/better-sqlite3');
+  const sqlite = new Database(':memory:');
   const schema = require('../db/schema');
-  const dbInstance = drizzle(rawClient, { schema });
-  dbInstance.__rawClient = rawClient;
+  const dbInstance = drizzle(sqlite, { schema });
+  
+  // Patch transaction to prevent better-sqlite3 from swallowing Promise rejections
+  const originalTransaction = dbInstance.transaction.bind(dbInstance);
+  dbInstance.transaction = (cb: any) => {
+    console.log('MOCKED TX CALLED');
+    return cb(dbInstance);
+  };
+
+  dbInstance.__rawClient = {
+    execute: async (query: string) => {
+      sqlite.exec(query);
+    }
+  };
   return {
     db: dbInstance,
     expoDb: { execSync: () => {}, runSync: () => {}, getFirstSync: () => ({ count: 0 }), getAllSync: () => [] },

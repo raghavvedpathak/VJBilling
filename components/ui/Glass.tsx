@@ -10,7 +10,7 @@ import { BlurView } from 'expo-blur';
 // ============================================================================
 interface GlassCardProps extends ViewProps {
   children: React.ReactNode;
-  intensity?: number;
+  intensity?: number | undefined;
 }
 export function GlassCard({ children, style, intensity = 30, ...props }: GlassCardProps) {
   return (
@@ -28,19 +28,19 @@ export function GlassCard({ children, style, intensity = 30, ...props }: GlassCa
 // readOnly visual styling: slightly dimmed label to communicate non-editable state.
 // ============================================================================
 interface GlassInputProps {
-  label?: string;
-  icon?: React.ReactNode;
+  label?: string | undefined;
+  icon?: React.ReactNode | undefined;
   value: string;
   onChangeText: (text: string) => void;
-  placeholder?: string;
+  placeholder?: string | undefined;
   keyboardType?: any;
-  maxLength?: number;
+  maxLength?: number | undefined;
   autoCapitalize?: any;
-  readOnly?: boolean;
-  secureTextEntry?: boolean;
-  onFocus?: () => void;
-  onBlur?: () => void;
-  onSubmitEditing?: () => void;
+  readOnly?: boolean | undefined;
+  secureTextEntry?: boolean | undefined;
+  onFocus?: (() => void) | undefined;
+  onBlur?: (() => void) | undefined;
+  onSubmitEditing?: (() => void) | undefined;
 }
 export function GlassInput({
   label,
@@ -101,10 +101,10 @@ export function GlassInput({
 interface GlassButtonProps {
   title: string;
   onPress: () => void;
-  icon?: React.ReactNode;
-  variant?: 'primary' | 'secondary' | 'danger';
-  loading?: boolean;
-  disabled?: boolean;
+  icon?: React.ReactNode | undefined;
+  variant?: 'primary' | 'secondary' | 'danger' | undefined;
+  loading?: boolean | undefined;
+  disabled?: boolean | undefined;
 }
 export function GlassButton({
   title,
@@ -159,16 +159,16 @@ export function GlassButton({
 interface SmartSearchOption {
   id: string;
   label: string;
-  sublabel?: string;
+  sublabel?: string | undefined;
 }
 
 interface GlassSmartSearchProps {
-  label?: string;
-  placeholder?: string;
+  label?: string | undefined;
+  placeholder?: string | undefined;
   options: SmartSearchOption[];
   selectedId: string | null;
   onSelect: (option: SmartSearchOption | null) => void;
-  onFocusFetch?: () => void; // Triggered when input is focused to load fresh data
+  onFocusFetch?: (() => void) | undefined; // Triggered when input is focused to load fresh data
 }
 
 export function GlassSmartSearch({

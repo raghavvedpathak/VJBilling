@@ -11,14 +11,17 @@ import {
 } from 'react-native';
 import { ShieldAlert, Unlock, HardDriveUpload, RefreshCw, X } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
-import { useSafeModeStore } from '../store/safeModeStore';
+// FIX: Imported useStore from zustand and the specific store instance
+import { useStore } from 'zustand';
+import { safeModeStore } from '../store/safeModeStore';
 import { safeModeService } from '../services/safeModeService';
 import { bootstrapService } from '../services/bootstrapService';
 import { GlassCard, GlassButton, GlassInput } from '../components/ui/Glass';
 
 export default function SafeModeScreen() {
   const router = useRouter();
-  const { reason, activatedAt } = useSafeModeStore();
+  // FIX: Adapted to React hook pattern for Zustand non-hook stores
+  const { reason, activatedAt } = useStore(safeModeStore);
   const [showUnlock, setShowUnlock] = useState(false);
   const [unlockCode, setUnlockCode] = useState('');
   const [retrying, setRetrying] = useState(false);

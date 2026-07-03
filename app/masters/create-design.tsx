@@ -248,7 +248,7 @@ export default function CreateDesignScreen() {
                     label: c.name,
                     sublabel: (c as any).linkedDesigns 
                       ? `Linked: ${(c as any).linkedDesigns}`
-                      : ((c as any).linkCount > 0 ? `${(c as any).linkCount} Linked` : undefined),
+                      : ((c as any).linkCount > 0 ? `${(c as any).linkCount} Linked` : ""),
                   }))
                 }
                 selectedId={selectedCategoryId}

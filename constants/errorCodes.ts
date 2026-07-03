@@ -1,3 +1,8 @@
+// constants/errorCodes.ts
+// v7.14 FIX-V714-6: Canonical error constants
+// v7.24 FIX-V724-5: 36 total error codes including 8 new security codes
+// G65 LINT ALLOWLIST: add 'constants/errorCodes' to the no-restricted-imports exceptions.
+
 export const ERR = {
   LEASE_HELD: 'LEASE_HELD',
   SAFE_MODE_ACTIVE: 'SAFE_MODE_ACTIVE',
@@ -27,4 +32,19 @@ export const ERR = {
   CHECKSUM_MISMATCH: 'CHECKSUM_MISMATCH',
   MIGRATION_FAILED: 'MIGRATION_FAILED',
   DEVICE_ID_NOT_INITIALIZED: 'DEVICE_ID_NOT_INITIALIZED',
+  // v7.23 FIX-VSEC-1: backup encryption
+  BACKUP_PASSWORD_REQUIRED: 'BACKUP_PASSWORD_REQUIRED',
+  // v7.23 FIX-VSEC-2: MMKV cache tamper detection
+  MMKV_CACHE_TAMPERED: 'MMKV_CACHE_TAMPERED',
+  // v7.23 FIX-VSEC-3: PIN gate
+  PIN_INCORRECT: 'PIN_INCORRECT',
+  PIN_LOCKED: 'PIN_LOCKED',
+  // v7.23 FIX-VSEC-7: input sanitization
+  INVALID_TEXT_CONTENT: 'INVALID_TEXT_CONTENT',
+  // v7.23 FIX-VSEC-8: device ID audit chain
+  DEVICE_ID_CHANGED: 'DEVICE_ID_CHANGED',
+  // v7.23 FIX-VSEC-11: checksum envelope coverage
+  CHECKSUM_ENVELOPE_MISMATCH: 'CHECKSUM_ENVELOPE_MISMATCH',
+  // v7.23 FIX-VSEC-12: factory reset
+  FACTORY_RESET_EXECUTED: 'FACTORY_RESET_EXECUTED',
 } as const;

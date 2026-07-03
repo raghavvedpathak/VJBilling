@@ -1,3 +1,4 @@
+// services/settingsService.ts
 import { db } from '../db/client';
 import { appSettings } from '../db/schema';
 import { eq } from 'drizzle-orm';
@@ -6,10 +7,8 @@ import { safeModeService } from './safeModeService';
 import { auditRepository } from '../repositories/auditRepository';
 import { getDeviceId } from '../utils/deviceId';
 import { now } from '../utils/now';
-// FIX: Reverted to the spec-compliant appSettingsStore
 import { appSettingsStore } from '../store/appSettingsStore';
-
-export type UpdateSettingsInput = Partial<typeof appSettings.$inferInsert>;
+import type { UpdateSettingsInput } from '../types/settings'; // FIX: Imported strict type
 
 export const settingsService = {
 
@@ -60,7 +59,7 @@ export const settingsService = {
     // FIX-V718-1: JSI driver requires synchronous tx callback
     db.transaction((tx) => {
       tx.insert(appSettings)
-        .values({ id: 1, ...input, updatedAt: updated.updatedAt })
+        .values({ id: 1, ...input, updatedAt: updated.updatedAt } as any)
         .onConflictDoUpdate({
           target: appSettings.id,
           set: { ...input, updatedAt: updated.updatedAt },

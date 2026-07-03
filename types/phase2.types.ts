@@ -90,10 +90,10 @@ export interface CreateItemInput {
   primaryStoneId?: string | null;
   metalSource?: MetalSource; // default 'SUPPLIER_PURCHASE' — WRITE-ONCE after creation
   hsnCode: string; // FIX-HSN-ITEM-1 (v1.44): MANDATORY
-  makingChargePaise?: number; // FIX-COST-1
-  stoneCostPaise?: number; // FIX-COST-2
-  location?: string; // FIX-LOC-1
-  huid?: string; // ADDED: FIX-HUID-FORMAT-1 (v1.44)
+  makingChargePaise?: number | null; // FIX-COST-1
+  stoneCostPaise?: number | null; // FIX-COST-2
+  location?: string | null; // FIX-LOC-1
+  huid?: string | null; // ADDED: FIX-HUID-FORMAT-1 (v1.44)
 }
 
 export interface BulkItemInput extends CreateItemInput { clientRef?: string; }
@@ -104,9 +104,9 @@ export interface CreateOldGoldLotInput {
   grossWeightMg: number;
   purityPercent: number;
   metalSource?: MetalSource; // defaults to 'CUSTOMER'
-  customerId?: string; // FIX-OLDGOLD-CUSTOMER-1 (v1.49): nullable FK -> customers.id.
+  customerId?: string | null; // FIX-OLDGOLD-CUSTOMER-1 (v1.49): nullable FK -> customers.id.
   purchaseRatePaise?: number; // FIX-OLDGOLD-COST-1 (v1.51): paise per gram.
-  notes?: string;
+  notes?: string | null;
 }
 
 // GEMSTONE-1 (v1.21)
@@ -145,19 +145,19 @@ export type URDPurchase = typeof urdPurchases.$inferSelect;
 
 export interface CreateURDPurchaseInput {
   purchaseDate: string; // ISO date YYYY-MM-DD
-  customerId?: string; // optional FK -> customers.id
+  customerId?: string | null; // optional FK -> customers.id
   customerName: string; // NOT NULL — required for bill
-  customerAddress?: string;
-  customerMobile?: string;
-  customerAadhaar?: string; // OPTIONAL
-  customerPAN?: string; // OPTIONAL
+  customerAddress?: string | null;
+  customerMobile?: string | null;
+  customerAadhaar?: string | null; // OPTIONAL
+  customerPAN?: string | null; // OPTIONAL
   metalType: URDMetalType;
   grossWeightMg: number; // must be > 0
   purityPercent: number; // must be > 0 and <= 100
   ratePerGramPaise: number; // must be > 0
   paymentMode: 'CASH' | 'BANK' | 'UPI';
-  bankAccountId?: string; // required if BANK or UPI
-  notes?: string;
+  bankAccountId?: string | null; // required if BANK or UPI
+  notes?: string | null;
 }
 
 export const VALID_LOT_TRANSITIONS: Record<OldGoldLotStatus, OldGoldLotStatus[]> = {
@@ -277,8 +277,8 @@ export type CreatePhantomItemInput = {
   beadsWeightMg?: number;
   purityPercent: number;
   purityKarat: number;
-  primaryStoneId?: string;
-  location?: string;
+  primaryStoneId?: string | null;
+  location?: string | null;
 };
 
 // Karigar issued items (FEAT-GAP6-KARIGAR-SUMMARY-1 v1.66)
@@ -328,7 +328,7 @@ export type UpdateableItemDraftFields = Partial<{
   purityPercent: number; // re-assay correction
   purityKarat: number; // display karat correction
   primaryStoneId: string | null;
-  location: string; // SHOP|LOCKER|KARIGAR|REFINERY|TRANSIT
+  location: string | null; // SHOP|LOCKER|KARIGAR|REFINERY|TRANSIT
   makingChargePaise: number | null;
   stoneCostPaise: number | null;
   purchaseRatePaise: number | null;

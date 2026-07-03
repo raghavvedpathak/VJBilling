@@ -92,9 +92,9 @@ export const itemRepository = {
     tx.update(items).set({ status: status as any, updatedAt: now() }).where(and(eq(items.id, id), eq(items.firmId, firmId))).run();
   },
 
-  // FIX-V718-1: Synchronous execution using .returning().get()
   insert(tx: DrizzleTransaction, data: any): Item {
-    const result = tx.insert(items).values(data).returning().get();
+    tx.insert(items).values(data).run();
+    const result = tx.select().from(items).where(eq(items.id, data.id)).get();
     return result as unknown as Item;
   },
 

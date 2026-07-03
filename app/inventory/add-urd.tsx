@@ -62,16 +62,16 @@ export default function AddURDScreen() {
       await urdPurchaseService.createURDPurchase({
         purchaseDate: new Date().toISOString().split('T')[0], // YYYY-MM-DD
         customerName: customerName.trim(),
-        customerAddress: customerAddress.trim() || undefined,
-        customerMobile: customerMobile.trim() || undefined,
-        customerAadhaar: customerAadhaar.replace(/[^0-9]/g, '') || undefined,
-        customerPAN: customerPAN.trim().toUpperCase() || undefined,
+        customerAddress: customerAddress.trim() || null,
+        customerMobile: customerMobile.trim() || null,
+        customerAadhaar: customerAadhaar.replace(/[^0-9]/g, '') || null,
+        customerPAN: customerPAN.trim().toUpperCase() || null,
         metalType,
         grossWeightMg: grossMg,
         purityPercent: purity,
         ratePerGramPaise: ratePaise,
         paymentMode,
-        bankAccountId: paymentMode !== 'CASH' ? bankAccountId || 'UNKNOWN_ACCOUNT' : undefined,
+        bankAccountId: paymentMode !== 'CASH' ? bankAccountId || 'UNKNOWN_ACCOUNT' : null,
       }, activeFirmId);
 
       setSuccessMessage('Draft Purchase Saved.');
