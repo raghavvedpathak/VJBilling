@@ -24,15 +24,42 @@ const EVENT_MAPPING: Record<string, string> = {
   'SAFE_MODE_CLEARED': 'Safe Mode Cleared',
   'BACKUP_CREATED': 'Backup Created',
   'RESTORE_COMPLETED': 'Data Restored',
+  'RESTORE_FAILED': 'Restore Failed',
   'RESTORE_OLD_SCHEMA': 'Old Backup Restored',
+  'FY_CREATED': 'Financial Year Created',
   'FY_CLOSED': 'Financial Year Closed',
+  'FY_CLOCK_SKEW': 'System Clock Changed',
   'SETTINGS_CHANGED': 'Settings Modified',
   'DEVICE_ID_GENERATED': 'New Device Registered',
   'BIS_LOGO_ARCHIVED': 'BIS Logo Removed',
   'PRE_MIGRATION_SNAPSHOT_FAILED': 'Pre-Migration Snapshot Failed',
   'AUDIT_RETENTION_PURGE_EXECUTED': 'Audit Log Retention Purge Ran',
   'DEVICE_ID_CHANGED': 'Device ID Changed',
-  'FACTORY_RESET_EXECUTED': 'Factory Reset Executed'
+  'FACTORY_RESET_EXECUTED': 'Factory Reset Executed',
+  'URD_PURCHASE_CREATED': 'Unregistered Purchase Logged',
+  'URD_PURCHASE_CONFIRMED': 'Unregistered Purchase Confirmed',
+  'CATEGORY_CREATED': 'New Category Added',
+  'CATEGORY_UPDATED': 'Category Details Updated',
+  'CATEGORY_SOFT_DELETED': 'Category Removed',
+  'DESIGN_CREATED': 'New Design Added',
+  'DESIGN_UPDATED': 'Design Details Updated',
+  'DESIGN_SOFT_DELETED': 'Design Removed',
+  'STONE_CREATED': 'Stone Master Added',
+  'ITEM_CREATED': 'New Stock Item Added',
+  'HUID_ADDED': 'HUID Tag Assigned',
+  'ITEM_STATUS_CHANGED': 'Stock Item Status Updated',
+  'WEIGHT_ADJUSTED': 'Item Weight Adjusted',
+  'BARCODE_REPRINTED': 'Barcode Label Reprinted',
+  'OLD_GOLD_LOT_CREATED': 'Old Gold Lot Added',
+  'OLD_GOLD_LOT_STATUS_CHANGED': 'Old Gold Lot Status Updated',
+  'FY_CLOSE_FINE_BALANCE': 'Fine Gold Balance Closed',
+  'FY_ARCHIVE_INDEXED': 'Financial Year Archived',
+  'DRAFT_ITEM_DISCARDED': 'Draft Item Discarded',
+  'GEMSTONE_LOT_CREATED': 'Gemstone Lot Added',
+  'GEMSTONE_LOT_STATUS_CHANGED': 'Gemstone Lot Status Updated',
+  'ITEM_EDITED': 'Stock Item Edited',
+  'ITEM_SENT_TO_KARIGAR': 'Item Sent to Karigar',
+  'ITEM_RETURNED_FROM_KARIGAR': 'Item Received from Karigar'
 };
 
 const colors = {
@@ -140,31 +167,33 @@ const AuditLogItem = memo(({
           </View>
 
           <View style={s.payloadCard}>
-            {Object.keys(parsedPayload).length > 0 ? (
-              Object.entries(parsedPayload).map(([k, v]) => {
-                const cleanKey = String(k)
-                  .replace(/([A-Z])/g, ' $1')
-                  .replace(/^./, str => str.toUpperCase());
+            {Object.keys(parsedPayload).filter(k => !['id', 'firmId', 'createdAt', 'updatedAt', 'isArchived', 'isActive'].includes(k)).length > 0 ? (
+              Object.entries(parsedPayload)
+                .filter(([k]) => !['id', 'firmId', 'createdAt', 'updatedAt', 'isArchived', 'isActive'].includes(k))
+                .map(([k, v]) => {
+                  const cleanKey = String(k)
+                    .replace(/([A-Z])/g, ' $1')
+                    .replace(/^./, str => str.toUpperCase());
 
-                let displayVal: string;
-                if (v === null || v === undefined || v === '') {
-                  displayVal = 'None provided';
-                } else if (typeof v === 'boolean') {
-                  displayVal = v ? 'Enabled (Yes)' : 'Disabled (No)';
-                } else if (typeof v === 'object') {
-                  try { displayVal = JSON.stringify(v).replace(/[{}"]/g, ' '); }
-                  catch { displayVal = 'Complex Data'; }
-                } else {
-                  displayVal = String(v);
-                }
+                  let displayVal: string;
+                  if (v === null || v === undefined || v === '') {
+                    displayVal = 'None';
+                  } else if (typeof v === 'boolean') {
+                    displayVal = v ? 'Yes' : 'No';
+                  } else if (typeof v === 'object') {
+                    try { displayVal = JSON.stringify(v).replace(/[{}"]/g, ' ').replace(/:/g, ': '); }
+                    catch { displayVal = 'Multiple Details'; }
+                  } else {
+                    displayVal = String(v);
+                  }
 
-                return (
-                  <View key={String(k)} style={s.payloadRow}>
-                    <Text style={s.payloadKey}>{cleanKey}</Text>
-                    <Text style={s.payloadVal}>{displayVal}</Text>
-                  </View>
-                );
-              })
+                  return (
+                    <View key={String(k)} style={s.payloadRow}>
+                      <Text style={s.payloadKey}>{cleanKey}</Text>
+                      <Text style={s.payloadVal}>{displayVal}</Text>
+                    </View>
+                  );
+                })
             ) : (
               <Text style={s.payloadEmpty}>No specific details recorded for this event.</Text>
             )}
@@ -189,12 +218,8 @@ const s = StyleSheet.create({
     borderColor: 'rgba(255, 255, 255, 0.5)',
   },
   cardExpanded: {
-    borderColor: 'rgba(255, 255, 255, 0.8)',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    borderColor: 'rgba(92, 22, 35, 0.2)',
+    backgroundColor: '#ffffff',
   },
   cardHeader: {
     padding: 16,
