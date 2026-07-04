@@ -83,7 +83,11 @@ export default function InventorySearchScreen() {
     const activeQuery = query.trim();
 
     return (
-      <View style={s.card}>
+      <TouchableOpacity 
+        style={s.card}
+        activeOpacity={0.7}
+        onPress={() => router.push(`/inventory/item-detail?itemId=${item.itemId}`)}
+      >
         <View style={s.cardHeader}>
           <View style={s.badgeRow}>
             <View style={[s.metalBadge, { backgroundColor: isGold ? COLORS.goldAccent + '20' : COLORS.silverAccent + '20' }]}>
@@ -121,7 +125,7 @@ export default function InventorySearchScreen() {
             <HighlightText text={formatWeight(item.netWeightMg)} query={activeQuery} style={s.weightValue} />
           </View>
         </View>
-      </View>
+      </TouchableOpacity>
     );
   };
 

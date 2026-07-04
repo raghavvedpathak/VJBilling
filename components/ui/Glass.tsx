@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, TextInput, TouchableOpacity, ActivityIndicator, ViewProps } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, ActivityIndicator, ViewProps, ScrollView } from 'react-native';
 import { BlurView } from 'expo-blur';
 
 // ============================================================================
@@ -169,6 +169,7 @@ interface GlassSmartSearchProps {
   selectedId: string | null;
   onSelect: (option: SmartSearchOption | null) => void;
   onFocusFetch?: (() => void) | undefined; // Triggered when input is focused to load fresh data
+  showAllOnFocus?: boolean | undefined;
 }
 
 export function GlassSmartSearch({
@@ -178,6 +179,7 @@ export function GlassSmartSearch({
   selectedId,
   onSelect,
   onFocusFetch,
+  showAllOnFocus,
 }: GlassSmartSearchProps) {
   const [query, setQuery] = React.useState('');
   const [isFocused, setIsFocused] = React.useState(false);
@@ -194,25 +196,33 @@ export function GlassSmartSearch({
     }
   }, [isFocused, selectedId, options]);
 
-  const isTypingNewQuery = React.useMemo(() => {
+  const shouldShowOptions = React.useMemo(() => {
     if (!isFocused) return false;
+    
+    if (showAllOnFocus && (!query || query === '')) return true;
+
     const searchStr = query.toLowerCase();
-    if (!searchStr) return false; // Empty input means not searching yet
+    if (!searchStr) return false;
 
     if (selectedId) {
       const selectedOpt = options.find((o) => o.id === selectedId);
       if (selectedOpt && searchStr === selectedOpt.label.toLowerCase()) {
-        return false; // Still displaying the selected item's label, haven't typed anything new
+        return showAllOnFocus ? true : false;
       }
     }
     return true;
-  }, [isFocused, query, options, selectedId]);
+  }, [isFocused, query, options, selectedId, showAllOnFocus]);
 
   // Compute filtered options up to 5 items to keep it inline-friendly
   const filteredOptions = React.useMemo(() => {
-    if (!isTypingNewQuery) return [];
+    if (!shouldShowOptions) return [];
     
     const searchStr = query.toLowerCase();
+    
+    if (showAllOnFocus && (!searchStr || (selectedId && options.find(o => o.id === selectedId)?.label.toLowerCase() === searchStr))) {
+      return options;
+    }
+
     const filtered = (options || []).filter((opt) => {
       const labelMatch = opt.label ? String(opt.label).toLowerCase().includes(searchStr) : false;
       const sublabelMatch = opt.sublabel ? String(opt.sublabel).toLowerCase().includes(searchStr) : false;
@@ -220,7 +230,7 @@ export function GlassSmartSearch({
     });
 
     return filtered.slice(0, 5); // Max 5 items inline
-  }, [isTypingNewQuery, query, options]);
+  }, [shouldShowOptions, query, options, showAllOnFocus, selectedId]);
 
   return (
     <View style={{ zIndex: isFocused ? 50 : 1, position: 'relative' }}>
@@ -242,18 +252,23 @@ export function GlassSmartSearch({
         }}
       />
       
-      {/* Inline Dropdown List - ONLY SHOWS WHEN TYPING */}
-      {isTypingNewQuery && (
-        <View style={{ 
-          marginTop: -10, 
-          marginBottom: 16, 
-          backgroundColor: '#FCFBF8', 
-          borderRadius: 16, 
-          padding: 8,
-          borderWidth: 1,
-          borderColor: 'rgba(92,22,35,0.1)',
-          shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.1, shadowRadius: 10, elevation: 4
-        }}>
+      {/* Inline Dropdown List - ONLY SHOWS WHEN TYPING OR IF showAllOnFocus is true */}
+      {shouldShowOptions && (
+        <ScrollView 
+          style={{ 
+            marginTop: -10, 
+            marginBottom: 16, 
+            maxHeight: 250,
+            backgroundColor: '#FCFBF8', 
+            borderRadius: 16, 
+            padding: 8,
+            borderWidth: 1,
+            borderColor: 'rgba(92,22,35,0.1)',
+            shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.1, shadowRadius: 10, elevation: 4
+          }}
+          nestedScrollEnabled={true}
+          keyboardShouldPersistTaps="handled"
+        >
           {filteredOptions.length === 0 ? (
             <Text style={{ textAlign: 'center', color: 'rgba(92,22,35,0.5)', padding: 12, fontWeight: '500' }}>
               No results found
@@ -279,7 +294,7 @@ export function GlassSmartSearch({
               </TouchableOpacity>
             ))
           )}
-        </View>
+        </ScrollView>
       )}
     </View>
   );

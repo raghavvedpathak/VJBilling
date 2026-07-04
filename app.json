@@ -21,12 +21,7 @@
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#5C1623"
       },
-      "package": "com.vjbilling.app",
-      "permissions": [
-        "READ_EXTERNAL_STORAGE",
-        "WRITE_EXTERNAL_STORAGE",
-        "INTERNET"
-      ]
+      "package": "com.vjbilling.app"
     },
     "web": {
       "favicon": "./assets/favicon.png"

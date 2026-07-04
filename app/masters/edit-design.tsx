@@ -81,7 +81,7 @@ export default function EditDesignScreen() {
             </View>
           </View>
         </ScrollView>
-        <View style={{ paddingHorizontal: 24, paddingBottom: insets.bottom || 24, paddingTop: 16 }}>
+        <View style={{ paddingHorizontal: 24, paddingBottom: 32, paddingTop: 16 }}>
           <GlassButton 
             title={isSubmitting ? 'Saving...' : 'Update Design'} 
             onPress={handleEditSubmit} 

@@ -11,11 +11,12 @@ import { useFirmStore } from '../../store/firmStore';
 import { inventoryDrillDownService } from '../../services/inventoryDrillDownService';
 import { getDisplayPurity } from '../../utils/purity.constants';
 import { getCurrencySymbol } from '../../utils/currency';
+import { formatSKUDisplay } from '../../utils/skuDisplay';
 import { format, parseISO } from 'date-fns';
 import {
   Package, Tag, Scale, Gem, FileText,
   Clock, AlertTriangle, Info, AlertCircle,
-  Shield, MapPin
+  Shield, MapPin, Calculator
 } from 'lucide-react-native';
 import type { ItemDetail, ItemTimelineEvent } from '../../types/phase2.types';
 
@@ -190,20 +191,23 @@ export default function ItemDetailScreen() {
     createdAtFormatted = format(parseISO(item.createdAt), 'dd MMM yyyy hh:mm a');
   } catch {}
 
-  // --- Calculate Total Amount (Paise) ---
-  let totalCostPaise: number | null = null;
-  if (item.purchaseRatePaise !== null || item.makingChargePaise !== null || item.stoneCostPaise !== null) {
-    totalCostPaise = 0;
-    if (item.purchaseRatePaise !== null) {
-      // Calculate gold cost based on Fine Gold Charged (or fallback to Fine Weight + Wastage)
-      const billedGrams = item.fineGoldChargedMg != null 
-        ? (item.fineGoldChargedMg / 1000) 
-        : ((item.fineWeightMg / 1000) * (1 + (item.wastagePercent || 0) / 100));
-      totalCostPaise += billedGrams * item.purchaseRatePaise;
-    }
-    if (item.makingChargePaise !== null) totalCostPaise += item.makingChargePaise;
-    if (item.stoneCostPaise !== null) totalCostPaise += item.stoneCostPaise;
-  }
+  // --- Live Cost Breakdown Calculations ---
+  const netWeightG = item.netWeightMg / 1000;
+  const purity = item.purityPercent;
+  const wastage = item.wastagePercent || 0;
+  const totalTouchPercent = purity + wastage;
+  
+  const vaultTruth = netWeightG * (purity / 100);
+  const wastageGold = netWeightG * (wastage / 100);
+  const costTruth = netWeightG * (totalTouchPercent / 100);
+
+  const rate = item.purchaseRatePaise ? item.purchaseRatePaise / 100 : 0;
+  const making = item.makingChargePaise ? item.makingChargePaise / 100 : 0;
+  const stoneC = item.stoneCostPaise ? item.stoneCostPaise / 100 : 0;
+
+  const effectivePricePerGram = rate * (totalTouchPercent / 100);
+  const hasCostData = rate > 0 || making > 0 || stoneC > 0;
+  const totalAmount = (netWeightG * effectivePricePerGram) + making + stoneC;
 
   const headerContent = (
     <View>
@@ -217,7 +221,7 @@ export default function ItemDetailScreen() {
           </View>
         )}
       </View>
-      <Text style={s.headerSku} selectable>{item.sku}</Text>
+      <Text style={s.headerSku} selectable>{formatSKUDisplay(item.sku)}</Text>
     </View>
   );
 
@@ -237,16 +241,71 @@ export default function ItemDetailScreen() {
             <DetailRow label="Gross Weight" value={formatWeight(item.grossWeightMg)} icon={<Scale size={14} color={COLORS.vjAccent} />} />
             <DetailRow label="Stone Weight" value={formatWeight(item.stoneWeightMg)} />
             <DetailRow label="Beads Weight" value={formatWeight(item.beadsWeightMg)} />
-            <DetailRow label="Net Weight" value={formatWeight(item.netWeightMg)} />
-            <DetailRow label="Fine Weight" value={formatWeight(item.fineWeightMg)} />
-            
             <View style={s.divider} />
 
-            <DetailRow label="Wastage" value={item.wastagePercent ? `${item.wastagePercent.toFixed(2)}%` : '0.00%'} />
+            {/* === LIVE COST BREAKDOWN === */}
+            <View className="px-1 mb-4 mt-2">
+              <View style={{ backgroundColor: 'rgba(252,251,248, 0.95)', borderColor: '#D4AF37', borderWidth: 1, borderRadius: 16, padding: 16 }}>
+                <View className="flex-row items-center gap-2 mb-3">
+                  <Calculator size={18} color="#D4AF37" />
+                  <Text className="text-xs font-black uppercase tracking-wider text-vj-accent">Live Cost Breakdown</Text>
+                </View>
+                
+                <View className="flex-row justify-between py-1 border-b border-black/5">
+                  <Text className="text-xs text-vj-text/60 font-medium">Net Weight:</Text>
+                  <Text className="text-xs text-vj-text font-bold font-mono">{netWeightG.toFixed(3)} g</Text>
+                </View>
+
+                <View className="flex-row justify-between items-center py-2 border-b border-black/5">
+                  <View className="flex-1 pr-2">
+                    <Text className="text-xs text-vj-text/60 font-medium">Total Touch:</Text>
+                    <Text className="text-[10px] text-vj-accent font-bold mt-1 bg-vj-accent/10 self-start px-2 py-0.5 rounded-full overflow-hidden">
+                      {purity.toFixed(2)}% Purity + {wastage.toFixed(2)}% Wastage
+                    </Text>
+                  </View>
+                  <Text className="text-sm text-vj-text font-black font-mono">{totalTouchPercent.toFixed(2)}%</Text>
+                </View>
+
+                <View className="flex-row justify-between py-1 border-b border-black/5">
+                  <Text className="text-xs text-vj-text/60 font-medium flex-1 pr-2">Vault Truth (Fine):</Text>
+                  <Text className="text-xs text-emerald-700 font-bold font-mono">{vaultTruth.toFixed(3)} g</Text>
+                </View>
+
+                <View className="flex-row justify-between py-1 border-b border-black/5">
+                  <Text className="text-xs text-vj-text/60 font-medium flex-1 pr-2">Wastage Gold:</Text>
+                  <Text className="text-xs text-rose-700 font-bold font-mono">{wastageGold.toFixed(3)} g</Text>
+                </View>
+
+                <View className="flex-row justify-between py-1 border-b border-black/5">
+                  <Text className="text-xs text-vj-text/60 font-medium flex-1 pr-2">Cost Truth (Fine):</Text>
+                  <Text className="text-xs text-amber-700 font-bold font-mono">{costTruth.toFixed(3)} g</Text>
+                </View>
+
+                {hasCostData && (
+                  <>
+                    <View className="flex-row justify-between py-1 mt-2 border-b border-black/5">
+                      <Text className="text-xs text-vj-text/60 font-medium">Purchase Rate:</Text>
+                      <Text className="text-xs text-vj-text font-bold font-mono">₹ {rate.toLocaleString('en-IN', { maximumFractionDigits: 2 })} /g</Text>
+                    </View>
+                    <View className="flex-row justify-between py-1 border-b border-black/5">
+                      <Text className="text-xs text-vj-text/60 font-medium">Making & Stone:</Text>
+                      <Text className="text-xs text-vj-text font-bold font-mono">₹ {(making + stoneC).toLocaleString('en-IN', { maximumFractionDigits: 2 })}</Text>
+                    </View>
+                    <View className="flex-row justify-between py-1 border-b border-black/5">
+                      <Text className="text-xs text-vj-text/60 font-medium">Effective Price/g:</Text>
+                      <Text className="text-xs text-vj-text font-bold font-mono">₹ {effectivePricePerGram.toLocaleString('en-IN', { maximumFractionDigits: 2 })}</Text>
+                    </View>
+                    <View className="flex-row justify-between pt-2">
+                      <Text className="text-sm text-vj-text font-black">Total Est. Cost (₹):</Text>
+                      <Text className="text-sm font-black font-mono text-amber-900">₹ {totalAmount.toLocaleString('en-IN', { maximumFractionDigits: 2 })}</Text>
+                    </View>
+                  </>
+                )}
+              </View>
+            </View>
+
             <DetailRow label="HUID" value={item.huid || 'Not Set'} />
-            
-            {/* BARCODE REMAINS HERE */}
-            <DetailRow label="Barcode" value={item.barcode} />
+            <DetailRow label="Barcode" value={formatSKUDisplay(item.barcode)} />
             
             <View style={s.divider} />
 
@@ -259,31 +318,6 @@ export default function ItemDetailScreen() {
             <DetailRow label="Metal Source" value={item.metalSource.replace(/_/g, ' ')} />
             <DetailRow label="HSN Code" value={item.hsnCode} />
             <DetailRow label="Added On" value={createdAtFormatted} />
-
-            {/* === COST FIELDS === */}
-            {totalCostPaise !== null && (
-              <>
-                <View style={s.divider} />
-                <View style={s.costHeaderRow}>
-                  <Text style={s.costHeaderTitle}>Purchase Costs</Text>
-                </View>
-
-                {item.purchaseRatePaise !== null && (
-                  <DetailRow label="Purchase Rate" value={formatCurrency(item.purchaseRatePaise) + ' /g'} />
-                )}
-                {item.makingChargePaise !== null && (
-                  <DetailRow label="Making Charge" value={formatCurrency(item.makingChargePaise)} />
-                )}
-                {item.stoneCostPaise !== null && (
-                  <DetailRow label="Stone Cost" value={formatCurrency(item.stoneCostPaise)} />
-                )}
-                
-                <View style={s.costTotalBox}>
-                  <Text style={s.costTotalLabel}>Total Est. Cost</Text>
-                  <Text style={s.costTotalValue}>{formatCurrency(totalCostPaise)}</Text>
-                </View>
-              </>
-            )}
 
             <View style={s.divider} />
             

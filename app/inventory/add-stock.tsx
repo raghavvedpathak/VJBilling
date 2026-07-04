@@ -132,6 +132,8 @@ export default function AddStockScreen() {
       wastageGold: wastageGold.toFixed(3) + ' g',
       costTruth: costTruth.toFixed(3) + ' g',
       totalTouch: totalTouchPercent.toFixed(2) + '%',
+      purityRaw: purity.toFixed(2),
+      wastageRaw: wastage.toFixed(2),
       pricePerGram: effectivePricePerGram,
       totalAmount: absoluteTotalCost,
       hasCostData: rate > 0 || making > 0 || stoneC > 0,
@@ -295,6 +297,7 @@ export default function AddStockScreen() {
             <GlassSmartSearch 
               label="HSN Code *"
               placeholder="Search HSN codes..."
+              showAllOnFocus={true}
               options={hsnCodes.map(h => ({ id: h.id, label: h.code || 'No Code', sublabel: h.description || '' }))}
               selectedId={selectedHsn?.id || null}
               onSelect={(opt) => {
@@ -400,9 +403,14 @@ export default function AddStockScreen() {
                 <Text className="text-xs text-vj-text font-bold font-mono">{liveWastageSeparation.netWeight}</Text>
               </View>
 
-              <View className="flex-row justify-between py-1 border-b border-black/5">
-                <Text className="text-xs text-vj-text/60 font-medium flex-1 pr-2">Total Touch:</Text>
-                <Text className="text-xs text-vj-text font-bold font-mono">{liveWastageSeparation.totalTouch}</Text>
+              <View className="flex-row justify-between items-center py-2 border-b border-black/5">
+                <View className="flex-1 pr-2">
+                  <Text className="text-xs text-vj-text/60 font-medium">Total Touch:</Text>
+                  <Text className="text-[10px] text-vj-accent font-bold mt-1 bg-vj-accent/10 self-start px-2 py-0.5 rounded-full overflow-hidden">
+                    {liveWastageSeparation.purityRaw}% Purity + {liveWastageSeparation.wastageRaw}% Wastage
+                  </Text>
+                </View>
+                <Text className="text-sm text-vj-text font-black font-mono">{liveWastageSeparation.totalTouch}</Text>
               </View>
 
               <View className="flex-row justify-between py-1 border-b border-black/5">

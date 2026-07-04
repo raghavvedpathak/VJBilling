@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Text, StatusBar, TouchableOpacity, KeyboardAvoidingView, Platform } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { ChevronLeft } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
@@ -17,6 +17,7 @@ interface TwoToneWrapperProps {
 
 export function TwoToneWrapper({ title, children, showBack, actionIcon, onAction, headerContent }: TwoToneWrapperProps) {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
 
   const handleBack = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -74,6 +75,7 @@ export function TwoToneWrapper({ title, children, showBack, actionIcon, onAction
           <KeyboardAvoidingView
             behavior={Platform.OS === 'ios' ? 'padding' : undefined}
             className="flex-1 w-full max-w-[800px] self-center px-4 pt-4"
+            style={{ paddingBottom: Math.max(insets.bottom, 16) }}
           >
             {children}
           </KeyboardAvoidingView>
