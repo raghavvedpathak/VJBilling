@@ -1,44 +1,112 @@
-import React from 'react';
-import { View, StyleSheet, Dimensions } from 'react-native';
+import React, { useEffect, useRef } from 'react';
+import { View, StyleSheet, Animated, Dimensions, Easing } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 
 const { width, height } = Dimensions.get('window');
 
 /**
- * PREMIUM MESH GRADIENT BACKGROUND
- * 
- * An ultra-modern, luxury aesthetic using soft, intersecting gradients.
- * Designed specifically for a high-end jewelry billing application.
- * Utilizes the brand colors (Gold and Maroon) bleeding softly into a Pearl White canvas.
- * Zero animation overhead, completely fluid and distraction-free, enhancing Glassmorphism UI.
+ * THE "3D HOLOGRAPHIC DIAMOND" ENGINE
+ * Designed to completely shock the user. 
+ * This uses 3D perspective transforms to create a massive, glowing, counter-rotating 
+ * geometric diamond floor in the background. It represents precision, luxury, and technology.
  */
 export function DynamicBackground() {
+  const spinAnim = useRef(new Animated.Value(0)).current;
+  const pulseAnim = useRef(new Animated.Value(0)).current;
+  
+  useEffect(() => {
+    // The infinite, smooth rotation engine
+    Animated.loop(
+      Animated.timing(spinAnim, {
+        toValue: 1,
+        duration: 35000, // Very slow, majestic spin
+        easing: Easing.linear,
+        useNativeDriver: true,
+      })
+    ).start();
+
+    // The glowing pulse engine for the core
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulseAnim, { toValue: 1, duration: 3000, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+        Animated.timing(pulseAnim, { toValue: 0, duration: 3000, easing: Easing.inOut(Easing.ease), useNativeDriver: true })
+      ])
+    ).start();
+  }, [spinAnim, pulseAnim]);
+
+  // Map to rotations
+  const spinZ = spinAnim.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '360deg'] });
+  const spinZReverse = spinAnim.interpolate({ inputRange: [0, 1], outputRange: ['360deg', '0deg'] });
+  const spinZFast = spinAnim.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '720deg'] });
+  
+  // Map to pulse opacity
+  const coreGlow = pulseAnim.interpolate({ inputRange: [0, 1], outputRange: [0.2, 0.8] });
+  const ringGlow = pulseAnim.interpolate({ inputRange: [0, 1], outputRange: [0.8, 1] });
+
   return (
     <View style={styles.container} pointerEvents="none">
-      
-      {/* 1. Base Luxury Pearl White */}
+      {/* 1. Base Velvet Ivory */}
       <View style={[StyleSheet.absoluteFill, { backgroundColor: '#FCFBF8' }]} />
       
-      {/* 2. Soft Ambient Gold Sweep (Top Left to Center) */}
-      <LinearGradient
-        colors={['rgba(212,175,55,0.18)', 'rgba(212,175,55,0.03)', 'transparent']}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={styles.cornerGradientTopLeft}
-      />
+      {/* 2. The 3D Holographic Perspective Chamber */}
+      <View style={styles.perspectiveWrapper}>
+        
+        {/* Layer 1: Massive Maroon Geometric Base (Spins Forward) */}
+        <Animated.View style={[
+          styles.shardsLayer, 
+          { 
+            transform: [
+              { rotateX: '72deg' }, 
+              { rotateZ: spinZ },
+              { scale: 1.8 }
+            ] 
+          }
+        ]}>
+           <View style={[styles.hollowDiamond, { borderColor: 'rgba(92,22,35,0.06)', borderWidth: 80 }]} />
+           <View style={[styles.hollowDiamond, { borderColor: 'rgba(92,22,35,0.03)', borderWidth: 10, transform: [{ scale: 1.3 }] }]} />
+           {/* Diagonal Crosshairs */}
+           <View style={[styles.crosshair, { backgroundColor: 'rgba(92,22,35,0.02)' }]} />
+           <View style={[styles.crosshair, { backgroundColor: 'rgba(92,22,35,0.02)', transform: [{ rotate: '90deg' }] }]} />
+        </Animated.View>
 
-      {/* 3. Deep Maroon Accent Sweep (Bottom Right to Center) */}
-      <LinearGradient
-        colors={['transparent', 'rgba(92,22,35,0.02)', 'rgba(92,22,35,0.12)']}
-        start={{ x: 0.2, y: 0.2 }}
-        end={{ x: 1, y: 1 }}
-        style={styles.cornerGradientBottomRight}
-      />
+        {/* Layer 2: Fine Gold Refraction Rings (Spins Reverse) */}
+        <Animated.View style={[
+          styles.shardsLayer, 
+          { 
+            transform: [
+              { rotateX: '72deg' }, 
+              { rotateZ: spinZReverse },
+              { scale: 1.2 }
+            ],
+            opacity: ringGlow
+          }
+        ]}>
+           <View style={[styles.hollowDiamond, { borderColor: 'rgba(212,175,55,0.25)', borderWidth: 1 }]} />
+           <View style={[styles.hollowDiamond, { borderColor: 'rgba(212,175,55,0.15)', borderWidth: 4, transform: [{ scale: 0.8 }] }]} />
+           <View style={[styles.hollowDiamond, { borderColor: 'rgba(212,175,55,0.08)', borderWidth: 40, transform: [{ scale: 1.4 }] }]} />
+        </Animated.View>
 
-      {/* 4. Central Soft Gold Orb for Depth */}
-      <View style={[styles.orb, { backgroundColor: 'rgba(212,175,55,0.04)' }]} />
+        {/* Layer 3: Solid Gold Inner Glowing Diamond Core (Spins Fast) */}
+        <Animated.View style={[
+          styles.shardsLayer, 
+          { 
+            transform: [
+              { rotateX: '72deg' }, 
+              { rotateZ: spinZFast },
+              { scale: 0.5 }
+            ],
+            opacity: coreGlow
+          }
+        ]}>
+           <LinearGradient
+              colors={['rgba(212,175,55,0.5)', 'rgba(212,175,55,0.0)']}
+              start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
+              style={[styles.hollowDiamond, { backgroundColor: 'rgba(212,175,55,0.1)', borderWidth: 2, borderColor: 'rgba(212,175,55,0.6)' }]}
+           />
+        </Animated.View>
+      </View>
 
-      {/* 5. Delicate Glass Vignette Overlay */}
+      {/* 3. Deep Vignette to blend the 3D floor into the void of the screen edges */}
       <View style={[StyleSheet.absoluteFill, styles.vignette]} />
       
     </View>
@@ -49,37 +117,40 @@ const styles = StyleSheet.create({
   container: {
     ...(StyleSheet.absoluteFill as object),
     overflow: 'hidden',
-    backgroundColor: '#FCFBF8',
+    backgroundColor: '#FCFBF8', // Pearl White Base
   },
-  cornerGradientTopLeft: {
+  perspectiveWrapper: {
     position: 'absolute',
     top: 0,
     left: 0,
-    width: width * 1.5,
-    height: height * 0.7,
-    borderBottomRightRadius: width,
-    transform: [{ translateX: -width * 0.2 }, { translateY: -height * 0.1 }],
-  },
-  cornerGradientBottomRight: {
-    position: 'absolute',
-    bottom: 0,
     right: 0,
-    width: width * 1.5,
-    height: height * 0.7,
-    borderTopLeftRadius: width,
-    transform: [{ translateX: width * 0.2 }, { translateY: height * 0.1 }],
+    bottom: 0,
+    justifyContent: 'center',
+    alignItems: 'center',
+    // THIS IS THE SECRET TO JAW-DROPPING 3D
+    transform: [{ perspective: 800 }], 
   },
-  orb: {
+  shardsLayer: {
     position: 'absolute',
-    width: width,
-    height: width,
-    borderRadius: width / 2,
-    top: height / 2 - width / 2,
-    left: -width * 0.3,
+    width: width * 2,
+    height: width * 2,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  hollowDiamond: {
+    position: 'absolute',
+    width: width * 1.3,
+    height: width * 1.3,
+  },
+  crosshair: {
+    position: 'absolute',
+    width: width * 3,
+    height: 2,
   },
   vignette: {
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.8)',
+    borderColor: 'rgba(255,255,255,0.6)',
     borderRadius: 32,
+    backgroundColor: 'rgba(252,251,248, 0.2)', // Slight ambient wash over everything
   }
 });
