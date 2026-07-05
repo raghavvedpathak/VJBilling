@@ -110,6 +110,12 @@ beforeAll(async () => {
     created_at TEXT NOT NULL
   )`);
 
+  // FIX: Inject SQLite trigger so we can test Review Item 11 DB-level enforcement
+  await _rawClient.execute(`
+    CREATE TRIGGER IF NOT EXISTS prevent_firm_code_update BEFORE UPDATE OF firm_code ON firms
+    BEGIN SELECT RAISE(ABORT, 'FIRM_CODE_IMMUTABLE: firmCode cannot be changed after creation'); END;
+  `);
+
   await _rawClient.execute(`INSERT OR IGNORE INTO safe_mode_state (id, is_active) VALUES (1, 0)`);
   await _rawClient.execute(`INSERT OR IGNORE INTO schema_version (id, current_version) VALUES (1, 1)`);
   await _rawClient.execute(`INSERT OR IGNORE INTO app_settings (id, updated_at) VALUES (1, '')`);
@@ -240,6 +246,16 @@ describe('firmCode Immutability', () => {
 
     await expect(firmService.updateFirm(firm.id, { firmCode: 'CHANGED' } as any))
       .rejects.toThrow('Firm Code is immutable');
+  });
+
+  // FIX: Review Item 11 Addition 3a — Test direct raw SQLite DB Trigger validation
+  it('throws when updating firm_code directly via raw SQLite (DB Trigger validation)', async () => {
+    const firm = await firmService.createFirm(makeFirm('TriggerFirm', 'TRIG1') as any);
+    await db.delete(writerLeases);
+
+    const _rawClient = (db as any).__rawClient;
+    await expect(_rawClient.execute(`UPDATE firms SET firm_code = 'HACK' WHERE id = '${firm.id}'`))
+      .rejects.toThrow(/FIRM_CODE_IMMUTABLE/);
   });
 
   it('emits FIRM_CODE_SET audit log with correct firmCode payload', async () => {

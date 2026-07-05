@@ -98,17 +98,19 @@ export const bootstrapService = {
       const enc = new TextEncoder();
       const keySourceMaterial = await getDeviceDerivedKeyMaterial();
       
-      const saltBytes = crypto.getRandomValues(new Uint8Array(16));
-      const ivBytes = crypto.getRandomValues(new Uint8Array(12));
+      // FIX: Use globally injected Web Crypto API with TS bypass for Expo SDK 56 / Hermes
+      const globalCrypto = (globalThis as any).crypto;
+      const saltBytes = globalCrypto.getRandomValues(new Uint8Array(16));
+      const ivBytes = globalCrypto.getRandomValues(new Uint8Array(12));
       
       // Cast to any to bypass Hermes vs DOM Uint8Array definition clash
-      const keyMaterial = await crypto.subtle.importKey('raw', keySourceMaterial as any, 'PBKDF2', false, ['deriveKey']);
-      const key = await crypto.subtle.deriveKey(
+      const keyMaterial = await globalCrypto.subtle.importKey('raw', keySourceMaterial as any, 'PBKDF2', false, ['deriveKey']);
+      const key = await globalCrypto.subtle.deriveKey(
         { name: 'PBKDF2', salt: saltBytes, iterations: 100000, hash: 'SHA-256' },
         keyMaterial, { name: 'AES-GCM', length: 256 }, false, ['encrypt']
       );
 
-      const cipherBuffer = await crypto.subtle.encrypt({ name: 'AES-GCM', iv: ivBytes }, key, enc.encode(payloadStr));
+      const cipherBuffer = await globalCrypto.subtle.encrypt({ name: 'AES-GCM', iv: ivBytes }, key, enc.encode(payloadStr));
       const toBase64 = (buf: ArrayBuffer) => btoa(String.fromCharCode(...new Uint8Array(buf)));
 
       const encryptedBlob = JSON.stringify({
@@ -328,8 +330,6 @@ export const bootstrapService = {
 
       try {
         await FileSystem.deleteAsync(PRE_MIGRATION_SNAPSHOT_PATH, { idempotent: true });
-        
-        // Clean up legacy plaintext backup if it still exists from prior versions
         if (STORAGE_PATHS.PRE_MIGRATION_SNAPSHOT) {
           await FileSystem.deleteAsync(STORAGE_PATHS.PRE_MIGRATION_SNAPSHOT, { idempotent: true });
         }

@@ -1,15 +1,9 @@
-import React, { useEffect, useState, useCallback } from 'react';
-import { View, Text, AppState, ActivityIndicator } from 'react-native';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
+import { View, Text, AppState, ActivityIndicator, Animated } from 'react-native';
 import { ShieldCheck, Lock } from 'lucide-react-native';
-import { leaseRepository } from '../repositories/leaseRepository';
+// FIX: Constitutional Rule — Lease queries must route through leaseService to ensure top-level DB isolation.
+import { leaseService } from '../services/leaseService';
 import { now } from '../utils/now';
-
-// ============================================================================
-// LAYER COMPLIANCE FIX: This component previously imported `db` and
-// `writerLeases` schema directly — a hard spec violation (components must
-// never query the DB). All data access now goes through leaseRepository,
-// which is the spec-compliant data access surface for lease reads.
-// ============================================================================
 
 // ============================================================================
 // POLLING INTERVAL — 5 seconds.
@@ -40,11 +34,27 @@ export function LeaseStatusBanner() {
     elapsedSeconds: 0,
   });
 
+  // Modern Pulse Animation for Active State
+  const pulseAnim = useRef(new Animated.Value(1)).current;
+
+  useEffect(() => {
+    if (leaseState.status === 'ACTIVE') {
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(pulseAnim, { toValue: 0.4, duration: 800, useNativeDriver: true }),
+          Animated.timing(pulseAnim, { toValue: 1, duration: 800, useNativeDriver: true })
+        ])
+      ).start();
+    } else {
+      pulseAnim.setValue(1);
+    }
+  }, [leaseState.status, pulseAnim]);
+
   const checkLease = useCallback(async () => {
     try {
-      // leaseRepository.getActiveLease() handles the gt(expiresAt, now()) filter
-      // internally — this component has no knowledge of the DB schema.
-      const currentLease = await leaseRepository.getActiveLease();
+      // FIX: leaseService.getActiveLease() handles the gt(expiresAt, now()) filter
+      // ensuring top-level db execution.
+      const currentLease = await leaseService.getActiveLease();
 
       if (!currentLease) {
         setLeaseState({ status: 'FREE', leaseType: null, elapsedSeconds: 0 });
@@ -93,33 +103,41 @@ export function LeaseStatusBanner() {
 
   if (leaseState.status === 'CHECKING') {
     return (
-      <View className="flex-row items-center bg-gray-100 p-2 rounded-lg border border-gray-200">
-        <ActivityIndicator size="small" color="#6b7280" style={{ marginRight: 8 }} />
-        <Text className="text-gray-600 font-medium text-xs">Checking system state...</Text>
+      <View className="flex-row items-center bg-white/40 p-2.5 rounded-xl border border-white/50 mb-2">
+        <ActivityIndicator size="small" color="#9ca3af" style={{ marginRight: 8 }} />
+        <Text className="text-vj-text/60 font-bold text-xs uppercase tracking-wider">Synchronizing State...</Text>
       </View>
     );
   }
 
   if (leaseState.status === 'ACTIVE') {
     return (
-      <View className="flex-row items-center justify-between bg-vj-danger/10 p-2 rounded-lg border border-vj-danger/20">
-        <View className="flex-row items-center">
-          <Lock size={16} color="#ef4444" style={{ marginRight: 8 }} />
-          <Text className="text-vj-danger font-bold text-xs uppercase">
-            {leaseState.leaseType} running
+      <View className="flex-row items-center justify-between bg-vj-danger/10 p-3 rounded-xl border border-vj-danger/30 shadow-sm mb-2">
+        <View className="flex-row items-center gap-2">
+          <Animated.View style={{ opacity: pulseAnim }}>
+            <View className="bg-white p-1.5 rounded-full shadow-sm">
+              <Lock size={14} color="#ef4444" />
+            </View>
+          </Animated.View>
+          <Text className="text-vj-danger font-black text-[11px] uppercase tracking-widest">
+            {leaseState.leaseType} ACTIVE
           </Text>
         </View>
-        <Text className="text-vj-danger font-mono text-xs font-bold bg-white px-2 py-1 rounded border border-vj-danger/20">
-          {formatElapsed(leaseState.elapsedSeconds)}
-        </Text>
+        <View className="bg-white px-3 py-1 rounded-full border border-vj-danger/20 shadow-sm">
+          <Text className="text-vj-danger font-mono text-xs font-black tracking-widest">
+            {formatElapsed(leaseState.elapsedSeconds)}
+          </Text>
+        </View>
       </View>
     );
   }
 
   return (
-    <View className="flex-row items-center bg-vj-success/10 p-2 rounded-lg border border-vj-success/20">
-      <ShieldCheck size={16} color="#15803d" style={{ marginRight: 8 }} />
-      <Text className="text-vj-success font-bold text-xs">System free</Text>
+    <View className="flex-row items-center bg-vj-success/10 p-2.5 rounded-xl border border-vj-success/20 mb-2">
+      <View className="bg-white p-1 rounded-full shadow-sm mr-2 border border-vj-success/10">
+        <ShieldCheck size={14} color="#15803d" />
+      </View>
+      <Text className="text-vj-success font-black text-[11px] uppercase tracking-widest">System Secure & Free</Text>
     </View>
   );
 }

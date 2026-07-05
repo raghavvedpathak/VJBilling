@@ -53,7 +53,8 @@ export async function getOrGenerateDeviceId(): Promise<string> {
  */
 export async function auditDeviceIdIfNew(): Promise<void> {
   try {
-    const hasEvent = auditRepository.hasEvent('DEVICE_ID_GENERATED');
+    // FIX: Added 'await' to properly resolve the boolean instead of a truthy Promise
+    const hasEvent = await auditRepository.hasEvent('DEVICE_ID_GENERATED');
 
     if (!hasEvent) {
       console.log('[DeviceID] Phase B: Detected un-audited device identity. Logging now.');
@@ -61,7 +62,8 @@ export async function auditDeviceIdIfNew(): Promise<void> {
       const deviceName = Device.modelName || 'Unknown Device';
       const osName = Device.osName || 'Unknown OS';
 
-      auditRepository.create({
+      // FIX: Added 'await' to ensure the event is fully committed
+      await auditRepository.create({
         firmId: null,
         eventType: 'DEVICE_ID_GENERATED',
         payload: JSON.stringify({

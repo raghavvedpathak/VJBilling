@@ -69,7 +69,7 @@ export function GlassInput({
         </Text>
       )}
       <View
-        className={`flex-row items-center rounded-2xl px-4 py-3 border ${
+        className={`flex-row items-center rounded-2xl px-4 py-4 border ${
           readOnly ? 'bg-gray-100/50 border-gray-300' : 'bg-white border-vj-text/30'
         }`}
       >
