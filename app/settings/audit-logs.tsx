@@ -475,9 +475,17 @@ function FilterChip({ label, active, onPress }: { label: string; active: boolean
   return (
     <TouchableOpacity
       onPress={onPress}
-      className={`px-4 py-2 rounded-full border ${active ? 'bg-vj-text border-vj-text' : 'bg-white border-vj-text/10 shadow-sm'}`}
+      style={[
+        { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 999, borderWidth: 1 },
+        active 
+          ? { backgroundColor: '#5C1623', borderColor: '#5C1623' } 
+          : { backgroundColor: '#ffffff', borderColor: 'rgba(92,22,35,0.1)' }
+      ]}
     >
-      <Text className={`text-xs font-bold ${active ? 'text-vj-bg' : 'text-vj-text/60'}`}>
+      <Text style={[
+        { fontSize: 12, fontWeight: 'bold' },
+        active ? { color: '#FCFBF8' } : { color: 'rgba(92,22,35,0.6)' }
+      ]}>
         {label}
       </Text>
     </TouchableOpacity>

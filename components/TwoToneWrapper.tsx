@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, Text, StatusBar, TouchableOpacity, KeyboardAvoidingView, Platform } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
+import { router } from 'expo-router';
 import { ChevronLeft } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import { DynamicBackground } from './ui/DynamicBackground';
@@ -16,7 +16,6 @@ interface TwoToneWrapperProps {
 }
 
 export function TwoToneWrapper({ title, children, showBack, actionIcon, onAction, headerContent }: TwoToneWrapperProps) {
-  const router = useRouter();
   const insets = useSafeAreaInsets();
 
   const handleBack = () => {

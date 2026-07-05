@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Stack, useRouter, useRootNavigationState } from "expo-router"; // FIX: Added useRootNavigationState
+import { Stack, router } from "expo-router";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import {
   View,
@@ -40,7 +40,12 @@ type BootstrapResult =
 
 export default function RootLayout() {
   const [snapshotStatus, setSnapshotStatus] = useState<"PENDING" | "DONE">("PENDING");
+  const { isLoaded, error: dbError } = useDatabase();
+  
+  const [bootstrapResult, setBootstrapResult] = useState<BootstrapResult>(null);
+  const [dbMigrationError, setDbMigrationError] = useState<string | null>(null);
 
+  // 0. PRE-MIGRATION SNAPSHOT
   useEffect(() => {
     const runSnapshot = async () => {
       await bootstrapService.takePreMigrationSnapshot();
@@ -48,23 +53,6 @@ export default function RootLayout() {
     };
     runSnapshot();
   }, []);
-
-  if (snapshotStatus === "PENDING") {
-    return <LoadingScreen message="Securing Pre-Migration Snapshot..." />;
-  }
-
-  return <AppMigratorAndRunner />;
-}
-
-// FIX: Radically restructured to ALWAYS render <Stack> and use absolute overlays.
-// This prevents Expo Router from crashing due to a missing NavigationContainer context.
-function AppMigratorAndRunner() {
-  const router = useRouter();
-  const rootNavState = useRootNavigationState();
-  const { isLoaded, error: dbError } = useDatabase();
-  
-  const [bootstrapResult, setBootstrapResult] = useState<BootstrapResult>(null);
-  const [dbMigrationError, setDbMigrationError] = useState<string | null>(null);
 
   // 1. RUN BOOTSTRAP AND SET STATE
   useEffect(() => {
@@ -79,6 +67,16 @@ function AppMigratorAndRunner() {
       try {
         const result = await bootstrapService.initApp();
         setBootstrapResult(result);
+
+        // Queue navigation immediately after determining the destination.
+        // Expo Router's imperative API handles queueing automatically if the container isn't ready.
+        if (result === "DASHBOARD" || result === "DASHBOARD_WARNING") {
+          router.replace("/dashboard");
+        } else if (result === "SETUP") {
+          router.replace("/welcome");
+        } else if (result === "SAFE_MODE") {
+          router.replace("/safe-mode");
+        }
       } catch (e: any) {
         console.error("[Layout] Bootstrap threw unexpectedly:", e);
         setDbMigrationError(e?.message ?? "Unknown bootstrap error");
@@ -89,29 +87,9 @@ function AppMigratorAndRunner() {
     runBootstrap();
   }, [isLoaded, dbError]);
 
-  // 2. SAFE ROUTING LIFECYCLE
-  // FIX: Tied strictly to rootNavState?.key to guarantee Expo Router is fully mounted
-  useEffect(() => {
-    if (!rootNavState?.key) return; // Wait for NavigationContainer
-
-    if (bootstrapResult && bootstrapResult !== "DATABASE_ERROR") {
-      switch (bootstrapResult) {
-        case "DASHBOARD":
-        case "DASHBOARD_WARNING":
-          router.replace("/dashboard");
-          break;
-        case "SETUP":
-          router.replace("/welcome");
-          break;
-        case "SAFE_MODE":
-          router.replace("/safe-mode");
-          break;
-      }
-    }
-  }, [bootstrapResult, router, rootNavState?.key]);
-
   // Determine what overlay to show
-  const showLoading = !isLoaded || bootstrapResult === null;
+  const showSnapshotLoading = snapshotStatus === "PENDING";
+  const showBootstrapLoading = !showSnapshotLoading && (!isLoaded || bootstrapResult === null);
   const showError = bootstrapResult === "DATABASE_ERROR";
   const loadingMsg = !isLoaded ? "Updating Database Schema..." : "Verifying Data Integrity...";
 
@@ -123,7 +101,13 @@ function AppMigratorAndRunner() {
       <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: '#FCFBF8' }, animation: 'slide_from_right' }} />
 
       {/* Overlays physically block the UI while background processes finish */}
-      {showLoading && !showError && (
+      {showSnapshotLoading && (
+        <View style={[StyleSheet.absoluteFill, { zIndex: 999, elevation: 999 }]}>
+          <LoadingScreen message="Securing Pre-Migration Snapshot..." />
+        </View>
+      )}
+
+      {showBootstrapLoading && !showError && (
         <View style={[StyleSheet.absoluteFill, { zIndex: 999, elevation: 999 }]}>
           <LoadingScreen message={loadingMsg} />
         </View>
