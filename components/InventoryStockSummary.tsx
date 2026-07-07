@@ -24,11 +24,9 @@ interface StockWeightSummary {
   goldNetWeightMg: number;
   goldPhantomDebtMg: number;
   goldBalanceMg: number;
-  goldInvestedPaise?: number; // Added for Purchase Cost
   silverNetWeightMg: number;
   silverPhantomDebtMg: number;
   silverBalanceMg: number;
-  silverInvestedPaise?: number; // Added for Purchase Cost
 }
 
 export interface InventoryStockSummaryProps {
@@ -80,14 +78,9 @@ export function InventoryStockSummary({ firmId, goldRatePerGramPaise, silverRate
     return getCurrencySymbol() + (totalValuePaise / 100).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   };
 
-  const formatInvestedCost = (paise?: number) => {
-    if (!paise) return getCurrencySymbol() + ' 0.00';
-    return getCurrencySymbol() + (paise / 100).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  };
-
-  const SummaryCard = ({ metal, totalMg, debtMg, balanceMg, ratePaise, investedPaise, accentColor }: any) => {
+  const SummaryCard = ({ metal, totalMg, debtMg, balanceMg, ratePaise, accentColor }: any) => {
     const hasDebt = debtMg > 0;
-    const estimatedValue = formatLiveValue(balanceMg, ratePaise);
+    const estimatedValue = formatLiveValue(totalMg, ratePaise);
     
     return (
       <GlassCard>
@@ -98,23 +91,16 @@ export function InventoryStockSummary({ firmId, goldRatePerGramPaise, silverRate
             <View style={[s.iconBox, { backgroundColor: accentColor + '15' }]}>
               <IngotIcon color={accentColor} />
             </View>
-            <Text style={s.metalTitle}>{metal} VAULT</Text>
+            <Text style={s.metalTitle}>{metal === 'GOLD' ? 'Gold Stock' : 'Silver Stock'}</Text>
           </View>
 
           <View style={s.valueContainer}>
-            {/* Total Invested (Purchase Cost) */}
-            <Text style={s.valueLabel}>Total Invested Cost</Text>
-            <Text style={s.investedText}>{formatInvestedCost(investedPaise)}</Text>
-
             {/* Estimated Live Value (Phase 3) */}
-            <Text style={[s.valueLabel, { marginTop: 10 }]}>Est. Live Value</Text>
+            <Text style={s.valueLabel}>INR Total</Text>
             {estimatedValue ? (
               <Text style={[s.valueText, { color: accentColor }]}>{estimatedValue}</Text>
             ) : (
-              <View style={s.noRateBadge}>
-                <TrendingUp size={12} color="rgba(46,29,0,0.5)" />
-                <Text style={s.noRateText}>Awaiting Live Rate</Text>
-              </View>
+              <Text style={s.noRateText}>₹ —</Text>
             )}
           </View>
         </View>
@@ -167,7 +153,6 @@ export function InventoryStockSummary({ firmId, goldRatePerGramPaise, silverRate
         debtMg={summary.goldPhantomDebtMg} 
         balanceMg={summary.goldBalanceMg} 
         ratePaise={goldRatePerGramPaise}
-        investedPaise={summary.goldInvestedPaise}
         accentColor={COLORS.goldAccent}
       />
       <SummaryCard 
@@ -176,7 +161,6 @@ export function InventoryStockSummary({ firmId, goldRatePerGramPaise, silverRate
         debtMg={summary.silverPhantomDebtMg} 
         balanceMg={summary.silverBalanceMg} 
         ratePaise={silverRatePerGramPaise}
-        investedPaise={summary.silverInvestedPaise}
         accentColor={COLORS.silverAccent}
       />
     </View>

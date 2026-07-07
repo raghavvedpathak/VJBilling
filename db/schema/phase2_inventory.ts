@@ -1,4 +1,5 @@
-import { sqliteTable, text, integer, real, foreignKey, unique } from 'drizzle-orm/sqlite-core';
+import { sqliteTable, text, integer, real, index, foreignKey, unique } from 'drizzle-orm/sqlite-core';
+import { isNotNull } from 'drizzle-orm';
 import { firms, type Metal } from './phase1_core';
 // PHASE 2 — INVENTORY TRUTH LAYER (Migration 0002)
 // =============================================================================
@@ -87,6 +88,7 @@ export const items = sqliteTable('items', {
   beadsWeightMg: integer('beads_weight_mg').notNull().default(0),
   netWeightMg: integer('net_weight_mg').notNull(), // PHYSICAL: gross - stone - beads
   fineWeightMg: integer('fine_weight_mg').notNull(), // PHYSICAL: round(net x purity / 100)
+  purityRoundingDeltaMg: integer('purity_rounding_delta_mg').notNull().default(0), // FEAT-PURITY-ROUND-1
   wastagePercent: real('wastage_percent').notNull().default(0),
   fineGoldChargedMg: integer('fine_gold_charged_mg'), // nullable
   purchaseRatePaise: integer('purchase_rate_paise'), // nullable
@@ -96,6 +98,8 @@ export const items = sqliteTable('items', {
   invoiceId: text('invoice_id'), // nullable DORMANT
   phantomStockId: text('phantom_stock_id'), // nullable
   hsnCode: text('hsn_code').notNull(), // GST HSN code
+  sizeValue: real('size_value'), // FIX-GAP-P2-SIZE-2 (v1.76)
+  sizeUnit: text('size_unit', { enum: ['INCH','MM','CM','RING_SIZE'] }), // FIX-GAP-P2-SIZE-2 (v1.76)
   metalSource: text('metal_source', {
     enum: ['CUSTOMER','KARIGAR','EXCHANGE','PURCHASE','MELT_OUTPUT',
            'CUSTOMER_OLD_GOLD','SUPPLIER_PURCHASE','REFINERY_OUTPUT',
@@ -132,6 +136,8 @@ export const itemEvents = sqliteTable('item_events', {
 }, (table) => ({
   itemFk: foreignKey({ columns: [table.itemId], foreignColumns: [items.id] }).onDelete('restrict'),
   firmFk: foreignKey({ columns: [table.firmId], foreignColumns: [firms.id] }),
+  idxItemEventsItem: index('idx_item_events_item').on(table.itemId, table.firmId, table.timestamp),
+  idxItemEventsFirmType: index('idx_item_events_firm_type').on(table.firmId, table.eventType),
 }));
 
 // SCHEMA-1 FIX (v1.8): sequenceCounters table
@@ -166,10 +172,12 @@ export const oldGoldLots = sqliteTable('old_gold_lots', {
   updatedAt: text('updated_at').notNull(),
   customerId: text('customer_id'),
   fineWeightMg: integer('fine_weight_mg').notNull().default(0),
+  purityRoundingDeltaMg: integer('purity_rounding_delta_mg').notNull().default(0), // FEAT-PURITY-ROUND-1
   purchaseRatePaise: integer('purchase_rate_paise'),
   totalAmountPaise: integer('total_amount_paise'),
 }, (table) => ({
   firmFk: foreignKey({ columns: [table.firmId], foreignColumns: [firms.id] }),
+  idxOldGoldLotsFirm: index('idx_old_gold_lots_firm').on(table.firmId, table.status, table.metalSource),
 }));
 
 // FIX-URD-1 (v1.49): urd_purchases table — standalone purchase of old gold/jewellery from unregistered customer
@@ -203,6 +211,8 @@ export const urdPurchases = sqliteTable('urd_purchases', {
 }, (table) => ({
   firmFk: foreignKey({ columns: [table.firmId], foreignColumns: [firms.id] }),
   lotFk: foreignKey({ columns: [table.oldGoldLotId], foreignColumns: [oldGoldLots.id] }),
+  idxUrdPurchasesFirm: index('idx_urd_purchases_firm').on(table.firmId, table.status, table.purchaseDate),
+  idxUrdPurchasesCustomer: index('idx_urd_purchases_customer').on(table.firmId, table.customerId).where(isNotNull(table.customerId)),
 }));
 
 // Design-Category Map (Phase 6 analytics denormalization)

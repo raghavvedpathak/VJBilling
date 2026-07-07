@@ -55,6 +55,8 @@ export default function AddStockScreen() {
 
   const [location, setLocation] = useState('');
   const [huid, setHuid] = useState('');
+  const [sizeValue, setSizeValue] = useState('');
+  const [sizeUnit, setSizeUnit] = useState('');
 
   const [loading, setLoading] = useState(false);
   const [successSku, setSuccessSku] = useState<string | null>(null); 
@@ -194,6 +196,8 @@ export default function AddStockScreen() {
         stoneCostPaise: sCostPaise,
         location: location.trim() || null,
         huid: huidUpper,
+        sizeValue: sizeValue ? parseFloat(sizeValue) : null,
+        sizeUnit: (sizeUnit as any) || null,
         metalSource: 'SUPPLIER_PURCHASE',
       }, activeFirmId!);
       
@@ -371,6 +375,30 @@ export default function AddStockScreen() {
             </View>
             <View style={{ flex: 1 }}>
                <GlassInput label="BIS HUID" placeholder="6-digit code" autoCapitalize="characters" value={huid} onChangeText={setHuid} maxLength={6} />
+            </View>
+          </View>
+          
+          <View style={{ flexDirection: 'row', gap: 12, marginTop: 12, zIndex: 30 }}>
+            <View style={{ flex: 1 }}>
+              <GlassInput label="Size Value" placeholder="e.g. 18" keyboardType="numeric" value={sizeValue} onChangeText={setSizeValue} />
+            </View>
+            <View style={{ flex: 1, zIndex: 30 }}>
+              <Text style={{ fontSize: 12, fontWeight: '700', color: 'rgba(92,22,35,0.6)', textTransform: 'uppercase', marginBottom: 4 }}>Size Unit</Text>
+              <GlassSmartSearch 
+                placeholder="Select Unit..."
+                options={[
+                  { id: 'NONE', label: 'None' },
+                  { id: 'INCH', label: 'Inches (INCH)' },
+                  { id: 'MM', label: 'Millimeters (MM)' },
+                  { id: 'CM', label: 'Centimeters (CM)' },
+                  { id: 'RING_SIZE', label: 'Ring Size' }
+                ]}
+                selectedId={sizeUnit || 'NONE'}
+                onSelect={(opt) => {
+                  if (!opt || opt.id === 'NONE') return setSizeUnit('');
+                  setSizeUnit(opt.id);
+                }}
+              />
             </View>
           </View>
         </GlassCard>

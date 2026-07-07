@@ -2,7 +2,9 @@
 // v7.24 FIX-V724-4 / v7.25 FIX-V725-6 CANONICAL IMPLEMENTATION
 // AuditPayload discriminated union covering all Phase 1 event types.
 
-export type AuditPayload =
+import type { Phase2AuditPayload } from './phase2.types';
+
+export type Phase1AuditPayload =
   | { eventType: 'FIRM_CREATED'; firmCode?: string; name?: string; proprietor?: string; gstin?: string | null }
   | { eventType: 'FIRM_UPDATED'; changes?: string[]; reason?: string; action?: string }
   | { eventType: 'FIRM_SWITCHED'; switchedToFirmId?: string; switchedAt?: string }
@@ -24,3 +26,5 @@ export type AuditPayload =
   | { eventType: 'AUDIT_RETENTION_PURGE_EXECUTED'; deletedCount?: number; auditRetentionDays?: number; cutoff?: string; executedAt?: string }
   | { eventType: 'DEVICE_ID_CHANGED'; oldDeviceId?: string; newDeviceId?: string; reason?: 'reinstall_or_new_device' }
   | { eventType: 'FACTORY_RESET_EXECUTED'; confirmedFirmCode?: string; executedAt?: string };
+
+export type AuditPayload = Phase1AuditPayload | Phase2AuditPayload;

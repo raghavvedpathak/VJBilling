@@ -1,4 +1,4 @@
-import { eq, and } from 'drizzle-orm';
+import { eq, and, inArray, desc } from 'drizzle-orm';
 import { db } from '../db/client';
 import { oldGoldLots } from '../db/schema';
 import type { DrizzleTransaction, OldGoldLot, OldGoldLotStatus } from '../types/phase2.types';
@@ -36,5 +36,18 @@ export const oldGoldLotRepository = {
           eq(oldGoldLots.metalSource, 'MELT_OUTPUT')
         )
       );
+  },
+
+  async getPendingRefineryLots(firmId: string): Promise<OldGoldLot[]> {
+    return db
+      .select()
+      .from(oldGoldLots)
+      .where(
+        and(
+          eq(oldGoldLots.firmId, firmId),
+          inArray(oldGoldLots.status, ['RECEIVED', 'PENDING', 'SENT_TO_REFINERY'])
+        )
+      )
+      .orderBy(desc(oldGoldLots.createdAt));
   }
 };

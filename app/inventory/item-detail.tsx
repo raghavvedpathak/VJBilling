@@ -241,68 +241,15 @@ export default function ItemDetailScreen() {
             <DetailRow label="Gross Weight" value={formatWeight(item.grossWeightMg)} icon={<Scale size={14} color={COLORS.vjAccent} />} />
             <DetailRow label="Stone Weight" value={formatWeight(item.stoneWeightMg)} />
             <DetailRow label="Beads Weight" value={formatWeight(item.beadsWeightMg)} />
+            <DetailRow label="Net Weight" value={formatWeight(item.netWeightMg)} />
+            <DetailRow label="Fine Weight" value={formatWeight(item.fineWeightMg)} />
+            
             <View style={s.divider} />
+            
+            <DetailRow label="Wastage" value={item.wastagePercent ? item.wastagePercent.toFixed(2) + '%' : '0.00%'} />
+            <DetailRow label="Size" value={item.sizeValue !== null ? `${item.sizeValue} ${item.sizeUnit}` : '—'} />
 
-            {/* === LIVE COST BREAKDOWN === */}
-            <View className="px-1 mb-4 mt-2">
-              <View style={{ backgroundColor: 'rgba(252,251,248, 0.95)', borderColor: '#D4AF37', borderWidth: 1, borderRadius: 16, padding: 16 }}>
-                <View className="flex-row items-center gap-2 mb-3">
-                  <Calculator size={18} color="#D4AF37" />
-                  <Text className="text-xs font-black uppercase tracking-wider text-vj-accent">Live Cost Breakdown</Text>
-                </View>
-                
-                <View className="flex-row justify-between py-1 border-b border-black/5">
-                  <Text className="text-xs text-vj-text/60 font-medium">Net Weight:</Text>
-                  <Text className="text-xs text-vj-text font-bold font-mono">{netWeightG.toFixed(3)} g</Text>
-                </View>
-
-                <View className="flex-row justify-between items-center py-2 border-b border-black/5">
-                  <View className="flex-1 pr-2">
-                    <Text className="text-xs text-vj-text/60 font-medium">Total Touch:</Text>
-                    <Text className="text-[10px] text-vj-accent font-bold mt-1 bg-vj-accent/10 self-start px-2 py-0.5 rounded-full overflow-hidden">
-                      {purity.toFixed(2)}% Purity + {wastage.toFixed(2)}% Wastage
-                    </Text>
-                  </View>
-                  <Text className="text-sm text-vj-text font-black font-mono">{totalTouchPercent.toFixed(2)}%</Text>
-                </View>
-
-                <View className="flex-row justify-between py-1 border-b border-black/5">
-                  <Text className="text-xs text-vj-text/60 font-medium flex-1 pr-2">Vault Truth (Fine):</Text>
-                  <Text className="text-xs text-emerald-700 font-bold font-mono">{vaultTruth.toFixed(3)} g</Text>
-                </View>
-
-                <View className="flex-row justify-between py-1 border-b border-black/5">
-                  <Text className="text-xs text-vj-text/60 font-medium flex-1 pr-2">Wastage Gold:</Text>
-                  <Text className="text-xs text-rose-700 font-bold font-mono">{wastageGold.toFixed(3)} g</Text>
-                </View>
-
-                <View className="flex-row justify-between py-1 border-b border-black/5">
-                  <Text className="text-xs text-vj-text/60 font-medium flex-1 pr-2">Cost Truth (Fine):</Text>
-                  <Text className="text-xs text-amber-700 font-bold font-mono">{costTruth.toFixed(3)} g</Text>
-                </View>
-
-                {hasCostData && (
-                  <>
-                    <View className="flex-row justify-between py-1 mt-2 border-b border-black/5">
-                      <Text className="text-xs text-vj-text/60 font-medium">Purchase Rate:</Text>
-                      <Text className="text-xs text-vj-text font-bold font-mono">₹ {rate.toLocaleString('en-IN', { maximumFractionDigits: 2 })} /g</Text>
-                    </View>
-                    <View className="flex-row justify-between py-1 border-b border-black/5">
-                      <Text className="text-xs text-vj-text/60 font-medium">Making & Stone:</Text>
-                      <Text className="text-xs text-vj-text font-bold font-mono">₹ {(making + stoneC).toLocaleString('en-IN', { maximumFractionDigits: 2 })}</Text>
-                    </View>
-                    <View className="flex-row justify-between py-1 border-b border-black/5">
-                      <Text className="text-xs text-vj-text/60 font-medium">Effective Price/g:</Text>
-                      <Text className="text-xs text-vj-text font-bold font-mono">₹ {effectivePricePerGram.toLocaleString('en-IN', { maximumFractionDigits: 2 })}</Text>
-                    </View>
-                    <View className="flex-row justify-between pt-2">
-                      <Text className="text-sm text-vj-text font-black">Total Est. Cost (₹):</Text>
-                      <Text className="text-sm font-black font-mono text-amber-900">₹ {totalAmount.toLocaleString('en-IN', { maximumFractionDigits: 2 })}</Text>
-                    </View>
-                  </>
-                )}
-              </View>
-            </View>
+            <View style={s.divider} />
 
             <DetailRow label="HUID" value={item.huid || 'Not Set'} />
             <DetailRow label="Barcode" value={formatSKUDisplay(item.barcode)} />
@@ -317,7 +264,38 @@ export default function ItemDetailScreen() {
             <DetailRow label="Status" value={item.status.replace(/_/g, ' ')} />
             <DetailRow label="Metal Source" value={item.metalSource.replace(/_/g, ' ')} />
             <DetailRow label="HSN Code" value={item.hsnCode} />
-            <DetailRow label="Added On" value={createdAtFormatted} />
+            
+            <View style={s.detailRow}>
+              <View style={s.detailLabelRow}>
+                <Text style={s.detailLabel}>Added On</Text>
+              </View>
+              <View style={{flexDirection: 'row', alignItems: 'center', gap: 6}}>
+                <Text style={s.detailValue}>{createdAtFormatted}</Text>
+                {/* GAP-P2-DATE-SKU-EDIT-1 (v1.79) */}
+                {(item.status !== 'SOLD' && item.status !== 'MELTED' && item.status !== 'PHANTOM_SOLD') && (
+                  <TouchableOpacity activeOpacity={0.7} onPress={() => { /* opens Date Picker + Alert.alert() confirm flow */ }}>
+                     {/* Pencil Icon Placeholder */}
+                     <Text style={{color: COLORS.vjAccent, fontSize: 16}}>✎</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+            </View>
+
+            {/* === COST FIELDS === */}
+            {(item.purchaseRatePaise !== null || item.makingChargePaise !== null || item.stoneCostPaise !== null) && (
+              <>
+                <View style={s.divider} />
+                {item.purchaseRatePaise !== null && (
+                  <DetailRow label="Purchase Rate" value={formatCurrency(item.purchaseRatePaise) + ' /g'} />
+                )}
+                {item.makingChargePaise !== null && (
+                  <DetailRow label="Making Charge" value={formatCurrency(item.makingChargePaise)} />
+                )}
+                {item.stoneCostPaise !== null && (
+                  <DetailRow label="Stone Cost" value={formatCurrency(item.stoneCostPaise)} />
+                )}
+              </>
+            )}
 
             <View style={s.divider} />
             

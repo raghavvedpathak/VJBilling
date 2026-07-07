@@ -8,17 +8,18 @@ import { itemEventRepository } from '../repositories/itemEventRepository';
 import { auditRepository } from '../repositories/auditRepository';
 import { getDeviceId } from '../utils/deviceId';
 import { getDisplayPurity } from '../db/schema';
-import { formatSKUDisplay } from '../utils/skuDisplay';
 import { now } from '../utils/now';
+import * as Crypto from 'expo-crypto';
 import type { BarcodeLabel } from '../types/phase2.types';
+import { ERR } from '../constants/errorCodes';
 
 export const barcodeLabelService = {
   async generateBarcodeLabel(itemId: string, firmId: string): Promise<BarcodeLabel> {
     const row = await barcodeLabelRepository.getItemWithDesignName(itemId, firmId);
-    if (!row) throw new Error('ITEM_NOT_FOUND_OR_WRONG_FIRM');
+    if (!row) throw new Error(ERR.ITEM_NOT_FOUND_OR_WRONG_FIRM);
 
     const firm = await firmRepository.getById(firmId);
-    if (!firm) throw new Error('FIRM_NOT_FOUND');
+    if (!firm) throw new Error(ERR.FIRM_NOT_FOUND);
 
     return {
       frontSide: {
@@ -30,7 +31,7 @@ export const barcodeLabelService = {
       backSide: {
         firmCode: firm.firmCode,
         barcodeValue: row.barcode,
-        skuDisplay: formatSKUDisplay(row.sku),
+        skuDisplay: row.sku, // GAP-I6: UI layer must format this using formatSKUDisplay
       },
     };
   },
@@ -41,7 +42,7 @@ export const barcodeLabelService = {
 
     await db.transaction(async (tx) => {
       const item = await itemRepository.getById(tx, firmId, itemId);
-      if (!item || item.firmId !== firmId) throw new Error('ITEM_NOT_FOUND_OR_WRONG_FIRM');
+      if (!item || item.firmId !== firmId) throw new Error(ERR.ITEM_NOT_FOUND_OR_WRONG_FIRM);
 
       await itemRepository.updateBarcodeReprintFlag(tx, firmId, itemId, false);
 

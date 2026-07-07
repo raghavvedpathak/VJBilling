@@ -129,7 +129,7 @@ export const urdPurchaseService = {
 
       const seq = await sequenceCounterRepository.nextVal(tx, firmId, urd.fyId, 'URD');
       
-      const fy = await financialYearRepository.getById(tx, firmId, urd.fyId);
+      const fy = financialYearRepository.getById(tx, firmId, urd.fyId);
       if (!fy) throw new Error('FY_NOT_FOUND');
       const fyLabel = fy.label;
 
@@ -161,6 +161,12 @@ export const urdPurchaseService = {
 
     const symbol = getCurrencySymbol();
     
+    const identityProof = urd.customerPAN 
+      ? urd.customerPAN
+      : urd.customerAadhaar 
+        ? (urd.customerAadhaar.length >= 4 ? 'XXXX-XXXX-' + urd.customerAadhaar.slice(-4) : 'XXXX-XXXX-' + urd.customerAadhaar)
+        : 'Identity Proof: Not Provided';
+
     const html = `
 <!DOCTYPE html>
 <html lang="en">
@@ -219,10 +225,10 @@ export const urdPurchaseService = {
     opacity: 0.9;
   }
   .header-center .tax-invoice {
-    font-size: 11px;
+    font-size: 16px;
     color: #f7d273;
     margin-bottom: 3px;
-    font-weight: 600;
+    font-weight: 700;
     letter-spacing: 1px;
   }
   .header-right {
@@ -240,7 +246,7 @@ export const urdPurchaseService = {
   }
   .info-left, .info-right {
     display: grid;
-    grid-template-columns: 70px 1fr;
+    grid-template-columns: 80px 1fr;
     gap: 4px;
     width: 48%;
   }
@@ -309,12 +315,9 @@ export const urdPurchaseService = {
   .signatures {
     display: flex;
     justify-content: space-between;
-    padding: 40px 10px 20px 10px;
+    padding: 20px 10px 10px 10px;
     font-size: 11px;
     font-weight: 600;
-  }
-  .signatures > div {
-    text-align: center;
   }
 </style>
 </head>
@@ -328,7 +331,7 @@ export const urdPurchaseService = {
         <div>GSTIN: ${firm.gstin || 'Unregistered'}</div>
       </div>
       <div class="header-center">
-        <div class="tax-invoice">PURCHASE VOUCHER</div>
+        <div class="tax-invoice">URD PURCHASE BILL</div>
         <h1>${firm.name}</h1>
         <p>${firm.addressLine1 || ''}, ${firm.city || ''}, ${firm.stateName || ''}</p>
       </div>
@@ -347,8 +350,8 @@ export const urdPurchaseService = {
         <div class="info-val">${urd.customerAddress || '-'}</div>
         <div>Mob:</div>
         <div class="info-val">${urd.customerMobile || '-'}</div>
-        <div>PAN/Aadhar:</div>
-        <div class="info-val">${urd.customerPAN || urd.customerAadhaar || '-'}</div>
+        <div>PAN/Aadhaar:</div>
+        <div class="info-val">${identityProof}</div>
       </div>
       <div class="info-right">
         <div>Date:</div>
@@ -364,21 +367,23 @@ export const urdPurchaseService = {
       <thead>
         <tr>
           <th style="width: 5%;">#</th>
-          <th style="width: 35%;">Description</th>
-          <th style="width: 10%;">Purity</th>
-          <th style="width: 15%;">Net Wt (g)</th>
-          <th style="width: 15%;">Rate</th>
-          <th style="width: 20%;">Amount</th>
+          <th style="width: 25%;">Description</th>
+          <th style="width: 15%;">Gross Wt (g)</th>
+          <th style="width: 15%;">Purity (%)</th>
+          <th style="width: 15%;">Fine Wt (g)</th>
+          <th style="width: 10%;">Rate/g</th>
+          <th style="width: 15%;">Total Value</th>
         </tr>
       </thead>
       <tbody>
         <tr style="height: auto;">
           <td style="padding-bottom: 25px;">1</td>
           <td style="text-align: left; padding-bottom: 25px;">Old ${urd.metalType} Jewellery</td>
-          <td style="padding-bottom: 25px;">${urd.purityPercent}%</td>
           <td style="padding-bottom: 25px;">${(urd.grossWeightMg / 1000).toFixed(3)}</td>
-          <td style="padding-bottom: 25px;">${(urd.ratePerGramPaise / 100).toFixed(2)}</td>
-          <td style="padding-bottom: 25px;">${(urd.totalValuePaise / 100).toFixed(2)}</td>
+          <td style="padding-bottom: 25px;">${urd.purityPercent}</td>
+          <td style="padding-bottom: 25px;">${(urd.fineWeightMg / 1000).toFixed(3)}</td>
+          <td style="padding-bottom: 25px;">${symbol}${(urd.ratePerGramPaise / 100).toFixed(2)}</td>
+          <td style="padding-bottom: 25px;">${symbol}${(urd.totalValuePaise / 100).toFixed(2)}</td>
         </tr>
       </tbody>
     </table>
@@ -386,14 +391,20 @@ export const urdPurchaseService = {
     <div class="footer-grid">
       <div style="display: flex; flex-direction: column; justify-content: space-between;">
         <div class="amount-words">
-          Amt. In Words: <span style="font-weight: normal; margin-left: 5px;">Rupees ${amountToWords(urd.totalValuePaise)} Only</span>
+          <div>Amt. In Words: <span style="font-weight: normal; margin-left: 5px;">Rupees ${amountToWords(urd.totalValuePaise)} Only</span></div>
+          ${urd.paymentMode === 'BANK' || urd.paymentMode === 'UPI' ? `<div style="margin-top: 5px; font-weight: normal;">Payment Mode: ${urd.paymentMode}${urd.bankAccountId ? ` (Bank ID: ${urd.bankAccountId})` : ''}</div>` : `<div style="margin-top: 5px; font-weight: normal;">Payment Mode: Cash</div>`}
+        </div>
+        <div style="padding: 10px; font-size: 10px; font-weight: 600; text-align: center; border-right: 1px solid #000;">
+          I confirm that I have sold the above article(s) and received the stated amount.
         </div>
         <div class="signatures">
-          <div>Customer Signature</div>
-          <div>! Thank You !</div>
-          <div style="text-align: center;">
-            <div style="margin-bottom: 30px;">For: ${firm.name}</div>
-            <div>Authorised Signatory</div>
+          <div style="text-align: left;">
+            <div style="margin-bottom: 30px;">Seller Signature</div>
+            <div>${urd.customerName}</div>
+          </div>
+          <div style="text-align: right;">
+            <div style="margin-bottom: 30px;">Authorized Signatory</div>
+            <div>For: ${firm.name}</div>
           </div>
         </div>
       </div>
@@ -401,7 +412,7 @@ export const urdPurchaseService = {
         <table class="totals-table">
           <tr>
             <td style="width: 50%;">NET TOTAL</td>
-            <td>${(urd.totalValuePaise / 100).toFixed(2)}</td>
+            <td>${symbol}${(urd.totalValuePaise / 100).toFixed(2)}</td>
           </tr>
           <tr>
             <td>Round Off</td>
@@ -409,15 +420,15 @@ export const urdPurchaseService = {
           </tr>
           <tr>
             <td style="font-weight: bold; font-size: 14px;">GRAND TOTAL</td>
-            <td style="font-weight: bold; font-size: 14px;">${(urd.totalValuePaise / 100).toFixed(2)}</td>
+            <td style="font-weight: bold; font-size: 14px;">${symbol}${(urd.totalValuePaise / 100).toFixed(2)}</td>
           </tr>
           <tr>
             <td>NET AMOUNT</td>
-            <td>${(urd.totalValuePaise / 100).toFixed(2)}</td>
+            <td>${symbol}${(urd.totalValuePaise / 100).toFixed(2)}</td>
           </tr>
           <tr>
             <td>AMT PAID</td>
-            <td>${(urd.totalValuePaise / 100).toFixed(2)}</td>
+            <td>${symbol}${(urd.totalValuePaise / 100).toFixed(2)}</td>
           </tr>
           <tr>
             <td style="border-bottom: none;">BALANCE</td>
@@ -425,6 +436,9 @@ export const urdPurchaseService = {
           </tr>
         </table>
       </div>
+    </div>
+    <div style="text-align: center; font-size: 9px; padding: 10px; border-top: 1px solid #ccc; margin-top: 10px; color: #666;">
+      This is a computer-generated URD Purchase Bill. | ${firm.addressLine1 || ''}, ${firm.city || ''} | Printed: ${new Date().toLocaleString('en-IN')}
     </div>
   </div>
 </body>

@@ -4,13 +4,27 @@
 // No dual guards. No audit writes. No lease acquisition.
 
 import { inventoryDrillDownRepository } from '../repositories/inventoryDrillDownRepository';
-import type { ItemSearchResult, DesignCategoryStockResult, ItemDetail } from '../types/phase2.types';
+import type { ItemSearchResult, DesignCategoryStockResult, ItemDetail, MetalSourceStockResult } from '../types/phase2.types';
 
 export async function getCategoriesWithStock(
   firmId: string
-): Promise<{ id: string; name: string; availableCount: number; totalNetWeightMg: number }[]> {
+): Promise<{ id: string; name: string; availableCount: number; totalNetWeightMg: number; lowStockThreshold: number | null }[]> {
   if (!firmId) throw new Error('FIRM_ID_REQUIRED');
   return inventoryDrillDownRepository.getCategoriesWithStock(firmId);
+}
+
+export async function getLowStockCategories(
+  firmId: string
+): Promise<{ id: string; name: string; lowStockThreshold: number; availableCount: number }[]> {
+  if (!firmId) throw new Error('FIRM_ID_REQUIRED');
+  return inventoryDrillDownRepository.getLowStockCategories(firmId);
+}
+
+export async function getStockByMetalSource(
+  firmId: string
+): Promise<MetalSourceStockResult[]> {
+  if (!firmId) throw new Error('FIRM_ID_REQUIRED');
+  return inventoryDrillDownRepository.getStockByMetalSource(firmId);
 }
 
 export async function getDraftItems(
@@ -58,4 +72,6 @@ export const inventoryDrillDownService = {
   getItemsByDesign,
   getItemDetail,
   getDraftItems,
+  getLowStockCategories,
+  getStockByMetalSource,
 };

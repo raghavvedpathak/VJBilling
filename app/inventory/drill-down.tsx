@@ -23,11 +23,13 @@ const COLORS = {
 };
 
 type CategoryRowProps = {
-  item: { id: string; name: string; availableCount: number; totalNetWeightMg: number };
+  item: { id: string; name: string; availableCount: number; totalNetWeightMg: number; lowStockThreshold: number | null };
   onPress: (categoryId: string, categoryName: string) => void;
 };
 
 const CategoryRow = memo(({ item, onPress }: CategoryRowProps) => {
+  const isLowStock = item.lowStockThreshold !== null && item.availableCount <= item.lowStockThreshold;
+
   return (
     <TouchableOpacity
       id={`category-row-${item.id}`}
@@ -40,7 +42,14 @@ const CategoryRow = memo(({ item, onPress }: CategoryRowProps) => {
       </View>
 
       <View style={s.cardBody}>
-        <Text style={s.categoryName} numberOfLines={1}>{item.name}</Text>
+        <View style={s.titleRow}>
+          <Text style={s.categoryName} numberOfLines={1}>{item.name}</Text>
+          {isLowStock && (
+            <View style={s.lowStockBadge}>
+              <Text style={s.lowStockText}>Low Stock</Text>
+            </View>
+          )}
+        </View>
         <Text style={s.weightText}>{formatWeight(item.totalNetWeightMg)}</Text>
       </View>
 
@@ -57,7 +66,7 @@ const CategoryRow = memo(({ item, onPress }: CategoryRowProps) => {
 export default function DrillDownScreen() {
   const router = useRouter();
   const { activeFirmId } = useFirmStore();
-  const [data, setData] = useState<{ id: string; name: string; availableCount: number; totalNetWeightMg: number }[]>([]);
+  const [data, setData] = useState<{ id: string; name: string; availableCount: number; totalNetWeightMg: number; lowStockThreshold: number | null }[]>([]);
   const [loading, setLoading] = useState(true);
 
   useFocusEffect(
@@ -168,11 +177,29 @@ const s = StyleSheet.create({
   cardBody: {
     flex: 1,
   },
+  titleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 4,
+  },
   categoryName: {
     color: COLORS.vjText,
     fontWeight: '700',
     fontSize: 15,
-    marginBottom: 4,
+    flexShrink: 1,
+  },
+  lowStockBadge: {
+    backgroundColor: '#F59E0B', // Amber
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  lowStockText: {
+    color: '#FFFFFF',
+    fontSize: 10,
+    fontWeight: '800',
+    textTransform: 'uppercase',
   },
   weightText: {
     color: 'rgba(92,22,35,0.5)',

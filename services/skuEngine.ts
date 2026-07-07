@@ -3,11 +3,12 @@ import { eq, and } from 'drizzle-orm';
 import { sequenceCounters, items } from '../db/schema';
 import type { DrizzleTransaction, Design } from '../types/phase2.types';
 import { now } from '../utils/now';
+import { ERR } from '../constants/errorCodes';
 
 // FIX-SKU-PREFIX-1 (v1.34) UPDATED (v1.41): generateDesignPrefix()
 export function generateDesignPrefix(designName: string, metal: 'GOLD' | 'SILVER'): string {
   const words = designName.trim().toUpperCase().split(' ');
-  if (words.length === 0 || words.length > 2) throw new Error('DESIGN_NAME_INVALID');
+  if (words.length === 0 || words.length > 2) throw new Error(ERR.DESIGN_NAME_INVALID);
   
   const [word1, word2] = words;
   
@@ -91,7 +92,7 @@ export async function generateSKU(
     .where(and(eq(items.sku, candidate), eq(items.firmId, firmId)))
     .limit(1);
 
-  if (stillExists) throw new Error('SKU_GENERATION_FAILED'); // 3 retries exhausted
+  if (stillExists) throw new Error(ERR.SKU_GENERATION_FAILED); // 3 retries exhausted
   
   return candidate;
 }

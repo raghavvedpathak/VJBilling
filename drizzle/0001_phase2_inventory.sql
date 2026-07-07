@@ -199,12 +199,112 @@ BEGIN
   SELECT RAISE(ABORT, 'PHANTOM_STOCK_IMMUTABLE: phantom_stock_id cannot be changed once reconciled');
 END;
 --> statement-breakpoint
--- 3. Optimize Inventory Stock Summary Queries (Status-based partial indexes)
-CREATE INDEX `idx_items_status_available` ON `items` (`firm_id`, `status`) WHERE status = 'AVAILABLE';
+-- 3. Constitutional Indexes - Search & Performance (Phase 2)
+CREATE INDEX IF NOT EXISTS idx_items_firm_status ON items(firm_id, status);
 --> statement-breakpoint
-CREATE INDEX `idx_items_status_phantom` ON `items` (`firm_id`, `status`) WHERE status IN ('PHANTOM_AVAILABLE', 'PHANTOM_SOLD');
+CREATE INDEX IF NOT EXISTS idx_items_design_id ON items(design_id);
 --> statement-breakpoint
-CREATE INDEX `idx_items_status_draft` ON `items` (`firm_id`, `status`) WHERE status = 'DRAFT';
+CREATE INDEX IF NOT EXISTS idx_designs_firm_id ON designs(firm_id);
 --> statement-breakpoint
--- 4. Optimize Reconciliation lookup
-CREATE INDEX `idx_items_unreconciled_phantom` ON `items` (`firm_id`, `status`, `phantom_stock_id`) WHERE phantom_stock_id IS NULL AND status IN ('PHANTOM_AVAILABLE', 'PHANTOM_SOLD');
+CREATE INDEX IF NOT EXISTS idx_old_gold_lots_firm ON old_gold_lots(firm_id, status, metal_source);
+--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS idx_gemstone_lots_firm_status ON gemstone_lots(firm_id, status);
+--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS idx_gemstone_lots_name ON gemstone_lots(name);
+--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS idx_items_design_status ON items(design_id, status);
+--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS idx_items_sku ON items(sku, firm_id);
+--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS idx_items_huid ON items(huid) WHERE huid IS NOT NULL;
+--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS idx_items_category_status ON items(firm_id, category_id, status);
+--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS idx_items_invoice ON items(invoice_id) WHERE invoice_id IS NOT NULL;
+--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS idx_items_phantom_available ON items(firm_id, phantom_stock_id) WHERE status = 'PHANTOM_AVAILABLE';
+--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS idx_items_phantom_sold ON items(firm_id, phantom_stock_id) WHERE status = 'PHANTOM_SOLD';
+--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS idx_item_events_item ON item_events(item_id, firm_id, timestamp DESC);
+--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS idx_item_events_firm_type ON item_events(firm_id, event_type);
+--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS idx_designs_firm_active ON designs(firm_id, is_active);
+--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS idx_designs_firm_metal ON designs(firm_id, metal);
+--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS idx_categories_firm_active ON categories(firm_id, is_active);
+--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS idx_sequence_counters_firm_month ON sequence_counters(firm_id, month);
+--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS idx_urd_purchases_fy ON urd_purchases(firm_id, fy_id);
+--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS idx_dcm_design ON design_category_map(design_id);
+--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS idx_dcm_category ON design_category_map(category_id);
+--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS idx_hsn_code ON hsn_codes(code);
+--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS idx_hsn_chapter ON hsn_codes(chapter);
+
+-- MIGRATION: 0002_phase2_inventory.sql addendum (v1.49)
+-- FIX-OLDGOLD-CUSTOMER-1: customerId FK on old_gold_lots
+ALTER TABLE old_gold_lots ADD COLUMN customer_id TEXT REFERENCES customers(id); 
+-- FIX-CUSTOMERS-FK-SCOPE-1 (v1.50): customers table is Phase 3 scope and does NOT exist
+-- when this Phase 2 migration runs. SQLite FK enforcement is OFF by default in expo-sqlite 
+-- (PRAGMA foreign_keys = OFF), so this will not blow up at runtime. The FK declaration 
+-- is forward-declared as an architectural contract — it becomes enforced once Phase 3 
+-- creates the customers table. This is accepted, documented, and intentional. 
+
+-- FIX-OLDGOLD-COST-1 (v1.51): Add cost tracking columns to old_gold_lots.
+-- fineWeightMg: derived at insert time, DEFAULT 0 is migration-safe for existing rows.
+-- purchaseRatePaise: nullable — not always known at lot creation.
+-- totalAmountPaise: nullable — null when purchaseRatePaise is null.
+ALTER TABLE old_gold_lots ADD COLUMN fine_weight_mg INTEGER NOT NULL DEFAULT 0; 
+ALTER TABLE old_gold_lots ADD COLUMN purchase_rate_paise INTEGER; 
+ALTER TABLE old_gold_lots ADD COLUMN total_amount_paise INTEGER; 
+
+-- v1.91 FEAT-PURITY-ROUND-1 (extended): purity rounding delta for MELT_OUTPUT (refinery-returned) lots only
+ALTER TABLE old_gold_lots ADD COLUMN purity_rounding_delta_mg INTEGER NOT NULL DEFAULT 0;
+
+CREATE INDEX IF NOT EXISTS idx_old_gold_lots_customer
+ ON old_gold_lots(firm_id, customer_id) WHERE customer_id IS NOT NULL;
+
+-- FIX-URD-1: urd_purchases table
+CREATE TABLE IF NOT EXISTS urd_purchases (
+ id TEXT PRIMARY KEY,
+ firm_id TEXT NOT NULL REFERENCES firms(id),
+ fy_id TEXT NOT NULL REFERENCES financial_years(id),
+ urd_number TEXT,
+ purchase_date TEXT NOT NULL,
+ customer_id TEXT REFERENCES customers(id), -- Phase 3 FK (FIX-CUSTOMERS-FK-SCOPE-1 v1.50): customers table created in Phase 3. SQLite FK enforcement OFF at Phase 2 build time — accepted and documented.
+ customer_name TEXT NOT NULL,
+ customer_address TEXT,
+ customer_mobile TEXT,
+ customer_aadhaar TEXT,
+ customer_pan TEXT,
+ metal_type TEXT NOT NULL,
+ gross_weight_mg INTEGER NOT NULL,
+ purity_percent REAL NOT NULL,
+ fine_weight_mg INTEGER NOT NULL,
+ rate_per_gram_paise INTEGER NOT NULL,
+ total_value_paise INTEGER NOT NULL,
+ payment_mode TEXT NOT NULL,
+ bank_account_id TEXT,
+ old_gold_lot_id TEXT NOT NULL REFERENCES old_gold_lots(id),
+ status TEXT NOT NULL DEFAULT 'DRAFT',
+ notes TEXT,
+ created_at TEXT NOT NULL,
+ updated_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_urd_purchases_firm
+ ON urd_purchases(firm_id, status, purchase_date);
+
+CREATE INDEX IF NOT EXISTS idx_urd_purchases_customer
+ ON urd_purchases(firm_id, customer_id) WHERE customer_id IS NOT NULL;
+
+-- FIX-URD-SEQ-1: Add 'URD' to sequence_counters valid types
+-- sequenceCounters already stores type as free text — no schema change required.
+-- Document that valid type values are: 'SALE' | 'CREDIT_NOTE' | 'URD'

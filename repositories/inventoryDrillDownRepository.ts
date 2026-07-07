@@ -1,9 +1,9 @@
 // repositories/inventoryDrillDownRepository.ts
 // FEAT-DRILL-DOWN-1 (v1.65): All methods read-only. No DrizzleTransaction param.
-import { sql, eq, and, desc, asc } from 'drizzle-orm';
+import { sql, eq, and, desc, asc, isNotNull } from 'drizzle-orm';
 import { db } from '../db/client';
 import { categories, items, designs, itemEvents, auditLogs } from '../db/schema';
-import type { ItemSearchResult, DesignCategoryStockResult, ItemDetail, ItemTimelineEvent } from '../types/phase2.types';
+import type { ItemSearchResult, DesignCategoryStockResult, ItemDetail, ItemTimelineEvent, MetalSourceStockResult } from '../types/phase2.types';
 
 export const inventoryDrillDownRepository = {
   async getCategoriesWithStock(firmId: string) {
@@ -11,6 +11,7 @@ export const inventoryDrillDownRepository = {
       .select({
         id: categories.id,
         name: categories.name,
+        lowStockThreshold: categories.lowStockThreshold,
         availableCount: sql<number>`COUNT(${items.id})`,
         totalNetWeightMg: sql<number>`SUM(${items.netWeightMg})`,
       })
@@ -30,8 +31,70 @@ export const inventoryDrillDownRepository = {
     return results.map(r => ({
       id: r.id,
       name: r.name,
+      lowStockThreshold: r.lowStockThreshold,
       availableCount: Number(r.availableCount) || 0,
       totalNetWeightMg: Number(r.totalNetWeightMg) || 0,
+    }));
+  },
+
+  async getLowStockCategories(firmId: string) {
+    const results = await db
+      .select({
+        id: categories.id,
+        name: categories.name,
+        lowStockThreshold: categories.lowStockThreshold,
+        availableCount: sql<number>`COUNT(${items.id})`,
+      })
+      .from(categories)
+      .leftJoin(
+        items,
+        and(
+          eq(items.categoryId, categories.id),
+          eq(items.status, 'AVAILABLE'),
+          eq(items.firmId, firmId)
+        )
+      )
+      .where(
+        and(
+          eq(categories.firmId, firmId),
+          isNotNull(categories.lowStockThreshold)
+        )
+      )
+      .groupBy(categories.id)
+      .having(({ availableCount }) => sql`${availableCount} <= ${categories.lowStockThreshold}`)
+      .orderBy(({ availableCount }) => asc(availableCount));
+
+    return results.map(r => ({
+      id: r.id,
+      name: r.name,
+      lowStockThreshold: r.lowStockThreshold!,
+      availableCount: Number(r.availableCount) || 0,
+    }));
+  },
+
+  async getStockByMetalSource(firmId: string): Promise<MetalSourceStockResult[]> {
+    const results = await db
+      .select({
+        metalSource: items.metalSource,
+        metal: items.metal,
+        totalNetWeightMg: sql<number>`SUM(${items.netWeightMg})`,
+        itemCount: sql<number>`COUNT(*)`,
+      })
+      .from(items)
+      .where(
+        and(
+          eq(items.firmId, firmId),
+          eq(items.status, 'AVAILABLE')
+        )
+      )
+      .groupBy(items.metalSource, items.metal)
+      .orderBy(asc(items.metal), desc(sql`SUM(${items.netWeightMg})`));
+
+    return results.map(r => ({
+      metalSource: r.metalSource as string,
+      metal: r.metal as 'GOLD' | 'SILVER',
+      totalNetWeightMg: Number(r.totalNetWeightMg) || 0,
+      itemCount: Number(r.itemCount) || 0,
     }));
   },
 

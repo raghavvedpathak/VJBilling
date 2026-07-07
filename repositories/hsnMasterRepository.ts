@@ -2,6 +2,7 @@ import { eq, and } from 'drizzle-orm';
 import { db } from '../db/client';
 import { hsnCodes } from '../db/schema';
 import type { DrizzleTransaction, HsnCode } from '../types/phase2.types';
+import { ERR } from '../constants/errorCodes';
 
 // src/db/repositories/hsnMasterRepository.ts — FIX-HSN-MASTER-1 (v1.46)
 // READ-ONLY repository. No Dual Guard. Receives tx from createItem() caller.
@@ -23,7 +24,7 @@ export const hsnMasterRepository = {
       )
       .limit(1);
 
-    if (!row) throw new Error('ITEM_HSN_MISSING');
+    if (!row) throw new Error(ERR.ITEM_HSN_MISSING);
     return row;
   },
 

@@ -16,13 +16,14 @@
 //   - storage API: getItem / setItem / removeItem (StorageService interface — NOT MMKV direct).
 
 import { db } from '../db/client';
-import { eq, lt, and, isNotNull, notInArray } from 'drizzle-orm';
+import { eq, lt, and, isNotNull, notInArray, sum } from 'drizzle-orm';
 import {
   firms,
   financialYears,
   writerLeases,
   auditLogs,
   schemaVersion,
+  oldGoldLots,
 } from '../db/schema';
 import { safeModeService } from './safeModeService';
 import { verifyStore } from '../store/verifyStore';
@@ -305,7 +306,7 @@ export const phase2VerifyService = {
     
     for (const f of p1Result.findings) {
       if (f.severity === 'HEALTHY') continue;
-      issues.push({ code: f.check, severity: f.severity as 'CRITICAL' | 'WARNING', message: f.detail });
+      issues.push({ code: f.check, severity: f.severity as 'CRITICAL' | 'WARNING' | 'INFO', message: f.detail });
     }
     
     const allDesignIds = new Set((await db.select({ id: designs.id }).from(designs).where(eq(designs.firmId, firmId))).map(r => r.id));
@@ -323,6 +324,11 @@ export const phase2VerifyService = {
 
     const purityViolations = await db.select({ id: items.id }).from(items).where(and(eq(items.firmId, firmId), gt(items.fineWeightMg, items.grossWeightMg)));
     if (purityViolations.length > 0) issues.push({ code: 'ITEMS_PURITY_OVER_100', severity: 'CRITICAL', message: `${purityViolations.length} item(s) have fineWeightMg > grossWeightMg (effective purity > 100%)` });
+
+    const roundingTotal = await db.select({ total: sum(items.purityRoundingDeltaMg) }).from(items).where(eq(items.firmId, firmId));
+    const oldGoldRoundingTotal = await db.select({ total: sum(oldGoldLots.purityRoundingDeltaMg) }).from(oldGoldLots).where(eq(oldGoldLots.firmId, firmId));
+    const roundingDeltaMg = (Number(roundingTotal[0]?.total) || 0) + (Number(oldGoldRoundingTotal[0]?.total) || 0);
+    if (roundingDeltaMg > 0) issues.push({ code: 'PURITY_ROUNDING_ACCUMULATED', severity: 'INFO', message: `Accumulated purity-rounding gap across all items + old-gold lots: ${roundingDeltaMg}mg (expected, not an error — see FEAT-PURITY-ROUND-1)` });
 
     const sixtyDaysAgo = new Date(Date.now() - 60 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
     const staleFYs = await db.select({ id: financialYears.id }).from(financialYears)

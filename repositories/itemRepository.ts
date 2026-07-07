@@ -33,6 +33,20 @@ export const itemRepository = {
         )
       );
   },
+
+  // FIX-V718-1: Synchronous execution using .all()
+  findByStatusTx(tx: DrizzleTransaction, firmId: string, status: string): Item[] {
+    return tx
+      .select()
+      .from(items)
+      .where(
+        and(
+          eq(items.firmId, firmId),
+          eq(items.status, status as any)
+        )
+      )
+      .all() as unknown as Item[];
+  },
   
   // FIX-V718-1: Synchronous execution using .all()
   // SQL: SELECT * FROM items WHERE category_id = ? AND firm_id = ?
@@ -50,8 +64,8 @@ export const itemRepository = {
   },
 
   // Operates on global async db - left as async
-  async findByDesignId(designId: string, firmId: string): Promise<Item[]> {
-    return db
+  async findByDesignId(tx: DrizzleTransaction | typeof db, designId: string, firmId: string): Promise<Item[]> {
+    return (tx as typeof db)
       .select()
       .from(items)
       .where(
@@ -104,10 +118,10 @@ export const itemRepository = {
     return result[0] || null;
   },
 
-  // Operates on global async db - left as async
-  async findByHUID(firmId: string, huid: string): Promise<Item | null> {
-    const result = await db.select().from(items).where(and(eq(items.huid, huid), eq(items.firmId, firmId))).limit(1);
-    return result[0] || null;
+  // FIX-V718-1: Synchronous execution using .get()
+  findByHUID(tx: DrizzleTransaction, huid: string): Item | null {
+    const result = tx.select().from(items).where(eq(items.huid, huid)).limit(1).get();
+    return (result as unknown as Item) || null;
   },
 
   // Operates on global async db - left as async
@@ -126,13 +140,7 @@ export const itemRepository = {
       .select({
         metal: items.metal,
         availableNetWeightMg: sql<number>`SUM(CASE WHEN ${items.status} = 'AVAILABLE' THEN ${items.netWeightMg} ELSE 0 END)`,
-        phantomDebtMg: sql<number>`SUM(CASE WHEN ${items.status} IN ('PHANTOM_AVAILABLE','PHANTOM_SOLD') AND ${items.phantomStockId} IS NULL THEN ${items.netWeightMg} ELSE 0 END)`,
-        // Added Dynamic Total Cost Aggregation!
-        totalInvestedPaise: sql<number>`SUM(CASE WHEN ${items.status} = 'AVAILABLE' THEN (
-          (COALESCE(${items.fineGoldChargedMg}, ${items.fineWeightMg}) / 1000.0) * COALESCE(${items.purchaseRatePaise}, 0) +
-          COALESCE(${items.makingChargePaise}, 0) +
-          COALESCE(${items.stoneCostPaise}, 0)
-        ) ELSE 0 END)`
+        phantomDebtMg: sql<number>`SUM(CASE WHEN ${items.status} IN ('PHANTOM_AVAILABLE','PHANTOM_SOLD') AND ${items.phantomStockId} IS NULL THEN ${items.netWeightMg} ELSE 0 END)`
       })
       .from(items)
       .where(and(
@@ -145,29 +153,24 @@ export const itemRepository = {
       goldNetWeightMg: 0,
       goldPhantomDebtMg: 0,
       goldBalanceMg: 0,
-      goldInvestedPaise: 0,
       silverNetWeightMg: 0,
       silverPhantomDebtMg: 0,
       silverBalanceMg: 0,
-      silverInvestedPaise: 0,
     };
 
     for (const row of rows) {
       const avail = row.availableNetWeightMg || 0;
       const debt = row.phantomDebtMg || 0;
       const balance = avail - debt;
-      const invested = Math.round(row.totalInvestedPaise || 0);
 
       if (row.metal === 'GOLD') {
         summary.goldNetWeightMg = avail;
         summary.goldPhantomDebtMg = debt;
         summary.goldBalanceMg = balance;
-        summary.goldInvestedPaise = invested;
       } else if (row.metal === 'SILVER') {
         summary.silverNetWeightMg = avail;
         summary.silverPhantomDebtMg = debt;
         summary.silverBalanceMg = balance;
-        summary.silverInvestedPaise = invested;
       }
     }
 

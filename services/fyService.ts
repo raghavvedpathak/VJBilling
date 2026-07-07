@@ -11,8 +11,9 @@ import { getDeviceId } from '../utils/deviceId';
 import { now } from '../utils/now';
 import * as Crypto from 'expo-crypto';
 import { oldGoldLots, appSettings, financialYears, FYStatus } from '../db/schema';
-import { purgeExpiredAuditLogs } from './auditRetentionService';
+import { appSettingsStore } from '../store/appSettingsStore';
 import type { DrizzleTransaction, VerifyIssue } from '../types/phase2.types';
+import { ERR } from '../constants/errorCodes';
 
 // FIX-V718-1: Hooks must be strictly synchronous to execute safely inside the JSI transaction boundary
 const fyCloseHooks: Array<(tx: DrizzleTransaction, firmId: string, fyId: string) => void> = [];
@@ -28,30 +29,30 @@ export async function preCloseChecks(fyId: string, firmId: string): Promise<{ ca
   const fy = fyRepository.getById(db as any, firmId, fyId);
   
   if (!fy || fy.firmId !== firmId) { 
-    issues.push({ code: 'FY_OWNERSHIP_MISMATCH', severity: 'CRITICAL', message: 'Financial year does not belong to this firm' }); 
+    issues.push({ code: ERR.FY_OWNERSHIP_MISMATCH, severity: 'CRITICAL', message: 'Financial year does not belong to this firm' }); 
     return { canClose: false, issues }; 
   }
   
   if (fy && fy.status !== 'ACTIVE') {
-    issues.push({ code: 'FY_NOT_ACTIVE', severity: 'CRITICAL', message: 'Financial year is not in ACTIVE status' });
+    issues.push({ code: ERR.FY_NOT_ACTIVE, severity: 'CRITICAL', message: 'Financial year is not in ACTIVE status' });
   }
 
   const draftItems = await itemRepository.findByStatus(firmId, 'DRAFT');
   if (draftItems.length > 0) {
-    issues.push({ code: 'FY_CLOSE_BLOCKED_DRAFT_ITEMS', severity: 'CRITICAL', message: `${draftItems.length} DRAFT items exist. Discard or publish before close.` });
+    issues.push({ code: ERR.FY_CLOSE_BLOCKED_DRAFT_ITEMS, severity: 'CRITICAL', message: `${draftItems.length} DRAFT items exist. Discard or publish before close.` });
   }
 
   const verifyResult = await phase2VerifyService.runVerify(firmId);
   const criticalIssues = verifyResult.filter((i: VerifyIssue) => i.severity === 'CRITICAL');
   
-  const phantomBlock = criticalIssues.find((i: VerifyIssue) => i.code === 'FY_CLOSE_BLOCKED_PHANTOM_ITEMS');
+  const phantomBlock = criticalIssues.find((i: VerifyIssue) => i.code === ERR.FY_CLOSE_BLOCKED_PHANTOM_ITEMS);
   if (phantomBlock) {
-    issues.push({ code: 'FY_CLOSE_BLOCKED_PHANTOM_ITEMS', severity: 'CRITICAL', message: phantomBlock.message });
+    issues.push({ code: ERR.FY_CLOSE_BLOCKED_PHANTOM_ITEMS, severity: 'CRITICAL', message: phantomBlock.message });
   }
 
-  const remainingCritical = criticalIssues.filter((i: VerifyIssue) => i.code !== 'FY_CLOSE_BLOCKED_PHANTOM_ITEMS');
+  const remainingCritical = criticalIssues.filter((i: VerifyIssue) => i.code !== ERR.FY_CLOSE_BLOCKED_PHANTOM_ITEMS);
   if (remainingCritical.length > 0) {
-    issues.push({ code: 'FY_CLOSE_BLOCKED_CRITICAL_VERIFY', severity: 'CRITICAL', message: `${remainingCritical.length} CRITICAL verify issues must be resolved first.` });
+    issues.push({ code: ERR.FY_CLOSE_BLOCKED_CRITICAL_VERIFY, severity: 'CRITICAL', message: `${remainingCritical.length} CRITICAL verify issues must be resolved first.` });
   }
 
   return { canClose: issues.length === 0, issues };
@@ -64,12 +65,10 @@ export async function closeFY(fyId: string, firmId: string): Promise<void> {
   const leaseId = await leaseService.acquire('WRITE', firmId);
   
   try {
-    const draftItems = await itemRepository.findByStatus(firmId, 'DRAFT');
-    if (draftItems.length > 0) throw new Error('FY_CLOSE_BLOCKED_DRAFT_ITEMS');
-
+    // FIX-CLOSEFY-VERIFY-SYNC-1 (v1.82): run outside transaction
     const verifyIssues = await phase2VerifyService.runVerify(firmId);
     if (verifyIssues.some((i: VerifyIssue) => i.severity === 'CRITICAL')) {
-      throw new Error('FY_CLOSE_BLOCKED_CRITICAL_VERIFY');
+      throw new Error(ERR.FY_CLOSE_BLOCKED_CRITICAL_VERIFY);
     }
 
     // Hoisted async call BEFORE transaction lock
@@ -78,8 +77,11 @@ export async function closeFY(fyId: string, firmId: string): Promise<void> {
     // FIX-V718-1: Completely synchronous transaction block
     db.transaction((tx) => {
       const fy = fyRepository.getById(tx, firmId, fyId);
-      if (!fy || fy.firmId !== firmId) throw new Error('FY_OWNERSHIP_MISMATCH');
-      if (fy.status !== 'ACTIVE') throw new Error('FY_NOT_ACTIVE');
+      if (!fy || fy.firmId !== firmId) throw new Error(ERR.FY_OWNERSHIP_MISMATCH);
+      if (fy.status !== 'ACTIVE') throw new Error(ERR.FY_NOT_ACTIVE);
+      
+      const draftItems = itemRepository.findByStatusTx(tx, firmId, 'DRAFT');
+      if (draftItems.length > 0) throw new Error(ERR.FY_CLOSE_BLOCKED_DRAFT_ITEMS);
 
       if (fyCloseHooks.length === 0) {
         console.warn('FY_CLOSE_NO_HOOKS: closeFY() running with no registered hooks. Phase 4 karigar/refinery outstanding fine balance will be 0. Phase 4 MUST call registerFYCloseHook() before this runs in production.');
@@ -131,13 +133,19 @@ export async function closeFY(fyId: string, firmId: string): Promise<void> {
         eventType: 'FY_ARCHIVE_INDEXED', firmId, entityId: fyId, deviceId, 
         payload: JSON.stringify({ fyId, fyLabel: fy.label, rowCount: auditRowCount }) 
       });
+
+      // AUDIT-RETENTION-ENFORCE (Phase 1 v7.7 constitutional rule — FIX-V78-6 per-firmId scope)
+      const settings = appSettingsStore.getState();
+      tx.run(sql`
+        DELETE FROM audit_logs
+        WHERE firm_id = ${firmId}
+        AND created_at < datetime('now', '-' || ${settings.auditRetentionDays} || ' days')
+        AND created_at NOT BETWEEN ${fy.startDate} AND ${fy.endDate}
+      `);
     });
   } finally {
     await leaseService.release(leaseId);
   }
-
-  // Run audit purge OUTSIDE transaction and OUTSIDE lease (prevent guard conflicts)
-  await purgeExpiredAuditLogs().catch(console.error);
 }
 
 export const fyService = {

@@ -223,3 +223,5 @@ CREATE INDEX IF NOT EXISTS idx_sync_log_firm_date ON sync_log(device_id, occurre
 CREATE INDEX IF NOT EXISTS idx_sync_devices_firm ON sync_devices(device_id, is_enabled);
 --> statement-breakpoint
 CREATE INDEX IF NOT EXISTS idx_audit_archive_firm_fy ON audit_archive_index(firm_id, fy_id);
+--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS idx_audit_logs_entity_event ON audit_logs(entity_id, event_type, firm_id, created_at DESC);

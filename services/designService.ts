@@ -7,20 +7,65 @@ import { auditRepository } from '../repositories/auditRepository';
 import { getDeviceId } from '../utils/deviceId';
 import { now } from '../utils/now';
 import type { Design } from '../types/phase2.types';
+import { sanitizeText } from '../utils/sanitize';
+import { ERR } from '../constants/errorCodes';
+import 'react-native-get-random-values';
+import { v4 as uuidv4 } from 'uuid';
 
 export function validateDesignName(name: string): void {
   const words = name.trim().split(/\s+/);
   // FIX-DESIGN-VALIDATE-1 (v1.41): No special chars, exactly 1 or 2 words.
   if (words.length === 0 || words.length > 2 || name.trim() === '') {
-    throw new Error('DESIGN_NAME_INVALID');
+    throw new Error(ERR.DESIGN_NAME_INVALID);
   }
   const specialCharRegex = /[^a-zA-Z0-9\s]/;
   if (specialCharRegex.test(name)) {
-    throw new Error('DESIGN_NAME_INVALID');
+    throw new Error(ERR.DESIGN_NAME_INVALID);
   }
 }
 
 export const designService = {
+  async createDesign(firmId: string, name: string, metal: 'GOLD' | 'SILVER', code: string, defaultHsn?: string | null): Promise<string> {
+    await leaseService.assertNoActiveLease();
+    safeModeService.assertNotInSafeMode();
+
+    validateDesignName(name); // Validate raw input first
+    const sanitizedName = sanitizeText(name); // Sanitize after validation
+
+    const designId = uuidv4();
+
+    return db.transaction(async (tx) => {
+      try {
+        await designRepository.insert(tx, {
+          id: designId,
+          firmId,
+          name: sanitizedName,
+          metal,
+          code,
+          defaultHsn: defaultHsn ?? null,
+          isActive: 1,
+          createdAt: now(),
+          updatedAt: now()
+        });
+      } catch (e: any) {
+        if (e.message?.includes('UNIQUE constraint failed') || e.code === 'SQLITE_CONSTRAINT_UNIQUE') {
+          throw new Error(ERR.DESIGN_NAME_TAKEN);
+        }
+        throw e;
+      }
+
+      await auditRepository.log(tx, {
+        eventType: 'DESIGN_CREATED',
+        firmId,
+        entityId: designId,
+        deviceId: await getDeviceId(),
+        payload: JSON.stringify({ designId, name: sanitizedName, metal, code })
+      });
+
+      return designId;
+    });
+  },
+
   // 🔴 FIX-V1-3 (v1.23) — softDeleteDesign() DESIGN_HAS_ACTIVE_ITEMS Guard
   async softDeleteDesign(designId: string, firmId: string): Promise<void> {
     await leaseService.assertNoActiveLease();
@@ -28,15 +73,15 @@ export const designService = {
 
     return db.transaction(async (tx) => {
       const design = await designRepository.getById(tx, firmId, designId);
-      if (!design || design.firmId !== firmId) throw new Error('DESIGN_NOT_FOUND_OR_WRONG_FIRM');
+      if (!design || design.firmId !== firmId) throw new Error(ERR.DESIGN_NOT_FOUND_OR_WRONG_FIRM);
 
-      const activeItems = await itemRepository.findByDesignId(designId, firmId);
+      const activeItems = await itemRepository.findByDesignId(tx, designId, firmId);
       
       const blocked = activeItems.filter(i =>
         ['AVAILABLE', 'DRAFT', 'SENT_TO_REFINERY', 'SENT_TO_MELT', 'SENT_TO_KARIGAR', 'DAMAGED', 'PHANTOM_AVAILABLE'].includes(i.status)
       );
 
-      if (blocked.length > 0) throw new Error('DESIGN_HAS_ACTIVE_ITEMS');
+      if (blocked.length > 0) throw new Error(ERR.DESIGN_HAS_ACTIVE_ITEMS);
 
       await designRepository.softDelete(tx, firmId, designId);
 
@@ -61,13 +106,13 @@ export const designService = {
 
     return db.transaction(async (tx) => {
       const design = await designRepository.getById(tx, firmId, designId);
-      if (!design || design.firmId !== firmId) throw new Error('DESIGN_NOT_FOUND_OR_WRONG_FIRM');
+      if (!design || design.firmId !== firmId) throw new Error(ERR.DESIGN_NOT_FOUND_OR_WRONG_FIRM);
 
       const updateData: Partial<Pick<Design, 'name' | 'defaultHsn'>> = {};
 
       if (input.name !== undefined) {
-        validateDesignName(input.name);
-        updateData.name = input.name;
+        validateDesignName(input.name); // Validate raw input first
+        updateData.name = sanitizeText(input.name); // Sanitize after validation
       }
       
       if (input.defaultHsn !== undefined) {
@@ -79,7 +124,7 @@ export const designService = {
       } catch (e: any) {
         // Name uniqueness: UNIQUE(name, metal, firmId) index enforces at DB level
         if (e.message?.includes('UNIQUE constraint failed') || e.code === 'SQLITE_CONSTRAINT_UNIQUE') {
-          throw new Error('DESIGN_NAME_TAKEN');
+          throw new Error(ERR.DESIGN_NAME_TAKEN);
         }
         throw e;
       }

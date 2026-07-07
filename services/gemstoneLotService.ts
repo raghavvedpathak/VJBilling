@@ -7,12 +7,14 @@ import { auditRepository } from '../repositories/auditRepository';
 import { getDeviceId } from '../utils/deviceId';
 import { now } from '../utils/now';
 import * as Crypto from 'expo-crypto';
+import { sanitizeText } from '../utils/sanitize';
 import { 
   CreateGemstoneLotInput, 
   GemstoneLot, 
   GemstoneStatus, 
   GEMSTONE_LOT_TRANSITIONS 
 } from '../types/phase2.types';
+import { ERR } from '../constants/errorCodes';
 
 export const gemstoneLotService = {
   // createGemstoneLot() — Canonical Service Body (GEMSTONE-1 v1.21 + FIX-V1-2 v1.23)
@@ -21,26 +23,28 @@ export const gemstoneLotService = {
     safeModeService.assertNotInSafeMode(); // GUARD 2
 
     // FIX-V1-2 (v1.23): Input validation before insert
-    if (input.weightCaratX100 <= 0) throw new Error('GEMSTONE_WEIGHT_INVALID');
-    if ((input.quantity ?? 1) <= 0) throw new Error('GEMSTONE_QUANTITY_INVALID');
+    if (input.weightCaratX100 <= 0) throw new Error(ERR.GEMSTONE_WEIGHT_INVALID);
+    if ((input.quantity ?? 1) <= 0) throw new Error(ERR.GEMSTONE_QUANTITY_INVALID);
 
     return db.transaction(async (tx) => {
       const stone = await stoneRepository.getById(tx, input.stoneId, firmId);
-      if (!stone) throw new Error('STONE_NOT_FOUND_OR_WRONG_FIRM');
+      if (!stone) throw new Error(ERR.STONE_NOT_FOUND_OR_WRONG_FIRM);
+
+      const sanitizedGemName = sanitizeText(input.name); // GAP-P1ALIGN-4 (v1.74)
 
       const lot = await gemstoneLotRepository.insert(tx, {
         id: Crypto.randomUUID(), 
         firmId, 
         stoneId: input.stoneId, 
-        name: input.name,
+        name: sanitizedGemName,
         weightCaratX100: input.weightCaratX100, 
         quantity: input.quantity ?? 1,
         purchaseRatePaisePerCarat: input.purchaseRatePaisePerCarat ?? null,
         totalPurchaseAmountPaise: input.totalPurchaseAmountPaise ?? null,
-        supplierName: input.supplierName ?? null,
+        supplierName: input.supplierName ? sanitizeText(input.supplierName) : null,
         certificationRef: input.certificationRef ?? null,
         status: 'AVAILABLE', 
-        notes: input.notes ?? null,
+        notes: input.notes ? sanitizeText(input.notes) : null,
         createdAt: now(), 
         updatedAt: now(),
       });
@@ -77,11 +81,11 @@ export const gemstoneLotService = {
 
     return db.transaction(async (tx) => {
       const lot = await gemstoneLotRepository.getById(tx, lotId, firmId);
-      if (!lot) throw new Error('GEMSTONE_LOT_NOT_FOUND_OR_WRONG_FIRM');
+      if (!lot) throw new Error(ERR.GEMSTONE_LOT_NOT_FOUND_OR_WRONG_FIRM);
 
       const allowed = GEMSTONE_LOT_TRANSITIONS[lot.status as GemstoneStatus];
       if (!allowed.includes(newStatus)) {
-        throw new Error(`INVALID_GEMSTONE_TRANSITION: ${lot.status} -> ${newStatus}`);
+        throw new Error(`${ERR.INVALID_GEMSTONE_TRANSITION}: ${lot.status} -> ${newStatus}`);
       }
 
       await gemstoneLotRepository.updateStatus(tx, firmId, lotId, newStatus);

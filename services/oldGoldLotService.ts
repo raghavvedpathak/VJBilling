@@ -9,6 +9,7 @@ import { leaseService } from './leaseService';
 import { safeModeService } from './safeModeService';
 import { getDeviceId } from '../utils/deviceId';
 import { now } from '../utils/now';
+import { resolveFineWeightMg } from '../utils/purity.constants';
 import * as Crypto from 'expo-crypto';
 
 export const oldGoldLotService = {
@@ -36,7 +37,11 @@ export const oldGoldLotService = {
       throw new Error('OLD_GOLD_PURITY_PERCENT_INVALID');
     }
 
-    const fineWeightMg = Math.round(input.grossWeightMg * input.purityPercent / 100);
+    const isMeltOutput = (input.metalSource ?? 'CUSTOMER') === 'MELT_OUTPUT';
+    const { fineWeightMg, purityRoundingDeltaMg } = isMeltOutput
+      ? resolveFineWeightMg(input.grossWeightMg, input.purityPercent, 'GOLD')
+      : { fineWeightMg: Math.round(input.grossWeightMg * input.purityPercent / 100), purityRoundingDeltaMg: 0 };
+
     const totalAmountPaise = input.purchaseRatePaise 
       ? Math.round((fineWeightMg / 1000) * input.purchaseRatePaise)
       : null;
@@ -47,6 +52,7 @@ export const oldGoldLotService = {
         firmId,
         receivedFrom: input.receivedFrom,
         fineWeightMg,
+        purityRoundingDeltaMg,
         purchaseRatePaise: input.purchaseRatePaise ?? null,
         totalAmountPaise,
         receivedDate: input.receivedDate,
@@ -67,8 +73,8 @@ export const oldGoldLotService = {
           lotId: lot.id, grossWeightMg: lot.grossWeightMg,
           purityPercent: lot.purityPercent, metalSource: lot.metalSource,
           receivedFrom: lot.receivedFrom, receivedDate: lot.receivedDate,
-          fineWeightMg: lot.fineWeightMg, purchaseRatePaise: lot.purchaseRatePaise,
-          totalAmountPaise: lot.totalAmountPaise,
+          fineWeightMg: lot.fineWeightMg, purityRoundingDeltaMg: lot.purityRoundingDeltaMg,
+          purchaseRatePaise: lot.purchaseRatePaise, totalAmountPaise: lot.totalAmountPaise,
         }),
       });
 

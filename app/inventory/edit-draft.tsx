@@ -148,30 +148,46 @@ export default function EditDraftScreen() {
       const newBeadsMg = Math.round(parsedBeads * 1000);
       
       const newPurityKarat = percentToKarat(parsedPurity) || 0;
-      const newWastage = parseFloat(wastagePercent) || 0;
       const newRatePaise = purchaseRate ? Math.round(parseFloat(purchaseRate) * 100) : null;
       const newMakingPaise = makingCharge ? Math.round(parseFloat(makingCharge) * 100) : null;
       const newStoneCostPaise = stoneCost ? Math.round(parseFloat(stoneCost) * 100) : null;
 
-      // Ensure your itemService.updateDraftDetails can accept these parameters
-      await itemService.updateDraftDetails(
+      // 1. Weight adjustment (must happen via adjustWeight)
+      await itemService.adjustWeight(
+        itemId,
+        activeFirmId,
+        newGrossMg,
+        newStoneMg,
+        newBeadsMg,
+        reason
+      );
+
+      // 2. Non-weight field updates
+      await itemService.updateItem(
         itemId, 
         activeFirmId, 
         {
-          grossWeightMg: newGrossMg,
-          stoneWeightMg: newStoneMg,
-          beadsWeightMg: newBeadsMg,
           purityPercent: parsedPurity,
           purityKarat: newPurityKarat,
-          wastagePercent: newWastage,
           purchaseRatePaise: newRatePaise,
           makingChargePaise: newMakingPaise,
           stoneCostPaise: newStoneCostPaise,
           location: location.trim() || null,
-          huid: huidUpper || null,
-          reason: reason
-        }
+        },
+        reason
       );
+
+      // 3. HUID assignment (write-once)
+      if (huidUpper) {
+         try {
+           await itemService.addHUID(itemId, activeFirmId, huidUpper);
+         } catch (e: any) {
+           // We just let it bubble up if it's an error.
+           if (e.message !== 'HUID_ALREADY_SET') {
+             throw e;
+           }
+         }
+      }
 
       setSuccessMessage('Draft details updated successfully.');
     } catch (error: any) {
