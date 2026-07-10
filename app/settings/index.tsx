@@ -11,6 +11,7 @@ import { auditService } from '../../services/auditService';
 import { storage } from '../../utils/storage';
 import { settingsService } from '../../services/settingsService'; 
 import { GlassCard } from '../../components/ui/Glass';
+import { isPinSet, isPinSkipped } from '../../services/pinService'; // G71 v7.29 Implementation
 import {
   Building2,
   HardDriveDownload,
@@ -29,7 +30,8 @@ import {
   Wrench,
   Percent,
   MonitorSmartphone,
-  FileBox
+  FileBox,
+  KeyRound
 } from 'lucide-react-native';
 
 export default function SettingsScreen() {
@@ -37,10 +39,17 @@ export default function SettingsScreen() {
   const { firm, refreshSession } = useSession();
   const [backingUp, setBackingUp] = useState(false);
   const [restoring, setRestoring] = useState(false);
+  
+  // Settings State
   const [dateFormat, setDateFormat] = useState('dd/MM/yyyy'); 
   const [unsavedWarning, setUnsavedWarning] = useState(true); 
+  const [theme, setTheme] = useState('system');
+  const [hasPin, setHasPin] = useState(false); // G71
+  const [skippedPin, setSkippedPin] = useState(false); // G71
   
+  // Modal State
   const [showDateModal, setShowDateModal] = useState(false);
+  const [showThemeModal, setShowThemeModal] = useState(false);
 
   useEffect(() => {
     const loadPreferences = async () => {
@@ -49,6 +58,7 @@ export default function SettingsScreen() {
         if (settings) {
           if (settings.dateFormatToken) setDateFormat(settings.dateFormatToken);
           if (settings.warnUnsavedChanges !== undefined) setUnsavedWarning(settings.warnUnsavedChanges === 1);
+          if (settings.theme) setTheme(settings.theme);
         }
       } catch (e) {
         console.error("Failed to load DB settings", e);
@@ -58,6 +68,10 @@ export default function SettingsScreen() {
       if (storedWarning) {
           setUnsavedWarning(storedWarning !== 'false'); 
       }
+
+      // Check PIN State (G71)
+      setHasPin(isPinSet());
+      setSkippedPin(isPinSkipped());
     };
     loadPreferences();
   }, []);
@@ -76,6 +90,14 @@ export default function SettingsScreen() {
       case 'dd-MM-yyyy': return `${d}-${m}-${y}`;
       case 'yyyy-MM-dd': return `${y}-${m}-${d}`;
       default: return `${d}/${m}/${y}`;
+    }
+  };
+
+  const getThemeLabel = (t: string) => {
+    switch(t) {
+      case 'light': return 'Light';
+      case 'dark': return 'Dark';
+      default: return 'System Default';
     }
   };
 
@@ -102,6 +124,16 @@ export default function SettingsScreen() {
       await settingsService.updateSettings({ dateFormatToken: newFormat });
       setDateFormat(newFormat);
       setShowDateModal(false);
+    } catch (e: any) {
+      Alert.alert("Cannot Update Settings", e.message);
+    }
+  };
+
+  const updateTheme = async (newTheme: string) => {
+    try {
+      await settingsService.updateSettings({ theme: newTheme });
+      setTheme(newTheme);
+      setShowThemeModal(false);
     } catch (e: any) {
       Alert.alert("Cannot Update Settings", e.message);
     }
@@ -181,6 +213,21 @@ export default function SettingsScreen() {
           </GlassCard>
         </View>
 
+        {/* v7.29 G71: Security App PIN */}
+        <GlassSettingsTile
+          title={hasPin ? "Change PIN" : "Set Up PIN"}
+          subtitle={hasPin ? "PIN is set" : "Not set — tap to secure your app"}
+          icon={
+            <View className="relative">
+              <KeyRound size={24} color="#D4AF37" />
+              {(!hasPin && skippedPin) && (
+                <View className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-vj-danger rounded-full border border-white" />
+              )}
+            </View>
+          }
+          onPress={() => router.push('/settings/pin')}
+        />
+
         <GlassSettingsTile
           title="Date Format"
           subtitle={getTodayPreview(dateFormat)}
@@ -212,9 +259,9 @@ export default function SettingsScreen() {
 
         <GlassSettingsTile
           title="App Theme"
-          subtitle="Light (System Default)"
+          subtitle={getThemeLabel(theme)}
           icon={<Palette size={24} color="#5C1623" />}
-          onPress={() => Alert.alert("Coming Soon", "Theme Engine is locked for Phase 2 Polish.")}
+          onPress={() => setShowThemeModal(true)}
         />
 
         <GlassSettingsTile
@@ -306,6 +353,7 @@ export default function SettingsScreen() {
 
       </ScrollView>
 
+      {/* Date Format Modal */}
       <Modal animationType="fade" transparent={true} visible={showDateModal} onRequestClose={() => setShowDateModal(false)}>
         <View className="flex-1 bg-black/50 justify-center items-center px-6">
           <View className="w-full bg-vj-bg rounded-3xl p-6 shadow-xl border border-white/50">
@@ -332,6 +380,35 @@ export default function SettingsScreen() {
                   <Text className={`text-xs ${dateFormat === fmt.token ? 'text-vj-bg/70' : 'text-vj-text/60'}`}>{getTodayPreview(fmt.token)}</Text>
                 </View>
                 {dateFormat === fmt.token && <CheckCircle2 size={24} color="#FCFBF8" />}
+              </TouchableOpacity>
+            ))}
+          </View>
+        </View>
+      </Modal>
+
+      {/* Theme Modal */}
+      <Modal animationType="fade" transparent={true} visible={showThemeModal} onRequestClose={() => setShowThemeModal(false)}>
+        <View className="flex-1 bg-black/50 justify-center items-center px-6">
+          <View className="w-full bg-vj-bg rounded-3xl p-6 shadow-xl border border-white/50">
+            <View className="flex-row justify-between items-center mb-6">
+              <Text className="text-vj-text font-bold text-xl">App Theme</Text>
+              <TouchableOpacity onPress={() => setShowThemeModal(false)} className="p-1 bg-black/5 rounded-full">
+                <X size={20} color="#5C1623" />
+              </TouchableOpacity>
+            </View>
+
+            {[
+              { id: 'system', label: 'System Default' },
+              { id: 'light', label: 'Light' },
+              { id: 'dark', label: 'Dark' }
+            ].map((t) => (
+              <TouchableOpacity
+                key={t.id}
+                onPress={() => updateTheme(t.id)}
+                className={`p-4 rounded-xl border mb-3 flex-row justify-between items-center ${theme === t.id ? 'bg-vj-text border-vj-text' : 'bg-white/60 border-black/10'}`}
+              >
+                <Text className={`font-bold text-base ${theme === t.id ? 'text-vj-bg' : 'text-vj-text'}`}>{t.label}</Text>
+                {theme === t.id && <CheckCircle2 size={24} color="#FCFBF8" />}
               </TouchableOpacity>
             ))}
           </View>

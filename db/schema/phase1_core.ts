@@ -1,4 +1,4 @@
-import { sqliteTable, text, integer, real, foreignKey, unique } from 'drizzle-orm/sqlite-core';
+import { sqliteTable, text, integer, real, foreignKey, unique, index } from 'drizzle-orm/sqlite-core';
 
 export type Metal = 'GOLD' | 'SILVER';
 
@@ -107,14 +107,16 @@ export const LeaseType = {  RESTORE: 'RESTORE',
 // v3.0 G39: entityId added for Phase 3+ traceability (customer.id, invoice.id)
 // G41: log(null, ...) permitted ONLY for RESTORE_OLD_SCHEMA, DEVICE_ID_GENERATED, BACKUP_CREATED
 export const auditLogs = sqliteTable('audit_logs', {
-  id: text('id').primaryKey(),            // UUID
+  id: text('id').primaryKey(),             // UUID
   eventType: text('event_type').notNull(), // e.g. 'FIRM_CREATED'
-  firmId: text('firm_id'),                // nullable: device-level events have no firm
-  entityId: text('entity_id'),            // nullable — traceability (v3.0 G39)
+  firmId: text('firm_id'),                 // nullable: device-level events have no firm
+  entityId: text('entity_id'),             // nullable — traceability (v3.0 G39)
   deviceId: text('device_id').notNull(),  // UUID from deviceId util
   payload: text('payload'),               // JSON string — event-specific data, nullable
   createdAt: text('created_at').notNull(), // ISO-8601
-});
+}, (table) => ({
+  idxAuditLogsEntityEvent: index('idx_audit_logs_entity_event').on(table.entityId, table.eventType, table.firmId, table.createdAt),
+}));
 
 // v7.10 AUDIT-RETENTION-MONTHLY
 export const auditDeleteGate = sqliteTable('audit_delete_gate', {
@@ -242,5 +244,3 @@ export const auditArchiveIndex = sqliteTable('audit_archive_index', {
   rowCount: integer('row_count').notNull(), // # of audit_logs rows archived for this FY
   storageRef: text('storage_ref'),          // nullable — future: file URI for external archive
 });
-
-// =============================================================================

@@ -1,3 +1,4 @@
+// app/settings/audit-logs.tsx
 import React, { useState, useEffect, useMemo, memo, useCallback, useRef } from 'react';
 import { View, Text, FlatList, TouchableOpacity, Share, ScrollView, StyleSheet } from 'react-native';
 import * as Device from 'expo-device';
@@ -12,7 +13,7 @@ import { format, parseISO } from 'date-fns';
 
 const ToggleHandlerRef = React.createContext<React.MutableRefObject<(id: string) => void> | null>(null);
 
-// v2.6 G16 + v7.12/v7.23 Canonical Mapping
+// v2.6 G16 + v7.12/v7.23 + v7.29 Canonical Mapping
 const EVENT_MAPPING: Record<string, string> = {
   'FIRM_CREATED': 'Firm Created',
   'FIRM_UPDATED': 'Firm Updated',
@@ -36,6 +37,13 @@ const EVENT_MAPPING: Record<string, string> = {
   'AUDIT_RETENTION_PURGE_EXECUTED': 'Audit Log Retention Purge Ran',
   'DEVICE_ID_CHANGED': 'Device ID Changed',
   'FACTORY_RESET_EXECUTED': 'Factory Reset Executed',
+  
+  // v7.29 PIN Security
+  'PIN_SET': 'PIN Set (First Time)',
+  'PIN_CHANGED': 'PIN Changed',
+  'PIN_SKIPPED': 'PIN Setup Skipped At First Boot',
+
+  // Phase 2 mappings
   'URD_PURCHASE_CREATED': 'Unregistered Purchase Logged',
   'URD_PURCHASE_CONFIRMED': 'Unregistered Purchase Confirmed',
   'CATEGORY_CREATED': 'New Category Added',
@@ -54,7 +62,9 @@ const EVENT_MAPPING: Record<string, string> = {
   'OLD_GOLD_LOT_STATUS_CHANGED': 'Old Gold Lot Status Updated',
   'FY_CLOSE_FINE_BALANCE': 'Fine Gold Balance Closed',
   'FY_ARCHIVE_INDEXED': 'Financial Year Archived',
-  'DRAFT_ITEM_DISCARDED': 'Draft Item Discarded',
+  'ITEM_DELETED': 'Item Deleted',
+  'METAL_SOURCE_CORRECTED': 'Metal Source Corrected',
+  'HUID_CORRECTED': 'HUID Corrected',
   'GEMSTONE_LOT_CREATED': 'Gemstone Lot Added',
   'GEMSTONE_LOT_STATUS_CHANGED': 'Gemstone Lot Status Updated',
   'ITEM_EDITED': 'Stock Item Edited',
@@ -73,8 +83,8 @@ const colors = {
 };
 
 function getEventBgColor(type: string): string {
-  if (type.includes('CREATED')) return 'rgba(22,163,74,0.12)';
-  if (type.includes('UPDATED') || type.includes('SWITCHED')) return '#dbeafe';
+  if (type.includes('CREATED') || type.includes('PIN_SET')) return 'rgba(22,163,74,0.12)';
+  if (type.includes('UPDATED') || type.includes('SWITCHED') || type.includes('PIN_CHANGED')) return '#dbeafe';
   if (type.includes('SAFE_MODE') || type.includes('FAILED') || type.includes('RESET')) return 'rgba(220,38,38,0.12)';
   if (type.includes('BACKUP') || type.includes('RESTORE')) return '#ffedd5';
   return '#ffffff';

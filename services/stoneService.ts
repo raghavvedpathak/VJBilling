@@ -14,8 +14,12 @@ export const stoneService = {
     await leaseService.assertNoActiveLease(); // GUARD 1
     safeModeService.assertNotInSafeMode(); // GUARD 2
 
-    return db.transaction(async (tx) => {
-      const stone = await stoneRepository.insert(tx, {
+    // Hoisted async call outside transaction
+    const deviceId = await getDeviceId();
+
+    // FIX-V718-1: Synchronous transaction block
+    return db.transaction((tx) => {
+      const stone = stoneRepository.insert(tx, {
         id: Crypto.randomUUID(), 
         name: input.name, 
         type: input.type,
@@ -25,11 +29,11 @@ export const stoneService = {
         updatedAt: now(),
       });
 
-      await auditRepository.log(tx, { 
+      auditRepository.log(tx, { 
         eventType: 'STONE_CREATED', 
         firmId, 
         entityId: stone.id,
-        deviceId: await getDeviceId(), 
+        deviceId, 
         payload: JSON.stringify({ name: stone.name, type: stone.type }) 
       });
 

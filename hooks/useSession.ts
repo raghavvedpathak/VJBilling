@@ -3,6 +3,7 @@ import { useRouter, useFocusEffect } from 'expo-router';
 import { useFirmStore } from '../store/firmStore';
 import { firmRepository, Firm } from '../repositories/firmRepository';
 import { fyRepository } from '../repositories/fyRepository';
+import { useFyBannerStore } from '../store/fyBannerStore';
 
 // ============================================================================
 // v7.5 FY-BOUNDARY-TRANSITION-RULE: useSession computes isFYExpired and
@@ -61,6 +62,11 @@ export function useSession() {
       setFirm(firmData);
       setActiveFY(fyData);
       setIsFYExpired(fyExpired);
+      
+      // STEP 5.5 (ALIGN-P1-V75): set bannerVisible in zustand store
+      if (fyExpired) {
+        useFyBannerStore.getState().setBannerVisible(true);
+      }
     } catch (error) {
       console.error('[useSession] Session hydration failed:', error);
     } finally {

@@ -9,16 +9,9 @@ import { AlertTriangle, X, ChevronRight } from 'lucide-react-native';
 export function FYEndBanner() {
   const router = useRouter();
   const { activeFY } = useSession();
-  const { isDismissed, dismissBanner } = useFyBannerStore();
+  const { bannerVisible } = useFyBannerStore();
 
-  const isExpired = useMemo(() => {
-    if (!activeFY) return false;
-    // Simple ISO string comparison works because format is YYYY-MM-DD
-    const today = new Date().toISOString().split('T')[0];
-    return today > activeFY.endDate;
-  }, [activeFY]);
-
-  if (!isExpired || isDismissed) {
+  if (!bannerVisible) {
     return null;
   }
 
@@ -41,9 +34,6 @@ export function FYEndBanner() {
           <ChevronRight size={14} color="#B45309" />
         </TouchableOpacity>
       </View>
-      <TouchableOpacity style={s.closeBtn} onPress={dismissBanner} activeOpacity={0.5}>
-        <X size={20} color="#B45309" style={{ opacity: 0.5 }} />
-      </TouchableOpacity>
     </View>
   );
 }

@@ -40,21 +40,26 @@ const BulkItemRow = ({ index, row, updateRow, removeRow, stones }: any) => {
     const stoneC = parseFloat(row.stoneCost) || 0;
 
     const netWeightG = Math.max(0, gross - stone - beads);
+    const vaultTruth = (netWeightG * purity) / 100; // fineWeight in grams
     const totalTouchPercent = purity + wastage;
-    const effectivePricePerGram = rate * (totalTouchPercent / 100);
-    const totalGoldCost = netWeightG * effectivePricePerGram;
+    const fineGoldChargedG = wastage > 0 ? (netWeightG * totalTouchPercent) / 100 : vaultTruth;
+
+    // FIX-PPG-DISPLAY-1 (v1.52): Price Per Gram = (fineGoldChargedMg ?? fineWeightMg) / fineWeightMg * purchaseRatePerGram
+    const effectivePricePerGram = netWeightG > 0 ? (totalTouchPercent / 100) * rate : rate;
+    
+    // FIX-UI-TOTAL-1 (v1.51): Total Purchase Amount = (fineGoldChargedMg ?? fineWeightMg) / 1000 * purchaseRatePerGram
+    // Note: fineGoldChargedG is already in grams (i.e. divided by 1000)
+    const totalGoldCost = fineGoldChargedG * rate;
     const absoluteTotalCost = totalGoldCost + making + stoneC;
 
-    const vaultTruth = (netWeightG * purity) / 100;
-    const wastageGold = (netWeightG * wastage) / 100;
-    const costTruth = (netWeightG * totalTouchPercent) / 100;
+    const wastageGold = fineGoldChargedG - vaultTruth;
 
     return {
       netWeight: netWeightG,
       totalTouch: totalTouchPercent,
       vaultTruth,
       wastageGold,
-      costTruth,
+      costTruth: fineGoldChargedG,
       pricePerGram: effectivePricePerGram,
       totalAmount: absoluteTotalCost,
       isValid: netWeightG > 0 && purity > 0
@@ -62,7 +67,8 @@ const BulkItemRow = ({ index, row, updateRow, removeRow, stones }: any) => {
   }, [row.grossWeight, row.stoneWeight, row.beadsWeight, row.purityPercent, row.wastagePercent, row.purchaseRate, row.makingCharge, row.stoneCost]);
 
   return (
-    <GlassCard>
+    <View style={{ zIndex: 1000 - index }}>
+      <GlassCard>
       <View style={s.rowHeader}>
         <Text style={s.rowTitle}>Item #{index + 1}</Text>
         {index > 0 && (
@@ -98,6 +104,32 @@ const BulkItemRow = ({ index, row, updateRow, removeRow, stones }: any) => {
         <View style={s.inputCol}><GlassInput label="BIS HUID" value={row.huid} onChangeText={(t: string) => updateRow(index, 'huid', t)} autoCapitalize="characters" maxLength={6} /></View>
       </View>
 
+      {/* Size */}
+      <View style={[s.inputGrid, { zIndex: 20 }]}>
+        <View style={s.inputCol}>
+          <GlassInput label="Size Value" value={row.sizeValue} onChangeText={(t: string) => updateRow(index, 'sizeValue', t)} keyboardType="numeric" placeholder="e.g. 18" />
+        </View>
+        <View style={[s.inputCol, { zIndex: 20 }]}>
+          <Text style={{ fontSize: 12, fontWeight: '700', color: 'rgba(92,22,35,0.6)', textTransform: 'uppercase', marginBottom: 4, marginLeft: 4 }}>Size Unit</Text>
+          <GlassSmartSearch 
+            placeholder="Select Unit..."
+            showAllOnFocus={true}
+            options={[
+              { id: 'NONE', label: 'No Unit (Clear)' },
+              { id: 'INCH', label: 'Inches (INCH)' },
+              { id: 'MM', label: 'Millimeters (MM)' },
+              { id: 'CM', label: 'Centimeters (CM)' },
+              { id: 'RING_SIZE', label: 'Ring Size' }
+            ]}
+            selectedId={row.sizeUnit || null}
+            onSelect={(opt) => {
+              if (!opt || opt.id === 'NONE') return updateRow(index, 'sizeUnit', '');
+              updateRow(index, 'sizeUnit', opt.id);
+            }}
+          />
+        </View>
+      </View>
+
       {/* Primary Stone Inline Search */}
       <View style={{ zIndex: 10 }}>
         <GlassSmartSearch 
@@ -129,17 +161,14 @@ const BulkItemRow = ({ index, row, updateRow, removeRow, stones }: any) => {
             <Text style={s.mathValue}>{calculations.netWeight.toFixed(3)} g</Text>
           </View>
           <View style={s.mathRow}>
-            <Text style={s.mathLabel}>Total Touch:</Text>
-            <Text style={s.mathValue}>{calculations.totalTouch.toFixed(2)}%</Text>
+            <Text style={s.mathLabel}>Wastage Gold:</Text>
+            <Text style={[s.mathValue, { color: '#BE123C' }]}>{(calculations.costTruth - calculations.vaultTruth).toFixed(3)} g</Text>
           </View>
           <View style={s.mathRow}>
             <Text style={s.mathLabel}>Vault Truth (Fine):</Text>
             <Text style={[s.mathValue, { color: '#047857' }]}>{calculations.vaultTruth.toFixed(3)} g</Text>
           </View>
-          <View style={s.mathRow}>
-            <Text style={s.mathLabel}>Wastage Gold:</Text>
-            <Text style={[s.mathValue, { color: '#BE123C' }]}>{calculations.wastageGold.toFixed(3)} g</Text>
-          </View>
+
           <View style={s.mathRow}>
             <Text style={s.mathLabel}>Cost Truth (Fine):</Text>
             <Text style={[s.mathValue, { color: '#B45309' }]}>{calculations.costTruth.toFixed(3)} g</Text>
@@ -154,7 +183,8 @@ const BulkItemRow = ({ index, row, updateRow, removeRow, stones }: any) => {
           </View>
         </View>
       )}
-    </GlassCard>
+      </GlassCard>
+    </View>
   );
 };
 
@@ -196,6 +226,7 @@ export default function BulkAddScreen() {
     purityPercent: '', wastagePercent: '', purchaseRate: '',
     makingCharge: '', stoneCost: '',
     location: '', huid: '',
+    sizeValue: '', sizeUnit: '',
     stoneId: null, stoneName: ''
   });
 
@@ -241,6 +272,8 @@ export default function BulkAddScreen() {
       makingCharge: lastRow.makingCharge,
       stoneCost: lastRow.stoneCost,
       location: lastRow.location,
+      sizeValue: lastRow.sizeValue,
+      sizeUnit: lastRow.sizeUnit,
       stoneId: lastRow.stoneId,
       stoneName: lastRow.stoneName
     }]);
@@ -298,6 +331,8 @@ export default function BulkAddScreen() {
         makingChargePaise: r.makingCharge ? Math.round(parseFloat(r.makingCharge) * 100) : undefined,
         stoneCostPaise: r.stoneCost ? Math.round(parseFloat(r.stoneCost) * 100) : undefined,
         location: r.location?.trim() || undefined,
+        sizeValue: r.sizeValue ? parseFloat(r.sizeValue) : undefined,
+        sizeUnit: r.sizeUnit || undefined,
         huid: huidUpper,
         metalSource: 'SUPPLIER_PURCHASE',
       });
@@ -320,7 +355,8 @@ export default function BulkAddScreen() {
     <TwoToneWrapper title="Bulk Add Stock" showBack>
       <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingTop: 32, paddingBottom: 350, paddingHorizontal: 16 }} showsVerticalScrollIndicator={false}>
         
-        <GlassCard style={{ marginBottom: 16 }}>
+        <View style={{ zIndex: 2000 }}>
+          <GlassCard style={{ marginBottom: 16 }}>
           <View className="flex-row items-center gap-2 mb-4">
             <Layers size={20} color="#D4AF37" />
             <Text className="text-lg font-bold text-vj-text">Batch Classification</Text>
@@ -395,7 +431,8 @@ export default function BulkAddScreen() {
               }}
             />
           </View>
-        </GlassCard>
+          </GlassCard>
+        </View>
 
         <View style={s.itemsHeader}>
           <Package size={20} color="#5C1623" />

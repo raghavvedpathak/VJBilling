@@ -95,6 +95,7 @@ export interface CreateItemInput {
   huid?: string | null; // ADDED: FIX-HUID-FORMAT-1 (v1.44)
   sizeValue?: number | null;
   sizeUnit?: 'INCH'|'MM'|'CM'|'RING_SIZE' | null;
+  entryDate?: string; // FIX-GAP-P2-BACKDATE-1
 }
 
 export interface BulkItemInput extends Omit<CreateItemInput, 'huid'> { clientRef?: string; }
@@ -184,15 +185,17 @@ export type HsnCode = typeof hsnCodes.$inferSelect; // FIX-HSN-MASTER-1 (v1.46)
 export type ItemSearchResult = {
   itemId: string; sku: string; designName: string; categoryName: string;
   metal: 'GOLD' | 'SILVER'; grossWeightMg: number; purityPercent: number;
-  huid: string | null; status: StockStatus; 
+  huid: string | null; status: 'AVAILABLE' | 'PHANTOM_AVAILABLE';
   barcode: string; netWeightMg: number; purityKarat: number; location: string | null;
+  sizeValue: number | null; sizeUnit: 'INCH'|'MM'|'CM'|'RING_SIZE'|null; // FIX-GAP-P2-SIZE-1 (v1.76)
 }
 
 // SEARCH-1 (v1.13) + BLOCK-5 (v1.15): Design-level aggregated stock
 export type DesignStockResult = {
   designId: string; designName: string; categoryName: string;
-  metal: 'GOLD' | 'SILVER'; purityPercent: number; // from items grouping
+  metal: 'GOLD' | 'SILVER'; purityPercent: number;
   totalGrossWeightMg: number; availableCount: number;
+  sizeValue: number | null; sizeUnit: 'INCH'|'MM'|'CM'|'RING_SIZE'|null; // FIX-GAP-P2-SIZE-1 (v1.76)
 }
 
 // Weight display rule (RULE-1A-WEIGHT-DISPLAY v1.54) — CONSTITUTIONAL
@@ -327,16 +330,25 @@ export type BarcodeLabel = {
   };
 };
 
+// UpdateableItemDraftFields — TypeScript type (FIX-UPDATE-ITEM-BODY-1 v1.46)
+// Any non-terminal-status item (v1.77; name retains "Draft" for historical reasons only — not renamed to avoid colliding with the distinct FIX-IMM-1 v1.23 UpdateableItemFields repo-layer type). Weight fields excluded — use adjustWeight().
+// categoryId and hsnCode excluded — Phase 3+ dedicated services.
 export type UpdateableItemDraftFields = Partial<{
-  purityPercent: number; // re-assay correction
-  purityKarat: number; // display karat correction
-  primaryStoneId: string | null;
-  location: string | null; // SHOP|LOCKER|KARIGAR|REFINERY|TRANSIT
-  makingChargePaise: number | null;
-  stoneCostPaise: number | null;
-  purchaseRatePaise: number | null;
-  sizeValue: number | null; // GAP-P2-SIZE-EDIT-1 (v1.78): now editable, pairing-guarded
-  sizeUnit: 'INCH'|'MM'|'CM'|'RING_SIZE' | null; // GAP-P2-SIZE-EDIT-1 (v1.78): now editable, pairing-guarded
+ purityPercent: number; // re-assay correction
+ purityKarat: number; // display karat correction
+ primaryStoneId: string | null;
+ location: string | null; // SHOP|LOCKER|KARIGAR|REFINERY|TRANSIT
+ makingChargePaise: number | null;
+ stoneCostPaise: number | null;
+ purchaseRatePaise: number | null;
+ sizeValue: number | null; // GAP-P2-SIZE-EDIT-1 (v1.78): now editable, pairing-guarded
+ sizeUnit: 'INCH'|'MM'|'CM'|'RING_SIZE' | null; // GAP-P2-SIZE-EDIT-1 (v1.78): now editable, pairing-guarded
+ // EXCLUDED: grossWeightMg, netWeightMg, fineWeightMg, fineGoldChargedMg → adjustWeight()
+ // EXCLUDED: wastagePercent → adjustWeight() recalculates fineGoldChargedMg atomically
+ // EXCLUDED: metalSource, sku, barcode, id, firmId, createdAt → IMMUTABLE
+ // EXCLUDED: categoryId → Phase 3 reassignCategory()
+ // EXCLUDED: hsnCode → Phase 3 updateItemHsn()
+ // EXCLUDED: invoiceId → DORMANT, Phase 3 postInvoice() sole writer
 }>;
 
 // Low stock (FEAT-GAP3-LOWSTOCK-1 v1.66)
@@ -353,25 +365,50 @@ export type Phase2AuditPayload =
  | { eventType: 'DESIGN_UPDATED'; payload: { designId: string; changes: Record<string, unknown> } }
  | { eventType: 'DESIGN_SOFT_DELETED'; payload: { designId: string; name: string } }
  | { eventType: 'STONE_CREATED'; payload: { name: string; type: string } }
- | { eventType: 'GEMSTONE_LOT_CREATED'; payload: { lotId: string; stoneId: string; name: string; weightCaratX100: number; quantity: number; purchaseRatePaisePerCarat: number; totalPurchaseAmountPaise: number } }
- | { eventType: 'GEMSTONE_LOT_STATUS_CHANGED'; payload: { lotId: string; oldStatus: string; newStatus: string; reason: string | null } }
- | { eventType: 'ITEM_CREATED'; payload: { sku: string; designId: string; categoryId: string; netWeightMg: number; fineWeightMg: number; purityRoundingDeltaMg: number; wastagePercent: number; fineGoldChargedMg: number | null; purchaseRatePaise: number | null; purityPercent: number; makingChargePaise: number | null; stoneCostPaise: number | null; location: string | null; metalSource: string; hsnCode: string; huid?: string | null; sizeValue?: number | null; sizeUnit?: string | null; } }
- | { eventType: 'ITEM_EDITED'; payload: { itemId: string; sku: string; changes: Record<string, { old: unknown; new: unknown }>; reason: string | null } }
- | { eventType: 'ITEM_STATUS_CHANGED'; payload: { itemId: string; oldStatus: string; newStatus: string; sku: string } }
- | { eventType: 'ITEM_SENT_TO_KARIGAR'; payload: { itemId: string; sku: string; karigarName: string; reason: string; priorKarigarCount: number } }
- | { eventType: 'ITEM_RETURNED_FROM_KARIGAR'; payload: { itemId: string; sku: string; outcome: string; nextStatus: string; karigarName: string; reason: string | null } }
+ | { eventType: 'GEMSTONE_LOT_CREATED'; payload: { lotId: string; stoneId: string; name: string;
+     weightCaratX100: number; quantity: number; purchaseRatePaisePerCarat: number;
+     totalPurchaseAmountPaise: number } }
+ | { eventType: 'GEMSTONE_LOT_STATUS_CHANGED'; payload: { lotId: string; oldStatus: string;
+     newStatus: string; reason: string | null } }
+ | { eventType: 'ITEM_CREATED'; payload: { sku: string; designId: string; categoryId: string;
+     netWeightMg: number; fineWeightMg: number; purityRoundingDeltaMg: number; wastagePercent: number; fineGoldChargedMg: number;
+     purchaseRatePaise: number; purityPercent: number; makingChargePaise: number | null;
+     stoneCostPaise: number | null; location: string | null; metalSource: string; hsnCode: string } }
+ | { eventType: 'ITEM_EDITED'; payload: { itemId: string; sku: string;
+     changes: Record<string, { old: unknown; new: unknown }>; reason: string | null } }
+ | { eventType: 'ITEM_STATUS_CHANGED'; payload: { itemId: string; oldStatus: string;
+     newStatus: string; sku: string } }
+ | { eventType: 'ITEM_SENT_TO_KARIGAR'; payload: { itemId: string; sku: string; karigarName: string;
+     reason: string; priorKarigarCount: number } }
+ | { eventType: 'ITEM_RETURNED_FROM_KARIGAR'; payload: { itemId: string; sku: string; outcome: string;
+     nextStatus: string; karigarName: string; reason: string | null } }
  | { eventType: 'DRAFT_ITEM_DISCARDED'; payload: { sku: string; designId: string } }
- | { eventType: 'WEIGHT_ADJUSTED'; payload: { itemId: string; sku: string; oldGrossWeightMg: number; newGrossWeightMg: number; newNetWeightMg: number; newFineWeightMg: number; newPurityRoundingDeltaMg: number; newFineGoldChargedMg: number; reason: string } }
+ | { eventType: 'WEIGHT_ADJUSTED'; payload: { itemId: string; sku: string; oldGrossWeightMg: number;
+     newGrossWeightMg: number; newNetWeightMg: number; newFineWeightMg: number; newPurityRoundingDeltaMg: number;
+     newFineGoldChargedMg: number; reason: string } }
  | { eventType: 'BARCODE_REPRINTED'; payload: { itemId: string; sku: string } }
- | { eventType: 'PHANTOM_ITEM_CREATED'; payload: { sku: string; designId: string; categoryId: string; netWeightMg: number; fineWeightMg: number; purityPercent: number; hsnCode: string; reason: string } }
- | { eventType: 'PHANTOM_RECONCILED'; payload: { phantomItemId: string; phantomSku: string; realItemId: string; realItemSku: string; netWeightMg: number; fineWeightMg: number } }
- | { eventType: 'OLD_GOLD_LOT_CREATED'; payload: { lotId: string; grossWeightMg: number; purityPercent: number; metalSource: string; receivedFrom: string; receivedDate: string; fineWeightMg: number; purityRoundingDeltaMg: number; purchaseRatePaise: number | null; totalAmountPaise: number | null } }
- | { eventType: 'OLD_GOLD_LOT_STATUS_CHANGED'; payload: { lotId: string; oldStatus: string; newStatus: string; reason: string | null } }
- | { eventType: 'URD_PURCHASE_CREATED'; payload: { urdId: string; lotId: string; customerName: string; customerId: string | null; grossWeightMg: number; purityPercent: number; fineWeightMg: number; totalValuePaise: number } }
- | { eventType: 'URD_PURCHASE_CONFIRMED'; payload: { urdId: string; urdNumber: string; totalValuePaise: number } }
+ | { eventType: 'PHANTOM_ITEM_CREATED'; payload: { sku: string; designId: string; categoryId: string;
+     netWeightMg: number; fineWeightMg: number; purityPercent: number; hsnCode: string; reason: string } }
+ | { eventType: 'PHANTOM_RECONCILED'; payload: { phantomItemId: string; phantomSku: string;
+     realItemId: string; realItemSku: string; netWeightMg: number; fineWeightMg: number } }
+ | { eventType: 'OLD_GOLD_LOT_CREATED'; payload: { lotId: string; grossWeightMg: number;
+     purityPercent: number; metalSource: string; receivedFrom: string; receivedDate: string;
+     fineWeightMg: number; purityRoundingDeltaMg: number; purchaseRatePaise: number | null; totalAmountPaise: number | null } }
+ | { eventType: 'OLD_GOLD_LOT_STATUS_CHANGED'; payload: { lotId: string; oldStatus: string;
+     newStatus: string; reason: string | null } }
+ | { eventType: 'URD_PURCHASE_CREATED'; payload: { urdId: string; lotId: string; customerName: string;
+     customerId: string | null; grossWeightMg: number; purityPercent: number; fineWeightMg: number;
+     totalValuePaise: number } }
+ | { eventType: 'URD_PURCHASE_CONFIRMED'; payload: { urdId: string; urdNumber: string;
+     totalValuePaise: number } }
  | { eventType: 'FY_CLOSED'; payload: { fyId: string; closedAt: string } }
- | { eventType: 'FY_CLOSE_FINE_BALANCE'; payload: { fyId: string; closedAt: string; fineBalanceComponents: { karigarOutstandingFineMg: number; refineryOutstandingFineMg: number; openGoldLotFineMg: number; totalOpeningFineMg: number } } }
+ | { eventType: 'FY_CLOSE_FINE_BALANCE'; payload: { fyId: string; closedAt: string;
+     fineBalanceComponents: { karigarOutstandingFineMg: number; refineryOutstandingFineMg: number;
+     openGoldLotFineMg: number; totalOpeningFineMg: number } } }
  | { eventType: 'FY_ARCHIVE_INDEXED'; payload: { fyId: string; fyLabel: string; rowCount: number } }
  | { eventType: 'ITEM_DELETED'; payload: { itemId: string; sku: string; designId: string; priorStatus: string; reason: string } }
  | { eventType: 'METAL_SOURCE_CORRECTED'; payload: { itemId: string; sku: string; oldMetalSource: string; newMetalSource: string; reason: string } }
- | { eventType: 'HUID_CORRECTED'; payload: { itemId: string; sku: string; oldHuid: string; newHuid: string; reason: string } };
+ | { eventType: 'HUID_CORRECTED'; payload: { itemId: string; sku: string; oldHuid: string | null; newHuid: string; reason: string } }
+ | { eventType: 'CATEGORY_CREATED'; payload: { firmId: string; name: string; code: string } }
+ | { eventType: 'DESIGN_CREATED'; payload: { firmId: string; name: string; metal: string; code: string } }
+ | { eventType: 'HUID_ADDED'; payload: { itemId: string; sku: string; huid: string } };

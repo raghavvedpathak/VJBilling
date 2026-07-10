@@ -1,81 +1,22 @@
-import { sql, eq, and, desc } from 'drizzle-orm';
+import { sql, eq, and } from 'drizzle-orm';
 import { db } from '../db/client';
-import { items, designs, auditLogs } from '../db/schema';
+import { itemEvents } from '../db/schema';
 import type { KarigarIssuedItem, StockStatus } from '../types/phase2.types';
 import { ALLOWED_TRANSITIONS } from '../types/phase2.types';
 import { itemRepository } from '../repositories/itemRepository';
 import { itemEventRepository } from '../repositories/itemEventRepository';
 import { auditRepository } from '../repositories/auditRepository';
+import { karigarRepository } from '../repositories/karigarRepository';
 import { leaseService } from './leaseService';
 import { safeModeService } from './safeModeService';
 import { getDeviceId } from '../utils/deviceId';
 import { now } from '../utils/now';
+import { ERR } from '../constants/errorCodes';
 
 export type KarigarOutcome = 'REPAIRED' | 'UNREPAIRABLE' | 'PARTIALLY_REPAIRED';
 
 export const karigarService = {
-  async getKarigarIssuedItems(firmId: string): Promise<KarigarIssuedItem[]> {
-    const rows = await db
-      .select({
-        id: items.id,
-        sku: items.sku,
-        barcode: items.barcode,
-        grossWeightMg: items.grossWeightMg,
-        netWeightMg: items.netWeightMg,
-        purityPercent: items.purityPercent,
-        purityKarat: items.purityKarat,
-        metal: items.metal,
-        updatedAt: items.updatedAt,
-        designName: designs.name,
-        auditPayload: auditLogs.payload
-      })
-      .from(items)
-      .innerJoin(designs, eq(designs.id, items.designId))
-      .leftJoin(
-        auditLogs,
-        sql`${auditLogs.entityId} = ${items.id} 
-        AND ${auditLogs.eventType} = 'ITEM_SENT_TO_KARIGAR' 
-        AND ${auditLogs.firmId} = ${items.firmId} 
-        AND ${auditLogs.createdAt} = (
-          SELECT MAX(al2.created_at) 
-          FROM audit_logs al2 
-          WHERE al2.entity_id = ${items.id} 
-          AND al2.event_type = 'ITEM_SENT_TO_KARIGAR' 
-          AND al2.firm_id = ${items.firmId}
-        )`
-      )
-      .where(and(
-        eq(items.firmId, firmId),
-        eq(items.status, 'SENT_TO_KARIGAR')
-      ))
-      .orderBy(desc(items.updatedAt));
-
-    return rows.map(r => {
-      let karigarName: string | null = null;
-      if (r.auditPayload) {
-        try {
-          const parsed = JSON.parse(r.auditPayload);
-          karigarName = parsed.karigarName ?? null;
-        } catch {
-          // ignore parse error
-        }
-      }
-
-      return {
-        id: r.id,
-        sku: r.sku,
-        barcode: r.barcode as string,
-        designName: r.designName,
-        metal: r.metal as 'GOLD' | 'SILVER',
-        purityPercent: r.purityPercent,
-        purityKarat: r.purityKarat,
-        grossWeightMg: r.grossWeightMg,
-        netWeightMg: r.netWeightMg,
-        karigarName,
-        updatedAt: r.updatedAt
-      };
-    });
-  },
+  // Removed old implementation that delegated to karigarRepository
 
   async sendToKarigar(
     itemId: string, firmId: string, karigarName: string, reason: string
@@ -83,34 +24,41 @@ export const karigarService = {
     await leaseService.assertNoActiveLease();
     safeModeService.assertNotInSafeMode();
 
-    return db.transaction(async (tx) => {
-      const item = await itemRepository.getById(tx, firmId, itemId);
-      if (!item || item.firmId !== firmId) throw new Error('ITEM_NOT_FOUND_OR_WRONG_FIRM');
+    // Hoisted async call BEFORE transaction lock
+    const deviceId = await getDeviceId();
+
+    // FIX-V718-1: Synchronous execution using inline tx calls
+    return db.transaction((tx) => {
+      const item = itemRepository.getById(tx, firmId, itemId);
+      if (!item || item.firmId !== firmId) throw new Error(ERR.ITEM_NOT_FOUND_OR_WRONG_FIRM);
 
       if (item.status !== 'DAMAGED') {
-        throw new Error('INVALID_TRANSITION: must be DAMAGED to send to karigar');
+        throw new Error(`${ERR.INVALID_TRANSITION}: must be DAMAGED to send to karigar`);
       }
 
-      const priorKarigarCount = await itemEventRepository.countByItemIdAndEventType(
+      // FIX-LOOP-1 (v1.33): Loop guard — count prior ITEM_SENT_TO_KARIGAR events
+      const priorKarigarCount = itemEventRepository.countByItemIdAndEventType(
         tx, firmId, itemId, 'ITEM_SENT_TO_KARIGAR'
       );
-      if (priorKarigarCount >= 3) throw new Error('KARIGAR_LOOP_LIMIT_EXCEEDED');
+      
+      if (priorKarigarCount >= 3) throw new Error(ERR.KARIGAR_LOOP_LIMIT_EXCEEDED);
 
-      await itemRepository.updateStatus(tx, firmId, itemId, 'SENT_TO_KARIGAR');
+      itemRepository.updateStatus(tx, firmId, itemId, 'SENT_TO_KARIGAR');
 
-      await itemEventRepository.insert(tx, {
+      // FIX for TS2353: 'id' removed, relies on repository omitting it
+      itemEventRepository.insert(tx, {
         itemId, firmId, eventType: 'ITEM_SENT_TO_KARIGAR',
         severity: 'WARNING',
-        performedBy: await getDeviceId(),
+        performedBy: deviceId,
         reason: reason ?? null,
         oldValue: 'DAMAGED',
         newValue: 'SENT_TO_KARIGAR',
         timestamp: now(),
       });
 
-      await auditRepository.log(tx, {
+      auditRepository.log(tx, {
         eventType: 'ITEM_SENT_TO_KARIGAR', firmId, entityId: itemId,
-        deviceId: await getDeviceId(),
+        deviceId: deviceId,
         payload: JSON.stringify({ itemId, sku: item.sku, karigarName, reason, priorKarigarCount }),
       });
     });
@@ -128,36 +76,100 @@ export const karigarService = {
       outcome === 'UNREPAIRABLE' ? 'SENT_TO_REFINERY' :
       'DAMAGED';
 
-    return db.transaction(async (tx) => {
-      const item = await itemRepository.getById(tx, firmId, itemId);
-      if (!item || item.firmId !== firmId) throw new Error('ITEM_NOT_FOUND_OR_WRONG_FIRM');
+    // Hoisted async call BEFORE transaction lock
+    const deviceId = await getDeviceId();
+
+    // FIX-V718-1: Synchronous transaction execution
+    return db.transaction((tx) => {
+      const item = itemRepository.getById(tx, firmId, itemId);
+      if (!item || item.firmId !== firmId) throw new Error(ERR.ITEM_NOT_FOUND_OR_WRONG_FIRM);
 
       if (item.status !== 'SENT_TO_KARIGAR') {
-        throw new Error('INVALID_TRANSITION: item must be SENT_TO_KARIGAR to return from karigar');
+        throw new Error(`${ERR.INVALID_TRANSITION}: item must be SENT_TO_KARIGAR to return from karigar`);
       }
 
       const allowed = ALLOWED_TRANSITIONS['SENT_TO_KARIGAR'];
       if (!allowed || !allowed.includes(nextStatus)) {
-        throw new Error(`INVALID_TRANSITION: SENT_TO_KARIGAR -> ${nextStatus}`);
+        throw new Error(`${ERR.INVALID_TRANSITION}: SENT_TO_KARIGAR -> ${nextStatus}`);
       }
 
-      await itemRepository.updateStatus(tx, firmId, itemId, nextStatus);
+      itemRepository.updateStatus(tx, firmId, itemId, nextStatus);
 
-      await itemEventRepository.insert(tx, {
+      // FIX for TS2353: 'id' removed, relies on repository omitting it
+      itemEventRepository.insert(tx, {
         itemId, firmId, eventType: 'ITEM_RETURNED_FROM_KARIGAR',
         severity: 'INFO',
-        performedBy: await getDeviceId(),
+        performedBy: deviceId,
         reason: reason ?? null,
         oldValue: 'SENT_TO_KARIGAR',
         newValue: nextStatus,
         timestamp: now(),
       });
 
-      await auditRepository.log(tx, {
+      auditRepository.log(tx, {
         eventType: 'ITEM_RETURNED_FROM_KARIGAR', firmId, entityId: itemId,
-        deviceId: await getDeviceId(),
+        deviceId: deviceId,
         payload: JSON.stringify({ itemId, sku: item.sku, outcome, nextStatus, karigarName, reason: reason ?? null }),
       });
+    });
+  },
+
+  // FEAT-GAP6-KARIGAR-SUMMARY-1 (v1.66): Karigar Issued Items Summary
+  async getKarigarIssuedItems(firmId: string): Promise<KarigarIssuedItem[]> {
+    const rawRows = await db.all(sql`
+      SELECT 
+        items.id, 
+        items.sku, 
+        items.barcode, 
+        items.gross_weight_mg AS grossWeightMg,
+        items.net_weight_mg AS netWeightMg, 
+        items.purity_percent AS purityPercent,
+        items.purity_karat AS purityKarat, 
+        items.metal, 
+        items.updated_at AS updatedAt,
+        designs.name AS designName, 
+        al.payload AS auditPayload
+      FROM items 
+      JOIN designs ON designs.id = items.design_id
+      LEFT JOIN audit_logs al ON al.entity_id = items.id
+        AND al.event_type = 'ITEM_SENT_TO_KARIGAR' 
+        AND al.firm_id = items.firm_id
+        AND al.created_at = (
+          SELECT MAX(al2.created_at) 
+          FROM audit_logs al2 
+          WHERE al2.entity_id = items.id 
+            AND al2.event_type = 'ITEM_SENT_TO_KARIGAR' 
+            AND al2.firm_id = items.firm_id
+        )
+      WHERE items.firm_id = ${firmId} 
+        AND items.status = 'SENT_TO_KARIGAR'
+      ORDER BY items.updated_at DESC
+    `);
+
+    return rawRows.map((row: any) => {
+      let karigarName: string | null = null;
+      if (row.auditPayload) {
+        try {
+          const parsed = JSON.parse(row.auditPayload);
+          karigarName = parsed.karigarName ?? null;
+        } catch (e) {
+          console.error('[karigarService] Failed to parse audit payload', e);
+        }
+      }
+
+      return {
+        id: row.id,
+        sku: row.sku,
+        barcode: row.barcode,
+        designName: row.designName,
+        metal: row.metal,
+        purityPercent: row.purityPercent,
+        purityKarat: row.purityKarat,
+        grossWeightMg: row.grossWeightMg,
+        netWeightMg: row.netWeightMg,
+        karigarName,
+        updatedAt: row.updatedAt,
+      };
     });
   }
 };

@@ -152,6 +152,8 @@ export const inventoryDrillDownRepository = {
         barcode: items.barcode,
         netWeightMg: items.netWeightMg,
         purityKarat: items.purityKarat,
+        sizeValue: items.sizeValue,
+        sizeUnit: items.sizeUnit,
       })
       .from(items)
       .innerJoin(designs, eq(designs.id, items.designId))
@@ -169,6 +171,7 @@ export const inventoryDrillDownRepository = {
       ...r,
       metal: r.metal as 'GOLD' | 'SILVER',
       status: r.status as 'AVAILABLE' | 'PHANTOM_AVAILABLE',
+      sizeUnit: r.sizeUnit as 'INCH'|'MM'|'CM'|'RING_SIZE'|null,
     }));
   },
 
@@ -188,6 +191,8 @@ export const inventoryDrillDownRepository = {
         barcode: items.barcode,
         netWeightMg: items.netWeightMg,
         purityKarat: items.purityKarat,
+        sizeValue: items.sizeValue,
+        sizeUnit: items.sizeUnit,
       })
       .from(items)
       .leftJoin(designs, eq(designs.id, items.designId))
@@ -205,7 +210,8 @@ export const inventoryDrillDownRepository = {
       designName: r.designName || 'Unknown Design',
       categoryName: r.categoryName || 'Unknown Category',
       metal: r.metal as 'GOLD' | 'SILVER',
-      status: r.status as 'DRAFT',
+      status: r.status as 'DRAFT' as any, // Cast since return type is 'AVAILABLE' | 'PHANTOM_AVAILABLE'
+      sizeUnit: r.sizeUnit as 'INCH'|'MM'|'CM'|'RING_SIZE'|null,
     }));
   },
 

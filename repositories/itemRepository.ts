@@ -1,4 +1,3 @@
-// repositories/itemRepository.ts
 import { eq, and, sql, inArray, like, or } from 'drizzle-orm';
 import { db } from '../db/client';
 import { items, designs, categories } from '../db/schema';
@@ -76,6 +75,20 @@ export const itemRepository = {
       );
   },
 
+  // FIX-V718-1: Synchronous execution using .all()
+  findByDesignIdTx(tx: DrizzleTransaction, designId: string, firmId: string): Item[] {
+    return tx
+      .select()
+      .from(items)
+      .where(
+        and(
+          eq(items.designId, designId),
+          eq(items.firmId, firmId)
+        )
+      )
+      .all() as unknown as Item[];
+  },
+
   async getAvailableStockForDesign(designId: string, firmId: string): Promise<{ totalNetWeightMg: number, count: number }> {
     const result = await db
       .select({
@@ -104,6 +117,20 @@ export const itemRepository = {
   // FIX-V718-1: Synchronous execution using .run()
   updateStatus(tx: DrizzleTransaction, firmId: string, id: string, status: string): void {
     tx.update(items).set({ status: status as any, updatedAt: now() }).where(and(eq(items.id, id), eq(items.firmId, firmId))).run();
+  },
+
+  updateCreatedAt(tx: DrizzleTransaction, itemId: string, createdAt: string): void {
+    tx.update(items).set({ createdAt, updatedAt: now() }).where(eq(items.id, itemId)).run();
+  },
+
+  updateSkuAndDate(tx: DrizzleTransaction, itemId: string, fields: { sku: string; barcode: string; createdAt: string; barcodeReprintRequired: boolean }): void {
+    tx.update(items).set({ 
+      sku: fields.sku, 
+      barcode: fields.barcode, 
+      createdAt: fields.createdAt, 
+      barcodeReprintRequired: fields.barcodeReprintRequired ? 1 : 0, 
+      updatedAt: now() 
+    }).where(eq(items.id, itemId)).run();
   },
 
   insert(tx: DrizzleTransaction, data: any): Item {
@@ -179,7 +206,27 @@ export const itemRepository = {
 
   // Operates on global async db - left as async
   async search(firmId: string, query: string): Promise<ItemSearchResult[]> {
-    const safeQuery = `%${query}%`;
+    // FIX-GAP-P2-SIZE-1 (v1.76): Size tokenization for search
+    const tokens = query.trim().split(/\s+/);
+    const sizeToken = tokens.find(t => /^\d+(\.\d+)?$/.test(t));
+    const textQuery = tokens.filter(t => t !== sizeToken).join(' ');
+    const safeQuery = `%${textQuery}%`;
+
+    const conditions = [
+      eq(items.firmId, firmId),
+      inArray(items.status, ['AVAILABLE', 'PHANTOM_AVAILABLE']),
+      or(
+        like(items.sku, safeQuery),
+        like(items.huid, safeQuery),
+        like(designs.name, safeQuery),
+        like(categories.name, safeQuery)
+      )
+    ];
+
+    if (sizeToken) {
+      conditions.push(eq(items.sizeValue, Number(sizeToken)));
+    }
+
     const results = await db
       .select({
         itemId: items.id,
@@ -195,29 +242,20 @@ export const itemRepository = {
         barcode: items.barcode,
         netWeightMg: items.netWeightMg,
         purityKarat: items.purityKarat,
+        sizeValue: items.sizeValue,
+        sizeUnit: items.sizeUnit,
       })
       .from(items)
       .innerJoin(designs, eq(items.designId, designs.id))
       .innerJoin(categories, eq(items.categoryId, categories.id))
-      .where(
-        and(
-          eq(items.firmId, firmId),
-          inArray(items.status, ['AVAILABLE', 'PHANTOM_AVAILABLE']),
-          // SEARCH-1 (v1.13) FIX: Now includes designs and categories
-          or(
-            like(items.sku, safeQuery),
-            like(items.huid, safeQuery),
-            like(designs.name, safeQuery),
-            like(categories.name, safeQuery)
-          )
-        )
-      )
+      .where(and(...conditions))
       .limit(20);
 
     return results.map(r => ({
       ...r,
       metal: r.metal as 'GOLD' | 'SILVER',
-      status: r.status as 'AVAILABLE' | 'PHANTOM_AVAILABLE'
+      status: r.status as 'AVAILABLE' | 'PHANTOM_AVAILABLE',
+      sizeUnit: r.sizeUnit as 'INCH'|'MM'|'CM'|'RING_SIZE'|null
     }));
   }
 };

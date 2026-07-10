@@ -7,21 +7,26 @@ import { now } from '../utils/now';
 type NewDesign = typeof designs.$inferInsert;
 
 export const designRepository = {
-  async getById(tx: DrizzleTransaction, firmId: string, id: string): Promise<Design | null> {
-    const [design] = await tx
+  // FIX-V718-1: Synchronous execution using .get()
+  getById(tx: DrizzleTransaction, firmId: string, id: string): Design | null {
+    const design = tx
       .select()
       .from(designs)
       .where(and(eq(designs.id, id), eq(designs.firmId, firmId)))
-      .limit(1);
+      .limit(1)
+      .get();
 
-    return design || null;
+    return (design as unknown as Design) || null;
   },
 
-  async insert(tx: DrizzleTransaction, data: NewDesign): Promise<Design> {
-    const [inserted] = await tx.insert(designs).values(data).returning();
-    return inserted;
+  // FIX-V718-1: Synchronous execution using .run() and .get()
+  insert(tx: DrizzleTransaction, data: NewDesign): Design {
+    tx.insert(designs).values(data).run();
+    const result = tx.select().from(designs).where(eq(designs.id, data.id)).limit(1).get();
+    return result as unknown as Design;
   },
 
+  // Operates globally outside a transaction — safely left as async
   async findByFirmId(firmId: string): Promise<Design[]> {
     return db
       .select()
@@ -34,22 +39,29 @@ export const designRepository = {
       );
   },
 
-  async softDelete(tx: DrizzleTransaction, firmId: string, id: string): Promise<void> {
-    await tx
-      .update(designs)
+  // FIX-V718-1: Synchronous execution using .run()
+  softDelete(tx: DrizzleTransaction, firmId: string, id: string): void {
+    tx.update(designs)
       .set({ isActive: 0, updatedAt: now() })
-      .where(and(eq(designs.id, id), eq(designs.firmId, firmId)));
+      .where(and(eq(designs.id, id), eq(designs.firmId, firmId)))
+      .run();
   },
 
-  async update(tx: DrizzleTransaction, firmId: string, id: string, data: Partial<Pick<Design, 'name' | 'defaultHsn'>>): Promise<void> {
-    await tx
-      .update(designs)
+  // FIX-V718-1: Synchronous execution using .run()
+  update(tx: DrizzleTransaction, firmId: string, id: string, data: Partial<Pick<Design, 'name' | 'defaultHsn'>>): void {
+    tx.update(designs)
       .set({ ...data, updatedAt: now() })
-      .where(and(eq(designs.id, id), eq(designs.firmId, firmId)));
+      .where(and(eq(designs.id, id), eq(designs.firmId, firmId)))
+      .run();
   },
 
+  // Operates globally outside a transaction — safely left as async
   async searchStock(firmId: string, query: string): Promise<DesignStockResult[]> {
-    const likeQuery = `%${query}%`;
+    // FIX-GAP-P2-SIZE-1 (v1.76): Size tokenization for search
+    const tokens = query.trim().split(/\s+/);
+    const sizeToken = tokens.find(t => /^\d+(\.\d+)?$/.test(t));
+    const textQuery = tokens.filter(t => t !== sizeToken).join(' ');
+    const likeQuery = `%${textQuery}%`;
     const results = await db
       .select({
         designId: designs.id,
@@ -58,7 +70,9 @@ export const designRepository = {
         purityPercent: items.purityPercent,
         categoryName: categories.name,
         totalGrossWeightMg: sql<number>`SUM(${items.grossWeightMg})`,
-        availableCount: sql<number>`COUNT(${items.id})`
+        availableCount: sql<number>`COUNT(${items.id})`,
+        sizeValue: items.sizeValue,
+        sizeUnit: items.sizeUnit
       })
       .from(designs)
       // FIX-JOIN-ORDER-1: items joined before categories
@@ -77,14 +91,19 @@ export const designRepository = {
       .where(
         and(
           eq(designs.firmId, firmId),
-          like(designs.name, likeQuery)
+          like(designs.name, likeQuery),
+          sizeToken ? eq(items.sizeValue, Number(sizeToken)) : undefined
         )
       )
       // BLOCK-5 (v1.15): GROUP BY designs.id, items.purity_percent
-      .groupBy(designs.id, items.purityPercent)
+      .groupBy(designs.id, items.purityPercent, items.sizeValue, items.sizeUnit)
       .orderBy(designs.name, sql`${items.purityPercent} DESC`)
       .limit(20);
 
-    return results as DesignStockResult[];
+    return results.map(r => ({
+      ...r,
+      metal: r.metal as 'GOLD' | 'SILVER',
+      sizeUnit: r.sizeUnit as 'INCH'|'MM'|'CM'|'RING_SIZE'|null
+    }));
   }
 };

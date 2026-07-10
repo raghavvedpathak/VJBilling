@@ -25,6 +25,10 @@ export type Phase1AuditPayload =
   | { eventType: 'PRE_MIGRATION_SNAPSHOT_FAILED'; error?: string }
   | { eventType: 'AUDIT_RETENTION_PURGE_EXECUTED'; deletedCount?: number; auditRetentionDays?: number; cutoff?: string; executedAt?: string }
   | { eventType: 'DEVICE_ID_CHANGED'; oldDeviceId?: string; newDeviceId?: string; reason?: 'reinstall_or_new_device' }
-  | { eventType: 'FACTORY_RESET_EXECUTED'; confirmedFirmCode?: string; executedAt?: string };
+  | { eventType: 'FACTORY_RESET_EXECUTED'; confirmedFirmCode?: string; executedAt?: string }
+  // v7.29 PIN Security Events
+  | { eventType: 'PIN_SET'; pinLength: 4 | 6; setAt: string }
+  | { eventType: 'PIN_CHANGED'; oldPinLength: 4 | 6; newPinLength: 4 | 6; changedAt: string }
+  | { eventType: 'PIN_SKIPPED'; skippedAt: string };
 
 export type AuditPayload = Phase1AuditPayload | Phase2AuditPayload;

@@ -1,3 +1,11 @@
+CREATE TABLE `safe_mode_state` (
+	`id` integer PRIMARY KEY DEFAULT 1 NOT NULL,
+	`is_active` integer DEFAULT 0 NOT NULL,
+	`reason` text,
+	`activated_at` text,
+	`cleared_at` text
+);
+--> statement-breakpoint
 CREATE TABLE `app_settings` (
 	`id` integer PRIMARY KEY DEFAULT 1 NOT NULL,
 	`theme` text DEFAULT 'system' NOT NULL,
@@ -9,51 +17,6 @@ CREATE TABLE `app_settings` (
 	`date_format_token` text DEFAULT 'dd/MM/yyyy' NOT NULL,
 	`warn_unsaved_changes` integer DEFAULT 1 NOT NULL,
 	`updated_at` text NOT NULL
-);
---> statement-breakpoint
-CREATE TABLE `audit_archive_index` (
-	`id` text PRIMARY KEY NOT NULL,
-	`firm_id` text NOT NULL,
-	`fy_id` text NOT NULL,
-	`fy_label` text NOT NULL,
-	`archive_date` text NOT NULL,
-	`row_count` integer NOT NULL,
-	`storage_ref` text
-);
---> statement-breakpoint
-CREATE TABLE `audit_delete_gate` (
-	`id` integer PRIMARY KEY DEFAULT 1 NOT NULL,
-	`gate_open` integer DEFAULT 0 NOT NULL
-);
---> statement-breakpoint
-CREATE TABLE `audit_logs` (
-	`id` text PRIMARY KEY NOT NULL,
-	`event_type` text NOT NULL,
-	`firm_id` text,
-	`entity_id` text,
-	`device_id` text NOT NULL,
-	`payload` text,
-	`created_at` text NOT NULL
-);
---> statement-breakpoint
-CREATE TABLE `bis_logos` (
-	`id` text PRIMARY KEY NOT NULL,
-	`firm_id` text NOT NULL,
-	`file_ref` text NOT NULL,
-	`is_archived` integer DEFAULT 0 NOT NULL,
-	`archived_at` text,
-	`archived_reason` text,
-	`created_at` text NOT NULL
-);
---> statement-breakpoint
-CREATE TABLE `financial_years` (
-	`id` text PRIMARY KEY NOT NULL,
-	`firm_id` text NOT NULL,
-	`label` text NOT NULL,
-	`start_date` text NOT NULL,
-	`end_date` text NOT NULL,
-	`status` text NOT NULL,
-	`created_at` text NOT NULL
 );
 --> statement-breakpoint
 CREATE TABLE `firms` (
@@ -80,13 +43,50 @@ CREATE TABLE `firms` (
 	`updated_at` text NOT NULL
 );
 --> statement-breakpoint
-CREATE UNIQUE INDEX `firms_firm_code_unique` ON `firms` (`firm_code`);--> statement-breakpoint
-CREATE TABLE `safe_mode_state` (
+CREATE UNIQUE INDEX `firms_firm_code_unique` ON `firms` (`firm_code`);
+--> statement-breakpoint
+CREATE TABLE `financial_years` (
+	`id` text PRIMARY KEY NOT NULL,
+	`firm_id` text NOT NULL,
+	`label` text NOT NULL,
+	`start_date` text NOT NULL,
+	`end_date` text NOT NULL,
+	`status` text NOT NULL,
+	`created_at` text NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE `writer_leases` (
+	`id` text PRIMARY KEY NOT NULL,
+	`lease_type` text NOT NULL,
+	`firm_id` text,
+	`acquired_at` text NOT NULL,
+	`expires_at` text NOT NULL,
+	`device_id` text NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE `audit_logs` (
+	`id` text PRIMARY KEY NOT NULL,
+	`event_type` text NOT NULL,
+	`firm_id` text,
+	`entity_id` text,
+	`device_id` text NOT NULL,
+	`payload` text,
+	`created_at` text NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE `audit_delete_gate` (
 	`id` integer PRIMARY KEY DEFAULT 1 NOT NULL,
-	`is_active` integer DEFAULT 0 NOT NULL,
-	`reason` text,
-	`activated_at` text,
-	`cleared_at` text
+	`gate_open` integer DEFAULT 0 NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE `bis_logos` (
+	`id` text PRIMARY KEY NOT NULL,
+	`firm_id` text NOT NULL,
+	`file_ref` text NOT NULL,
+	`is_archived` integer DEFAULT 0 NOT NULL,
+	`archived_at` text,
+	`archived_reason` text,
+	`created_at` text NOT NULL
 );
 --> statement-breakpoint
 CREATE TABLE `schema_version` (
@@ -94,7 +94,37 @@ CREATE TABLE `schema_version` (
 	`current_version` integer NOT NULL
 );
 --> statement-breakpoint
+CREATE TABLE `tax_rates` (
+	-- TODO: PHASE 3 STEP 0 BOUNDARY. DO NOT import or query this table from Phase 1 service code. Any Phase 1 usage is a build violation.
+	`id` text PRIMARY KEY NOT NULL,
+	`firm_id` text NOT NULL,
+	`tax_name` text NOT NULL,
+	`rate_bps` integer NOT NULL,
+	`tax_type` text NOT NULL,
+	`is_active` integer DEFAULT 1 NOT NULL,
+	`created_at` text NOT NULL,
+	`updated_at` text NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE `tax_groups` (
+	-- TODO: PHASE 3 STEP 0 BOUNDARY. DO NOT import or query this table from Phase 1 service code. Any Phase 1 usage is a build violation.
+	`id` text PRIMARY KEY NOT NULL,
+	`firm_id` text NOT NULL,
+	`group_name` text NOT NULL,
+	`is_active` integer DEFAULT 1 NOT NULL,
+	`created_at` text NOT NULL,
+	`updated_at` text NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE `tax_group_components` (
+	-- TODO: PHASE 3 STEP 0 BOUNDARY. DO NOT import or query this table from Phase 1 service code. Any Phase 1 usage is a build violation.
+	`id` text PRIMARY KEY NOT NULL,
+	`tax_group_id` text NOT NULL,
+	`tax_rate_id` text NOT NULL
+);
+--> statement-breakpoint
 CREATE TABLE `sync_devices` (
+	-- TODO: FUTURE SYNC PHASE BOUNDARY. DO NOT import or query this table from Phase 1–7 service code. Any usage before the Future Sync Phase spec is approved is a build violation.
 	`id` text PRIMARY KEY NOT NULL,
 	`device_id` text NOT NULL,
 	`device_name` text NOT NULL,
@@ -106,6 +136,7 @@ CREATE TABLE `sync_devices` (
 );
 --> statement-breakpoint
 CREATE TABLE `sync_log` (
+	-- TODO: FUTURE SYNC PHASE BOUNDARY. DO NOT import or query this table from Phase 1–7 service code. Any usage before the Future Sync Phase spec is approved is a build violation.
 	`id` text PRIMARY KEY NOT NULL,
 	`event_type` text NOT NULL,
 	`device_id` text NOT NULL,
@@ -114,39 +145,14 @@ CREATE TABLE `sync_log` (
 	`payload` text
 );
 --> statement-breakpoint
-CREATE TABLE `tax_group_components` (
-	`id` text PRIMARY KEY NOT NULL,
-	`tax_group_id` text NOT NULL,
-	`tax_rate_id` text NOT NULL
-);
---> statement-breakpoint
-CREATE TABLE `tax_groups` (
+CREATE TABLE `audit_archive_index` (
 	`id` text PRIMARY KEY NOT NULL,
 	`firm_id` text NOT NULL,
-	`group_name` text NOT NULL,
-	`is_active` integer DEFAULT 1 NOT NULL,
-	`created_at` text NOT NULL,
-	`updated_at` text NOT NULL
-);
---> statement-breakpoint
-CREATE TABLE `tax_rates` (
-	`id` text PRIMARY KEY NOT NULL,
-	`firm_id` text NOT NULL,
-	`tax_name` text NOT NULL,
-	`rate_bps` integer NOT NULL,
-	`tax_type` text NOT NULL,
-	`is_active` integer DEFAULT 1 NOT NULL,
-	`created_at` text NOT NULL,
-	`updated_at` text NOT NULL
-);
---> statement-breakpoint
-CREATE TABLE `writer_leases` (
-	`id` text PRIMARY KEY NOT NULL,
-	`lease_type` text NOT NULL,
-	`firm_id` text,
-	`acquired_at` text NOT NULL,
-	`expires_at` text NOT NULL,
-	`device_id` text NOT NULL
+	`fy_id` text NOT NULL,
+	`fy_label` text NOT NULL,
+	`archive_date` text NOT NULL,
+	`row_count` integer NOT NULL,
+	`storage_ref` text
 );
 
 --> statement-breakpoint

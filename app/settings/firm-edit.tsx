@@ -86,7 +86,7 @@ export default function EditFirmScreen() {
            form.bisLicence !== (originalFirm.bisLicence || '');
   }, [form, originalFirm]);
 
-  const unsavedModal = useUnsavedChangesGuard(isDirty);
+  useUnsavedChangesGuard(isDirty);
 
   const pickImage = async (field: 'logoUri' | 'bisLogoUri') => {
     Alert.alert(
@@ -390,7 +390,7 @@ export default function EditFirmScreen() {
           </View>
         </View>
       </Modal>
-      {unsavedModal}
+
     </TwoToneWrapper>
   );
 }

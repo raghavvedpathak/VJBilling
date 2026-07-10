@@ -39,10 +39,6 @@ import type { BackupEnvelope } from './backupService';
 
 export const restoreService = {
 
-  /**
-   * LEGACY UI WRAPPER: Handles File Picking and Preview Alert.
-   * Upgraded to AES-256-GCM. Once confirmed, calls the canonical restore() engine.
-   */
   async restoreFromFile(password?: string): Promise<'CANCELED' | 'COMPLETED' | 'COMPLETED_WITH_ISSUES'> {
     await leaseService.assertNoActiveLease();
 
@@ -152,10 +148,6 @@ export const restoreService = {
     return isSafeModeBackedUp ? 'COMPLETED_WITH_ISSUES' : 'COMPLETED';
   },
 
-  /**
-   * CANONICAL ENGINE: Core transactional restore engine. 
-   * Validates AES-GCM encryption, schema compatibility, and executes an atomic wipe/replace.
-   */
   async restore(encryptedFileContent: string, password?: string): Promise<void> {
     
     await leaseService.assertNoActiveLease(); 
@@ -211,7 +203,7 @@ export const restoreService = {
         tx.delete(auditLogsTable).run();
         tx.update(auditDeleteGateTable).set({ gateOpen: 0 }).where(eq(auditDeleteGateTable.id, 1)).run();
 
-        // Wipe core tables
+        // Phase 1 Wipe (Reverse FK dependency)
         tx.delete(bisLogosTable).run();
         tx.delete(financialYearsTable).run();
         tx.delete(writerLeasesTable).run();
@@ -219,7 +211,7 @@ export const restoreService = {
         tx.delete(appSettingsTable).run();
         tx.delete(safeModeStateTable).run();
 
-        // Wipe Phase 2+ tables (Reverse dependency order)
+        // Phase 2 Wipe (Reverse FK dependency per STEP 12.12B)
         tx.delete(urdPurchases).run();
         tx.delete(oldGoldLots).run();
         tx.delete(sequenceCounters).run();
@@ -232,7 +224,7 @@ export const restoreService = {
         tx.delete(stones).run();
         tx.delete(categories).run();
 
-        // INSERT core backup data
+        // INSERT Phase 1 core backup data
         if (backup.payload.firms?.length) tx.insert(firmsTable).values(backup.payload.firms).run();
         if (backup.payload.financialYears?.length) tx.insert(financialYearsTable).values(backup.payload.financialYears).run();
         if (backup.payload.settings?.length) tx.insert(appSettingsTable).values(backup.payload.settings).run();
@@ -244,7 +236,7 @@ export const restoreService = {
             .onConflictDoUpdate({ target: safeModeStateTable.id, set: backup.payload.safeModeState }).run();
         }
 
-        // INSERT Phase 2+ tables
+        // INSERT Phase 2 tables (Forward FK dependency per STEP 12.12B)
         if (backup.payload.categories?.length) tx.insert(categories).values(backup.payload.categories).run();
         if (backup.payload.designs?.length) tx.insert(designs).values(backup.payload.designs).run();
         if (backup.payload.stones?.length) tx.insert(stones).values(backup.payload.stones).run();
@@ -304,10 +296,6 @@ export const restoreService = {
     }
   },
 
-  /**
-   * HARDENING 4: Strict schema version validation.
-   * RESTORE_OLD_SCHEMA is one of 3 G41-exempt events — written without tx.
-   */
   async validateBackupSchema(backup: BackupEnvelope): Promise<void> {
     const { schemaVersion } = backup;
 

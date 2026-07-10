@@ -1,5 +1,5 @@
 import { sqliteTable, text, integer, real, index, foreignKey, unique } from 'drizzle-orm/sqlite-core';
-import { isNotNull } from 'drizzle-orm';
+import { isNotNull, sql } from 'drizzle-orm';
 import { firms, type Metal } from './phase1_core';
 // PHASE 2 — INVENTORY TRUTH LAYER (Migration 0002)
 // =============================================================================
@@ -32,12 +32,6 @@ export function percentToKarat(percent: number): number {
   return 0; // silver or unknown
 }
 
-export function getDisplayPurity(metal: Metal, purityPercent: number, purityKarat: number): string {
-  if (metal === 'SILVER') return `${purityPercent.toFixed(2)}%`;
-  const k = percentToKarat(purityPercent) || purityKarat;
-  return `${k}K (${purityPercent.toFixed(2)}%)`;
-}
-
 // Categories
 export const categories = sqliteTable('categories', {
   id: text('id').primaryKey(),
@@ -51,6 +45,7 @@ export const categories = sqliteTable('categories', {
   updatedAt: text('updated_at').notNull(),
 }, (table) => ({
   firmFk: foreignKey({ columns: [table.firmId], foreignColumns: [firms.id] }),
+  idxCategoriesFirmActive: index('idx_categories_firm_active').on(table.firmId, table.isActive),
 })); 
 
 // Designs
@@ -67,6 +62,9 @@ export const designs = sqliteTable('designs', {
 }, (table) => ({
   firmFk: foreignKey({ columns: [table.firmId], foreignColumns: [firms.id] }),
   uniqueDesign: unique().on(table.name, table.metal, table.firmId), // FIX-CAT-ITEM-FK (v1.42)
+  idxDesignsFirmId: index('idx_designs_firm_id').on(table.firmId),
+  idxDesignsFirmActive: index('idx_designs_firm_active').on(table.firmId, table.isActive),
+  idxDesignsFirmMetal: index('idx_designs_firm_metal').on(table.firmId, table.metal),
 }));
 
 // Items (individual SKUs)
@@ -115,6 +113,15 @@ export const items = sqliteTable('items', {
   designFk: foreignKey({ columns: [table.designId], foreignColumns: [designs.id] }),
   firmFk: foreignKey({ columns: [table.firmId], foreignColumns: [firms.id] }),
   stoneFk: foreignKey({ columns: [table.primaryStoneId], foreignColumns: [stones.id] }),
+  idxItemsFirmStatus: index('idx_items_firm_status').on(table.firmId, table.status),
+  idxItemsDesignId: index('idx_items_design_id').on(table.designId),
+  idxItemsDesignStatus: index('idx_items_design_status').on(table.designId, table.status),
+  idxItemsSku: index('idx_items_sku').on(table.sku, table.firmId),
+  idxItemsHuid: index('idx_items_huid').on(table.huid).where(isNotNull(table.huid)),
+  idxItemsCategoryStatus: index('idx_items_category_status').on(table.firmId, table.categoryId, table.status),
+  idxItemsInvoice: index('idx_items_invoice').on(table.invoiceId).where(isNotNull(table.invoiceId)),
+  idxItemsPhantomAvailable: index('idx_items_phantom_available').on(table.firmId, table.phantomStockId).where(sql`status = 'PHANTOM_AVAILABLE'`),
+  idxItemsPhantomSold: index('idx_items_phantom_sold').on(table.firmId, table.phantomStockId).where(sql`status = 'PHANTOM_SOLD'`),
 }));
 
 // Item Events (append-only audit trail per item)
@@ -125,7 +132,8 @@ export const itemEvents = sqliteTable('item_events', {
   eventType: text('event_type', {
     enum: ['CREATED','ITEM_STATUS_CHANGED','WEIGHT_ADJUSTED', 
     'HUID_ADDED','BARCODE_REPRINTED','ITEM_RETURNED',
-    'ITEM_SENT_TO_KARIGAR','ITEM_RETURNED_FROM_KARIGAR','ITEM_EDITED','PHANTOM_CREATED','PHANTOM_RECONCILED']
+    'ITEM_SENT_TO_KARIGAR','ITEM_RETURNED_FROM_KARIGAR','ITEM_EDITED','PHANTOM_CREATED','PHANTOM_RECONCILED',
+    'SKU_CHANGED','ITEM_ENTRY_DATE_CORRECTED','HUID_CORRECTED','METAL_SOURCE_CORRECTED']
   }).notNull(),
   severity: text('severity', { enum: ['INFO','WARNING','ERROR'] }).notNull(),
   performedBy: text('performed_by').notNull(), // deviceId
@@ -153,6 +161,7 @@ export const sequenceCounters = sqliteTable('sequence_counters', {
   // Documents: key = '{firmId}_{type}_{fyLabel}' — FY-scoped
 }, (table) => ({
   firmFk: foreignKey({ columns: [table.firmId], foreignColumns: [firms.id] }),
+  idxSequenceCountersFirmMonth: index('idx_sequence_counters_firm_month').on(table.firmId, table.month),
 })); 
 
 // Old Gold Lots (BLOCK-4 v1.15)
@@ -213,6 +222,7 @@ export const urdPurchases = sqliteTable('urd_purchases', {
   lotFk: foreignKey({ columns: [table.oldGoldLotId], foreignColumns: [oldGoldLots.id] }),
   idxUrdPurchasesFirm: index('idx_urd_purchases_firm').on(table.firmId, table.status, table.purchaseDate),
   idxUrdPurchasesCustomer: index('idx_urd_purchases_customer').on(table.firmId, table.customerId).where(isNotNull(table.customerId)),
+  idxUrdPurchasesFy: index('idx_urd_purchases_fy').on(table.firmId, table.fyId),
 }));
 
 // Design-Category Map (Phase 6 analytics denormalization)
@@ -258,6 +268,8 @@ export const gemstoneLots = sqliteTable('gemstone_lots', {
 }, (table) => ({
   firmFk: foreignKey({ columns: [table.firmId], foreignColumns: [firms.id] }),
   stoneFk: foreignKey({ columns: [table.stoneId], foreignColumns: [stones.id] }),
+  idxGemstoneLotsFirmStatus: index('idx_gemstone_lots_firm_status').on(table.firmId, table.status),
+  idxGemstoneLotsName: index('idx_gemstone_lots_name').on(table.name),
 }));
 
 // HSN Code Master (FIX-HSN-MASTER-1 v1.46)

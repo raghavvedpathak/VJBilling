@@ -5,26 +5,31 @@ import type { DrizzleTransaction, ItemEventType } from '../types/phase2.types';
 import * as Crypto from 'expo-crypto';
 
 export const itemEventRepository = {
-  async insert(tx: DrizzleTransaction, data: Omit<typeof itemEvents.$inferInsert, 'id'>) {
-    await tx.insert(itemEvents).values({
-      ...data,
-      id: Crypto.randomUUID(),
-    });
+  // FIX-V718-1: Synchronous execution
+  insert(tx: DrizzleTransaction, data: Omit<typeof itemEvents.$inferInsert, 'id'>) {
+    const id = Crypto.randomUUID();
+    const row = { ...data, id };
+    tx.insert(itemEvents).values(row).run();
+    return row;
   },
 
-  async deleteByItemId(tx: DrizzleTransaction, firmId: string, itemId: string): Promise<void> {
-    await tx.delete(itemEvents).where(and(eq(itemEvents.itemId, itemId), eq(itemEvents.firmId, firmId)));
+  // FIX-V718-1: Synchronous execution
+  deleteByItemId(tx: DrizzleTransaction, firmId: string, itemId: string): void {
+    tx.delete(itemEvents).where(and(eq(itemEvents.itemId, itemId), eq(itemEvents.firmId, firmId))).run();
   },
 
+  // Operates globally outside a transaction — safely left as async
   async findByItemId(firmId: string, itemId: string) {
     return await db.select().from(itemEvents).where(and(eq(itemEvents.itemId, itemId), eq(itemEvents.firmId, firmId)));
   },
 
-  async countByItemIdAndEventType(tx: DrizzleTransaction, firmId: string, itemId: string, eventType: ItemEventType): Promise<number> {
-    const result = await tx
+  // FIX-V718-1: Synchronous execution
+  countByItemIdAndEventType(tx: DrizzleTransaction, firmId: string, itemId: string, eventType: ItemEventType): number {
+    const result = tx
       .select({ count: sql<number>`COUNT(*)` })
       .from(itemEvents)
-      .where(and(eq(itemEvents.itemId, itemId), eq(itemEvents.firmId, firmId), eq(itemEvents.eventType, eventType as any)));
-    return Number(result[0]?.count) || 0;
+      .where(and(eq(itemEvents.itemId, itemId), eq(itemEvents.firmId, firmId), eq(itemEvents.eventType, eventType as any)))
+      .get();
+    return Number((result as any)?.count) || 0;
   }
 };

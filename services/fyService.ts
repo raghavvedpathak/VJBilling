@@ -25,15 +25,19 @@ export function registerFYCloseHook(fn: (tx: DrizzleTransaction, firmId: string,
 export async function preCloseChecks(fyId: string, firmId: string): Promise<{ canClose: boolean; issues: VerifyIssue[] }> {
   const issues: VerifyIssue[] = [];
   
-  // FIX-V718-1: fyRepository.getById is now strictly synchronous
-  const fy = fyRepository.getById(db as any, firmId, fyId);
+  // FIX: Safely execute async read on the global DB since we are outside a synchronous transaction
+  const [fy] = await db
+    .select()
+    .from(financialYears)
+    .where(and(eq(financialYears.id, fyId), eq(financialYears.firmId, firmId)))
+    .limit(1);
   
-  if (!fy || fy.firmId !== firmId) { 
+  if (!fy) { 
     issues.push({ code: ERR.FY_OWNERSHIP_MISMATCH, severity: 'CRITICAL', message: 'Financial year does not belong to this firm' }); 
     return { canClose: false, issues }; 
   }
   
-  if (fy && fy.status !== 'ACTIVE') {
+  if (fy.status !== 'ACTIVE') {
     issues.push({ code: ERR.FY_NOT_ACTIVE, severity: 'CRITICAL', message: 'Financial year is not in ACTIVE status' });
   }
 
@@ -76,8 +80,10 @@ export async function closeFY(fyId: string, firmId: string): Promise<void> {
 
     // FIX-V718-1: Completely synchronous transaction block
     db.transaction((tx) => {
-      const fy = fyRepository.getById(tx, firmId, fyId);
-      if (!fy || fy.firmId !== firmId) throw new Error(ERR.FY_OWNERSHIP_MISMATCH);
+      // Inline query since we have tx context, avoids guessing repo methods
+      const fy = tx.select().from(financialYears).where(and(eq(financialYears.id, fyId), eq(financialYears.firmId, firmId))).limit(1).get() as any;
+      
+      if (!fy) throw new Error(ERR.FY_OWNERSHIP_MISMATCH);
       if (fy.status !== 'ACTIVE') throw new Error(ERR.FY_NOT_ACTIVE);
       
       const draftItems = itemRepository.findByStatusTx(tx, firmId, 'DRAFT');
@@ -101,8 +107,11 @@ export async function closeFY(fyId: string, firmId: string): Promise<void> {
         
       const totalOpeningFineMg = karigarOutstandingFineMg + refineryOutstandingFineMg + openGoldLotFineMg;
 
-      // Close FY (Synchronous)
-      fyRepository.closeFY(firmId, fyId, tx);
+      // FIX FOR TS ERROR 2339: Inline synchronous update instead of a nonexistent repo method
+      tx.update(financialYears)
+        .set({ status: 'CLOSED' })
+        .where(and(eq(financialYears.id, fyId), eq(financialYears.firmId, firmId)))
+        .run();
 
       for (const hook of fyCloseHooks) {
         hook(tx, firmId, fyId);
@@ -149,7 +158,6 @@ export async function closeFY(fyId: string, firmId: string): Promise<void> {
 }
 
 export const fyService = {
-  // getActiveFY relies on the now-synchronous fyRepository method
   async getActiveFY(firmId: string) { return fyRepository.getActiveFY(firmId); },
   resolveTransactionFyId,
   closeFY,
@@ -169,6 +177,6 @@ export async function resolveTransactionFyId(
       gte(financialYears.endDate, entryDate),
     )
   ).limit(1);
-  if (!match.length) throw new Error('ENTRY_DATE_IN_CLOSED_FY');
+  if (!match.length) throw new Error(ERR.ENTRY_DATE_IN_CLOSED_FY);
   return match[0].id;
 }

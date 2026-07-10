@@ -77,6 +77,17 @@ const SkuRow = React.memo(({
             <Text style={s.itemMetaLabel}>Purity</Text>
             <Text style={[s.itemMetaValue, { color: metalColor }]}>{purityDisplay}</Text>
           </View>
+          {item.sizeValue != null && (
+            <>
+              <View style={s.metaDivider} />
+              <View style={s.itemMetaBlock}>
+                <Text style={s.itemMetaLabel}>Size</Text>
+                <Text style={s.itemMetaValue}>
+                  {item.sizeValue} {item.sizeUnit ? item.sizeUnit : ''}
+                </Text>
+              </View>
+            </>
+          )}
         </View>
 
         <View style={s.locationRow}>
@@ -116,7 +127,7 @@ export default function PurityItemsScreen() {
           const results = await inventoryDrillDownService.getItemsByDesign(activeFirmId, designId);
           if (active) {
             const targetPurity = Number(purityPercent);
-            const filtered = results.filter(r => r.purityPercent === targetPurity);
+            const filtered = results.filter((r: ItemSearchResult) => r.purityPercent === targetPurity);
             setItems(filtered);
           }
         } catch (e) {

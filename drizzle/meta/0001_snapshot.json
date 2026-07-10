@@ -1,8 +1,8 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "7ea82ebc-6df4-434f-a160-8377f6131b2f",
-  "prevId": "6287c95b-0243-42bd-8463-7ad8d162bdc2",
+  "id": "fb89b865-34ce-421c-9c41-1294378e2403",
+  "prevId": "7ea82ebc-6df4-434f-a160-8377f6131b2f",
   "tables": {
     "app_settings": {
       "name": "app_settings",
@@ -230,7 +230,18 @@
           "autoincrement": false
         }
       },
-      "indexes": {},
+      "indexes": {
+        "idx_audit_logs_entity_event": {
+          "name": "idx_audit_logs_entity_event",
+          "columns": [
+            "entity_id",
+            "event_type",
+            "firm_id",
+            "created_at"
+          ],
+          "isUnique": false
+        }
+      },
       "foreignKeys": {},
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
@@ -984,7 +995,16 @@
           "autoincrement": false
         }
       },
-      "indexes": {},
+      "indexes": {
+        "idx_categories_firm_active": {
+          "name": "idx_categories_firm_active",
+          "columns": [
+            "firm_id",
+            "is_active"
+          ],
+          "isUnique": false
+        }
+      },
       "foreignKeys": {
         "categories_firm_id_firms_id_fk": {
           "name": "categories_firm_id_firms_id_fk",
@@ -1128,6 +1148,29 @@
         }
       },
       "indexes": {
+        "idx_designs_firm_id": {
+          "name": "idx_designs_firm_id",
+          "columns": [
+            "firm_id"
+          ],
+          "isUnique": false
+        },
+        "idx_designs_firm_active": {
+          "name": "idx_designs_firm_active",
+          "columns": [
+            "firm_id",
+            "is_active"
+          ],
+          "isUnique": false
+        },
+        "idx_designs_firm_metal": {
+          "name": "idx_designs_firm_metal",
+          "columns": [
+            "firm_id",
+            "metal"
+          ],
+          "isUnique": false
+        },
         "designs_name_metal_firm_id_unique": {
           "name": "designs_name_metal_firm_id_unique",
           "columns": [
@@ -1261,7 +1304,23 @@
           "autoincrement": false
         }
       },
-      "indexes": {},
+      "indexes": {
+        "idx_gemstone_lots_firm_status": {
+          "name": "idx_gemstone_lots_firm_status",
+          "columns": [
+            "firm_id",
+            "status"
+          ],
+          "isUnique": false
+        },
+        "idx_gemstone_lots_name": {
+          "name": "idx_gemstone_lots_name",
+          "columns": [
+            "name"
+          ],
+          "isUnique": false
+        }
+      },
       "foreignKeys": {
         "gemstone_lots_firm_id_firms_id_fk": {
           "name": "gemstone_lots_firm_id_firms_id_fk",
@@ -1430,7 +1489,25 @@
           "autoincrement": false
         }
       },
-      "indexes": {},
+      "indexes": {
+        "idx_item_events_item": {
+          "name": "idx_item_events_item",
+          "columns": [
+            "item_id",
+            "firm_id",
+            "timestamp"
+          ],
+          "isUnique": false
+        },
+        "idx_item_events_firm_type": {
+          "name": "idx_item_events_firm_type",
+          "columns": [
+            "firm_id",
+            "event_type"
+          ],
+          "isUnique": false
+        }
+      },
       "foreignKeys": {
         "item_events_item_id_items_id_fk": {
           "name": "item_events_item_id_items_id_fk",
@@ -1588,6 +1665,14 @@
           "notNull": true,
           "autoincrement": false
         },
+        "purity_rounding_delta_mg": {
+          "name": "purity_rounding_delta_mg",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 0
+        },
         "wastage_percent": {
           "name": "wastage_percent",
           "type": "real",
@@ -1652,6 +1737,20 @@
           "notNull": true,
           "autoincrement": false
         },
+        "size_value": {
+          "name": "size_value",
+          "type": "real",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "size_unit": {
+          "name": "size_unit",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
         "metal_source": {
           "name": "metal_source",
           "type": "text",
@@ -1711,6 +1810,80 @@
             "huid"
           ],
           "isUnique": true
+        },
+        "idx_items_firm_status": {
+          "name": "idx_items_firm_status",
+          "columns": [
+            "firm_id",
+            "status"
+          ],
+          "isUnique": false
+        },
+        "idx_items_design_id": {
+          "name": "idx_items_design_id",
+          "columns": [
+            "design_id"
+          ],
+          "isUnique": false
+        },
+        "idx_items_design_status": {
+          "name": "idx_items_design_status",
+          "columns": [
+            "design_id",
+            "status"
+          ],
+          "isUnique": false
+        },
+        "idx_items_sku": {
+          "name": "idx_items_sku",
+          "columns": [
+            "sku",
+            "firm_id"
+          ],
+          "isUnique": false
+        },
+        "idx_items_huid": {
+          "name": "idx_items_huid",
+          "columns": [
+            "huid"
+          ],
+          "isUnique": false,
+          "where": "\"items\".\"huid\" is not null"
+        },
+        "idx_items_category_status": {
+          "name": "idx_items_category_status",
+          "columns": [
+            "firm_id",
+            "category_id",
+            "status"
+          ],
+          "isUnique": false
+        },
+        "idx_items_invoice": {
+          "name": "idx_items_invoice",
+          "columns": [
+            "invoice_id"
+          ],
+          "isUnique": false,
+          "where": "\"items\".\"invoice_id\" is not null"
+        },
+        "idx_items_phantom_available": {
+          "name": "idx_items_phantom_available",
+          "columns": [
+            "firm_id",
+            "phantom_stock_id"
+          ],
+          "isUnique": false,
+          "where": "status = 'PHANTOM_AVAILABLE'"
+        },
+        "idx_items_phantom_sold": {
+          "name": "idx_items_phantom_sold",
+          "columns": [
+            "firm_id",
+            "phantom_stock_id"
+          ],
+          "isUnique": false,
+          "where": "status = 'PHANTOM_SOLD'"
         }
       },
       "foreignKeys": {
@@ -1855,6 +2028,14 @@
           "autoincrement": false,
           "default": 0
         },
+        "purity_rounding_delta_mg": {
+          "name": "purity_rounding_delta_mg",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 0
+        },
         "purchase_rate_paise": {
           "name": "purchase_rate_paise",
           "type": "integer",
@@ -1870,7 +2051,17 @@
           "autoincrement": false
         }
       },
-      "indexes": {},
+      "indexes": {
+        "idx_old_gold_lots_firm": {
+          "name": "idx_old_gold_lots_firm",
+          "columns": [
+            "firm_id",
+            "status",
+            "metal_source"
+          ],
+          "isUnique": false
+        }
+      },
       "foreignKeys": {
         "old_gold_lots_firm_id_firms_id_fk": {
           "name": "old_gold_lots_firm_id_firms_id_fk",
@@ -1937,7 +2128,16 @@
           "autoincrement": false
         }
       },
-      "indexes": {},
+      "indexes": {
+        "idx_sequence_counters_firm_month": {
+          "name": "idx_sequence_counters_firm_month",
+          "columns": [
+            "firm_id",
+            "month"
+          ],
+          "isUnique": false
+        }
+      },
       "foreignKeys": {
         "sequence_counters_firm_id_firms_id_fk": {
           "name": "sequence_counters_firm_id_firms_id_fk",
@@ -2204,7 +2404,34 @@
           "autoincrement": false
         }
       },
-      "indexes": {},
+      "indexes": {
+        "idx_urd_purchases_firm": {
+          "name": "idx_urd_purchases_firm",
+          "columns": [
+            "firm_id",
+            "status",
+            "purchase_date"
+          ],
+          "isUnique": false
+        },
+        "idx_urd_purchases_customer": {
+          "name": "idx_urd_purchases_customer",
+          "columns": [
+            "firm_id",
+            "customer_id"
+          ],
+          "isUnique": false,
+          "where": "\"urd_purchases\".\"customer_id\" is not null"
+        },
+        "idx_urd_purchases_fy": {
+          "name": "idx_urd_purchases_fy",
+          "columns": [
+            "firm_id",
+            "fy_id"
+          ],
+          "isUnique": false
+        }
+      },
       "foreignKeys": {
         "urd_purchases_firm_id_firms_id_fk": {
           "name": "urd_purchases_firm_id_firms_id_fk",

@@ -17,12 +17,16 @@ export const categoryService = {
     await leaseService.assertNoActiveLease();
     safeModeService.assertNotInSafeMode();
 
-    return db.transaction(async (tx) => {
-      const cat = await categoryRepository.getById(tx, firmId, categoryId);
+    // Hoisted async call outside transaction
+    const deviceId = await getDeviceId();
+
+    // FIX-V718-1: Synchronous transaction block
+    return db.transaction((tx) => {
+      const cat = categoryRepository.getById(tx, firmId, categoryId);
       if (!cat || cat.firmId !== firmId) throw new Error(ERR.CATEGORY_NOT_FOUND_OR_WRONG_FIRM);
 
       // FIX-CAT-DELETE-GUARD-1 (v1.44): Block if any non-terminal items reference this category
-      const activeItems = await itemRepository.findByCategoryId(tx, categoryId, firmId);
+      const activeItems = itemRepository.findByCategoryId(tx, categoryId, firmId);
       const blocked = activeItems.filter(i =>
         ['AVAILABLE', 'DRAFT', 'SENT_TO_KARIGAR', 'SENT_TO_REFINERY', 'SENT_TO_MELT', 'DAMAGED', 'PHANTOM_AVAILABLE'].includes(i.status)
       );
@@ -31,13 +35,13 @@ export const categoryService = {
       // DAMAGED added (v1.70): non-terminal state, item awaiting karigar repair or return — must not orphan category
       if (blocked.length > 0) throw new Error(ERR.CATEGORY_HAS_ACTIVE_ITEMS);
 
-      await categoryRepository.softDelete(tx, firmId, categoryId);
+      categoryRepository.softDelete(tx, firmId, categoryId);
 
-      await auditRepository.log(tx, {
+      auditRepository.log(tx, {
         eventType: 'CATEGORY_SOFT_DELETED',
         firmId,
         entityId: categoryId,
-        deviceId: await getDeviceId(),
+        deviceId,
         payload: JSON.stringify({ categoryId, name: cat.name })
       });
     });
@@ -49,10 +53,14 @@ export const categoryService = {
 
     const sanitizedName = sanitizeText(name);
     const categoryId = uuidv4();
+    
+    // Hoisted async call outside transaction
+    const deviceId = await getDeviceId();
 
-    return db.transaction(async (tx) => {
+    // FIX-V718-1: Synchronous transaction block
+    return db.transaction((tx) => {
       try {
-        await categoryRepository.insert(tx, {
+        categoryRepository.insert(tx, {
           id: categoryId,
           firmId,
           name: sanitizedName,
@@ -70,11 +78,11 @@ export const categoryService = {
         throw e;
       }
 
-      await auditRepository.log(tx, {
+      auditRepository.log(tx, {
         eventType: 'CATEGORY_CREATED',
         firmId,
         entityId: categoryId,
-        deviceId: await getDeviceId(),
+        deviceId,
         payload: JSON.stringify({ categoryId, name: sanitizedName, metal, code })
       });
 
@@ -86,9 +94,13 @@ export const categoryService = {
   async updateCategory(categoryId: string, firmId: string, name: string): Promise<void> {
     await leaseService.assertNoActiveLease();
     safeModeService.assertNotInSafeMode();
+    
+    // Hoisted async call outside transaction
+    const deviceId = await getDeviceId();
 
-    return db.transaction(async (tx) => {
-      const cat = await categoryRepository.getById(tx, firmId, categoryId);
+    // FIX-V718-1: Synchronous transaction block
+    return db.transaction((tx) => {
+      const cat = categoryRepository.getById(tx, firmId, categoryId);
       if (!cat || cat.firmId !== firmId) throw new Error(ERR.CATEGORY_NOT_FOUND_OR_WRONG_FIRM);
 
       const sanitizedName = sanitizeText(name); // GAP-P1ALIGN-4 (v1.74): FIX-VSEC-7
@@ -96,7 +108,7 @@ export const categoryService = {
       // UNIQUE INDEX uq_category_firm_name enforces name uniqueness at DB level.
       // Catch Drizzle unique constraint violation and re-throw as CATEGORY_NAME_DUPLICATE.
       try {
-        await categoryRepository.update(tx, firmId, categoryId, { name: sanitizedName });
+        categoryRepository.update(tx, firmId, categoryId, { name: sanitizedName });
       } catch (e: any) {
         if (e.message?.includes('UNIQUE constraint failed') || e.code === 'SQLITE_CONSTRAINT_UNIQUE') {
           throw new Error(ERR.CATEGORY_NAME_DUPLICATE);
@@ -104,11 +116,11 @@ export const categoryService = {
         throw e;
       }
 
-      await auditRepository.log(tx, {
+      auditRepository.log(tx, {
         eventType: 'CATEGORY_UPDATED',
         firmId,
         entityId: categoryId,
-        deviceId: await getDeviceId(),
+        deviceId,
         payload: JSON.stringify({ categoryId, oldName: cat.name, newName: sanitizedName })
       });
     });
@@ -117,18 +129,22 @@ export const categoryService = {
   async updateCategoryLowStockThreshold(categoryId: string, firmId: string, threshold: number | null): Promise<void> {
     await leaseService.assertNoActiveLease();
     safeModeService.assertNotInSafeMode();
+    
+    // Hoisted async call outside transaction
+    const deviceId = await getDeviceId();
 
-    return db.transaction(async (tx) => {
-      const cat = await categoryRepository.getById(tx, firmId, categoryId);
+    // FIX-V718-1: Synchronous transaction block
+    return db.transaction((tx) => {
+      const cat = categoryRepository.getById(tx, firmId, categoryId);
       if (!cat || cat.firmId !== firmId) throw new Error(ERR.CATEGORY_NOT_FOUND_OR_WRONG_FIRM);
 
-      await categoryRepository.update(tx, firmId, categoryId, { lowStockThreshold: threshold });
+      categoryRepository.update(tx, firmId, categoryId, { lowStockThreshold: threshold });
 
-      await auditRepository.log(tx, {
+      auditRepository.log(tx, {
         eventType: 'CATEGORY_UPDATED',
         firmId,
         entityId: categoryId,
-        deviceId: await getDeviceId(),
+        deviceId,
         payload: JSON.stringify({ categoryId, oldThreshold: cat.lowStockThreshold, newThreshold: threshold })
       });
     });

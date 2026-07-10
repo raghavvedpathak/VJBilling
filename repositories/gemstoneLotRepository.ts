@@ -7,13 +7,16 @@ import { now } from '../utils/now';
 type NewGemstoneLot = typeof gemstoneLots.$inferInsert;
 
 export const gemstoneLotRepository = {
-  async insert(tx: DrizzleTransaction, data: NewGemstoneLot): Promise<GemstoneLot> {
-    const [inserted] = await tx.insert(gemstoneLots).values(data).returning();
-    return inserted;
+  // FIX-V718-1: Synchronous execution using .run() and .get()
+  insert(tx: DrizzleTransaction, data: NewGemstoneLot): GemstoneLot {
+    tx.insert(gemstoneLots).values(data).run();
+    const result = tx.select().from(gemstoneLots).where(eq(gemstoneLots.id, data.id)).limit(1).get();
+    return result as unknown as GemstoneLot;
   },
 
-  async getById(tx: DrizzleTransaction, id: string, firmId: string): Promise<GemstoneLot | null> {
-    const [lot] = await tx
+  // FIX-V718-1: Synchronous execution using .get()
+  getById(tx: DrizzleTransaction, id: string, firmId: string): GemstoneLot | null {
+    const lot = tx
       .select()
       .from(gemstoneLots)
       .where(
@@ -22,10 +25,12 @@ export const gemstoneLotRepository = {
           eq(gemstoneLots.firmId, firmId)
         )
       )
-      .limit(1);
-    return lot || null;
+      .limit(1)
+      .get();
+    return (lot as unknown as GemstoneLot) || null;
   },
 
+  // Operates globally outside a transaction — safely left as async
   async findByFirmId(firmId: string): Promise<GemstoneLot[]> {
     return db
       .select()
@@ -33,6 +38,7 @@ export const gemstoneLotRepository = {
       .where(eq(gemstoneLots.firmId, firmId));
   },
 
+  // Operates globally outside a transaction — safely left as async
   async findByStatus(firmId: string, status: GemstoneStatus): Promise<GemstoneLot[]> {
     return db
       .select()
@@ -45,8 +51,9 @@ export const gemstoneLotRepository = {
       );
   },
 
-  async updateStatus(tx: DrizzleTransaction, firmId: string, id: string, status: GemstoneStatus): Promise<void> {
-    await tx
+  // FIX-V718-1: Synchronous execution using .run()
+  updateStatus(tx: DrizzleTransaction, firmId: string, id: string, status: GemstoneStatus): void {
+    tx
       .update(gemstoneLots)
       .set({ status, updatedAt: now() })
       .where(
@@ -54,9 +61,11 @@ export const gemstoneLotRepository = {
           eq(gemstoneLots.id, id),
           eq(gemstoneLots.firmId, firmId)
         )
-      );
+      )
+      .run();
   },
 
+  // Operates globally outside a transaction — safely left as async
   async search(firmId: string, query: string): Promise<GemstoneLot[]> {
     const likeQuery = `%${query}%`;
     return db

@@ -14,8 +14,8 @@ interface GlassCardProps extends ViewProps {
 }
 export function GlassCard({ children, style, intensity = 30, ...props }: GlassCardProps) {
   return (
-    <View className="rounded-3xl overflow-hidden mb-6 bg-white/60 border border-white" style={style} {...props}>
-      <BlurView intensity={intensity} tint="light" style={{ padding: 20 }}>
+    <View className="rounded-3xl mb-6 bg-white/60 border border-white" style={[{ overflow: 'visible' }, style]} {...props}>
+      <BlurView intensity={intensity} tint="light" style={{ padding: 20, borderRadius: 24, overflow: 'visible' }}>
         {children}
       </BlurView>
     </View>
@@ -256,15 +256,18 @@ export function GlassSmartSearch({
       {shouldShowOptions && (
         <ScrollView 
           style={{ 
-            marginTop: -10, 
-            marginBottom: 16, 
+            position: 'absolute',
+            top: 75,
+            left: 0,
+            right: 0,
             maxHeight: 250,
             backgroundColor: '#FCFBF8', 
             borderRadius: 16, 
             padding: 8,
             borderWidth: 1,
             borderColor: 'rgba(92,22,35,0.1)',
-            shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.1, shadowRadius: 10, elevation: 4
+            shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.1, shadowRadius: 10, elevation: 3,
+            zIndex: 1000,
           }}
           nestedScrollEnabled={true}
           keyboardShouldPersistTaps="handled"

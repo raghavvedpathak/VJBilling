@@ -10,8 +10,7 @@ import { itemService } from '../../services/itemService';
 import { formatSKUDisplay } from '../../utils/skuDisplay';
 import { percentToKarat } from '../../utils/purity.constants';
 import { Edit3, Save, Calculator, CheckCircle } from 'lucide-react-native';
-import { GlassButton } from '../../components/ui/Glass';
-
+import { GlassButton, GlassSmartSearch } from '../../components/ui/Glass';
 const COLORS = {
   vjText: '#5C1623',
   vjBg: '#FCFBF8',
@@ -44,6 +43,9 @@ export default function EditDraftScreen() {
   const [makingCharge, setMakingCharge] = useState('');
   const [stoneCost, setStoneCost] = useState('');
 
+  const [sizeValue, setSizeValue] = useState('');
+  const [sizeUnit, setSizeUnit] = useState('');
+
   const [location, setLocation] = useState('');
   const [huid, setHuid] = useState('');
   const [reason, setReason] = useState('Typo correction before activation');
@@ -69,6 +71,8 @@ export default function EditDraftScreen() {
           setPurchaseRate(item.purchaseRatePaise ? (item.purchaseRatePaise / 100).toString() : '');
           setMakingCharge(item.makingChargePaise ? (item.makingChargePaise / 100).toString() : '');
           setStoneCost(item.stoneCostPaise ? (item.stoneCostPaise / 100).toString() : '');
+          setSizeValue(item.sizeValue !== null && item.sizeValue !== undefined ? item.sizeValue.toString() : '');
+          setSizeUnit(item.sizeUnit || '');
           setLocation(item.location || '');
           setHuid(item.huid || '');
         } else if (active) {
@@ -96,9 +100,13 @@ export default function EditDraftScreen() {
     const stoneC = parseFloat(stoneCost) || 0;
 
     const netWeightG = Math.max(0, gross - stone - beads);
+    const vaultTruth = (netWeightG * purity) / 100;
+    
     const totalTouchPercent = purity + wastage;
-    const effectivePricePerGram = rate * (totalTouchPercent / 100);
-    const totalGoldCost = netWeightG * effectivePricePerGram;
+    const fineGoldChargedG = wastage > 0 ? (netWeightG * totalTouchPercent) / 100 : vaultTruth;
+    
+    const effectivePricePerGram = netWeightG > 0 ? (totalTouchPercent / 100) * rate : rate;
+    const totalGoldCost = fineGoldChargedG * rate;
     const absoluteTotalCost = totalGoldCost + making + stoneC;
 
     return {
@@ -173,6 +181,8 @@ export default function EditDraftScreen() {
           makingChargePaise: newMakingPaise,
           stoneCostPaise: newStoneCostPaise,
           location: location.trim() || null,
+          sizeValue: sizeValue ? parseFloat(sizeValue) : null,
+          sizeUnit: (sizeUnit as any) || null,
         },
         reason
       );
@@ -216,9 +226,9 @@ export default function EditDraftScreen() {
           <ActivityIndicator size="large" color={COLORS.vjAccent} />
         </View>
       ) : (
-        <ScrollView style={s.container} contentContainerStyle={s.content} showsVerticalScrollIndicator={false}>
+        <ScrollView style={s.container} contentContainerStyle={s.content} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
           
-          <View style={s.card}>
+          <View style={[s.card, { zIndex: 50 }]}>
             <Text style={s.sectionTitle}>Weights (Grams)</Text>
             <View style={s.row}>
               <View style={[s.inputGroup, { flex: 1, paddingRight: 6 }]}>
@@ -236,7 +246,7 @@ export default function EditDraftScreen() {
             </View>
           </View>
 
-          <View style={s.card}>
+          <View style={[s.card, { zIndex: 40 }]}>
             <Text style={s.sectionTitle}>Purity & Financials</Text>
             <View style={s.row}>
               <View style={[s.inputGroup, { flex: 1, paddingRight: 6 }]}>
@@ -264,7 +274,7 @@ export default function EditDraftScreen() {
             </View>
           </View>
 
-          <View style={s.card}>
+          <View style={[s.card, { zIndex: 30 }]}>
             <Text style={s.sectionTitle}>Tracking</Text>
             <View style={s.row}>
               <View style={[s.inputGroup, { flex: 1, paddingRight: 6 }]}>
@@ -274,6 +284,33 @@ export default function EditDraftScreen() {
               <View style={[s.inputGroup, { flex: 1, paddingLeft: 6 }]}>
                 <Text style={s.label}>BIS HUID</Text>
                 <TextInput style={s.input} value={huid} onChangeText={setHuid} autoCapitalize="characters" maxLength={6} />
+              </View>
+            </View>
+            <View style={[s.row, { marginTop: 12, zIndex: 10 }]}>
+              <View style={[s.inputGroup, { flex: 1, paddingRight: 6 }]}>
+                <Text style={s.label}>Size Value</Text>
+                <TextInput style={s.input} value={sizeValue} onChangeText={setSizeValue} keyboardType="numeric" placeholder="e.g. 18" />
+              </View>
+              <View style={[s.inputGroup, { flex: 1, paddingLeft: 6, zIndex: 10 }]}>
+                <Text style={s.label}>Size Unit</Text>
+                <View style={{ marginTop: 4 }}>
+                  <GlassSmartSearch 
+                    placeholder="Select Unit..."
+                    showAllOnFocus={true}
+                    options={[
+                      { id: 'NONE', label: 'No Unit (Clear)' },
+                      { id: 'INCH', label: 'Inches (INCH)' },
+                      { id: 'MM', label: 'Millimeters (MM)' },
+                      { id: 'CM', label: 'Centimeters (CM)' },
+                      { id: 'RING_SIZE', label: 'Ring Size' }
+                    ]}
+                    selectedId={sizeUnit || null}
+                    onSelect={(opt) => {
+                      if (!opt || opt.id === 'NONE') return setSizeUnit('');
+                      setSizeUnit(opt.id);
+                    }}
+                  />
+                </View>
               </View>
             </View>
           </View>

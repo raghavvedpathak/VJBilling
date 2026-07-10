@@ -7,13 +7,14 @@ import { ERR } from '../constants/errorCodes';
 // src/db/repositories/hsnMasterRepository.ts — FIX-HSN-MASTER-1 (v1.46)
 // READ-ONLY repository. No Dual Guard. Receives tx from createItem() caller.
 export const hsnMasterRepository = {
+  // FIX-V718-1: Synchronous execution using .get() to prevent JSI transaction stalls.
   // Called inside createItem() transaction. Throws ITEM_HSN_MISSING if code unknown/inactive.
-  async findByCode(
+  findByCode(
     tx: DrizzleTransaction,
-    firmId: string,
+    firmId: string, // firmId kept for signature consistency, though hsn_codes is global
     code: string,
-  ): Promise<HsnCode> {
-    const [row] = await tx
+  ): HsnCode {
+    const row = tx
       .select()
       .from(hsnCodes)
       .where(
@@ -22,13 +23,15 @@ export const hsnMasterRepository = {
           eq(hsnCodes.isActive, 1)
         )
       )
-      .limit(1);
+      .limit(1)
+      .get();
 
     if (!row) throw new Error(ERR.ITEM_HSN_MISSING);
-    return row;
+    return row as unknown as HsnCode;
   },
 
   // For UI HSN picker (Settings > Inventory > HSN Codes)
+  // Operates on global async db - safely left as async
   async findAll(): Promise<HsnCode[]> {
     return db
       .select()
@@ -39,6 +42,7 @@ export const hsnMasterRepository = {
   },
 
   // Filter by chapter — e.g. findByChapter("71") returns all jewellery codes
+  // Operates on global async db - safely left as async
   async findByChapter(chapter: string): Promise<HsnCode[]> {
     return db
       .select()

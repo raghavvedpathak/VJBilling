@@ -1,0 +1,293 @@
+import React, { useState, useEffect, useRef } from 'react';
+import { View, Text, TouchableOpacity, ScrollView, TextInput, Keyboard, Alert } from 'react-native';
+import { useRouter } from 'expo-router';
+import { TwoToneWrapper } from '../../components/TwoToneWrapper';
+import { GlassCard } from '../../components/ui/Glass';
+import { KeyRound, ShieldAlert, CheckCircle2, Lock, X } from 'lucide-react-native';
+import {
+  isPinSet,
+  setPin,
+  changePin,
+  removePin,
+  verifyPin,
+  getPinLength
+} from '../../services/pinService';
+
+type FlowState = 'MENU' | 'TURN_ON_NEW' | 'TURN_ON_CONFIRM' | 'TURN_OFF_CURRENT' | 'CHANGE_CURRENT' | 'CHANGE_NEW' | 'CHANGE_CONFIRM';
+
+export default function PinSettingsScreen() {
+  const router = useRouter();
+  
+  const [hasPin, setHasPin] = useState(false);
+  const [flow, setFlow] = useState<FlowState>('MENU');
+  
+  const [targetLength, setTargetLength] = useState<4 | 6>(6);
+  const [pinInput, setPinInput] = useState('');
+  const [tempPin, setTempPin] = useState(''); // Used to hold new PIN between New and Confirm steps
+  const [currentPin, setCurrentPin] = useState(''); // Used to hold current PIN when changing
+  const [error, setError] = useState<string | null>(null);
+
+  const inputRef = useRef<TextInput>(null);
+
+  useEffect(() => {
+    setHasPin(isPinSet());
+  }, []);
+
+  const resetFlow = () => {
+    setFlow('MENU');
+    setPinInput('');
+    setTempPin('');
+    setCurrentPin('');
+    setError(null);
+    Keyboard.dismiss();
+  };
+
+  const startFlow = (newFlow: FlowState) => {
+    setFlow(newFlow);
+    setPinInput('');
+    setError(null);
+    if (newFlow === 'TURN_OFF_CURRENT' || newFlow === 'CHANGE_CURRENT') {
+       setTargetLength(getPinLength()); // Need to enter current PIN, so use current length
+    } else {
+       setTargetLength(6); // Default for new PIN
+    }
+    setTimeout(() => inputRef.current?.focus(), 300);
+  };
+
+  const handlePinChange = async (val: string) => {
+    const cleanVal = val.replace(/[^0-9]/g, '');
+    if (cleanVal.length > targetLength) return;
+    
+    setPinInput(cleanVal);
+    setError(null);
+
+    if (cleanVal.length === targetLength) {
+      Keyboard.dismiss();
+      await processCompletedPin(cleanVal);
+    }
+  };
+
+  const processCompletedPin = async (completedPin: string) => {
+    try {
+      if (flow === 'TURN_ON_NEW') {
+        setTempPin(completedPin);
+        setPinInput('');
+        setFlow('TURN_ON_CONFIRM');
+        setTimeout(() => inputRef.current?.focus(), 300);
+      } else if (flow === 'TURN_ON_CONFIRM') {
+        if (completedPin === tempPin) {
+          await setPin(completedPin);
+          Alert.alert("Success", "Security PIN has been turned on.");
+          setHasPin(true);
+          resetFlow();
+        } else {
+          setError('PINs do not match. Try again.');
+          setTempPin('');
+          setPinInput('');
+          setFlow('TURN_ON_NEW');
+          setTimeout(() => inputRef.current?.focus(), 300);
+        }
+      } else if (flow === 'TURN_OFF_CURRENT') {
+        const ok = await verifyPin(completedPin);
+        if (!ok) {
+           setError('Incorrect PIN.');
+           setPinInput('');
+           setTimeout(() => inputRef.current?.focus(), 300);
+           return;
+        }
+        await removePin(completedPin);
+        Alert.alert("Success", "Security PIN has been turned off.");
+        setHasPin(false);
+        resetFlow();
+      } else if (flow === 'CHANGE_CURRENT') {
+        const ok = await verifyPin(completedPin);
+        if (!ok) {
+           setError('Incorrect PIN.');
+           setPinInput('');
+           setTimeout(() => inputRef.current?.focus(), 300);
+           return;
+        }
+        setCurrentPin(completedPin);
+        setPinInput('');
+        setTargetLength(6); // Reset to default 6 for new PIN
+        setFlow('CHANGE_NEW');
+        setTimeout(() => inputRef.current?.focus(), 300);
+      } else if (flow === 'CHANGE_NEW') {
+        setTempPin(completedPin);
+        setPinInput('');
+        setFlow('CHANGE_CONFIRM');
+        setTimeout(() => inputRef.current?.focus(), 300);
+      } else if (flow === 'CHANGE_CONFIRM') {
+        if (completedPin === tempPin) {
+          await changePin(currentPin, completedPin);
+          Alert.alert("Success", "Security PIN has been changed.");
+          resetFlow();
+        } else {
+          setError('PINs do not match. Try again.');
+          setTempPin('');
+          setPinInput('');
+          setFlow('CHANGE_NEW');
+          setTimeout(() => inputRef.current?.focus(), 300);
+        }
+      }
+    } catch (e: any) {
+       setError(e.message);
+       setPinInput('');
+       setTimeout(() => inputRef.current?.focus(), 300);
+    }
+  };
+
+  if (flow !== 'MENU') {
+     const isNewPinStep = flow === 'TURN_ON_NEW' || flow === 'CHANGE_NEW';
+     const isConfirmStep = flow === 'TURN_ON_CONFIRM' || flow === 'CHANGE_CONFIRM';
+     
+     let title = 'Enter PIN';
+     let subtitle = `Enter your ${targetLength}-digit PIN`;
+     
+     if (isNewPinStep) {
+        title = 'Create New PIN';
+        subtitle = `Create a ${targetLength}-digit PIN`;
+     } else if (isConfirmStep) {
+        title = 'Confirm New PIN';
+        subtitle = 'Please re-enter your new PIN';
+     } else if (flow === 'TURN_OFF_CURRENT' || flow === 'CHANGE_CURRENT') {
+        title = 'Enter Current PIN';
+        subtitle = 'Verify your identity';
+     }
+
+     return (
+       <TwoToneWrapper title={hasPin ? "Manage PIN" : "Setup PIN"} showBack>
+         <View className="flex-1 items-center justify-center px-8 pb-32">
+            <TouchableOpacity 
+              className="absolute top-4 right-4 p-2" 
+              onPress={resetFlow}
+            >
+               <X size={24} color="#5C1623" />
+            </TouchableOpacity>
+
+            <View className="items-center mb-8">
+              <View className="bg-white/50 p-4 rounded-full mb-4 border border-vj-text/10">
+                {isConfirmStep ? (
+                  <CheckCircle2 size={48} color="#D4AF37" />
+                ) : (
+                  <Lock size={48} color="#5C1623" />
+                )}
+              </View>
+              <Text className="text-vj-text text-2xl font-black tracking-widest text-center uppercase">
+                {title}
+              </Text>
+              <Text className="text-vj-text/60 text-center mt-2 font-medium">
+                {subtitle}
+              </Text>
+
+              {/* Length Toggle for New PIN Steps */}
+              {isNewPinStep && (
+                <View className="flex-row mt-4 bg-white/40 border border-vj-text/10 rounded-xl p-1">
+                  <TouchableOpacity 
+                    onPress={() => { setTargetLength(4); setPinInput(''); }}
+                    className={`px-4 py-1.5 rounded-lg ${targetLength === 4 ? 'bg-vj-text' : ''}`}
+                  >
+                    <Text className={`font-bold text-xs ${targetLength === 4 ? 'text-white' : 'text-vj-text/60'}`}>4 Digits</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity 
+                    onPress={() => { setTargetLength(6); setPinInput(''); }}
+                    className={`px-4 py-1.5 rounded-lg ${targetLength === 6 ? 'bg-vj-text' : ''}`}
+                  >
+                    <Text className={`font-bold text-xs ${targetLength === 6 ? 'text-white' : 'text-vj-text/60'}`}>6 Digits</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+            </View>
+
+            <View className="w-full items-center" pointerEvents="box-none">
+              <View className="flex-row gap-4 mb-8">
+                {Array.from({ length: targetLength }).map((_, i) => (
+                  <View 
+                    key={i} 
+                    className={`w-5 h-5 rounded-full ${pinInput.length > i ? 'bg-vj-text' : 'bg-vj-text/20 border border-vj-text/30'}`} 
+                  />
+                ))}
+              </View>
+              
+              <TextInput
+                ref={inputRef}
+                value={pinInput}
+                onChangeText={handlePinChange}
+                keyboardType="number-pad"
+                maxLength={targetLength}
+                secureTextEntry
+                autoFocus
+                className="absolute w-full h-full opacity-0"
+                style={{ width: '100%', height: '100%', position: 'absolute', opacity: 0 }}
+              />
+
+              {error && (
+                <Text className="text-vj-danger font-bold text-center mt-4 bg-vj-danger/10 px-4 py-2 rounded-lg overflow-hidden">
+                  {error}
+                </Text>
+              )}
+            </View>
+         </View>
+       </TwoToneWrapper>
+     );
+  }
+
+  return (
+    <TwoToneWrapper title="Security PIN" showBack>
+      <ScrollView 
+        showsVerticalScrollIndicator={false} 
+        contentContainerStyle={{paddingBottom: 120, paddingTop: 32}}
+      >
+        <Text className="text-vj-text/60 text-xs font-bold uppercase tracking-widest mb-3 ml-1">
+          App Security
+        </Text>
+        
+        {!hasPin ? (
+          <TouchableOpacity onPress={() => startFlow('TURN_ON_NEW')} activeOpacity={0.7} className="mb-2">
+            <GlassCard style={{ padding: 16, borderWidth: 1, borderColor: 'rgba(92,22,35,0.2)' }}>
+              <View className="flex-row items-center gap-4">
+                <View className="bg-white/40 p-3 rounded-full border border-white/50">
+                  <KeyRound size={24} color="#D4AF37" />
+                </View>
+                <View className="flex-1">
+                  <Text className="text-vj-text font-bold text-base">Turn On PIN</Text>
+                  <Text className="text-vj-text/60 text-xs">Secure the app with a 4 or 6 digit PIN</Text>
+                </View>
+              </View>
+            </GlassCard>
+          </TouchableOpacity>
+        ) : (
+          <>
+            <TouchableOpacity onPress={() => startFlow('CHANGE_CURRENT')} activeOpacity={0.7} className="mb-2">
+              <GlassCard style={{ padding: 16, borderWidth: 1, borderColor: 'rgba(92,22,35,0.2)' }}>
+                <View className="flex-row items-center gap-4">
+                  <View className="bg-white/40 p-3 rounded-full border border-white/50">
+                    <KeyRound size={24} color="#D4AF37" />
+                  </View>
+                  <View className="flex-1">
+                    <Text className="text-vj-text font-bold text-base">Change PIN</Text>
+                    <Text className="text-vj-text/60 text-xs">Update your current security PIN</Text>
+                  </View>
+                </View>
+              </GlassCard>
+            </TouchableOpacity>
+
+            <TouchableOpacity onPress={() => startFlow('TURN_OFF_CURRENT')} activeOpacity={0.7} className="mb-2">
+              <GlassCard style={{ padding: 16, borderWidth: 1, borderColor: 'rgba(239, 68, 68, 0.2)', backgroundColor: 'rgba(239, 68, 68, 0.05)' }}>
+                <View className="flex-row items-center gap-4">
+                  <View className="bg-vj-danger/10 p-3 rounded-full border border-vj-danger/20">
+                    <ShieldAlert size={24} color="#ef4444" />
+                  </View>
+                  <View className="flex-1">
+                    <Text className="text-vj-danger font-bold text-base">Turn Off PIN</Text>
+                    <Text className="text-vj-danger/80 text-xs">Remove security lock</Text>
+                  </View>
+                </View>
+              </GlassCard>
+            </TouchableOpacity>
+          </>
+        )}
+      </ScrollView>
+    </TwoToneWrapper>
+  );
+}

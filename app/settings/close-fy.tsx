@@ -6,6 +6,7 @@ import { TwoToneWrapper } from '../../components/TwoToneWrapper';
 import { GlassCard, GlassButton } from '../../components/ui/Glass';
 import { useFirmStore } from '../../store/firmStore';
 import { useSession } from '../../hooks/useSession';
+import { useFyBannerStore } from '../../store/fyBannerStore';
 import { fyService } from '../../services/fyService';
 import { backupService } from '../../services/backupService';
 import { Lock, ShieldAlert, ShieldCheck, HardDriveDownload, AlertTriangle, CheckCircle2 } from 'lucide-react-native';
@@ -34,7 +35,7 @@ export default function CloseFYWizard() {
   
   // Step 2 State
   const [isBackingUp, setIsBackingUp] = useState(false);
-  const [hasBackup, setHasBackup] = useState(false);
+  const [backupPathInfo, setBackupPathInfo] = useState('');
 
   // Step 3 State
   const [confirmText, setConfirmText] = useState('');
@@ -59,8 +60,9 @@ export default function CloseFYWizard() {
   const handleBackup = async () => {
     setIsBackingUp(true);
     try {
-      await backupService.createBackup();
-      setHasBackup(true);
+      const result = await backupService.createBackup();
+      const mbSize = (result.fileSizeBytes / (1024 * 1024)).toFixed(1);
+      setBackupPathInfo(`${result.filePath} · ${mbSize} MB`);
       setStep(3); // Auto advance to final step
     } catch (e: any) {
       Alert.alert('Backup Failed', e.message);
@@ -79,6 +81,10 @@ export default function CloseFYWizard() {
     setIsClosing(true);
     try {
       await fyService.closeFY(activeFY.id, activeFirmId);
+      
+      // FIX-BANNER-SETSTATE-1 (v1.83): clear banner state outside tx, after success
+      useFyBannerStore.getState().setBannerVisible(false);
+
       await refreshSession();
       setStep(4); // Success screen
     } catch (e: any) {
@@ -170,7 +176,7 @@ export default function CloseFYWizard() {
       <View style={s.headerBox}>
         <AlertTriangle size={32} color={COLORS.danger} />
         <Text style={[s.headerTitle, { color: COLORS.danger }]}>Step 3: Point of No Return</Text>
-        <Text style={s.headerDesc}>You are about to permanently lock {activeFY.label}. This action cannot be undone.</Text>
+        <Text style={s.headerDesc}>You are about to permanently lock {activeFY?.label}. This action cannot be undone. Backup saved at: {backupPathInfo}.</Text>
       </View>
 
       <GlassCard style={{ padding: 20, marginBottom: 24, borderColor: 'rgba(239,68,68,0.3)', backgroundColor: 'rgba(239,68,68,0.05)' }}>

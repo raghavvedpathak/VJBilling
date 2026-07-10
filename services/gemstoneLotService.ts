@@ -26,13 +26,18 @@ export const gemstoneLotService = {
     if (input.weightCaratX100 <= 0) throw new Error(ERR.GEMSTONE_WEIGHT_INVALID);
     if ((input.quantity ?? 1) <= 0) throw new Error(ERR.GEMSTONE_QUANTITY_INVALID);
 
-    return db.transaction(async (tx) => {
-      const stone = await stoneRepository.getById(tx, input.stoneId, firmId);
+    // Hoisted async call outside transaction
+    const deviceId = await getDeviceId();
+
+    // FIX-V718-1: Synchronous transaction block
+    return db.transaction((tx) => {
+      // Using the synchronous stoneRepository.getById
+      const stone = stoneRepository.getById(tx, input.stoneId, firmId);
       if (!stone) throw new Error(ERR.STONE_NOT_FOUND_OR_WRONG_FIRM);
 
       const sanitizedGemName = sanitizeText(input.name); // GAP-P1ALIGN-4 (v1.74)
 
-      const lot = await gemstoneLotRepository.insert(tx, {
+      const lot = gemstoneLotRepository.insert(tx, {
         id: Crypto.randomUUID(), 
         firmId, 
         stoneId: input.stoneId, 
@@ -49,11 +54,11 @@ export const gemstoneLotService = {
         updatedAt: now(),
       });
 
-      await auditRepository.log(tx, { 
+      auditRepository.log(tx, { 
         eventType: 'GEMSTONE_LOT_CREATED', 
         firmId, 
         entityId: lot.id,
-        deviceId: await getDeviceId(), 
+        deviceId, 
         payload: JSON.stringify({ 
           lotId: lot.id, 
           stoneId: lot.stoneId, 
@@ -79,8 +84,12 @@ export const gemstoneLotService = {
     await leaseService.assertNoActiveLease(); 
     safeModeService.assertNotInSafeMode();
 
-    return db.transaction(async (tx) => {
-      const lot = await gemstoneLotRepository.getById(tx, lotId, firmId);
+    // Hoisted async call outside transaction
+    const deviceId = await getDeviceId();
+
+    // FIX-V718-1: Synchronous transaction block
+    return db.transaction((tx) => {
+      const lot = gemstoneLotRepository.getById(tx, lotId, firmId);
       if (!lot) throw new Error(ERR.GEMSTONE_LOT_NOT_FOUND_OR_WRONG_FIRM);
 
       const allowed = GEMSTONE_LOT_TRANSITIONS[lot.status as GemstoneStatus];
@@ -88,13 +97,13 @@ export const gemstoneLotService = {
         throw new Error(`${ERR.INVALID_GEMSTONE_TRANSITION}: ${lot.status} -> ${newStatus}`);
       }
 
-      await gemstoneLotRepository.updateStatus(tx, firmId, lotId, newStatus);
+      gemstoneLotRepository.updateStatus(tx, firmId, lotId, newStatus);
 
-      await auditRepository.log(tx, { 
+      auditRepository.log(tx, { 
         eventType: 'GEMSTONE_LOT_STATUS_CHANGED', 
         firmId, 
         entityId: lotId,
-        deviceId: await getDeviceId(),
+        deviceId,
         payload: JSON.stringify({ 
           lotId, 
           oldStatus: lot.status, 

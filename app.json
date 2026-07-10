@@ -21,7 +21,8 @@
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#5C1623"
       },
-      "package": "com.vjbilling.app"
+      "package": "com.vjbilling.app",
+      "allowBackup": false
     },
     "web": {
       "favicon": "./assets/favicon.png"

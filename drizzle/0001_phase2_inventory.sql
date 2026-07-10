@@ -96,6 +96,7 @@ CREATE TABLE `items` (
 	`beads_weight_mg` integer DEFAULT 0 NOT NULL,
 	`net_weight_mg` integer NOT NULL,
 	`fine_weight_mg` integer NOT NULL,
+	`purity_rounding_delta_mg` integer DEFAULT 0 NOT NULL,
 	`wastage_percent` real DEFAULT 0 NOT NULL,
 	`fine_gold_charged_mg` integer,
 	`purchase_rate_paise` integer,
@@ -105,6 +106,8 @@ CREATE TABLE `items` (
 	`invoice_id` text,
 	`phantom_stock_id` text,
 	`hsn_code` text NOT NULL,
+	`size_value` real,
+	`size_unit` text,
 	`metal_source` text DEFAULT 'SUPPLIER_PURCHASE' NOT NULL,
 	`status` text DEFAULT 'DRAFT' NOT NULL,
 	`fy_id` text NOT NULL,
@@ -132,6 +135,7 @@ CREATE TABLE `old_gold_lots` (
 	`updated_at` text NOT NULL,
 	`customer_id` text,
 	`fine_weight_mg` integer DEFAULT 0 NOT NULL,
+	`purity_rounding_delta_mg` integer DEFAULT 0 NOT NULL,
 	`purchase_rate_paise` integer,
 	`total_amount_paise` integer,
 	FOREIGN KEY (`firm_id`) REFERENCES `firms`(`id`) ON UPDATE no action ON DELETE no action
@@ -308,3 +312,15 @@ CREATE INDEX IF NOT EXISTS idx_urd_purchases_customer
 -- FIX-URD-SEQ-1: Add 'URD' to sequence_counters valid types
 -- sequenceCounters already stores type as free text — no schema change required.
 -- Document that valid type values are: 'SALE' | 'CREDIT_NOTE' | 'URD'
+
+-- ADDENDUM: Missing columns for items and audit_logs index merged from generate
+ALTER TABLE items ADD COLUMN size_value REAL;
+ALTER TABLE items ADD COLUMN size_unit TEXT;
+ALTER TABLE items ADD COLUMN purity_rounding_delta_mg INTEGER NOT NULL DEFAULT 0;
+
+CREATE INDEX IF NOT EXISTS idx_audit_logs_entity_event 
+ ON audit_logs(entity_id, event_type, firm_id, created_at DESC);
+
+-- FIX-GAP-P2-SIZE-3 (v1.76): partial index for size filter
+CREATE INDEX IF NOT EXISTS idx_items_size 
+ ON items(firm_id, size_unit, size_value) WHERE size_value IS NOT NULL;

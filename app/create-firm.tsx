@@ -151,7 +151,7 @@ export default function CreateFirmScreen() {
 
   // G69: ACTIVE — this hook shows a confirmation dialog if the user tries to
   // navigate away from a dirty form (when warnUnsavedChanges setting is ON).
-  const unsavedModal = useUnsavedChangesGuard(isDirty);
+  useUnsavedChangesGuard(isDirty);
 
   // -------------------------------------------------------------------------
   // G58: Image picker — allowsEditing: true, aspect: undefined (free crop),
@@ -522,7 +522,7 @@ export default function CreateFirmScreen() {
           </View>
         </View>
       </Modal>
-      {unsavedModal}
+
     </TwoToneWrapper>
   );
 }

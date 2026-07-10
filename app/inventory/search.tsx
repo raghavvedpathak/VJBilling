@@ -96,8 +96,16 @@ export default function InventorySearchScreen() {
               </Text>
             </View>
             
+            {item.sizeValue != null && (
+              <View style={[s.metalBadge, { backgroundColor: COLORS.border + '30', marginLeft: 6 }]}>
+                <Text style={[s.metalText, { color: COLORS.vjText }]}>
+                  SZ: {item.sizeValue} {item.sizeUnit ? item.sizeUnit : ''}
+                </Text>
+              </View>
+            )}
+            
             {isPhantom && (
-              <View style={[s.metalBadge, { backgroundColor: COLORS.phantom + '15' }]}>
+              <View style={[s.metalBadge, { backgroundColor: COLORS.phantom + '15', marginLeft: 6 }]}>
                 <Ghost size={10} color={COLORS.phantom} style={{ marginRight: 4 }} />
                 <Text style={[s.metalText, { color: COLORS.phantom }]}>PHANTOM</Text>
               </View>

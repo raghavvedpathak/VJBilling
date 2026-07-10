@@ -1,4 +1,4 @@
-import { format } from 'date-fns';
+import { format, parseISO } from 'date-fns';
 import { eq, and } from 'drizzle-orm';
 import { sequenceCounters, items } from '../db/schema';
 import type { DrizzleTransaction, Design } from '../types/phase2.types';
@@ -24,42 +24,47 @@ export function generateDesignPrefix(designName: string, metal: 'GOLD' | 'SILVER
 }
 
 // FIX-SKU-ENGINE-1 (v1.34) + SKU-DEDUP-1 (v1.43): generateSKU()
-export async function generateSKU(
+// FIX-V718-1: Made strictly synchronous to run safely inside JSI transactions
+export function generateSKU(
   tx: DrizzleTransaction, 
   design: Design, 
-  firmId: string
-): Promise<string> {
+  firmId: string,
+  entryDate?: string
+): string {
   const metalCode = design.metal === 'GOLD' ? 'G' : 'S';
   const desPrefix = generateDesignPrefix(design.name, design.metal);
-  const mmyy = format(new Date(), 'MMyy'); // date-fns e.g. '0226'
+  
+  // GAP-P2-BACKDATE-1 (v1.76): Date source change
+  const targetDate = entryDate ? parseISO(entryDate) : new Date();
+  const mmyy = format(targetDate, 'MMyy'); // date-fns e.g. '0226'
   const counterId = `${firmId}_${mmyy}`; // GLOBAL per firm per month
   
-  // NOTE: drizzle's sqlite dialect `.get()` works if supported, but `.limit(1)` + destruct is safer. 
-  // Sticking to exactly `.limit(1)` array destructure pattern for cross-dialect safety:
-  const [existing] = await tx
+  // Synchronous .get()
+  const existing = tx
     .select()
     .from(sequenceCounters)
     .where(eq(sequenceCounters.id, counterId))
-    .limit(1);
+    .get();
 
   let nextSeq: number;
 
   if (!existing) {
     // New month — auto-reset: insert fresh counter row starting at 1
-    await tx.insert(sequenceCounters).values({
+    tx.insert(sequenceCounters).values({
       id: counterId, 
       firmId, 
       month: mmyy,
-      year: format(new Date(), 'yyyy'), 
+      year: format(targetDate, 'yyyy'), 
       currentSeq: 1, 
       lastUsedAt: now(),
-    });
+    }).run();
     nextSeq = 1;
   } else {
-    nextSeq = existing.currentSeq + 1;
-    await tx.update(sequenceCounters)
+    nextSeq = (existing as any).currentSeq + 1;
+    tx.update(sequenceCounters)
       .set({ currentSeq: nextSeq, lastUsedAt: now() })
-      .where(eq(sequenceCounters.id, counterId));
+      .where(eq(sequenceCounters.id, counterId))
+      .run();
   }
 
   const seq = String(nextSeq).padStart(4, '0'); // stored: 4-digit
@@ -71,26 +76,27 @@ export async function generateSKU(
   let retrySeq = nextSeq;
 
   for (let attempt = 0; attempt < MAX_SKU_RETRIES; attempt++) {
-    const [collision] = await tx.select({ id: items.id })
+    const collision = tx.select({ id: items.id })
       .from(items)
       .where(and(eq(items.sku, candidate), eq(items.firmId, firmId)))
-      .limit(1);
+      .get();
 
     if (!collision) break; // candidate is clean — use it
     
     // Collision found — increment seq and rebuild candidate
     retrySeq += 1;
-    await tx.update(sequenceCounters)
+    tx.update(sequenceCounters)
       .set({ currentSeq: retrySeq, lastUsedAt: now() })
-      .where(eq(sequenceCounters.id, counterId));
+      .where(eq(sequenceCounters.id, counterId))
+      .run();
     
     candidate = `${metalCode}${desPrefix}${mmyy}${String(retrySeq).padStart(4, '0')}`;
   }
 
-  const [stillExists] = await tx.select({ id: items.id })
+  const stillExists = tx.select({ id: items.id })
     .from(items)
     .where(and(eq(items.sku, candidate), eq(items.firmId, firmId)))
-    .limit(1);
+    .get();
 
   if (stillExists) throw new Error(ERR.SKU_GENERATION_FAILED); // 3 retries exhausted
   

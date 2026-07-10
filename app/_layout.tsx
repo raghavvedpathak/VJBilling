@@ -1,3 +1,4 @@
+// app/_layout.tsx
 import { useEffect, useState } from "react";
 import { Stack, router } from "expo-router";
 import { SafeAreaProvider } from "react-native-safe-area-context";
@@ -25,11 +26,11 @@ import { STORAGE_PATHS } from "../constants/storagePaths";
 import "./global.css";
 import { AlertTriangle, Download, LifeBuoy, Trash2 } from "lucide-react-native";
 
+import { PinGate } from "../components/PinGate";
+import { isPinSet, isPinSkipped } from "../services/pinService"; // v7.29 evaluation helpers
+
 LogBox.ignoreLogs(["SafeAreaView has been deprecated", "SafeAreaView"]);
 
-// ============================================================================
-// BOOTSTRAP RESULT TYPE
-// ============================================================================
 type BootstrapResult =
   | "DASHBOARD"
   | "SETUP"
@@ -40,15 +41,22 @@ type BootstrapResult =
 
 export default function RootLayout() {
   const [snapshotStatus, setSnapshotStatus] = useState<"PENDING" | "DONE">("PENDING");
-  const { isLoaded, error: dbError } = useDatabase();
+  const [pinVerified, setPinVerified] = useState(false); 
   
+  const { isLoaded, error: dbError } = useDatabase();
   const [bootstrapResult, setBootstrapResult] = useState<BootstrapResult>(null);
   const [dbMigrationError, setDbMigrationError] = useState<string | null>(null);
 
-  // 0. PRE-MIGRATION SNAPSHOT
+  // 0. PRE-MIGRATION SNAPSHOT & v7.29 PIN BYPASS EVALUATION
   useEffect(() => {
     const runSnapshot = async () => {
       await bootstrapService.takePreMigrationSnapshot();
+      
+      // Evaluation Gate: If no PIN is configured but setup was explicitly skipped, bypass gate
+      if (!isPinSet() && isPinSkipped()) {
+        setPinVerified(true);
+      }
+      
       setSnapshotStatus("DONE");
     };
     runSnapshot();
@@ -56,6 +64,8 @@ export default function RootLayout() {
 
   // 1. RUN BOOTSTRAP AND SET STATE
   useEffect(() => {
+    if (!pinVerified) return; // Hard Halt: Wait for explicit validation or skip authorization
+
     if (dbError) {
       setDbMigrationError(dbError.message);
       setBootstrapResult("DATABASE_ERROR");
@@ -68,8 +78,6 @@ export default function RootLayout() {
         const result = await bootstrapService.initApp();
         setBootstrapResult(result);
 
-        // Queue navigation immediately after determining the destination.
-        // Expo Router's imperative API handles queueing automatically if the container isn't ready.
         if (result === "DASHBOARD" || result === "DASHBOARD_WARNING") {
           router.replace("/dashboard");
         } else if (result === "SETUP") {
@@ -85,11 +93,11 @@ export default function RootLayout() {
     };
 
     runBootstrap();
-  }, [isLoaded, dbError]);
+  }, [isLoaded, dbError, pinVerified]);
 
-  // Determine what overlay to show
   const showSnapshotLoading = snapshotStatus === "PENDING";
-  const showBootstrapLoading = !showSnapshotLoading && (!isLoaded || bootstrapResult === null);
+  const showPinGate = snapshotStatus === "DONE" && !pinVerified; 
+  const showBootstrapLoading = !showSnapshotLoading && !showPinGate && (!isLoaded || bootstrapResult === null);
   const showError = bootstrapResult === "DATABASE_ERROR";
   const loadingMsg = !isLoaded ? "Updating Database Schema..." : "Verifying Data Integrity...";
 
@@ -97,13 +105,17 @@ export default function RootLayout() {
     <SafeAreaProvider>
       <StatusBar barStyle="dark-content" backgroundColor="#FCFBF8" />
       
-      {/* Unconditionally rendered Stack keeps Expo Router navigation tree healthy */}
       <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: '#FCFBF8' }, animation: 'slide_from_right' }} />
 
-      {/* Overlays physically block the UI while background processes finish */}
       {showSnapshotLoading && (
         <View style={[StyleSheet.absoluteFill, { zIndex: 999, elevation: 999 }]}>
           <LoadingScreen message="Securing Pre-Migration Snapshot..." />
+        </View>
+      )}
+
+      {showPinGate && (
+        <View style={[StyleSheet.absoluteFill, { zIndex: 999, elevation: 999 }]}>
+          <PinGate onSuccess={() => setPinVerified(true)} />
         </View>
       )}
 
@@ -126,7 +138,6 @@ export default function RootLayout() {
 }
 
 function LoadingScreen({ message }: { message: string }) {
-  // FIX: Removed nested SafeAreaProvider to prevent double-insets
   return (
     <View className="flex-1 justify-center items-center bg-vj-bg">
       <ActivityIndicator size="large" color="#D4AF37" />
@@ -161,7 +172,6 @@ function DatabaseErrorScreen({ title, message }: { title: string; message: strin
 
       const keySourceMaterial = await getDeviceDerivedKeyMaterial();
       
-      // FIX: Use globally injected Web Crypto API with TS bypass for Expo SDK 56 / Hermes
       const globalCrypto = (globalThis as any).crypto;
       const keyMaterial = await globalCrypto.subtle.importKey('raw', keySourceMaterial as any, 'PBKDF2', false, ['deriveKey']);
       const key = await globalCrypto.subtle.deriveKey(
@@ -218,7 +228,6 @@ function DatabaseErrorScreen({ title, message }: { title: string; message: strin
     }
   };
 
-  // FIX: Removed nested SafeAreaProvider
   return (
     <View className="flex-1 justify-center bg-vj-danger/10 p-6">
       <View className="items-center mb-8">

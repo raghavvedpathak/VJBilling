@@ -9,6 +9,10 @@ export interface StorageService {
   // Custom helpers for boolean/number flags (e.g., VerifyService & Safe Mode)
   set: (key: string, value: boolean | string | number) => void | Promise<void>;
   getBoolean: (key: string) => boolean | Promise<boolean>;
+
+  // Methods required by canonical pinService.ts
+  getString: (key: string) => string | undefined;
+  delete: (key: string) => void | Promise<void>;
 }
 
 let storageInstance: StorageService;
@@ -34,7 +38,11 @@ try {
     
     // Extended Methods
     set: (key, value) => mmkv.set(key, value),
-    getBoolean: (key) => mmkv.getBoolean(key) ?? false
+    getBoolean: (key) => mmkv.getBoolean(key) ?? false,
+
+    // Methods required by canonical pinService.ts
+    getString: (key) => mmkv.getString(key),
+    delete: (key) => mmkv.remove(key)
   };
   
   console.log('[Storage] High-Performance MMKV Engine Initialized');
@@ -63,6 +71,15 @@ try {
     getBoolean: async (key) => {
       const val = await AsyncStorage.getItem(key);
       return val === 'true';
+    },
+
+    // Fallback for pinService.ts methods
+    getString: (key) => {
+      console.warn(`[Storage] WARNING: Synchronous getString('${key}') called on AsyncStorage fallback. PIN Gate will bypass in Expo Go.`);
+      return undefined;
+    },
+    delete: async (key) => {
+      await AsyncStorage.removeItem(key);
     }
   };
 }

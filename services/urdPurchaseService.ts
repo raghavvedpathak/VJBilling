@@ -1,4 +1,7 @@
+import { eq, and } from 'drizzle-orm';
 import { db } from '../db/client';
+import { urdPurchases } from '../db/schema';
+import { ERR } from '../constants/errorCodes';
 import { urdPurchaseRepository } from '../repositories/urdPurchaseRepository';
 import { oldGoldLotRepository } from '../repositories/oldGoldLotRepository';
 import { sequenceCounterRepository } from '../repositories/sequenceCounterRepository';
@@ -25,8 +28,20 @@ export const urdPurchaseService = {
     id: string,
     firmId: string,
   ): Promise<URDPurchase | null> {
-    const urd = await urdPurchaseRepository.getById(db as any, firmId, id);
+    const urd = await db.select().from(urdPurchases)
+      .where(and(eq(urdPurchases.id, id), eq(urdPurchases.firmId, firmId)))
+      .limit(1)
+      .then(res => res[0] as unknown as URDPurchase || null);
+      
     if (!urd || urd.firmId !== firmId) return null;
+    
+    // Returns all fields Phase 3 needs for URD bill rendering:
+    // totalValuePaise, paymentMode, bankAccountId,
+    // customerAadhaar, customerPAN (snapshot fields from purchase time),
+    // purchaseDate, urdNumber, status, firmId, id,
+    // customerName, customerAddress, customerMobile,
+    // metalType, grossWeightMg, purityPercent, fineWeightMg,
+    // ratePerGramPaise, oldGoldLotId, customerId, fyId
     return urd;
   },
 
@@ -37,24 +52,27 @@ export const urdPurchaseService = {
     await leaseService.assertNoActiveLease();
     safeModeService.assertNotInSafeMode();
 
-    if (!input.customerName?.trim()) throw new Error('URD_CUSTOMER_NAME_REQUIRED');
-    if (input.grossWeightMg <= 0) throw new Error('URD_GROSS_WEIGHT_INVALID');
+    if (!input.customerName?.trim()) throw new Error(ERR.URD_CUSTOMER_NAME_REQUIRED);
+    if (input.grossWeightMg <= 0) throw new Error(ERR.URD_GROSS_WEIGHT_INVALID);
     if (input.purityPercent <= 0 || input.purityPercent > 100)
-      throw new Error('URD_PURITY_PERCENT_INVALID');
-    if (input.ratePerGramPaise <= 0) throw new Error('URD_RATE_INVALID');
+      throw new Error(ERR.URD_PURITY_PERCENT_INVALID);
+    if (input.ratePerGramPaise <= 0) throw new Error(ERR.URD_RATE_INVALID);
 
     if ((input.paymentMode === 'BANK' || input.paymentMode === 'UPI') && !input.bankAccountId)
-      throw new Error('URD_BANK_ACCOUNT_REQUIRED');
+      throw new Error(ERR.URD_BANK_ACCOUNT_REQUIRED);
     if (input.paymentMode === 'CASH' && input.bankAccountId)
-      throw new Error('URD_BANK_ACCOUNT_MUST_BE_NULL_FOR_CASH');
+      throw new Error(ERR.URD_BANK_ACCOUNT_MUST_BE_NULL_FOR_CASH);
 
     const fineWeightMg = Math.round(input.grossWeightMg * input.purityPercent / 100);
     const totalValuePaise = Math.round((fineWeightMg / 1000) * input.ratePerGramPaise);
 
+    // Hoisted async calls outside the transaction
     const fyId = await fyService.resolveTransactionFyId(firmId, input.purchaseDate);
+    const deviceId = await getDeviceId();
 
-    return db.transaction(async (tx) => {
-      const lot = await oldGoldLotRepository.insert(tx, {
+    // FIX-V718-1: Synchronous transaction execution
+    return db.transaction((tx) => {
+      const lot = oldGoldLotRepository.insert(tx, {
         id: uuid(),
         firmId,
         receivedFrom: input.customerName,
@@ -64,14 +82,14 @@ export const urdPurchaseService = {
         purityPercent: input.purityPercent,
         metalSource: 'CUSTOMER',
         fineWeightMg,
-        purchaseRatePaise: input.ratePerGramPaise,
+        purchaseRatePaise: input.ratePerGramPaise ?? null,
         totalAmountPaise: totalValuePaise,
         notes: input.notes ?? null,
         status: 'RECEIVED',
         createdAt: now(), updatedAt: now(),
       });
 
-      const urd = await urdPurchaseRepository.insert(tx, {
+      const urd = urdPurchaseRepository.insert(tx, {
         id: uuid(),
         firmId,
         fyId,
@@ -97,9 +115,9 @@ export const urdPurchaseService = {
         createdAt: now(), updatedAt: now(),
       });
 
-      await auditRepository.log(tx, {
+      auditRepository.log(tx, {
         eventType: 'URD_PURCHASE_CREATED', firmId, entityId: urd.id,
-        deviceId: await getDeviceId(),
+        deviceId,
         payload: JSON.stringify({
           urdId: urd.id, lotId: lot.id,
           customerName: urd.customerName, customerId: urd.customerId,
@@ -119,31 +137,36 @@ export const urdPurchaseService = {
     await leaseService.assertNoActiveLease();
     safeModeService.assertNotInSafeMode();
 
-    return db.transaction(async (tx) => {
-      const urd = await urdPurchaseRepository.getById(tx, firmId, urdId);
-      if (!urd || urd.firmId !== firmId) throw new Error('URD_NOT_FOUND_OR_WRONG_FIRM');
-      if (urd.status !== 'DRAFT') throw new Error('URD_ALREADY_CONFIRMED');
+    // Hoisted async call outside the transaction
+    const deviceId = await getDeviceId();
+
+    // FIX-V718-1: Synchronous transaction execution
+    return db.transaction((tx) => {
+      const urd = urdPurchaseRepository.getById(tx, firmId, urdId);
+      if (!urd || urd.firmId !== firmId) throw new Error(ERR.URD_NOT_FOUND_OR_WRONG_FIRM);
+      if (urd.status !== 'DRAFT') throw new Error(ERR.URD_ALREADY_CONFIRMED);
 
       // PHASE 1 ALIGNMENT LIMIT: Max value ₹99,99,999.99 to prevent amountToWords overflow
-      if (urd.totalValuePaise > 999999999) throw new Error('URD_AMOUNT_EXCEEDS_MAX');
+      if (urd.totalValuePaise > 999999999) throw new Error(ERR.URD_AMOUNT_EXCEEDS_MAX);
 
-      const seq = await sequenceCounterRepository.nextVal(tx, firmId, urd.fyId, 'URD');
+      // Synchronous Sequence Counter call
+      const seq = sequenceCounterRepository.nextVal(tx, firmId, urd.fyId, 'URD');
       
       const fy = financialYearRepository.getById(tx, firmId, urd.fyId);
-      if (!fy) throw new Error('FY_NOT_FOUND');
+      if (!fy) throw new Error(ERR.FY_NOT_FOUND);
       const fyLabel = fy.label;
 
       const urdNumber = `URD/${fyLabel}/${String(seq).padStart(4, '0')}`;
 
-      await urdPurchaseRepository.update(tx, firmId, urdId, {
+      urdPurchaseRepository.update(tx, firmId, urdId, {
         status: 'CONFIRMED',
         urdNumber,
         updatedAt: now(),
       });
 
-      await auditRepository.log(tx, {
+      auditRepository.log(tx, {
         eventType: 'URD_PURCHASE_CONFIRMED', firmId, entityId: urdId,
-        deviceId: await getDeviceId(),
+        deviceId,
         payload: JSON.stringify({ urdId, urdNumber, totalValuePaise: urd.totalValuePaise }),
       });
 
@@ -152,12 +175,13 @@ export const urdPurchaseService = {
   },
 
   async generateURDPurchaseBill(urdId: string, firmId: string): Promise<string> {
+    // This executes globally so standard async query flow is safe
     const urd = await urdPurchaseRepository.getById(db as any, firmId, urdId);
-    if (!urd || urd.firmId !== firmId) throw new Error('URD_NOT_FOUND_OR_WRONG_FIRM');
-    if (urd.status !== 'CONFIRMED') throw new Error('URD_NOT_CONFIRMED');
+    if (!urd || urd.firmId !== firmId) throw new Error(ERR.URD_NOT_FOUND_OR_WRONG_FIRM);
+    if (urd.status !== 'CONFIRMED') throw new Error(ERR.URD_NOT_CONFIRMED);
 
     const firm = await firmRepository.getById(firmId);
-    if (!firm) throw new Error('FIRM_NOT_FOUND');
+    if (!firm) throw new Error(ERR.FIRM_NOT_FOUND);
 
     const symbol = getCurrencySymbol();
     

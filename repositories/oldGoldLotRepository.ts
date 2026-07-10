@@ -5,26 +5,33 @@ import type { DrizzleTransaction, OldGoldLot, OldGoldLotStatus } from '../types/
 import { now } from '../utils/now';
 
 export const oldGoldLotRepository = {
-  async insert(tx: DrizzleTransaction, data: typeof oldGoldLots.$inferInsert): Promise<OldGoldLot> {
-    const result = await tx.insert(oldGoldLots).values(data).returning();
-    return result[0];
+  // FIX-V718-1: Synchronous execution using .run() and .get()
+  insert(tx: DrizzleTransaction, data: typeof oldGoldLots.$inferInsert): OldGoldLot {
+    tx.insert(oldGoldLots).values(data).run();
+    const result = tx.select().from(oldGoldLots).where(eq(oldGoldLots.id, data.id as string)).limit(1).get();
+    return result as unknown as OldGoldLot;
   },
 
-  async getById(tx: DrizzleTransaction, firmId: string, id: string): Promise<OldGoldLot | null> {
-    const result = await tx.select().from(oldGoldLots).where(and(eq(oldGoldLots.id, id), eq(oldGoldLots.firmId, firmId))).limit(1);
-    return result[0] || null;
+  // FIX-V718-1: Synchronous execution using .get()
+  getById(tx: DrizzleTransaction, firmId: string, id: string): OldGoldLot | null {
+    const result = tx.select().from(oldGoldLots).where(and(eq(oldGoldLots.id, id), eq(oldGoldLots.firmId, firmId))).limit(1).get();
+    return (result as unknown as OldGoldLot) || null;
   },
 
+  // Operates globally outside a transaction — safely left as async
   async findByFirmId(firmId: string): Promise<OldGoldLot[]> {
     return db.select().from(oldGoldLots).where(eq(oldGoldLots.firmId, firmId));
   },
 
-  async updateStatus(tx: DrizzleTransaction, firmId: string, id: string, status: OldGoldLotStatus): Promise<void> {
-    await tx.update(oldGoldLots)
+  // FIX-V718-1: Synchronous execution using .run()
+  updateStatus(tx: DrizzleTransaction, firmId: string, id: string, status: OldGoldLotStatus): void {
+    tx.update(oldGoldLots)
       .set({ status, updatedAt: now() })
-      .where(and(eq(oldGoldLots.id, id), eq(oldGoldLots.firmId, firmId)));
+      .where(and(eq(oldGoldLots.id, id), eq(oldGoldLots.firmId, firmId)))
+      .run();
   },
 
+  // Operates globally outside a transaction — safely left as async
   async findAvailableForIssuance(firmId: string): Promise<OldGoldLot[]> {
     return db
       .select()
@@ -38,6 +45,8 @@ export const oldGoldLotRepository = {
       );
   },
 
+  // FEAT-GAP5-REFINERYPENDING-1 (v1.66)
+  // Operates globally outside a transaction — safely left as async
   async getPendingRefineryLots(firmId: string): Promise<OldGoldLot[]> {
     return db
       .select()

@@ -2,13 +2,11 @@
 import { create } from 'zustand';
 
 interface FyBannerState {
-  isDismissed: boolean;
-  dismissBanner: () => void;
-  resetBanner: () => void;
+  bannerVisible: boolean;
+  setBannerVisible: (visible: boolean) => void;
 }
 
 export const useFyBannerStore = create<FyBannerState>((set) => ({
-  isDismissed: false,
-  dismissBanner: () => set({ isDismissed: true }),
-  resetBanner: () => set({ isDismissed: false }),
+  bannerVisible: false,
+  setBannerVisible: (visible: boolean) => set({ bannerVisible: visible }),
 }));

@@ -3,12 +3,13 @@
 // READ-ONLY | NO dual guards | NO audit write | NO lease acquisition
 
 import React, { useState, useCallback, memo } from 'react';
-import { View, Text, ScrollView, StyleSheet, ActivityIndicator, TouchableOpacity } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, ActivityIndicator, TouchableOpacity, Modal, TextInput, Alert } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useFocusEffect } from 'expo-router';
 import { TwoToneWrapper } from '../../components/TwoToneWrapper';
 import { useFirmStore } from '../../store/firmStore';
 import { inventoryDrillDownService } from '../../services/inventoryDrillDownService';
+import { itemService } from '../../services/itemService';
 import { getDisplayPurity } from '../../utils/purity.constants';
 import { getCurrencySymbol } from '../../utils/currency';
 import { formatSKUDisplay } from '../../utils/skuDisplay';
@@ -16,9 +17,10 @@ import { format, parseISO } from 'date-fns';
 import {
   Package, Tag, Scale, Gem, FileText,
   Clock, AlertTriangle, Info, AlertCircle,
-  Shield, MapPin, Calculator
+  Shield, MapPin, Calculator, Tag as TagIcon // or Pencil
 } from 'lucide-react-native';
 import type { ItemDetail, ItemTimelineEvent } from '../../types/phase2.types';
+import { TERMINAL_ITEM_STATUSES } from '../../types/phase2.types';
 
 const formatWeight = (mg: number): string => (mg / 1000).toFixed(3) + ' g';
 const formatCurrency = (paise: number | null): string => {
@@ -139,6 +141,101 @@ export default function ItemDetailScreen() {
   const { activeFirmId } = useFirmStore();
   const [item, setItem] = useState<ItemDetail | null>(null);
   const [loading, setLoading] = useState(true);
+  const [isDateModalVisible, setDateModalVisible] = useState(false);
+  const [newDateInput, setNewDateInput] = useState('');
+  const [dateReason, setDateReason] = useState('');
+
+  // HUID State
+  const [isHuidModalVisible, setHuidModalVisible] = useState(false);
+  const [huidInput, setHuidInput] = useState('');
+  const [addingHuid, setAddingHuid] = useState(false);
+  const [correctingDate, setCorrectingDate] = useState(false);
+
+  const handleOpenDateModal = () => {
+    setNewDateInput(item?.createdAt ? item.createdAt.split('T')[0] : format(new Date(), 'yyyy-MM-dd'));
+    setDateReason('');
+    setDateModalVisible(true);
+  };
+
+  const handleCorrectDate = async () => {
+    if (!item || !activeFirmId) return;
+    try {
+      if (!dateReason.trim()) {
+        Alert.alert('Error', 'Reason is required');
+        return;
+      }
+      const parsed = parseISO(newDateInput);
+      if (isNaN(parsed.getTime())) {
+        Alert.alert('Invalid Date', 'Please use YYYY-MM-DD format');
+        return;
+      }
+      
+      const newIso = newDateInput + 'T00:00:00.000Z';
+      const oldDate = item.createdAt;
+      const oldMonth = format(new Date(oldDate), 'MMyy');
+      const newMonth = format(parsed, 'MMyy');
+
+      const performCorrection = async () => {
+        setCorrectingDate(true);
+        try {
+          const oldSku = item.sku;
+          const updatedItem = await itemService.correctItemEntryDate(item.id, newIso, activeFirmId);
+          const newSku = updatedItem.sku;
+          const detail = await inventoryDrillDownService.getItemDetail(activeFirmId, item.id);
+          setItem(detail);
+          setDateModalVisible(false);
+          Alert.alert('Success', `Date corrected.${newSku !== oldSku ? `\nNew SKU: ${newSku}` : ''}`);
+        } catch (e: any) {
+          Alert.alert('Error', e.message);
+        } finally {
+          setCorrectingDate(false);
+        }
+      };
+
+      if (oldMonth !== newMonth) {
+        Alert.alert(
+          'Confirm SKU Change',
+          `This will change the item's SKU to match ${format(parsed, 'MMM yyyy')}. This cannot be undone.`,
+          [
+            { text: 'Cancel', style: 'cancel' },
+            { text: 'Confirm', style: 'destructive', onPress: performCorrection }
+          ]
+        );
+      } else {
+        performCorrection();
+      }
+    } catch (e) {
+      Alert.alert('Error', 'Invalid date input');
+    }
+  };
+
+  const handleOpenHuidModal = useCallback(() => {
+    setHuidInput('');
+    setHuidModalVisible(true);
+  }, []);
+
+  const handleAddHuid = async () => {
+    if (!activeFirmId || !itemId) return;
+    const huidUpper = huidInput.trim().toUpperCase();
+    if (!/^[A-Z0-9]{6}$/.test(huidUpper)) {
+      Alert.alert('Invalid HUID', 'HUID must be exactly 6 uppercase alphanumeric characters.');
+      return;
+    }
+
+    setAddingHuid(true);
+    try {
+      await itemService.addHUID(itemId, activeFirmId, huidUpper);
+      setHuidModalVisible(false);
+      Alert.alert('Success', 'HUID added successfully.');
+      // Refresh item detail
+      const detail = await inventoryDrillDownService.getItemDetail(activeFirmId, itemId);
+      setItem(detail);
+    } catch (e: any) {
+      Alert.alert('Error', e.message || 'Failed to add HUID');
+    } finally {
+      setAddingHuid(false);
+    }
+  };
 
   useFocusEffect(
     useCallback(() => {
@@ -251,7 +348,20 @@ export default function ItemDetailScreen() {
 
             <View style={s.divider} />
 
-            <DetailRow label="HUID" value={item.huid || 'Not Set'} />
+            <View style={s.detailRow}>
+              <View style={s.detailLabelRow}>
+                <Text style={s.detailLabel}>HUID</Text>
+              </View>
+              <View style={{flexDirection: 'row', alignItems: 'center', gap: 6}}>
+                <Text style={s.detailValue}>{item.huid || '—'}</Text>
+                {item.huid === null && !TERMINAL_ITEM_STATUSES.includes(item.status) && (
+                  <TouchableOpacity activeOpacity={0.7} onPress={handleOpenHuidModal}>
+                     <Text style={{color: COLORS.vjAccent, fontSize: 16}}>✎ Add HUID</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+            </View>
+            
             <DetailRow label="Barcode" value={formatSKUDisplay(item.barcode)} />
             
             <View style={s.divider} />
@@ -273,7 +383,7 @@ export default function ItemDetailScreen() {
                 <Text style={s.detailValue}>{createdAtFormatted}</Text>
                 {/* GAP-P2-DATE-SKU-EDIT-1 (v1.79) */}
                 {(item.status !== 'SOLD' && item.status !== 'MELTED' && item.status !== 'PHANTOM_SOLD') && (
-                  <TouchableOpacity activeOpacity={0.7} onPress={() => { /* opens Date Picker + Alert.alert() confirm flow */ }}>
+                  <TouchableOpacity activeOpacity={0.7} onPress={handleOpenDateModal}>
                      {/* Pencil Icon Placeholder */}
                      <Text style={{color: COLORS.vjAccent, fontSize: 16}}>✎</Text>
                   </TouchableOpacity>
@@ -344,6 +454,71 @@ export default function ItemDetailScreen() {
         </View>
 
       </ScrollView>
+
+      {/* Date Correction Modal */}
+      <Modal visible={isDateModalVisible} transparent animationType="fade">
+        <View style={s.modalOverlay}>
+          <View style={s.modalContent}>
+            <Text style={s.modalTitle}>Correct Added Date</Text>
+            
+            <Text style={s.modalLabel}>New Date (YYYY-MM-DD)</Text>
+            <TextInput 
+              style={s.modalInput}
+              value={newDateInput}
+              onChangeText={setNewDateInput}
+              placeholder="YYYY-MM-DD"
+              editable={!correctingDate}
+            />
+
+            <Text style={s.modalLabel}>Reason for Correction</Text>
+            <TextInput 
+              style={s.modalInput}
+              value={dateReason}
+              onChangeText={setDateReason}
+              placeholder="e.g. Typo in entry date"
+              editable={!correctingDate}
+            />
+
+            <View style={s.modalActions}>
+              <TouchableOpacity style={s.modalBtnSecondary} onPress={() => setDateModalVisible(false)} disabled={correctingDate}>
+                <Text style={s.modalBtnTextSecondary}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={s.modalBtnPrimary} onPress={handleCorrectDate} disabled={correctingDate}>
+                {correctingDate ? <ActivityIndicator color="#fff" /> : <Text style={s.modalBtnTextPrimary}>Save</Text>}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Add HUID Modal */}
+      <Modal visible={isHuidModalVisible} transparent animationType="fade">
+        <View style={s.modalOverlay}>
+          <View style={s.modalContent}>
+            <Text style={s.modalTitle}>Add HUID</Text>
+            
+            <Text style={s.modalLabel}>HUID (6 chars)</Text>
+            <TextInput 
+              style={s.modalInput}
+              value={huidInput}
+              onChangeText={setHuidInput}
+              placeholder="e.g. A1B2C3"
+              autoCapitalize="characters"
+              maxLength={6}
+              editable={!addingHuid}
+            />
+
+            <View style={s.modalActions}>
+              <TouchableOpacity style={s.modalBtnSecondary} onPress={() => setHuidModalVisible(false)} disabled={addingHuid}>
+                <Text style={s.modalBtnTextSecondary}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={s.modalBtnPrimary} onPress={handleAddHuid} disabled={addingHuid}>
+                {addingHuid ? <ActivityIndicator color="#fff" /> : <Text style={s.modalBtnTextPrimary}>Add</Text>}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </TwoToneWrapper>
   );
 }
@@ -422,4 +597,16 @@ const s = StyleSheet.create({
   timelineDate: { color: 'rgba(92,22,35,0.35)', fontSize: 10, fontWeight: '600', marginTop: 4 },
   timelineEmpty: { alignItems: 'center', paddingVertical: 30, gap: 8 },
   timelineEmptyText: { color: 'rgba(92,22,35,0.35)', fontSize: 13 },
+
+  // --- Modal ---
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' },
+  modalContent: { width: '85%', backgroundColor: '#fff', borderRadius: 16, padding: 24 },
+  modalTitle: { fontSize: 18, fontWeight: '700', color: COLORS.vjText, marginBottom: 16 },
+  modalLabel: { fontSize: 13, fontWeight: '600', color: 'rgba(92,22,35,0.6)', marginBottom: 6 },
+  modalInput: { borderWidth: 1, borderColor: '#e5e7eb', borderRadius: 8, padding: 12, marginBottom: 16, fontSize: 15, color: '#1f2937' },
+  modalActions: { flexDirection: 'row', justifyContent: 'flex-end', gap: 12, marginTop: 8 },
+  modalBtnSecondary: { paddingVertical: 10, paddingHorizontal: 16, borderRadius: 8, backgroundColor: '#f3f4f6' },
+  modalBtnTextSecondary: { color: '#4b5563', fontWeight: '600' },
+  modalBtnPrimary: { paddingVertical: 10, paddingHorizontal: 16, borderRadius: 8, backgroundColor: COLORS.vjAccent, minWidth: 80, alignItems: 'center' },
+  modalBtnTextPrimary: { color: '#fff', fontWeight: '600' },
 });

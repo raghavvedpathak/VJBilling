@@ -108,38 +108,42 @@ export default function AddStockScreen() {
     return k > 0 ? `${k}K` : '';
   }, [purityPercent]);
 
+  // Wholesale Math Live Preview
   const liveWastageSeparation = useMemo(() => {
-    const gross = parseFloat(grossWeight) || 0;
-    const stone = parseFloat(stoneWeight) || 0;
-    const beads = parseFloat(beadsWeight) || 0;
-    const purity = parseFloat(purityPercent) || 0;
-    const wastage = parseFloat(wastagePercent) || 0;
+    const g = parseFloat(grossWeight) || 0;
+    const s = parseFloat(stoneWeight) || 0;
+    const b = parseFloat(beadsWeight) || 0;
+    const p = parseFloat(purityPercent) || 0;
+    const w = parseFloat(wastagePercent) || 0;
+    
     const rate = parseFloat(purchaseRate) || 0;
     const making = parseFloat(makingCharge) || 0;
     const stoneC = parseFloat(stoneCost) || 0;
 
-    const netWeightG = Math.max(0, gross - stone - beads);
-    const totalTouchPercent = purity + wastage;
-    const effectivePricePerGram = rate * (totalTouchPercent / 100);
-    const totalGoldCost = netWeightG * effectivePricePerGram;
+    const netWeightG = Math.max(0, g - s - b);
+    const vaultTruth = (netWeightG * p) / 100;
+    
+    const totalTouchPercent = p + w;
+    const fineGoldChargedG = w > 0 ? (netWeightG * totalTouchPercent) / 100 : vaultTruth;
+    
+    const effectivePricePerGram = netWeightG > 0 ? (totalTouchPercent / 100) * rate : rate;
+    
+    // FIX-UI-TOTAL-1 (v1.51): Total Purchase Amount = (fineGoldChargedMg ?? fineWeightMg) / 1000 * purchaseRatePerGram
+    const totalGoldCost = fineGoldChargedG * rate;
     const absoluteTotalCost = totalGoldCost + making + stoneC;
 
-    const vaultTruth = netWeightG * (purity / 100);
-    const wastageGold = netWeightG * (wastage / 100);
-    const costTruth = netWeightG * (totalTouchPercent / 100);
-
     return {
+      isValid: netWeightG > 0 && p > 0,
       netWeight: netWeightG.toFixed(3) + ' g',
-      vaultTruth: vaultTruth.toFixed(3) + ' g',
-      wastageGold: wastageGold.toFixed(3) + ' g',
-      costTruth: costTruth.toFixed(3) + ' g',
+      purityRaw: p,
+      wastageRaw: w,
       totalTouch: totalTouchPercent.toFixed(2) + '%',
-      purityRaw: purity.toFixed(2),
-      wastageRaw: wastage.toFixed(2),
+      vaultTruth: vaultTruth.toFixed(3) + ' g',
+      wastageGold: (fineGoldChargedG - vaultTruth).toFixed(3) + ' g',
+      costTruth: fineGoldChargedG.toFixed(3) + ' g',
+      hasCostData: rate > 0 || making > 0 || stoneC > 0,
       pricePerGram: effectivePricePerGram,
       totalAmount: absoluteTotalCost,
-      hasCostData: rate > 0 || making > 0 || stoneC > 0,
-      isValid: netWeightG > 0 && purity > 0
     };
   }, [grossWeight, stoneWeight, beadsWeight, purityPercent, wastagePercent, purchaseRate, makingCharge, stoneCost]);
 
@@ -215,7 +219,7 @@ export default function AddStockScreen() {
       <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingTop: 32, paddingBottom: 350, paddingHorizontal: 16 }} showsVerticalScrollIndicator={false}>
         
         {/* Classification */}
-        <GlassCard>
+        <GlassCard style={{ zIndex: 50 }}>
           <View className="flex-row items-center justify-between mb-4">
             <View className="flex-row items-center gap-2">
               <Package size={20} color="#D4AF37" />
@@ -314,7 +318,7 @@ export default function AddStockScreen() {
         </GlassCard>
 
         {/* Weights */}
-        <GlassCard>
+        <GlassCard style={{ zIndex: 40 }}>
           <View className="flex-row items-center gap-2 mb-4">
             <Scale size={20} color="#D4AF37" />
             <Text className="text-lg font-bold text-vj-text">Weights (Grams)</Text>
@@ -349,7 +353,7 @@ export default function AddStockScreen() {
         </GlassCard>
 
         {/* Tracking & Stones */}
-        <GlassCard>
+        <GlassCard style={{ zIndex: 30 }}>
           <View className="flex-row items-center gap-2 mb-4">
             <MapPin size={20} color="#D4AF37" />
             <Text className="text-lg font-bold text-vj-text">Tracking & Stones</Text>
@@ -386,14 +390,15 @@ export default function AddStockScreen() {
               <Text style={{ fontSize: 12, fontWeight: '700', color: 'rgba(92,22,35,0.6)', textTransform: 'uppercase', marginBottom: 4 }}>Size Unit</Text>
               <GlassSmartSearch 
                 placeholder="Select Unit..."
+                showAllOnFocus={true}
                 options={[
-                  { id: 'NONE', label: 'None' },
+                  { id: 'NONE', label: 'No Unit (Clear)' },
                   { id: 'INCH', label: 'Inches (INCH)' },
                   { id: 'MM', label: 'Millimeters (MM)' },
                   { id: 'CM', label: 'Centimeters (CM)' },
                   { id: 'RING_SIZE', label: 'Ring Size' }
                 ]}
-                selectedId={sizeUnit || 'NONE'}
+                selectedId={sizeUnit || null}
                 onSelect={(opt) => {
                   if (!opt || opt.id === 'NONE') return setSizeUnit('');
                   setSizeUnit(opt.id);
@@ -404,7 +409,7 @@ export default function AddStockScreen() {
         </GlassCard>
 
         {/* Costs */}
-        <GlassCard>
+        <GlassCard style={{ zIndex: 20 }}>
           <View className="flex-row items-center gap-2 mb-4">
             <Wallet size={20} color="#D4AF37" />
             <Text className="text-lg font-bold text-vj-text">Purchase Costs (₹)</Text>
@@ -419,7 +424,7 @@ export default function AddStockScreen() {
 
         {/* Mandated UI Display — Live Cost Preview */}
         {liveWastageSeparation.isValid && (
-          <View className="px-1 mb-4 mt-2">
+          <View className="px-1 mb-4 mt-2" style={{ zIndex: 10 }}>
             <GlassCard style={{ backgroundColor: 'rgba(252,251,248, 0.95)', borderColor: '#D4AF37', borderWidth: 1 }}>
               <View className="flex-row items-center gap-2 mb-3">
                 <Calculator size={18} color="#D4AF37" />

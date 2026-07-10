@@ -33,10 +33,13 @@ export const designService = {
     const sanitizedName = sanitizeText(name); // Sanitize after validation
 
     const designId = uuidv4();
+    // Hoisted async call outside transaction
+    const deviceId = await getDeviceId();
 
-    return db.transaction(async (tx) => {
+    // FIX-V718-1: Synchronous transaction block
+    return db.transaction((tx) => {
       try {
-        await designRepository.insert(tx, {
+        designRepository.insert(tx, {
           id: designId,
           firmId,
           name: sanitizedName,
@@ -54,11 +57,11 @@ export const designService = {
         throw e;
       }
 
-      await auditRepository.log(tx, {
+      auditRepository.log(tx, {
         eventType: 'DESIGN_CREATED',
         firmId,
         entityId: designId,
-        deviceId: await getDeviceId(),
+        deviceId,
         payload: JSON.stringify({ designId, name: sanitizedName, metal, code })
       });
 
@@ -71,11 +74,16 @@ export const designService = {
     await leaseService.assertNoActiveLease();
     safeModeService.assertNotInSafeMode();
 
-    return db.transaction(async (tx) => {
-      const design = await designRepository.getById(tx, firmId, designId);
+    // Hoisted async call outside transaction
+    const deviceId = await getDeviceId();
+
+    // FIX-V718-1: Synchronous transaction block
+    return db.transaction((tx) => {
+      const design = designRepository.getById(tx, firmId, designId);
       if (!design || design.firmId !== firmId) throw new Error(ERR.DESIGN_NOT_FOUND_OR_WRONG_FIRM);
 
-      const activeItems = await itemRepository.findByDesignId(tx, designId, firmId);
+      // Using the synchronous itemRepository helper
+      const activeItems = itemRepository.findByDesignIdTx(tx, designId, firmId);
       
       const blocked = activeItems.filter(i =>
         ['AVAILABLE', 'DRAFT', 'SENT_TO_REFINERY', 'SENT_TO_MELT', 'SENT_TO_KARIGAR', 'DAMAGED', 'PHANTOM_AVAILABLE'].includes(i.status)
@@ -83,13 +91,13 @@ export const designService = {
 
       if (blocked.length > 0) throw new Error(ERR.DESIGN_HAS_ACTIVE_ITEMS);
 
-      await designRepository.softDelete(tx, firmId, designId);
+      designRepository.softDelete(tx, firmId, designId);
 
-      await auditRepository.log(tx, {
+      auditRepository.log(tx, {
         eventType: 'DESIGN_SOFT_DELETED',
         firmId,
         entityId: designId,
-        deviceId: await getDeviceId(),
+        deviceId,
         payload: JSON.stringify({ designId, name: design.name })
       });
     });
@@ -104,8 +112,12 @@ export const designService = {
     await leaseService.assertNoActiveLease();
     safeModeService.assertNotInSafeMode();
 
-    return db.transaction(async (tx) => {
-      const design = await designRepository.getById(tx, firmId, designId);
+    // Hoisted async call outside transaction
+    const deviceId = await getDeviceId();
+
+    // FIX-V718-1: Synchronous transaction block
+    return db.transaction((tx) => {
+      const design = designRepository.getById(tx, firmId, designId);
       if (!design || design.firmId !== firmId) throw new Error(ERR.DESIGN_NOT_FOUND_OR_WRONG_FIRM);
 
       const updateData: Partial<Pick<Design, 'name' | 'defaultHsn'>> = {};
@@ -120,7 +132,7 @@ export const designService = {
       }
 
       try {
-        await designRepository.update(tx, firmId, designId, updateData);
+        designRepository.update(tx, firmId, designId, updateData);
       } catch (e: any) {
         // Name uniqueness: UNIQUE(name, metal, firmId) index enforces at DB level
         if (e.message?.includes('UNIQUE constraint failed') || e.code === 'SQLITE_CONSTRAINT_UNIQUE') {
@@ -129,11 +141,11 @@ export const designService = {
         throw e;
       }
 
-      await auditRepository.log(tx, {
+      auditRepository.log(tx, {
         eventType: 'DESIGN_UPDATED',
         firmId,
         entityId: designId,
-        deviceId: await getDeviceId(),
+        deviceId,
         payload: JSON.stringify({ designId, changes: input })
       });
     });

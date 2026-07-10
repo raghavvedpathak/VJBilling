@@ -7,13 +7,15 @@ import { itemRepository } from '../repositories/itemRepository';
 import { itemEventRepository } from '../repositories/itemEventRepository';
 import { auditRepository } from '../repositories/auditRepository';
 import { getDeviceId } from '../utils/deviceId';
-import { getDisplayPurity } from '../db/schema';
+import { getDisplayPurity } from '../utils/purity.constants';
 import { now } from '../utils/now';
 import * as Crypto from 'expo-crypto';
 import type { BarcodeLabel } from '../types/phase2.types';
 import { ERR } from '../constants/errorCodes';
+import { formatSKUDisplay } from '../utils/skuDisplay';
 
 export const barcodeLabelService = {
+  // Read-only, safely async
   async generateBarcodeLabel(itemId: string, firmId: string): Promise<BarcodeLabel> {
     const row = await barcodeLabelRepository.getItemWithDesignName(itemId, firmId);
     if (!row) throw new Error(ERR.ITEM_NOT_FOUND_OR_WRONG_FIRM);
@@ -24,14 +26,14 @@ export const barcodeLabelService = {
     return {
       frontSide: {
         designName: row.designName,
-        purityDisplay: getDisplayPurity(row.metal, row.purityPercent, row.purityKarat),
+        purityDisplay: getDisplayPurity(row.purityPercent, row.purityKarat, row.metal),
         grossWeightDisplay: (row.grossWeightMg / 1000).toFixed(3) + ' g',
         netWeightDisplay: (row.netWeightMg / 1000).toFixed(3) + ' g',
       },
       backSide: {
         firmCode: firm.firmCode,
         barcodeValue: row.barcode,
-        skuDisplay: row.sku, // GAP-I6: UI layer must format this using formatSKUDisplay
+        skuDisplay: formatSKUDisplay(row.sku), // GAP-I6/FEAT-BARCODE-LABEL-1 (v1.66)
       },
     };
   },
@@ -40,29 +42,33 @@ export const barcodeLabelService = {
     await leaseService.assertNoActiveLease();
     safeModeService.assertNotInSafeMode();
 
-    await db.transaction(async (tx) => {
-      const item = await itemRepository.getById(tx, firmId, itemId);
+    // Hoist async call
+    const deviceId = await getDeviceId();
+
+    // FIX-V718-1: Synchronous transaction block
+    return db.transaction((tx) => {
+      const item = itemRepository.getById(tx, firmId, itemId);
       if (!item || item.firmId !== firmId) throw new Error(ERR.ITEM_NOT_FOUND_OR_WRONG_FIRM);
 
-      await itemRepository.updateBarcodeReprintFlag(tx, firmId, itemId, false);
+      itemRepository.updateBarcodeReprintFlag(tx, firmId, itemId, false);
 
-      await itemEventRepository.insert(tx, {
+      itemEventRepository.insert(tx, {
         itemId,
         firmId,
         eventType: 'BARCODE_REPRINTED',
         severity: 'INFO',
-        performedBy: await getDeviceId(),
+        performedBy: deviceId,
         reason: null,
         oldValue: null,
         newValue: null,
         timestamp: now(),
       });
 
-      await auditRepository.log(tx, {
+      auditRepository.log(tx, {
         firmId,
         entityId: itemId,
         eventType: 'BARCODE_REPRINTED',
-        deviceId: await getDeviceId(),
+        deviceId,
         payload: JSON.stringify({ itemId, sku: item.sku }),
       });
     });

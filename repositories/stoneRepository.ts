@@ -7,13 +7,16 @@ import { now } from '../utils/now';
 type NewStone = typeof stones.$inferInsert;
 
 export const stoneRepository = {
-  async insert(tx: DrizzleTransaction, data: NewStone): Promise<Stone> {
-    const [inserted] = await tx.insert(stones).values(data).returning();
-    return inserted;
+  // FIX-V718-1: Synchronous execution using .run() and .get()
+  insert(tx: DrizzleTransaction, data: NewStone): Stone {
+    tx.insert(stones).values(data).run();
+    const result = tx.select().from(stones).where(eq(stones.id, data.id)).limit(1).get();
+    return result as unknown as Stone;
   },
 
-  async getById(tx: DrizzleTransaction, id: string, firmId: string): Promise<Stone | null> {
-    const [stone] = await tx
+  // FIX-V718-1: Synchronous execution using .get()
+  getById(tx: DrizzleTransaction, id: string, firmId: string): Stone | null {
+    const stone = tx
       .select()
       .from(stones)
       .where(
@@ -22,11 +25,13 @@ export const stoneRepository = {
           eq(stones.firmId, firmId)
         )
       )
-      .limit(1);
+      .limit(1)
+      .get();
 
-    return stone || null;
+    return (stone as unknown as Stone) || null;
   },
 
+  // Operates globally outside a transaction — safely left as async
   async findByFirmId(firmId: string): Promise<Stone[]> {
     return db
       .select()
@@ -39,15 +44,16 @@ export const stoneRepository = {
       );
   },
 
-  async softDelete(tx: DrizzleTransaction, id: string, firmId: string): Promise<void> {
-    await tx
-      .update(stones)
+  // FIX-V718-1: Synchronous execution using .run()
+  softDelete(tx: DrizzleTransaction, id: string, firmId: string): void {
+    tx.update(stones)
       .set({ isActive: 0, updatedAt: now() })
       .where(
         and(
           eq(stones.id, id),
           eq(stones.firmId, firmId)
         )
-      );
+      )
+      .run();
   }
 };

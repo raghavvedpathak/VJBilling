@@ -78,8 +78,9 @@ beforeAll(async () => {
     id TEXT PRIMARY KEY, firm_id TEXT NOT NULL, fy_id TEXT NOT NULL, sku TEXT NOT NULL, barcode TEXT NOT NULL, huid TEXT, design_id TEXT NOT NULL, category_id TEXT NOT NULL DEFAULT '', hsn_code TEXT NOT NULL DEFAULT '',
     metal TEXT NOT NULL, purity_percent REAL NOT NULL, purity_karat INTEGER NOT NULL,
     gross_weight_mg INTEGER NOT NULL, stone_weight_mg INTEGER NOT NULL DEFAULT 0, beads_weight_mg INTEGER NOT NULL DEFAULT 0, net_weight_mg INTEGER NOT NULL,
-    fine_weight_mg INTEGER NOT NULL, wastage_percent REAL NOT NULL DEFAULT 0, fine_gold_charged_mg INTEGER, purchase_rate_paise INTEGER, making_charge_paise INTEGER, stone_cost_paise INTEGER,
+    fine_weight_mg INTEGER NOT NULL, wastage_percent REAL NOT NULL DEFAULT 0, fine_gold_charged_mg INTEGER, purchase_rate_paise INTEGER, making_charge_paise INTEGER, stone_cost_paise INTEGER, purity_rounding_delta_mg INTEGER NOT NULL DEFAULT 0,
     status TEXT NOT NULL, metal_source TEXT NOT NULL, primary_stone_id TEXT, location TEXT, invoice_id TEXT, phantom_stock_id TEXT DEFAULT NULL, barcode_reprint_required INTEGER NOT NULL DEFAULT 0,
+    size_value REAL, size_unit TEXT,
     created_at TEXT NOT NULL, updated_at TEXT NOT NULL
   )`);
   await _rawClient.execute(`CREATE TABLE IF NOT EXISTS item_events (
@@ -95,7 +96,7 @@ beforeAll(async () => {
     id TEXT PRIMARY KEY, firm_id TEXT NOT NULL, stone_id TEXT NOT NULL, name TEXT NOT NULL, weight_carat_x100 INTEGER NOT NULL, quantity INTEGER NOT NULL, purchase_rate_paise_per_carat INTEGER, total_purchase_amount_paise INTEGER, supplier_name TEXT, certification_ref TEXT, notes TEXT, status TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL
   )`);
   await _rawClient.execute(`CREATE TABLE IF NOT EXISTS old_gold_lots (
-    id TEXT PRIMARY KEY, firm_id TEXT NOT NULL, received_from TEXT NOT NULL, received_date TEXT NOT NULL, customer_id TEXT, gross_weight_mg INTEGER NOT NULL, purity_percent REAL NOT NULL, fine_weight_mg INTEGER NOT NULL DEFAULT 0, purchase_rate_paise INTEGER, total_amount_paise INTEGER, metal_source TEXT NOT NULL, notes TEXT, status TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+    id TEXT PRIMARY KEY, firm_id TEXT NOT NULL, received_from TEXT NOT NULL, received_date TEXT NOT NULL, customer_id TEXT, gross_weight_mg INTEGER NOT NULL, purity_percent REAL NOT NULL, fine_weight_mg INTEGER NOT NULL DEFAULT 0, purity_rounding_delta_mg INTEGER NOT NULL DEFAULT 0, purchase_rate_paise INTEGER, total_amount_paise INTEGER, metal_source TEXT NOT NULL, notes TEXT, status TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL
   )`);
   await _rawClient.execute(`CREATE TABLE IF NOT EXISTS hsn_codes (
     id TEXT PRIMARY KEY, code TEXT NOT NULL UNIQUE, description TEXT NOT NULL, chapter TEXT NOT NULL DEFAULT '71', is_active INTEGER NOT NULL DEFAULT 1, created_at TEXT NOT NULL
@@ -134,6 +135,11 @@ beforeEach(async () => {
   await db.insert(hsnCodes).values({
     id: 'HSN_7113', code: '7113', description: 'Jewellery', chapter: '71',
     isActive: 1, createdAt: new Date().toISOString()
+  });
+  await db.insert(financialYears).values({
+    id: 'mock_fy', firmId: FIRM_ID, label: '2020-2030', 
+    startDate: '2020-01-01', endDate: '2030-12-31', 
+    status: 'ACTIVE', createdAt: new Date().toISOString()
   });
 });
 
@@ -227,7 +233,7 @@ describe('createItem Validation & Weight Calculations', () => {
 
     expect(item.netWeightMg).toBe(9000); // 10000 - 1000
     expect(item.fineWeightMg).toBe(8244); // 9000 * 0.916 = 8244
-    expect(item.fineGoldChargedMg).toBe(9144); // 9000 * 101.6 / 100 = 9144
+    expect(item.fineGoldChargedMg).toBe(9144); // 9000 * (91.6 + 10) / 100 = 9144
   });
 
   it('leaves fineGoldChargedMg as null when wastage is 0', async () => {
@@ -255,26 +261,26 @@ describe('adjustWeight Guard', () => {
     const [updated] = await db.select().from(items).where(eq(items.id, item.id));
     expect(updated?.netWeightMg).toBe(12000);
     expect(updated?.fineWeightMg).toBe(Math.round(12000 * 0.916)); // 10992
-    expect(updated?.fineGoldChargedMg).toBe(12192); // 12000 * 101.6 / 100 = 12192
+    expect(updated?.fineGoldChargedMg).toBe(12192); // 12000 * (91.6 + 10) / 100 = 12192
 
     // Check Audit Log
     const events = await db.select().from(itemEvents).where(eq(itemEvents.itemId, item.id));
     expect(events.map((e: any) => e.eventType)).toContain('WEIGHT_ADJUSTED');
   });
 
-  it('throws WEIGHT_EDIT_AFTER_DRAFT_FORBIDDEN for AVAILABLE items', async () => {
+
+  it('throws ITEM_EDIT_LOCKED_TERMINAL_STATUS for SOLD items', async () => {
     const mockDesign = await createTestDesign();
     const item = await itemService.createItem({
       designId: mockDesign.id, categoryId: 'CAT_1', hsnCode: '7113', grossWeightMg: 10000,
       stoneWeightMg: 0, beadsWeightMg: 0, purityPercent: 91.6, purityKarat: 22,
     }, FIRM_ID);
-    console.log("ITEM AFTER CREATE:", item);
-    const inDb = await db.select().from(items).where(eq(items.id, item.id));
-    console.log("ITEM IN DB:", inDb);
 
-    await itemService.updateItemStatus(item.id, FIRM_ID, 'AVAILABLE', 'test_user');
+    // Manually force to SOLD for testing terminal status guard
+    await db.update(items).set({ status: 'SOLD' }).where(eq(items.id, item.id));
+
     await expect(itemService.adjustWeight(item.id, FIRM_ID, 12000, item.stoneWeightMg || 0, item.beadsWeightMg || 0, 'Typo'))
-      .rejects.toThrow('WEIGHT_EDIT_AFTER_DRAFT_FORBIDDEN');
+      .rejects.toThrow('ITEM_EDIT_LOCKED_TERMINAL_STATUS');
   });
 });
 
@@ -365,7 +371,9 @@ describe('FY Close', () => {
 
     const dbItems = await db.select().from(items);
     console.log('ITEMS BEFORE DISCARD:', dbItems);
-    await itemService.discardDraftItem(item.id, FIRM_ID);
+    
+    // FIX applied here: replace discardDraftItem with deleteItem
+    await itemService.deleteItem(item.id, FIRM_ID, 'Draft block resolution');
 
     const preCloseAfter = await fyService.preCloseChecks('FY1', FIRM_ID);
     expect(preCloseAfter.issues.some(i => i.code === 'FY_CLOSE_BLOCKED_DRAFT_ITEMS')).toBe(false);
@@ -393,9 +401,10 @@ describe('updateItem Guard', () => {
     expect(payload.changes.location).toBeDefined();
     expect(payload.changes.location.new).toBe('LOCKER');
 
-    await itemService.updateItemStatus(item.id, FIRM_ID, 'AVAILABLE');
+    // Manually force to SOLD for testing terminal status guard
+    await db.update(items).set({ status: 'SOLD' }).where(eq(items.id, item.id));
     await expect(itemService.updateItem(item.id, FIRM_ID, { location: 'SHOP' }))
-      .rejects.toThrow('WEIGHT_EDIT_AFTER_DRAFT_FORBIDDEN');
+      .rejects.toThrow('ITEM_EDIT_LOCKED_TERMINAL_STATUS');
   });
 });
 
