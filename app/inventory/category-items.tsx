@@ -95,8 +95,8 @@ export default function CategoryItemsScreen() {
 
   const handleDesignPress = useCallback((designId: string, designName: string, purityPercent: number) => {
     router.push({
-      pathname: '/inventory/design-items',
-      params: { designId, designName, purityPercent },
+      pathname: '/inventory/purity-items',
+      params: { designId, designName, purityPercent: String(purityPercent) },
     });
   }, [router]);
 

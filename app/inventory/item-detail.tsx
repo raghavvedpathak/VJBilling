@@ -2,12 +2,14 @@
 // FEAT-DRILL-DOWN-1 (v1.65) — Screen D: Item Detail + Timeline (STEP 16.4)
 // READ-ONLY | NO dual guards | NO audit write | NO lease acquisition
 
-import React, { useState, useCallback, memo } from 'react';
+import React, { useState, useCallback, memo, useMemo } from 'react';
 import { View, Text, ScrollView, StyleSheet, ActivityIndicator, TouchableOpacity, Modal, TextInput, Alert } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useFocusEffect } from 'expo-router';
 import { TwoToneWrapper } from '../../components/TwoToneWrapper';
 import { useFirmStore } from '../../store/firmStore';
+import { appSettingsStore } from '../../store/appSettingsStore';
+import { GlassCard } from '../../components/ui/Glass';
 import { inventoryDrillDownService } from '../../services/inventoryDrillDownService';
 import { itemService } from '../../services/itemService';
 import { getDisplayPurity } from '../../utils/purity.constants';
@@ -134,6 +136,13 @@ function DetailRow({ label, value, icon, valueColor }: { label: string; value: s
   );
 }
 
+const MONTH_NAMES = [
+  'January', 'February', 'March', 'April', 'May', 'June',
+  'July', 'August', 'September', 'October', 'November', 'December'
+];
+
+const WEEK_DAYS = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
+
 // ======== MAIN SCREEN ========
 export default function ItemDetailScreen() {
   const router = useRouter();
@@ -142,8 +151,14 @@ export default function ItemDetailScreen() {
   const [item, setItem] = useState<ItemDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [isDateModalVisible, setDateModalVisible] = useState(false);
-  const [newDateInput, setNewDateInput] = useState('');
   const [dateReason, setDateReason] = useState('');
+
+  // Calendar States
+  const [calendarYear, setCalendarYear] = useState(new Date().getFullYear());
+  const [calendarMonth, setCalendarMonth] = useState(new Date().getMonth());
+  const [selectedCalendarDate, setSelectedCalendarDate] = useState<Date>(new Date());
+  
+  const { dateFormatToken } = appSettingsStore.getState();
 
   // HUID State
   const [isHuidModalVisible, setHuidModalVisible] = useState(false);
@@ -152,9 +167,34 @@ export default function ItemDetailScreen() {
   const [correctingDate, setCorrectingDate] = useState(false);
 
   const handleOpenDateModal = () => {
-    setNewDateInput(item?.createdAt ? item.createdAt.split('T')[0] : format(new Date(), 'yyyy-MM-dd'));
+    const currentDate = item?.createdAt ? parseISO(item.createdAt) : new Date();
+    setSelectedCalendarDate(currentDate);
+    setCalendarYear(currentDate.getFullYear());
+    setCalendarMonth(currentDate.getMonth());
     setDateReason('');
     setDateModalVisible(true);
+  };
+
+  const handlePrevMonth = () => {
+    if (calendarMonth === 0) {
+      setCalendarMonth(11);
+      setCalendarYear(prev => prev - 1);
+    } else {
+      setCalendarMonth(prev => prev - 1);
+    }
+  };
+
+  const handleNextMonth = () => {
+    if (calendarMonth === 11) {
+      setCalendarMonth(0);
+      setCalendarYear(prev => prev + 1);
+    } else {
+      setCalendarMonth(prev => prev + 1);
+    }
+  };
+
+  const handleSelectDay = (day: number) => {
+    setSelectedCalendarDate(new Date(calendarYear, calendarMonth, day));
   };
 
   const handleCorrectDate = async () => {
@@ -164,13 +204,9 @@ export default function ItemDetailScreen() {
         Alert.alert('Error', 'Reason is required');
         return;
       }
-      const parsed = parseISO(newDateInput);
-      if (isNaN(parsed.getTime())) {
-        Alert.alert('Invalid Date', 'Please use YYYY-MM-DD format');
-        return;
-      }
       
-      const newIso = newDateInput + 'T00:00:00.000Z';
+      const parsed = selectedCalendarDate;
+      const newIso = parsed.toISOString().split('T')[0] + 'T00:00:00.000Z';
       const oldDate = item.createdAt;
       const oldMonth = format(new Date(oldDate), 'MMyy');
       const newMonth = format(parsed, 'MMyy');
@@ -283,10 +319,44 @@ export default function ItemDetailScreen() {
   const isPhantom = item.status === 'PHANTOM_AVAILABLE' || item.status === 'PHANTOM_SOLD';
   const purityDisplay = getDisplayPurity(item.purityPercent, item.purityKarat, item.metal);
 
+  const dateToken = dateFormatToken || 'dd/MM/yyyy';
   let createdAtFormatted = item.createdAt;
   try {
-    createdAtFormatted = format(parseISO(item.createdAt), 'dd MMM yyyy hh:mm a');
-  } catch {}
+    createdAtFormatted = format(parseISO(item.createdAt), `${dateToken} hh:mm a`);
+  } catch {
+    try {
+      createdAtFormatted = format(parseISO(item.createdAt), 'dd/MM/yyyy hh:mm a');
+    } catch {}
+  }
+
+  let selectedCalendarDateFormatted = '';
+  try {
+    if (selectedCalendarDate && !isNaN(selectedCalendarDate.getTime())) {
+      selectedCalendarDateFormatted = format(selectedCalendarDate, dateToken);
+    } else {
+      selectedCalendarDateFormatted = format(new Date(), dateToken);
+    }
+  } catch {
+    try {
+      selectedCalendarDateFormatted = format(new Date(), 'dd/MM/yyyy');
+    } catch {}
+  }
+
+  // --- Calendar Date Picker Calculation ---
+  const daysInMonth = new Date(calendarYear, calendarMonth + 1, 0).getDate();
+  const firstDayIndex = new Date(calendarYear, calendarMonth, 1).getDay();
+  
+  const cells: (number | null)[] = [];
+  for (let i = 0; i < firstDayIndex; i++) {
+    cells.push(null);
+  }
+  for (let i = 1; i <= daysInMonth; i++) {
+    cells.push(i);
+  }
+  const rows: (number | null)[][] = [];
+  for (let i = 0; i < cells.length; i += 7) {
+    rows.push(cells.slice(i, i + 7));
+  }
 
   // --- Live Cost Breakdown Calculations ---
   const netWeightG = item.netWeightMg / 1000;
@@ -340,6 +410,9 @@ export default function ItemDetailScreen() {
             <DetailRow label="Beads Weight" value={formatWeight(item.beadsWeightMg)} />
             <DetailRow label="Net Weight" value={formatWeight(item.netWeightMg)} />
             <DetailRow label="Fine Weight" value={formatWeight(item.fineWeightMg)} />
+            <DetailRow label="Vault Truth (Fine)" value={vaultTruth.toFixed(3) + ' g'} valueColor="#047857" />
+            <DetailRow label="Wastage Gold" value={wastageGold.toFixed(3) + ' g'} valueColor="#B91C1C" />
+            <DetailRow label="Cost Truth (Fine)" value={costTruth.toFixed(3) + ' g'} valueColor="#B45309" />
             
             <View style={s.divider} />
             
@@ -404,6 +477,12 @@ export default function ItemDetailScreen() {
                 {item.stoneCostPaise !== null && (
                   <DetailRow label="Stone Cost" value={formatCurrency(item.stoneCostPaise)} />
                 )}
+                {hasCostData && (
+                  <>
+                    <DetailRow label="Effective Price/g" value={'₹ ' + effectivePricePerGram.toLocaleString('en-IN', { maximumFractionDigits: 2 })} />
+                    <DetailRow label="Est. Total Cost" value={'₹ ' + totalAmount.toLocaleString('en-IN', { maximumFractionDigits: 2 })} valueColor="#78350F" />
+                  </>
+                )}
               </>
             )}
 
@@ -424,6 +503,8 @@ export default function ItemDetailScreen() {
 
           </View>
         </View>
+
+
 
         {/* === TIMELINE SECTION === */}
         <View style={s.section}>
@@ -461,14 +542,61 @@ export default function ItemDetailScreen() {
           <View style={s.modalContent}>
             <Text style={s.modalTitle}>Correct Added Date</Text>
             
-            <Text style={s.modalLabel}>New Date (YYYY-MM-DD)</Text>
-            <TextInput 
-              style={s.modalInput}
-              value={newDateInput}
-              onChangeText={setNewDateInput}
-              placeholder="YYYY-MM-DD"
-              editable={!correctingDate}
-            />
+            <Text style={s.modalLabel}>Select New Date</Text>
+            
+            <View style={s.calendarContainer}>
+              <View style={s.calendarHeader}>
+                <TouchableOpacity onPress={handlePrevMonth} style={s.arrowBtn}>
+                  <Text style={s.arrowText}>‹</Text>
+                </TouchableOpacity>
+                <Text style={s.calendarTitleText}>
+                  {MONTH_NAMES[calendarMonth]} {calendarYear}
+                </Text>
+                <TouchableOpacity onPress={handleNextMonth} style={s.arrowBtn}>
+                  <Text style={s.arrowText}>›</Text>
+                </TouchableOpacity>
+              </View>
+
+              {/* Weekdays */}
+              <View style={s.weekDaysRow}>
+                {WEEK_DAYS.map(day => (
+                  <Text key={day} style={s.weekDayText}>{day}</Text>
+                ))}
+              </View>
+
+              {/* Days Grid */}
+              <View style={s.daysGrid}>
+                {rows.map((row, rIdx) => (
+                  <View key={rIdx} style={s.daysRow}>
+                    {row.map((day, cIdx) => {
+                      if (day === null) {
+                        return <View key={cIdx} style={s.dayCellEmpty} />;
+                      }
+                      
+                      const isSelected = selectedCalendarDate.getDate() === day &&
+                                         selectedCalendarDate.getMonth() === calendarMonth &&
+                                         selectedCalendarDate.getFullYear() === calendarYear;
+
+                      return (
+                        <TouchableOpacity
+                          key={cIdx}
+                          style={[s.dayCell, isSelected && s.dayCellSelected]}
+                          onPress={() => handleSelectDay(day)}
+                        >
+                          <Text style={[s.dayText, isSelected && s.dayTextSelected]}>
+                            {day}
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+                ))}
+              </View>
+            </View>
+
+            <Text style={s.selectedDateLabel}>
+              Selected: {selectedCalendarDateFormatted}
+            </Text>
 
             <Text style={s.modalLabel}>Reason for Correction</Text>
             <TextInput 
@@ -609,4 +737,95 @@ const s = StyleSheet.create({
   modalBtnTextSecondary: { color: '#4b5563', fontWeight: '600' },
   modalBtnPrimary: { paddingVertical: 10, paddingHorizontal: 16, borderRadius: 8, backgroundColor: COLORS.vjAccent, minWidth: 80, alignItems: 'center' },
   modalBtnTextPrimary: { color: '#fff', fontWeight: '600' },
+
+  // --- Live Cost Breakdown ---
+  costItemRow: { flexDirection: 'row', justifyContent: 'space-between', borderBottomWidth: 1, borderBottomColor: 'rgba(0,0,0,0.05)', paddingVertical: 8 },
+  costItemRowComplex: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', borderBottomWidth: 1, borderBottomColor: 'rgba(0,0,0,0.05)', paddingVertical: 8 },
+  costItemLabel: { fontSize: 12, color: 'rgba(92,22,35,0.6)', fontWeight: '600' },
+  costItemValue: { fontSize: 12, color: COLORS.vjText, fontWeight: '700', fontFamily: 'monospace' },
+  costItemValueLarge: { fontSize: 14, color: COLORS.vjText, fontWeight: '900', fontFamily: 'monospace' },
+  costPillContainer: { backgroundColor: 'rgba(212,175,55,0.1)', alignSelf: 'flex-start', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 10, marginTop: 4 },
+  costPillText: { fontSize: 10, color: COLORS.vjAccent, fontWeight: '700' },
+  costTotalRow: { flexDirection: 'row', justifyContent: 'space-between', paddingTop: 10, marginTop: 4 },
+  costBreakdownTotalLabel: { fontSize: 14, color: COLORS.vjText, fontWeight: '900' },
+  costBreakdownTotalValue: { fontSize: 14, color: '#78350F', fontWeight: '900', fontFamily: 'monospace' },
+
+  // --- Calendar Date Picker ---
+  calendarContainer: {
+    borderWidth: 1,
+    borderColor: 'rgba(92,22,35,0.08)',
+    borderRadius: 12,
+    padding: 10,
+    backgroundColor: '#FAF9F6',
+    marginBottom: 12,
+  },
+  calendarHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  arrowBtn: {
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+  },
+  arrowText: {
+    fontSize: 24,
+    color: COLORS.vjText,
+    fontWeight: 'bold',
+  },
+  calendarTitleText: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: COLORS.vjText,
+  },
+  weekDaysRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    marginBottom: 6,
+  },
+  weekDayText: {
+    width: 32,
+    textAlign: 'center',
+    fontSize: 11,
+    fontWeight: '700',
+    color: 'rgba(92,22,35,0.4)',
+  },
+  daysGrid: {
+    gap: 4,
+  },
+  daysRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+  },
+  dayCell: {
+    width: 32,
+    height: 32,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderRadius: 16,
+  },
+  dayCellSelected: {
+    backgroundColor: COLORS.vjAccent,
+  },
+  dayCellEmpty: {
+    width: 32,
+    height: 32,
+  },
+  dayText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: COLORS.vjText,
+  },
+  dayTextSelected: {
+    color: '#ffffff',
+    fontWeight: '800',
+  },
+  selectedDateLabel: {
+    fontSize: 12,
+    color: COLORS.vjText,
+    fontWeight: '700',
+    textAlign: 'center',
+    marginBottom: 12,
+  },
 });

@@ -139,8 +139,8 @@ export const bootstrapService = {
       // Step 2: WAL PRAGMAs already applied in db/client.ts useDatabase() — do not repeat here.
 
       // Step 3: v2.4 G10 — Purge ALL leases on restart (session-scoped, no WHERE clause)
-      await db.transaction(async (tx) => {
-        await tx.delete(writerLeases);
+      await db.transaction((tx) => {
+        tx.delete(writerLeases).run();
       });
 
       // Step 4: HARDENING 5 — Initialize device identity if missing (persists to MMKV, no DB touch).
@@ -195,8 +195,8 @@ export const bootstrapService = {
       if (premigrationSnapshotFailed) {
         try {
           const deviceId = await getDeviceId();
-          await db.transaction(async (tx) => {
-            await auditRepository.create(
+          await db.transaction((tx) => {
+            auditRepository.create(
               {
                 eventType: 'PRE_MIGRATION_SNAPSHOT_FAILED',
                 firmId: null,
@@ -258,9 +258,9 @@ export const bootstrapService = {
             const info = await FileSystem.getInfoAsync(firm.firmLogoRef);
             if (!info.exists) {
               const deviceId = await getDeviceId();
-              await db.transaction(async (tx) => {
-                await tx.update(firms).set({ firmLogoRef: null }).where(eq(firms.id, firm.id));
-                await auditRepository.create(
+              await db.transaction((tx) => {
+                tx.update(firms).set({ firmLogoRef: null }).where(eq(firms.id, firm.id)).run();
+                auditRepository.create(
                   {
                     firmId: firm.id,
                     eventType: 'FIRM_UPDATED',
@@ -282,16 +282,17 @@ export const bootstrapService = {
             const info = await FileSystem.getInfoAsync(logo.fileRef);
             if (!info.exists) {
               const deviceId = await getDeviceId();
-              await db.transaction(async (tx) => {
-                await tx
+              await db.transaction((tx) => {
+                tx
                   .update(bisLogos)
                   .set({
                     isArchived: 1,
                     archivedAt: new Date().toISOString(),
                     archivedReason: 'FILE_NOT_FOUND_ON_DEVICE',
                   })
-                  .where(eq(bisLogos.id, logo.id));
-                await auditRepository.create(
+                  .where(eq(bisLogos.id, logo.id))
+                  .run();
+                auditRepository.create(
                   {
                     firmId: logo.firmId,
                     eventType: 'BIS_LOGO_ARCHIVED',

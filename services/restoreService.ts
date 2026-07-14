@@ -11,6 +11,7 @@ import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Crypto from 'expo-crypto';
 import * as Updates from 'expo-updates';
+import CryptoJS from 'crypto-js';
 import { Alert } from 'react-native';
 import { db } from '../db/client';
 import {
@@ -69,27 +70,48 @@ export const restoreService = {
       throw new Error(ERR.BACKUP_PASSWORD_REQUIRED + ': password required for this backup');
     }
 
-    const fromBase64 = (b64: string) => Uint8Array.from(atob(b64), c => c.charCodeAt(0));
-    const saltBytes = fromBase64(parsedBlob.salt);
-    const ivBytes = fromBase64(parsedBlob.iv);
-    const cipherBytes = fromBase64(parsedBlob.ciphertext);
-
     const keySourceMaterial = parsedBlob.passwordProtected === true 
       ? new TextEncoder().encode(password) 
       : await getDeviceDerivedKeyMaterial();
 
-    const keyMaterial = await crypto.subtle.importKey('raw', keySourceMaterial as any, 'PBKDF2', false, ['deriveKey']);
-    const key = await crypto.subtle.deriveKey(
-      { name: 'PBKDF2', salt: saltBytes, iterations: 100000, hash: 'SHA-256' }, 
-      keyMaterial, { name: 'AES-GCM', length: 256 }, false, ['decrypt']
-    );
+    const toWordArray = (u8: Uint8Array) => {
+      const words: number[] = [];
+      for (let i = 0; i < u8.length; i += 4) {
+        words.push(
+          (u8[i] << 24) |
+          ((u8[i + 1] ?? 0) << 16) |
+          ((u8[i + 2] ?? 0) << 8) |
+          (u8[i + 3] ?? 0)
+        );
+      }
+      return CryptoJS.lib.WordArray.create(words, u8.length);
+    };
 
     let backup: BackupEnvelope;
     try {
-      const decrypted = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: ivBytes }, key, cipherBytes);
-      backup = JSON.parse(new TextDecoder().decode(decrypted)) as BackupEnvelope;
-    } catch {
-      throw new Error(ERR.CHECKSUM_MISMATCH + ': AES-GCM decryption failed — wrong password or tampered file');
+      const salt = CryptoJS.enc.Base64.parse(parsedBlob.salt);
+      const iv = CryptoJS.enc.Base64.parse(parsedBlob.iv);
+
+      const keyMaterial = toWordArray(keySourceMaterial);
+      const key = CryptoJS.PBKDF2(keyMaterial, salt, {
+        keySize: 256 / 32,
+        iterations: 100000,
+        hasher: CryptoJS.algo.SHA256,
+      });
+
+      const decrypted = CryptoJS.AES.decrypt(parsedBlob.ciphertext, key, {
+        iv: iv,
+        mode: CryptoJS.mode.CBC,
+        padding: CryptoJS.pad.Pkcs7,
+      });
+
+      const decryptedText = decrypted.toString(CryptoJS.enc.Utf8);
+      if (!decryptedText) {
+        throw new Error('Empty decryption result');
+      }
+      backup = JSON.parse(decryptedText) as BackupEnvelope;
+    } catch (e) {
+      throw new Error(ERR.CHECKSUM_MISMATCH + ': Decryption failed — wrong password or tampered file');
     }
 
     // Step 4: Validate
@@ -164,28 +186,48 @@ export const restoreService = {
         throw new Error(ERR.BACKUP_PASSWORD_REQUIRED + ': password required for this backup');
       }
 
-      const fromBase64 = (b64: string) => Uint8Array.from(atob(b64), c => c.charCodeAt(0));
-      const saltBytes = fromBase64(parsedBlob.salt);
-      const ivBytes = fromBase64(parsedBlob.iv);
-      const cipherBytes = fromBase64(parsedBlob.ciphertext);
-
       const keySourceMaterial = parsedBlob.passwordProtected === true 
         ? new TextEncoder().encode(password) 
         : await getDeviceDerivedKeyMaterial();
 
-      const keyMaterial = await crypto.subtle.importKey('raw', keySourceMaterial as any, 'PBKDF2', false, ['deriveKey']);
-      
-      const key = await crypto.subtle.deriveKey(
-        { name: 'PBKDF2', salt: saltBytes, iterations: 100000, hash: 'SHA-256' }, 
-        keyMaterial, { name: 'AES-GCM', length: 256 }, false, ['decrypt']
-      );
+      const toWordArray = (u8: Uint8Array) => {
+        const words: number[] = [];
+        for (let i = 0; i < u8.length; i += 4) {
+          words.push(
+            (u8[i] << 24) |
+            ((u8[i + 1] ?? 0) << 16) |
+            ((u8[i + 2] ?? 0) << 8) |
+            (u8[i + 3] ?? 0)
+          );
+        }
+        return CryptoJS.lib.WordArray.create(words, u8.length);
+      };
 
       let backup: BackupEnvelope;
       try {
-        const decrypted = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: ivBytes }, key, cipherBytes);
-        backup = JSON.parse(new TextDecoder().decode(decrypted)) as BackupEnvelope;
-      } catch {
-        throw new Error(ERR.CHECKSUM_MISMATCH + ': AES-GCM decryption failed — wrong password or tampered file');
+        const salt = CryptoJS.enc.Base64.parse(parsedBlob.salt);
+        const iv = CryptoJS.enc.Base64.parse(parsedBlob.iv);
+
+        const keyMaterial = toWordArray(keySourceMaterial);
+        const key = CryptoJS.PBKDF2(keyMaterial, salt, {
+          keySize: 256 / 32,
+          iterations: 100000,
+          hasher: CryptoJS.algo.SHA256,
+        });
+
+        const decrypted = CryptoJS.AES.decrypt(parsedBlob.ciphertext, key, {
+          iv: iv,
+          mode: CryptoJS.mode.CBC,
+          padding: CryptoJS.pad.Pkcs7,
+        });
+
+        const decryptedText = decrypted.toString(CryptoJS.enc.Utf8);
+        if (!decryptedText) {
+          throw new Error('Empty decryption result');
+        }
+        backup = JSON.parse(decryptedText) as BackupEnvelope;
+      } catch (e) {
+        throw new Error(ERR.CHECKSUM_MISMATCH + ': Decryption failed — wrong password or tampered file');
       }
 
       await this.validateBackupSchema(backup);

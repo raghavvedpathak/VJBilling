@@ -9,6 +9,9 @@
 
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
+import { Platform } from 'react-native';
+import { storage } from '../utils/storage';
+import CryptoJS from 'crypto-js';
 import { db } from '../db/client';
 import { 
   firms, financialYears, auditLogs, safeModeState, appSettings, bisLogos,
@@ -62,6 +65,17 @@ export interface BackupEnvelope {
     oldGoldLots?: any[];
     urdPurchases?: any[];
   };
+}
+
+async function getOrCreateSAFDirectory(parentUri: string, folderName: string): Promise<string> {
+  const files = await FileSystem.StorageAccessFramework.readDirectoryAsync(parentUri);
+  for (const fileUri of files) {
+    const decoded = decodeURIComponent(fileUri);
+    if (decoded.endsWith('/' + folderName) || decoded.endsWith('%2F' + folderName) || decoded.endsWith(':' + folderName)) {
+      return fileUri;
+    }
+  }
+  return await FileSystem.StorageAccessFramework.makeDirectoryAsync(parentUri, folderName);
 }
 
 export const backupService = {
@@ -132,50 +146,115 @@ export const backupService = {
       const payloadStr = JSON.stringify(payload);
       const enc = new TextEncoder();
       const keySourceMaterial = password ? enc.encode(password) : await getDeviceDerivedKeyMaterial();
-      
-      const saltBytes = crypto.getRandomValues(new Uint8Array(16));
-      const ivBytes = crypto.getRandomValues(new Uint8Array(12));
-      
-      // FIX: Cast keySourceMaterial to `any` to bypass the DOM vs Hermes TS definitions clash on Uint8Array
-      const keyMaterial = await crypto.subtle.importKey('raw', keySourceMaterial as any, 'PBKDF2', false, ['deriveKey']);
-      const key = await crypto.subtle.deriveKey(
-        { name: 'PBKDF2', salt: saltBytes, iterations: 100000, hash: 'SHA-256' },
-        keyMaterial, { name: 'AES-GCM', length: 256 }, false, ['encrypt']
-      );
-      
-      const cipherBuffer = await crypto.subtle.encrypt({ name: 'AES-GCM', iv: ivBytes }, key, enc.encode(payloadStr));
-      const toBase64 = (buf: ArrayBuffer) => btoa(String.fromCharCode(...new Uint8Array(buf)));
-      
+
+      // Convert Uint8Array key source to CryptoJS WordArray
+      const toWordArray = (u8: Uint8Array) => {
+        const words: number[] = [];
+        for (let i = 0; i < u8.length; i += 4) {
+          words.push(
+            (u8[i] << 24) |
+            ((u8[i + 1] ?? 0) << 16) |
+            ((u8[i + 2] ?? 0) << 8) |
+            (u8[i + 3] ?? 0)
+          );
+        }
+        return CryptoJS.lib.WordArray.create(words, u8.length);
+      };
+
+      // Generate random salt and iv using CryptoJS WordArray
+      const salt = CryptoJS.lib.WordArray.random(16);
+      const iv = CryptoJS.lib.WordArray.random(16);
+
+      // Derive key using PBKDF2
+      const keyMaterial = toWordArray(keySourceMaterial);
+      const key = CryptoJS.PBKDF2(keyMaterial, salt, {
+        keySize: 256 / 32,
+        iterations: 100000,
+        hasher: CryptoJS.algo.SHA256,
+      });
+
+      // Encrypt using AES-CBC with PKCS7 padding
+      const encrypted = CryptoJS.AES.encrypt(payloadStr, key, {
+        iv: iv,
+        mode: CryptoJS.mode.CBC,
+        padding: CryptoJS.pad.Pkcs7,
+      });
+
       const encryptedBlob = JSON.stringify({
         ...envelope,
-        iv: toBase64(ivBytes.buffer),
-        salt: toBase64(saltBytes.buffer),
-        ciphertext: toBase64(cipherBuffer),
+        iv: CryptoJS.enc.Base64.stringify(iv),
+        salt: CryptoJS.enc.Base64.stringify(salt),
+        ciphertext: encrypted.toString(),
       });
 
       const timestamp = envelope.exportedAt.replace(/[:.]/g, '-').replace('T', '_').substring(0, 19);
       const fileName = `vjbilling_${timestamp}.vjb`;
-      const filePath = BACKUP_DIR + fileName;
+      
+      let filePath = '';
+      let isPublicSaved = false;
 
-      await FileSystem.makeDirectoryAsync(BACKUP_DIR, { intermediates: true });
-      await FileSystem.writeAsStringAsync(filePath, encryptedBlob, {
-        encoding: FileSystem.EncodingType.UTF8
-      });
+      if (Platform.OS === 'android') {
+        try {
+          let parentUri = await storage.getItem('vjbilling_android_backup_dir_uri');
+          if (!parentUri) {
+            const permissions = await FileSystem.StorageAccessFramework.requestDirectoryPermissionsAsync();
+            if (permissions.granted) {
+              parentUri = permissions.directoryUri;
+              await storage.setItem('vjbilling_android_backup_dir_uri', parentUri);
+            }
+          }
 
-      const fileInfo = await FileSystem.getInfoAsync(filePath);
-      const fileSizeBytes = (fileInfo.exists && 'size' in fileInfo) ? (fileInfo as any).size ?? 0 : 0;
-
-      const canShare = await Sharing.isAvailableAsync();
-      if (canShare) {
-        await Sharing.shareAsync(filePath, {
-          mimeType: 'application/octet-stream', 
-          dialogTitle: 'Save VJ Billing Backup'
-        });
-      } else {
-        throw new Error('System sharing is not available on this device.');
+          if (parentUri) {
+            const vjBillingUri = await getOrCreateSAFDirectory(parentUri, 'VJBilling');
+            const backupsUri = await getOrCreateSAFDirectory(vjBillingUri, 'backups');
+            const safFileUri = await FileSystem.StorageAccessFramework.createFileAsync(backupsUri, fileName, 'application/octet-stream');
+            await FileSystem.writeAsStringAsync(safFileUri, encryptedBlob, { encoding: FileSystem.EncodingType.UTF8 });
+            filePath = safFileUri;
+            isPublicSaved = true;
+            console.log('[Backup] Saved directly to public SAF folder:', filePath);
+          }
+        } catch (androidError) {
+          console.warn('[Backup] Android SAF direct write failed, falling back to Sharing:', androidError);
+        }
       }
 
-      console.log('[Backup] Successfully created and shared:', fileName);
+      if (!isPublicSaved) {
+        // Fallback for iOS / Web / Simulators / Denied Android SAF permissions
+        const localPath = BACKUP_DIR + fileName;
+        await FileSystem.makeDirectoryAsync(BACKUP_DIR, { intermediates: true });
+        await FileSystem.writeAsStringAsync(localPath, encryptedBlob, {
+          encoding: FileSystem.EncodingType.UTF8
+        });
+        filePath = localPath;
+
+        if (Platform.OS === 'ios') {
+          // On iOS, supportsDocumentBrowser exposes the documents directory natively
+          isPublicSaved = true;
+          console.log('[Backup] Saved directly to visible document directory on iOS:', filePath);
+        } else {
+          // General fallback for Web / Other platforms
+          const canShare = await Sharing.isAvailableAsync();
+          if (canShare) {
+            await Sharing.shareAsync(localPath, {
+              mimeType: 'application/octet-stream', 
+              dialogTitle: 'Save VJ Billing Backup'
+            });
+            isPublicSaved = true;
+          } else {
+            throw new Error('System sharing is not available on this device.');
+          }
+        }
+      }
+
+      let fileSizeBytes = 0;
+      try {
+        const fileInfo = await FileSystem.getInfoAsync(filePath);
+        fileSizeBytes = (fileInfo.exists && 'size' in fileInfo) ? (fileInfo as any).size ?? encryptedBlob.length : encryptedBlob.length;
+      } catch {
+        fileSizeBytes = encryptedBlob.length;
+      }
+
+      console.log('[Backup] Successfully created backup:', fileName, 'Size:', fileSizeBytes, 'bytes');
 
       // AUDIT WRITE — MUST be OUTSIDE the transaction (G41 exempt)
       await auditRepository.log(null, {

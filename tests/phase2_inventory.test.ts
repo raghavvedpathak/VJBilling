@@ -98,6 +98,13 @@ beforeAll(async () => {
   await _rawClient.execute(`CREATE TABLE IF NOT EXISTS old_gold_lots (
     id TEXT PRIMARY KEY, firm_id TEXT NOT NULL, received_from TEXT NOT NULL, received_date TEXT NOT NULL, customer_id TEXT, gross_weight_mg INTEGER NOT NULL, purity_percent REAL NOT NULL, fine_weight_mg INTEGER NOT NULL DEFAULT 0, purity_rounding_delta_mg INTEGER NOT NULL DEFAULT 0, purchase_rate_paise INTEGER, total_amount_paise INTEGER, metal_source TEXT NOT NULL, notes TEXT, status TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL
   )`);
+  await _rawClient.execute(`CREATE TABLE IF NOT EXISTS urd_purchases (
+    id TEXT PRIMARY KEY, firm_id TEXT NOT NULL, fy_id TEXT NOT NULL, urd_number TEXT, purchase_date TEXT NOT NULL,
+    customer_id TEXT, customer_name TEXT NOT NULL, customer_address TEXT, customer_mobile TEXT, customer_aadhaar TEXT, customer_pan TEXT,
+    metal_type TEXT NOT NULL, gross_weight_mg INTEGER NOT NULL, purity_percent REAL NOT NULL, fine_weight_mg INTEGER NOT NULL,
+    rate_per_gram_paise INTEGER NOT NULL, total_value_paise INTEGER NOT NULL, payment_mode TEXT NOT NULL, bank_account_id TEXT,
+    old_gold_lot_id TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'DRAFT', notes TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+  )`);
   await _rawClient.execute(`CREATE TABLE IF NOT EXISTS hsn_codes (
     id TEXT PRIMARY KEY, code TEXT NOT NULL UNIQUE, description TEXT NOT NULL, chapter TEXT NOT NULL DEFAULT '71', is_active INTEGER NOT NULL DEFAULT 1, created_at TEXT NOT NULL
   )`);
@@ -503,5 +510,38 @@ describe('Search', () => {
     await itemService.updateItemStatus(item.id, FIRM_ID, 'SOLD');
     const search3 = await inventorySearchService.searchItems(FIRM_ID, item.sku);
     expect(search3).toEqual([]); // SOLD items are hidden
+  });
+});
+
+// ============================================================================
+// TEST 17: URD Purchases
+// ============================================================================
+import { urdPurchaseService } from '../services/urdPurchaseService';
+import { urdPurchaseRepository } from '../repositories/urdPurchaseRepository';
+
+describe('URD Purchases', () => {
+  it('creates and confirms URD purchase with correct sequence numbering', async () => {
+    const urd = await urdPurchaseService.createURDPurchase({
+      customerName: 'Rohit Sharma',
+      purchaseDate: '2026-07-14',
+      metalType: 'GOLD',
+      grossWeightMg: 10000,
+      purityPercent: 91.6,
+      ratePerGramPaise: 600000,
+      paymentMode: 'CASH',
+    }, FIRM_ID);
+
+    expect(urd.status).toBe('DRAFT');
+    expect(urd.urdNumber).toBeNull();
+    
+    const oldGoldLot = await oldGoldLotRepository.getById(db as any, FIRM_ID, urd.oldGoldLotId);
+    expect(oldGoldLot).toBeDefined();
+    expect(oldGoldLot?.receivedFrom).toBe('Rohit Sharma');
+    expect(oldGoldLot?.grossWeightMg).toBe(10000);
+    expect(oldGoldLot?.status).toBe('RECEIVED');
+
+    const confirmed = await urdPurchaseService.confirmURDPurchase(urd.id, FIRM_ID);
+    expect(confirmed.status).toBe('CONFIRMED');
+    expect(confirmed.urdNumber).toBe('URD/2020-2030/0001'); // padded URD number with active FY label
   });
 });

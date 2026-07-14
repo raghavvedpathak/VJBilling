@@ -5,28 +5,28 @@ import type { DrizzleTransaction } from '../types/phase2.types';
 import { now } from '../utils/now';
 
 export const sequenceCounterRepository = {
-  async nextVal(tx: DrizzleTransaction, firmId: string, fyId: string, type: string): Promise<number> {
-    const fy = await financialYearRepository.getById(tx, firmId, fyId);
+  nextVal(tx: DrizzleTransaction, firmId: string, fyId: string, type: string): number {
+    const fy = financialYearRepository.getById(tx, firmId, fyId);
     if (!fy) throw new Error('FY_NOT_FOUND');
     const fyLabel = fy.label;
     
     const counterId = `${firmId}_${type}_${fyLabel}`;
 
-    const [existing] = await tx.select().from(sequenceCounters).where(eq(sequenceCounters.id, counterId)).limit(1);
+    const existing = tx.select().from(sequenceCounters).where(eq(sequenceCounters.id, counterId)).limit(1).get() as any;
     
     let nextSeq = 1;
     if (existing) {
       nextSeq = existing.currentSeq + 1;
-      await tx.update(sequenceCounters).set({ currentSeq: nextSeq, lastUsedAt: now() }).where(eq(sequenceCounters.id, counterId));
+      tx.update(sequenceCounters).set({ currentSeq: nextSeq, lastUsedAt: now() }).where(eq(sequenceCounters.id, counterId)).run();
     } else {
-      await tx.insert(sequenceCounters).values({
+      tx.insert(sequenceCounters).values({
         id: counterId,
         firmId,
         month: 'DOC',
         year: 'DOC',
         currentSeq: nextSeq,
         lastUsedAt: now()
-      });
+      }).run();
     }
     
     return nextSeq;

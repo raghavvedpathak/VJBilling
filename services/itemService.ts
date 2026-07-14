@@ -3,6 +3,7 @@ import { itemRepository } from '../repositories/itemRepository';
 import { designRepository } from '../repositories/designRepository';
 import { categoryRepository } from '../repositories/categoryRepository';
 import { hsnMasterRepository } from '../repositories/hsnMasterRepository';
+import { fyRepository } from '../repositories/fyRepository';
 import * as skuEngine from './skuEngine';
 import { itemEventRepository } from '../repositories/itemEventRepository';
 import { auditRepository } from '../repositories/auditRepository';
@@ -153,8 +154,7 @@ export const itemService = {
     const entryDate = input.entryDate ?? todayIso;
     if (entryDate > todayIso) throw new Error(ERR.ENTRY_DATE_IN_FUTURE);
     
-    // Using require to avoid circular import issues if any exist
-    const fyId = await require('./fyService').fyService.resolveTransactionFyId(firmId, entryDate);
+    const fyId = fyRepository.resolveTransactionFyId(firmId, entryDate);
 
     return db.transaction((tx) => {
       const design = designRepository.getById(tx, firmId, input.designId);
@@ -657,8 +657,9 @@ export const itemService = {
     safeModeService.assertNotInSafeMode(); // GUARD 2
     
     const todayISODate = () => format(new Date(), 'yyyy-MM-dd');
+    const deviceId = await getDeviceId();
 
-    return db.transaction(async (tx) => {
+    return db.transaction((tx) => {
       const item = itemRepository.getById(tx, firmId, itemId);
       if (!item || item.firmId !== firmId) throw new Error(ERR.ITEM_NOT_FOUND_OR_WRONG_FIRM);
       if (TERMINAL_ITEM_STATUSES.includes(item.status)) {
@@ -666,8 +667,7 @@ export const itemService = {
       }
       if (newEntryDate > todayISODate()) throw new Error(ERR.ENTRY_DATE_IN_FUTURE);
       
-      const fyService = require('./fyService').fyService;
-      await fyService.resolveTransactionFyId(firmId, newEntryDate);
+      fyRepository.resolveTransactionFyId(firmId, newEntryDate, tx);
       // ^ throws ENTRY_DATE_IN_CLOSED_FY if newEntryDate falls in a closed FY —
       // identical gate to createItem()'s FIX-GAP-P2-BACKDATE-1 (v1.76).
       
@@ -682,7 +682,7 @@ export const itemService = {
         itemRepository.updateCreatedAt(tx, itemId, newCreatedAt);
         auditRepository.log(tx, {
           eventType: 'ITEM_ENTRY_DATE_CORRECTED', firmId, entityId: item.id,
-          deviceId: await getDeviceId(),
+          deviceId,
           payload: JSON.stringify({ oldCreatedAt: item.createdAt, newCreatedAt, skuChanged: false }),
         });
         return { ...item, createdAt: newCreatedAt } as unknown as Item;
@@ -708,11 +708,11 @@ export const itemService = {
       
       itemEventRepository.insert(tx, {
         itemId, firmId, eventType: 'SKU_CHANGED', severity: 'INFO',
-        performedBy: await getDeviceId(), timestamp: now(),
+        performedBy: deviceId, timestamp: now(),
       });
       
       auditRepository.log(tx, {
-        eventType: 'SKU_CHANGED', firmId, entityId: item.id, deviceId: await getDeviceId(),
+        eventType: 'SKU_CHANGED', firmId, entityId: item.id, deviceId,
         payload: JSON.stringify({ 
           oldSku, newSku, oldCreatedAt: item.createdAt, newCreatedAt, reason: 'ENTRY_DATE_CORRECTION' 
         }),
@@ -732,8 +732,9 @@ export const itemService = {
   async discardDraftItem(itemId: string, firmId: string): Promise<void> {
     await leaseService.assertNoActiveLease(); // GUARD 1
     safeModeService.assertNotInSafeMode(); // GUARD 2
+    const deviceId = await getDeviceId();
     
-    return db.transaction(async (tx) => {
+    return db.transaction((tx) => {
       const item = itemRepository.getById(tx, firmId, itemId); // FIX-GETBYID-TX-1 (v1.56): tx overload required inside transaction
       if (!item || item.firmId !== firmId) throw new Error(ERR.ITEM_NOT_FOUND_OR_WRONG_FIRM);
       if (item.status !== 'DRAFT') throw new Error(ERR.ITEM_NOT_DRAFT);
@@ -744,7 +745,7 @@ export const itemService = {
       
       auditRepository.log(tx, {
         eventType: 'DRAFT_ITEM_DISCARDED' as any, firmId, entityId: itemId,
-        deviceId: await getDeviceId(), payload: JSON.stringify({ sku: item.sku, designId: item.designId }),
+        deviceId, payload: JSON.stringify({ sku: item.sku, designId: item.designId }),
       });
     });
   }
