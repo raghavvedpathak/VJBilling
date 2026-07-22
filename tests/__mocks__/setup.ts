@@ -47,16 +47,21 @@ jest.mock('expo-crypto', () => {
 
 // ─── 3. MOCK: react-native-mmkv ──────────────────────────────────────────────
 
-jest.mock('react-native-mmkv', () => ({
-  MMKV: jest.fn().mockImplementation(() => ({
+jest.mock('react-native-mmkv', () => {
+  const createMockInstance = () => ({
     set: (key: string, value: string | boolean | number) => {
       mockKvStore[key] = String(value);
     },
     getString: (key: string) => mockKvStore[key] ?? undefined,
     getBoolean: (key: string) => mockKvStore[key] === 'true',
+    remove: (key: string) => { delete mockKvStore[key]; },
     delete: (key: string) => { delete mockKvStore[key]; },
-  })),
-}));
+  });
+  return {
+    createMMKV: jest.fn().mockImplementation(createMockInstance),
+    MMKV: jest.fn().mockImplementation(createMockInstance),
+  };
+});
 
 // ─── 4. MOCK: expo-device ─────────────────────────────────────────────────────
 
