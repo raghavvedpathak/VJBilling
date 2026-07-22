@@ -1,7 +1,7 @@
 // app/dashboard.tsx
 import React, { useState } from 'react';
 import { View, Text, TouchableOpacity, Image, ScrollView, Modal } from 'react-native';
-import { useRouter, Redirect } from 'expo-router';
+import { useRouter } from 'expo-router';
 import { TwoToneWrapper } from '../components/TwoToneWrapper'; 
 import { useSession } from '../hooks/useSession';
 import { useFirmStore } from '../store/firmStore';
@@ -23,7 +23,13 @@ export default function Dashboard() {
     router.replace('/settings/firms'); 
   };
 
-  if (isLoading) {
+  React.useEffect(() => {
+    if (!isLoading && !firm) {
+      router.replace('/settings/firms');
+    }
+  }, [isLoading, firm, router]);
+
+  if (isLoading || !firm) {
     return (
       <TwoToneWrapper title="Loading...">
         <View className="flex-1 justify-center items-center">
@@ -31,10 +37,6 @@ export default function Dashboard() {
         </View>
       </TwoToneWrapper>
     );
-  }
-
-  if (!firm) {
-    return <Redirect href="/settings/firms" />;
   }
 
   const displayLogo = firm.firmLogoRef;

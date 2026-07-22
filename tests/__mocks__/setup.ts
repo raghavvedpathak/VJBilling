@@ -69,10 +69,21 @@ jest.mock('expo-device', () => ({
 
 jest.mock('expo-file-system/legacy', () => ({
   getInfoAsync: async () => ({ exists: false }),
-  writeAsStringAsync: async () => {},
-  readAsStringAsync: async () => '{}',
+  writeAsStringAsync: async (uri: string, content: string) => {
+    (global as any).__mockWriteFileUri = uri;
+    (global as any).__mockWriteFileContent = content;
+  },
+  readAsStringAsync: async (uri: string) => {
+    if (uri === (global as any).__mockWriteFileUri) {
+      return (global as any).__mockWriteFileContent;
+    }
+    return '{}';
+  },
   deleteAsync: async () => {},
   makeDirectoryAsync: async () => {},
+  EncodingType: {
+    UTF8: 'utf8',
+  },
 }));
 
 jest.mock('expo-file-system', () => ({

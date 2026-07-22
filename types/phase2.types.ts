@@ -73,7 +73,7 @@ export type ItemEventType = 'CREATED' | 'ITEM_STATUS_CHANGED' |
 // FIX-IMM-1 (v1.23): Restricted update type — excludes WRITE-ONCE fields
 export type UpdateableItemFields = Omit<
   Partial<Item>,
-  'metalSource' | 'sku' | 'barcode' | 'id' | 'firmId' | 'createdAt'
+  'metalSource' | 'metal' | 'sku' | 'barcode' | 'id' | 'firmId' | 'createdAt'
 >;
 
 export interface CreateItemInput {
@@ -124,9 +124,24 @@ export interface CreateGemstoneLotInput {
   notes?: string | null;
 }
 
+export interface CreateCategoryInput {
+  name: string;
+  metal?: 'GOLD' | 'SILVER';
+  lowStockThreshold?: number | null;
+}
+
+export type StoneType = 'DIAMOND' | 'RUBY' | 'EMERALD' | 'SAPPHIRE';
+
 export interface CreateStoneInput {
   name: string;
-  type: 'DIAMOND' | 'RUBY' | 'EMERALD' | 'SAPPHIRE';
+  type: StoneType;
+}
+
+export interface CreateDesignInput {
+  name: string; // 1 or 2 words only — validateDesignName() enforces this, see STEP 3
+  metal: 'GOLD' | 'SILVER';
+  defaultHsn?: string | null;
+  categoryId?: string;
 }
 
 export type DrizzleTransaction = Parameters<Parameters<typeof db.transaction>[0]>[0];
@@ -144,6 +159,13 @@ export type Design = typeof designs.$inferSelect;
 export type Stone = typeof stones.$inferSelect;
 export type OldGoldLot = typeof oldGoldLots.$inferSelect;
 export type URDPurchase = typeof urdPurchases.$inferSelect;
+
+export type NewItem = typeof items.$inferInsert;
+export type NewCategory = typeof categories.$inferInsert;
+export type NewDesign = typeof designs.$inferInsert;
+export type NewStone = typeof stones.$inferInsert;
+export type NewGemstoneLot = typeof gemstoneLots.$inferInsert;
+export type NewItemEvent = typeof itemEvents.$inferInsert;
 
 export interface CreateURDPurchaseInput {
   purchaseDate: string; // ISO date YYYY-MM-DD
@@ -409,6 +431,6 @@ export type Phase2AuditPayload =
  | { eventType: 'ITEM_DELETED'; payload: { itemId: string; sku: string; designId: string; priorStatus: string; reason: string } }
  | { eventType: 'METAL_SOURCE_CORRECTED'; payload: { itemId: string; sku: string; oldMetalSource: string; newMetalSource: string; reason: string } }
  | { eventType: 'HUID_CORRECTED'; payload: { itemId: string; sku: string; oldHuid: string | null; newHuid: string; reason: string } }
- | { eventType: 'CATEGORY_CREATED'; payload: { firmId: string; name: string; code: string } }
- | { eventType: 'DESIGN_CREATED'; payload: { firmId: string; name: string; metal: string; code: string } }
+ | { eventType: 'CATEGORY_CREATED'; payload: { categoryId: string; name: string; code: string; restored?: boolean } }
+ | { eventType: 'DESIGN_CREATED'; payload: { designId: string; name: string; code: string; metal: string; restored?: boolean } }
  | { eventType: 'HUID_ADDED'; payload: { itemId: string; sku: string; huid: string } };

@@ -103,7 +103,7 @@ export async function closeFY(fyId: string, firmId: string): Promise<void> {
       const openGoldLotsRows = tx.select().from(oldGoldLots).where(eq(oldGoldLots.firmId, firmId)).all();
       const openGoldLotFineMg = openGoldLotsRows
         .filter(l => !['SETTLED','SENT_TO_MELT'].includes(l.status))
-        .reduce((sum, l) => sum + Math.round(l.grossWeightMg * l.purityPercent / 100), 0);
+        .reduce((sum, l) => sum + l.fineWeightMg, 0);
         
       const totalOpeningFineMg = karigarOutstandingFineMg + refineryOutstandingFineMg + openGoldLotFineMg;
 

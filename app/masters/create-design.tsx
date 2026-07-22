@@ -1,3 +1,7 @@
+/* eslint-disable no-restricted-imports */
+import { db } from '../../db/client';
+import { categories as categoriesTable } from '../../db/schema';
+import { eq, and, sql } from 'drizzle-orm';
 import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, StyleSheet, TextInput, Alert, Modal, KeyboardAvoidingView, ScrollView, Platform, Keyboard, TouchableOpacity } from 'react-native';
 import { useRouter } from 'expo-router';
@@ -6,11 +10,9 @@ import { TwoToneWrapper } from '../../components/TwoToneWrapper';
 import { GlassButton, GlassSmartSearch } from '../../components/ui/Glass';
 import { Tag, CheckCircle } from 'lucide-react-native';
 import { useFirmStore } from '../../store/firmStore';
-import { db } from '../../db/client';
-import { designs as designsTable, categories as categoriesTable, designCategoryMap as designCategoryMapTable } from '../../db/schema';
-import { eq, and, sql } from 'drizzle-orm';
 import { now } from '../../utils/now';
 import * as Crypto from 'expo-crypto';
+import { designService } from '../../services/designService';
 
 const COLORS = {
   vjText: '#5C1623',
@@ -72,7 +74,7 @@ export default function CreateDesignScreen() {
         })
         .from(categoriesTable)
         .where(and(eq(categoriesTable.firmId, activeFirmId), eq(categoriesTable.isActive, 1)));
-      setCategories(results.map(r => ({ ...r.category, linkCount: r.linkCount, linkedDesigns: r.linkedDesigns })) as any);
+      setCategories(results.map((r: any) => ({ ...r.category, linkCount: r.linkCount, linkedDesigns: r.linkedDesigns })) as any);
     } catch (e) {
       console.error(e);
     }
@@ -93,76 +95,15 @@ export default function CreateDesignScreen() {
     
     setIsSubmitting(true);
     try {
-      // Check for soft-deleted design to restore
-      const existing = await db.select().from(designsTable)
-        .where(and(
-          eq(designsTable.firmId, activeFirmId), 
-          eq(designsTable.name, newName.trim()),
-          eq(designsTable.metal, newMetal)
-        ))
-        .limit(1);
-        
-      if (existing.length > 0) {
-        if (existing[0].isActive === 1) {
-          Alert.alert('Duplicate', 'A design with this name and metal already exists.');
-          setIsSubmitting(false);
-          return;
-        } else {
-          await db.transaction(async (tx) => {
-            // Restore design
-            await tx.update(designsTable)
-              .set({ isActive: 1, updatedAt: now() })
-              .where(eq(designsTable.id, existing[0].id));
-            
-            // Delete old mappings to prevent unique constraint on designCategoryMap
-            await tx.delete(designCategoryMapTable)
-              .where(eq(designCategoryMapTable.designId, existing[0].id));
-              
-            // Create new mapping
-            await tx.insert(designCategoryMapTable).values({
-              id: Crypto.randomUUID(),
-              designId: existing[0].id,
-              categoryId: selectedCategoryId,
-              firmId: activeFirmId,
-              createdAt: now(),
-            });
-          });
-          
-          setSuccessMessage('Design restored successfully');
-          setIsSubmitting(false);
-          return;
-        }
-      }
-
-      const countRes = await db.select({ count: sql<number>`count(*)` }).from(designsTable).where(and(eq(designsTable.firmId, activeFirmId), eq(designsTable.isActive, 1)));
-      const codeStr = `DES${String(Number(countRes[0]?.count || 0) + 1).padStart(4, '0')}`;
-
-      const designId = Crypto.randomUUID();
-
-      await db.transaction(async (tx) => {
-        await tx.insert(designsTable).values({
-          id: designId,
-          firmId: activeFirmId,
-          name: newName.trim(),
-          metal: newMetal,
-          code: codeStr,
-          isActive: 1,
-          createdAt: now(),
-          updatedAt: now(),
-        });
-
-        await tx.insert(designCategoryMapTable).values({
-          id: Crypto.randomUUID(),
-          designId,
-          categoryId: selectedCategoryId,
-          firmId: activeFirmId,
-          createdAt: now(),
-        });
-      });
+      await designService.createDesign({
+        name: newName.trim(),
+        metal: newMetal,
+        categoryId: selectedCategoryId
+      }, activeFirmId);
       
       setSuccessMessage('Design added successfully');
     } catch (e: any) {
-      if (e.message?.includes('UNIQUE')) {
+      if (e.message?.includes('DESIGN_NAME_TAKEN') || e.message?.includes('UNIQUE')) {
         Alert.alert('Duplicate', 'A design with this name/metal already exists.');
       } else {
         Alert.alert('Error', e.message);

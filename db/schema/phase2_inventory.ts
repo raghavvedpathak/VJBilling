@@ -159,6 +159,7 @@ export const sequenceCounters = sqliteTable('sequence_counters', {
   // FIX-URD-SEQ-ARCH-1 (v1.53): TWO SEQUENCE SCOPES — SAME TABLE, DIFFERENT KEY FORMAT.
   // SKU items: key = '{firmId}_{MMYY}' — month-scoped
   // Documents: key = '{firmId}_{type}_{fyLabel}' — FY-scoped
+  // Valid type values in keys are: 'SALE' | 'CREDIT_NOTE' | 'URD'
 }, (table) => ({
   firmFk: foreignKey({ columns: [table.firmId], foreignColumns: [firms.id] }),
   idxSequenceCountersFirmMonth: index('idx_sequence_counters_firm_month').on(table.firmId, table.month),

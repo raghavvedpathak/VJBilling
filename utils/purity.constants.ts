@@ -4,8 +4,17 @@ import { ERR } from '../constants/errorCodes';
 export const PURITY_MAP: Record<number, number> = {
   24: 99.9, 23: 95.8, 22: 91.6, 21: 87.5, // FIX-24K-PURITY-1 (v1.57): 99.9 is canonical karatToPercent(24) display value. percentToKarat() extended below to also accept 99.99 and 99.50 as 24K.
   20: 83.3, 18: 75.0, 14: 58.3, 10: 41.7, 9: 37.5,
-  // NEW-3 FIX: 14K = 58.3 (14/24x100 = 58.333 -> 58.3) | FIX-SILVER-PURITY-1 (v1.46): percentToKarat() returns null for ALL silver purities (99.9%, 92.5%, 83.5%, 80.0%). Silver items ALWAYS stored with purityKarat=0. getDisplayPurity() for SILVER always shows percentage string (e.g. "92.5%"), NEVER karat label. Silver purity reference: 99.9%=Fine(999), 92.5%=Sterling(925), 83.5%=835-silver, 80.0%=800-silver. RULE: a silver item with purityPercent=92.5 gets purityKarat=0 at createItem(). karatToPercent() is a GOLDONLY function — DO NOT call with silver purity percentages. FIX-SILVER-PURITY-UI-1 (v1.56): UI LAYER WARNING — the item creation screen MUST NOT call karatToPercent() when metal === 'SILVER'. Doing so will throw INVALID_KARAT for any silver purity value. Always check metal before calling karatToPercent(). getDisplayPurity() handles silver correctly and is safe to call for both metals.
+  // NEW-3 FIX: 14K = 58.3 (14/24x100 = 58.333 -> 58.3) | FIX-SILVER-PURITY-1 (v1.46): percentToKarat() returns null for ALL silver purities (99.9%, 92.5%, 83.5%, 80.0%). Silver items ALWAYS stored with purityKarat=0. getDisplayPurity() for SILVER always shows percentage string (e.g. "92.5%"), NEVER karat label. Silver purity reference — FIX-SILVER-PURITY-2 (v1.94): corrected to the current BIS IS 2112:2025 seven-grade table (2014's retired 900 grade intentionally NOT carried forward, since the 2025 revision dropped it): 99.9%=Fine(999), 99.0%=990, 97.0%=970, 95.8%=Britannia(958), 92.5%=Sterling(925), 83.5%=835, 80.0%=800. RULE: a silver item with purityPercent=92.5 gets purityKarat=0 at createItem(). karatToPercent() is a GOLDONLY function — DO NOT call with silver purity percentages. FIX-SILVER-PURITY-UI-1 (v1.56): UI LAYER WARNING — the item creation screen MUST NOT call karatToPercent() when metal === 'SILVER'. Doing so will throw INVALID_KARAT for any silver purity value. Always check metal before calling karatToPercent(). getDisplayPurity() handles silver correctly and is safe to call for both metals.
 };
+
+// FEAT-SILVER-PURITY-GRADES-1 (v1.94): Reference lists of officially recognized purity grades, for informational UI display ONLY.
+export const SILVER_PURITY_GRADES: number[] = [80.0, 83.5, 92.5, 95.8, 97.0, 99.0, 99.9]; // BIS IS 2112:2025, seven grades
+export const GOLD_PURITY_GRADES: number[] = Object.values(PURITY_MAP); // derived from PURITY_MAP, kept in sync automatically
+
+export function isStandardPurityGrade(purityPercent: number, metal: 'GOLD' | 'SILVER'): boolean {
+  const grades = metal === 'SILVER' ? SILVER_PURITY_GRADES : GOLD_PURITY_GRADES;
+  return grades.some(g => Math.abs(g - purityPercent) <= 0.01); // tolerance for float rounding
+}
 
 // FEAT-PURITY-ROUND-1 (v1.90): Trade-convention purity rounding for regular stock.
 // Product decision (Raghav — Project Leader / Lead Developer / Architect / Tester): entering

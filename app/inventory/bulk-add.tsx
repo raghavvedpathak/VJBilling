@@ -15,7 +15,8 @@ import { itemRepository } from '../../repositories/itemRepository';
 import type { Design, Category, HsnCode, Stone } from '../../types/phase2.types';
 import { Package, Plus, Trash2, Calculator, Layers, MapPin, Wallet, CheckCircle } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { percentToKarat } from '../../utils/purity.constants';
+import { percentToKarat, resolveFineWeightMg } from '../../utils/purity.constants';
+import { getCurrencySymbol } from '../../utils/currency';
 
 const COLORS = {
   vjText: '#5C1623',
@@ -27,8 +28,8 @@ const BULK_ITEM_MAX = 50;
 
 import { GlassSmartSearch } from '../../components/ui/Glass';
 
-const BulkItemRow = ({ index, row, updateRow, removeRow, stones }: any) => {
-  // Pure Wholesale "Touch" Costing Engine
+const BulkItemRow = ({ index, row, updateRow, removeRow, stones, metal }: any) => {
+  // Pure Wholesale Costing Engine
   const calculations = useMemo(() => {
     const gross = parseFloat(row.grossWeight) || 0;
     const stone = parseFloat(row.stoneWeight) || 0;
@@ -40,31 +41,33 @@ const BulkItemRow = ({ index, row, updateRow, removeRow, stones }: any) => {
     const stoneC = parseFloat(row.stoneCost) || 0;
 
     const netWeightG = Math.max(0, gross - stone - beads);
-    const vaultTruth = (netWeightG * purity) / 100; // fineWeight in grams
-    const totalTouchPercent = purity + wastage;
-    const fineGoldChargedG = wastage > 0 ? (netWeightG * totalTouchPercent) / 100 : vaultTruth;
+    const netWeightMg = Math.round(netWeightG * 1000);
+    const { fineWeightMg } = resolveFineWeightMg(netWeightMg, purity, metal || 'GOLD');
+    const vaultTruth = fineWeightMg / 1000;
+
+    const fineGoldChargedMg = wastage > 0 ? Math.round(fineWeightMg * (1 + wastage / 100)) : null;
+    const costTruth = fineGoldChargedMg !== null ? fineGoldChargedMg / 1000 : vaultTruth;
 
     // FIX-PPG-DISPLAY-1 (v1.52): Price Per Gram = (fineGoldChargedMg ?? fineWeightMg) / fineWeightMg * purchaseRatePerGram
-    const effectivePricePerGram = netWeightG > 0 ? (totalTouchPercent / 100) * rate : rate;
+    const effectivePricePerGram = fineWeightMg > 0 ? (costTruth / vaultTruth) * rate : rate;
     
     // FIX-UI-TOTAL-1 (v1.51): Total Purchase Amount = (fineGoldChargedMg ?? fineWeightMg) / 1000 * purchaseRatePerGram
-    // Note: fineGoldChargedG is already in grams (i.e. divided by 1000)
-    const totalGoldCost = fineGoldChargedG * rate;
+    const totalGoldCost = costTruth * rate;
     const absoluteTotalCost = totalGoldCost + making + stoneC;
 
-    const wastageGold = fineGoldChargedG - vaultTruth;
+    const wastageGold = costTruth - vaultTruth;
 
     return {
       netWeight: netWeightG,
-      totalTouch: totalTouchPercent,
+      totalTouch: purity + wastage,
       vaultTruth,
       wastageGold,
-      costTruth: fineGoldChargedG,
+      costTruth,
       pricePerGram: effectivePricePerGram,
       totalAmount: absoluteTotalCost,
       isValid: netWeightG > 0 && purity > 0
     };
-  }, [row.grossWeight, row.stoneWeight, row.beadsWeight, row.purityPercent, row.wastagePercent, row.purchaseRate, row.makingCharge, row.stoneCost]);
+  }, [row.grossWeight, row.stoneWeight, row.beadsWeight, row.purityPercent, row.wastagePercent, row.purchaseRate, row.makingCharge, row.stoneCost, metal]);
 
   return (
     <View style={{ zIndex: 1000 - index }}>
@@ -89,13 +92,13 @@ const BulkItemRow = ({ index, row, updateRow, removeRow, stones }: any) => {
       <View style={s.inputGrid}>
         <View style={s.inputCol}><GlassInput label="Purity %*" value={row.purityPercent} onChangeText={(t: string) => updateRow(index, 'purityPercent', t)} keyboardType="numeric" /></View>
         <View style={s.inputCol}><GlassInput label="Wastage %" value={row.wastagePercent} onChangeText={(t: string) => updateRow(index, 'wastagePercent', t)} keyboardType="numeric" /></View>
-        <View style={s.inputCol}><GlassInput label="Rate/g (₹)" value={row.purchaseRate} onChangeText={(t: string) => updateRow(index, 'purchaseRate', t)} keyboardType="numeric" /></View>
+        <View style={s.inputCol}><GlassInput label={`Rate/g (${getCurrencySymbol()})`} value={row.purchaseRate} onChangeText={(t: string) => updateRow(index, 'purchaseRate', t)} keyboardType="numeric" /></View>
       </View>
 
       {/* Costs */}
       <View style={s.inputGrid}>
-        <View style={s.inputCol}><GlassInput label="Making Chg (₹)" value={row.makingCharge} onChangeText={(t: string) => updateRow(index, 'makingCharge', t)} keyboardType="numeric" /></View>
-        <View style={s.inputCol}><GlassInput label="Stone Cost (₹)" value={row.stoneCost} onChangeText={(t: string) => updateRow(index, 'stoneCost', t)} keyboardType="numeric" /></View>
+        <View style={s.inputCol}><GlassInput label={`Making Chg (${getCurrencySymbol()})`} value={row.makingCharge} onChangeText={(t: string) => updateRow(index, 'makingCharge', t)} keyboardType="numeric" /></View>
+        <View style={s.inputCol}><GlassInput label={`Stone Cost (${getCurrencySymbol()})`} value={row.stoneCost} onChangeText={(t: string) => updateRow(index, 'stoneCost', t)} keyboardType="numeric" /></View>
       </View>
 
       {/* Tracking */}
@@ -161,7 +164,7 @@ const BulkItemRow = ({ index, row, updateRow, removeRow, stones }: any) => {
             <Text style={s.mathValue}>{calculations.netWeight.toFixed(3)} g</Text>
           </View>
           <View style={s.mathRow}>
-            <Text style={s.mathLabel}>Wastage Gold:</Text>
+            <Text style={s.mathLabel}>{metal === 'SILVER' ? 'Wastage Silver:' : 'Wastage Gold:'}</Text>
             <Text style={[s.mathValue, { color: '#BE123C' }]}>{(calculations.costTruth - calculations.vaultTruth).toFixed(3)} g</Text>
           </View>
           <View style={s.mathRow}>
@@ -175,11 +178,11 @@ const BulkItemRow = ({ index, row, updateRow, removeRow, stones }: any) => {
           </View>
           <View style={s.mathRow}>
             <Text style={s.mathLabel}>Effective Price/g:</Text>
-            <Text style={s.mathValue}>₹ {calculations.pricePerGram.toLocaleString('en-IN', { maximumFractionDigits: 2 })}</Text>
+            <Text style={s.mathValue}>{getCurrencySymbol()} {calculations.pricePerGram.toLocaleString('en-IN', { maximumFractionDigits: 2 })}</Text>
           </View>
           <View style={s.mathRow}>
-            <Text style={s.mathLabel}>Est. Total (₹):</Text>
-            <Text style={s.mathHighlight}>₹ {calculations.totalAmount.toLocaleString('en-IN', { maximumFractionDigits: 2 })}</Text>
+            <Text style={s.mathLabel}>Est. Total ({getCurrencySymbol()}):</Text>
+            <Text style={s.mathHighlight}>{getCurrencySymbol()} {calculations.totalAmount.toLocaleString('en-IN', { maximumFractionDigits: 2 })}</Text>
           </View>
         </View>
       )}
@@ -447,6 +450,7 @@ export default function BulkAddScreen() {
             updateRow={updateRow} 
             removeRow={removeRow} 
             stones={stones} 
+            metal={selectedDesign?.metal || 'GOLD'}
           />
         ))}
 

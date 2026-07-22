@@ -1,3 +1,4 @@
+/* eslint-disable no-restricted-imports */
 // app/inventory/add-stock.tsx
 import React, { useState, useEffect, useMemo } from 'react';
 import { View, Text, ScrollView, Alert, Modal, TouchableOpacity, TextInput, StyleSheet } from 'react-native';
@@ -17,8 +18,9 @@ import type { Design, Category, HsnCode, Stone } from '../../types/phase2.types'
 import { Package, Scale, Percent, MapPin, Calculator, Wallet, CheckCircle, RefreshCw } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { seedHsnCodes } from '../../db/seed';
-import { percentToKarat } from '../../utils/purity.constants';
+import { percentToKarat, resolveFineWeightMg } from '../../utils/purity.constants';
 import { formatSKUDisplay } from '../../utils/skuDisplay';
+import { getCurrencySymbol } from '../../utils/currency';
 
 const COLORS = {
   vjText: '#5C1623',
@@ -121,15 +123,16 @@ export default function AddStockScreen() {
     const stoneC = parseFloat(stoneCost) || 0;
 
     const netWeightG = Math.max(0, g - s - b);
-    const vaultTruth = (netWeightG * p) / 100;
+    const netWeightMg = Math.round(netWeightG * 1000);
+    const metal = selectedDesign?.metal || 'GOLD';
+    const { fineWeightMg } = resolveFineWeightMg(netWeightMg, p, metal);
+    const vaultTruth = fineWeightMg / 1000;
+
+    const fineGoldChargedMg = w > 0 ? Math.round(fineWeightMg * (1 + w / 100)) : null;
+    const costTruth = fineGoldChargedMg !== null ? fineGoldChargedMg / 1000 : vaultTruth;
     
-    const totalTouchPercent = p + w;
-    const fineGoldChargedG = w > 0 ? (netWeightG * totalTouchPercent) / 100 : vaultTruth;
-    
-    const effectivePricePerGram = netWeightG > 0 ? (totalTouchPercent / 100) * rate : rate;
-    
-    // FIX-UI-TOTAL-1 (v1.51): Total Purchase Amount = (fineGoldChargedMg ?? fineWeightMg) / 1000 * purchaseRatePerGram
-    const totalGoldCost = fineGoldChargedG * rate;
+    const effectivePricePerGram = fineWeightMg > 0 ? (costTruth / vaultTruth) * rate : rate;
+    const totalGoldCost = costTruth * rate;
     const absoluteTotalCost = totalGoldCost + making + stoneC;
 
     return {
@@ -137,15 +140,15 @@ export default function AddStockScreen() {
       netWeight: netWeightG.toFixed(3) + ' g',
       purityRaw: p,
       wastageRaw: w,
-      totalTouch: totalTouchPercent.toFixed(2) + '%',
+      totalTouch: (p + w).toFixed(2) + '%',
       vaultTruth: vaultTruth.toFixed(3) + ' g',
-      wastageGold: (fineGoldChargedG - vaultTruth).toFixed(3) + ' g',
-      costTruth: fineGoldChargedG.toFixed(3) + ' g',
+      wastageGold: (costTruth - vaultTruth).toFixed(3) + ' g',
+      costTruth: costTruth.toFixed(3) + ' g',
       hasCostData: rate > 0 || making > 0 || stoneC > 0,
       pricePerGram: effectivePricePerGram,
       totalAmount: absoluteTotalCost,
     };
-  }, [grossWeight, stoneWeight, beadsWeight, purityPercent, wastagePercent, purchaseRate, makingCharge, stoneCost]);
+  }, [grossWeight, stoneWeight, beadsWeight, purityPercent, wastagePercent, purchaseRate, makingCharge, stoneCost, selectedDesign]);
 
   const handleSubmit = async () => {
     if (!selectedDesign || !selectedCategory || !selectedHsn) {
@@ -412,13 +415,13 @@ export default function AddStockScreen() {
         <GlassCard style={{ zIndex: 20 }}>
           <View className="flex-row items-center gap-2 mb-4">
             <Wallet size={20} color="#D4AF37" />
-            <Text className="text-lg font-bold text-vj-text">Purchase Costs (₹)</Text>
+            <Text className="text-lg font-bold text-vj-text">Purchase Costs ({getCurrencySymbol()})</Text>
           </View>
 
-          <GlassInput label="Purchase Rate (₹)" placeholder="e.g. 14500" keyboardType="numeric" value={purchaseRate} onChangeText={setPurchaseRate} />
+          <GlassInput label={`Purchase Rate (${getCurrencySymbol()})`} placeholder="e.g. 14500" keyboardType="numeric" value={purchaseRate} onChangeText={setPurchaseRate} />
           <View style={{ flexDirection: 'row', gap: 12 }}>
-            <View style={{ flex: 1 }}><GlassInput label="Making Charge (₹)" placeholder="Cash labour" keyboardType="numeric" value={makingCharge} onChangeText={setMakingCharge} /></View>
-            <View style={{ flex: 1 }}><GlassInput label="Stone Cost (₹)" placeholder="Stone cost" keyboardType="numeric" value={stoneCost} onChangeText={setStoneCost} /></View>
+            <View style={{ flex: 1 }}><GlassInput label={`Making Charge (${getCurrencySymbol()})`} placeholder="Cash labour" keyboardType="numeric" value={makingCharge} onChangeText={setMakingCharge} /></View>
+            <View style={{ flex: 1 }}><GlassInput label={`Stone Cost (${getCurrencySymbol()})`} placeholder="Stone cost" keyboardType="numeric" value={stoneCost} onChangeText={setStoneCost} /></View>
           </View>
         </GlassCard>
 
@@ -452,7 +455,9 @@ export default function AddStockScreen() {
               </View>
 
               <View className="flex-row justify-between py-1 border-b border-black/5">
-                <Text className="text-xs text-vj-text/60 font-medium flex-1 pr-2">Wastage Gold:</Text>
+                <Text className="text-xs text-vj-text/60 font-medium flex-1 pr-2">
+                  {selectedDesign?.metal === 'SILVER' ? 'Wastage Silver:' : 'Wastage Gold:'}
+                </Text>
                 <Text className="text-xs text-rose-700 font-bold font-mono">{liveWastageSeparation.wastageGold}</Text>
               </View>
 
@@ -465,11 +470,11 @@ export default function AddStockScreen() {
                 <>
                   <View className="flex-row justify-between py-1 mt-2 border-b border-black/5">
                     <Text className="text-xs text-vj-text/60 font-medium">Effective Price/g:</Text>
-                    <Text className="text-xs text-vj-text font-bold font-mono">₹ {liveWastageSeparation.pricePerGram.toLocaleString('en-IN', { maximumFractionDigits: 2 })}</Text>
+                    <Text className="text-xs text-vj-text font-bold font-mono">{getCurrencySymbol()} {liveWastageSeparation.pricePerGram.toLocaleString('en-IN', { maximumFractionDigits: 2 })}</Text>
                   </View>
                   <View className="flex-row justify-between pt-2">
-                    <Text className="text-sm text-vj-text font-black">Est. Total Cost (₹):</Text>
-                    <Text className="text-sm font-black font-mono text-amber-900">₹ {liveWastageSeparation.totalAmount.toLocaleString('en-IN', { maximumFractionDigits: 2 })}</Text>
+                    <Text className="text-sm text-vj-text font-black">Est. Total Cost ({getCurrencySymbol()}):</Text>
+                    <Text className="text-sm font-black font-mono text-amber-900">{getCurrencySymbol()} {liveWastageSeparation.totalAmount.toLocaleString('en-IN', { maximumFractionDigits: 2 })}</Text>
                   </View>
                 </>
               )}

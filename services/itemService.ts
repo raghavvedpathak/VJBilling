@@ -163,6 +163,11 @@ export const itemService = {
       const category = categoryRepository.getById(tx, firmId, input.categoryId);
       if (!category || category.firmId !== firmId) throw new Error(ERR.CATEGORY_NOT_FOUND_OR_WRONG_FIRM);
 
+      // Enforce sizeValue and sizeUnit pairing guard
+      if ((input.sizeValue != null && input.sizeUnit == null) || (input.sizeValue == null && input.sizeUnit != null)) {
+        throw new Error(ERR.ITEM_SIZE_PAIRING_INVALID);
+      }
+
       const hsnCode = input.hsnCode;
       hsnMasterRepository.findByCode(tx, firmId, hsnCode);
 
@@ -181,10 +186,10 @@ export const itemService = {
       const sku = skuEngine.generateSKU(tx, design, firmId, entryDate);
       const { fineWeightMg, purityRoundingDeltaMg } = resolveFineWeightMg(netWeightMg, input.purityPercent, design.metal);
 
-      // FIX-WAST-2 (v1.26): Flat Addition Math (Purity + Wastage)
+      // FIX-WAST-2 (v1.26): Supplier cost truth — gold actually billed
       const wastagePercent = input.wastagePercent ?? 0;
       const fineGoldChargedMg = wastagePercent > 0
-        ? Math.round(netWeightMg * (input.purityPercent + wastagePercent) / 100)
+        ? Math.round(fineWeightMg * (1 + wastagePercent / 100))
         : null;
 
       const item = itemRepository.insert(tx, {
@@ -284,7 +289,7 @@ export const itemService = {
       // FIX-ADJ-WAST-1 (v1.29) & v1.88 extensions
       const effectiveWastagePercent = newWastagePercent ?? item.wastagePercent ?? 0;
       const newFineGoldChargedMg = effectiveWastagePercent > 0
-        ? Math.round(newNetWeightMg * (item.purityPercent + effectiveWastagePercent) / 100)
+        ? Math.round(newFineWeightMg * (1 + effectiveWastagePercent / 100))
         : null;
 
       itemRepository.update(tx, firmId, itemId, {
@@ -414,6 +419,12 @@ export const itemService = {
         if (!design || design.firmId !== firmId) throw new Error(ERR.DESIGN_NOT_FOUND_OR_WRONG_FIRM);
         const category = categoryRepository.getById(tx, firmId, input.categoryId);
         if (!category || category.firmId !== firmId) throw new Error(ERR.CATEGORY_NOT_FOUND_OR_WRONG_FIRM);
+
+        // Enforce sizeValue and sizeUnit pairing guard
+        if ((input.sizeValue != null && input.sizeUnit == null) || (input.sizeValue == null && input.sizeUnit != null)) {
+          throw new Error(ERR.ITEM_SIZE_PAIRING_INVALID);
+        }
+
         hsnMasterRepository.findByCode(tx, firmId, input.hsnCode); // throws ITEM_HSN_MISSING
         if (input.grossWeightMg <= 0) throw new Error(ERR.ITEM_GROSS_WEIGHT_INVALID);
         if (input.purityPercent <= 0 || input.purityPercent > 100) throw new Error(ERR.ITEM_PURITY_PERCENT_INVALID);
@@ -421,12 +432,18 @@ export const itemService = {
         const netWeightMg = input.grossWeightMg - (input.stoneWeightMg ?? 0) - (input.beadsWeightMg ?? 0);
         if (netWeightMg <= 0) throw new Error(ERR.ITEM_NET_WEIGHT_INVALID);
 
-        const sku = skuEngine.generateSKU(tx, design, firmId); // unique seq per item
+        // Resolve entry date and fyId per item in bulk
+        const todayIso = now().split('T')[0];
+        const entryDate = input.entryDate ?? todayIso;
+        if (entryDate > todayIso) throw new Error(ERR.ENTRY_DATE_IN_FUTURE);
+        const fyId = fyRepository.resolveTransactionFyId(firmId, entryDate);
+
+        const sku = skuEngine.generateSKU(tx, design, firmId, entryDate); // unique seq per item
 
         const { fineWeightMg, purityRoundingDeltaMg } = resolveFineWeightMg(netWeightMg, input.purityPercent, design.metal); // FEAT-PURITY-ROUND-1 (v1.90)
         
         const wastagePercent = input.wastagePercent ?? 0;
-        const fineGoldChargedMg = wastagePercent > 0 ? Math.round(netWeightMg * (input.purityPercent + wastagePercent) / 100) : null;
+        const fineGoldChargedMg = wastagePercent > 0 ? Math.round(fineWeightMg * (1 + wastagePercent / 100)) : null;
 
         // FIX-UI-TOTAL-1 (v1.51): UI display — Total Purchase Amount = (fineGoldChargedMg ?? fineWeightMg) / 1000 * purchaseRatePerGram
         // FIX-PPG-DISPLAY-1 (v1.52): UI display — Price Per Gram = (fineGoldChargedMg ?? fineWeightMg) / fineWeightMg * purchaseRatePerGram
@@ -445,7 +462,8 @@ export const itemService = {
           makingChargePaise: input.makingChargePaise ?? null, stoneCostPaise: input.stoneCostPaise ?? null,
           location: input.location ?? null, invoiceId: null, phantomStockId: null, hsnCode: input.hsnCode,
           metalSource: input.metalSource ?? 'SUPPLIER_PURCHASE', sizeValue: input.sizeValue ?? null, sizeUnit: input.sizeUnit ?? null,
-          barcodeReprintRequired: 0, status: 'DRAFT', createdAt: now(), updatedAt: now(),
+          barcodeReprintRequired: 0, status: 'DRAFT', metal: design.metal, fyId,
+          createdAt: `${entryDate}T${now().split('T')[1]}`, updatedAt: now(),
         });
         
         itemEventRepository.insert(tx, { itemId: item.id, firmId,

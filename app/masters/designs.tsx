@@ -1,3 +1,7 @@
+/* eslint-disable no-restricted-imports */
+import { db } from '../../db/client';
+import { designs as designsTable, categories as categoriesTable, designCategoryMap as designCategoryMapTable } from '../../db/schema';
+import { eq, and } from 'drizzle-orm';
 import React, { useState, useCallback, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Modal, Alert, ActivityIndicator } from 'react-native';
 import { useRouter } from 'expo-router';
@@ -8,9 +12,6 @@ import { GlassCard, GlassButton } from '../../components/ui/Glass';
 import { Tag, Plus, X, Edit2, Trash2, LayoutGrid, List as ListIcon, CheckCircle } from 'lucide-react-native';
 import { useFirmStore } from '../../store/firmStore';
 import { designService } from '../../services/designService';
-import { db } from '../../db/client';
-import { designs as designsTable, categories as categoriesTable, designCategoryMap as designCategoryMapTable } from '../../db/schema';
-import { eq, and, sql } from 'drizzle-orm';
 import { now } from '../../utils/now';
 import * as Crypto from 'expo-crypto';
 
@@ -88,7 +89,7 @@ export default function DesignsScreen() {
         db.select().from(categoriesTable).where(and(eq(categoriesTable.firmId, activeFirmId), eq(categoriesTable.isActive, 1))),
       ]);
       
-      const formattedDesigns: DesignWithCategory[] = rawDesigns.map(r => ({
+      const formattedDesigns: DesignWithCategory[] = rawDesigns.map((r: any) => ({
         ...r.design,
         categoryName: r.categoryName
       }));

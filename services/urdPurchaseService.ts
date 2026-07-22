@@ -21,6 +21,20 @@ function uuid() {
   return Crypto.randomUUID();
 }
 
+export async function getById(
+  id: string,
+  firmId: string,
+): Promise<URDPurchase | null> {
+  return urdPurchaseService.getById(id, firmId);
+}
+
+export async function generateURDPurchaseBill(
+  urdId: string,
+  firmId: string,
+): Promise<string> {
+  return urdPurchaseService.generateURDPurchaseBill(urdId, firmId);
+}
+
 export const urdPurchaseService = {
   // PUBLIC EXPORT — Phase 3 cross-phase seam. Phase 3 MUST call this;
   // NEVER call urdPurchaseRepository.getById() from Phase 3 directly.
@@ -185,11 +199,19 @@ export const urdPurchaseService = {
 
     const symbol = getCurrencySymbol();
     
-    const identityProof = urd.customerPAN 
-      ? urd.customerPAN
-      : urd.customerAadhaar 
-        ? (urd.customerAadhaar.length >= 4 ? 'XXXX-XXXX-' + urd.customerAadhaar.slice(-4) : 'XXXX-XXXX-' + urd.customerAadhaar)
-        : 'Identity Proof: Not Provided';
+    let identityHtml = '';
+    if (urd.customerAadhaar) {
+      const masked = urd.customerAadhaar.length >= 4 
+        ? 'XXXX-XXXX-' + urd.customerAadhaar.slice(-4) 
+        : 'XXXX-XXXX-' + urd.customerAadhaar;
+      identityHtml += `<div>Aadhaar:</div><div class="info-val">${masked}</div>`;
+    }
+    if (urd.customerPAN) {
+      identityHtml += `<div>PAN:</div><div class="info-val">${urd.customerPAN}</div>`;
+    }
+    if (!urd.customerAadhaar && !urd.customerPAN) {
+      identityHtml += `<div>Identity Proof:</div><div class="info-val">Not Provided</div>`;
+    }
 
     const html = `
 <!DOCTYPE html>
@@ -374,13 +396,12 @@ export const urdPurchaseService = {
         <div class="info-val">${urd.customerAddress || '-'}</div>
         <div>Mob:</div>
         <div class="info-val">${urd.customerMobile || '-'}</div>
-        <div>PAN/Aadhaar:</div>
-        <div class="info-val">${identityProof}</div>
+        ${identityHtml}
       </div>
       <div class="info-right">
         <div>Date:</div>
         <div class="info-val">${urd.purchaseDate}</div>
-        <div>Invoice No:</div>
+        <div>URD Number:</div>
         <div class="info-val">${urd.urdNumber}</div>
         <div>Pay Mode:</div>
         <div class="info-val">${urd.paymentMode}</div>
@@ -402,7 +423,7 @@ export const urdPurchaseService = {
       <tbody>
         <tr style="height: auto;">
           <td style="padding-bottom: 25px;">1</td>
-          <td style="text-align: left; padding-bottom: 25px;">Old ${urd.metalType} Jewellery</td>
+          <td style="text-align: left; padding-bottom: 25px;">Old ${urd.metalType} Jewellery (${urd.purityPercent}%)</td>
           <td style="padding-bottom: 25px;">${(urd.grossWeightMg / 1000).toFixed(3)}</td>
           <td style="padding-bottom: 25px;">${urd.purityPercent}</td>
           <td style="padding-bottom: 25px;">${(urd.fineWeightMg / 1000).toFixed(3)}</td>
@@ -415,11 +436,8 @@ export const urdPurchaseService = {
     <div class="footer-grid">
       <div style="display: flex; flex-direction: column; justify-content: space-between;">
         <div class="amount-words">
-          <div>Amt. In Words: <span style="font-weight: normal; margin-left: 5px;">Rupees ${amountToWords(urd.totalValuePaise)} Only</span></div>
+          <div>Amt. In Words: <span style="font-weight: normal; margin-left: 5px;">${amountToWords(urd.totalValuePaise)}</span></div>
           ${urd.paymentMode === 'BANK' || urd.paymentMode === 'UPI' ? `<div style="margin-top: 5px; font-weight: normal;">Payment Mode: ${urd.paymentMode}${urd.bankAccountId ? ` (Bank ID: ${urd.bankAccountId})` : ''}</div>` : `<div style="margin-top: 5px; font-weight: normal;">Payment Mode: Cash</div>`}
-        </div>
-        <div style="padding: 10px; font-size: 10px; font-weight: 600; text-align: center; border-right: 1px solid #000;">
-          I confirm that I have sold the above article(s) and received the stated amount.
         </div>
         <div class="signatures">
           <div style="text-align: left;">
@@ -430,6 +448,9 @@ export const urdPurchaseService = {
             <div style="margin-bottom: 30px;">Authorized Signatory</div>
             <div>For: ${firm.name}</div>
           </div>
+        </div>
+        <div style="padding: 10px; font-size: 10px; font-weight: 600; text-align: center; border-right: 1px solid #000; border-top: 1px solid #000;">
+          I confirm that I have sold the above article(s) and received the stated amount.
         </div>
       </div>
       <div>
@@ -462,7 +483,7 @@ export const urdPurchaseService = {
       </div>
     </div>
     <div style="text-align: center; font-size: 9px; padding: 10px; border-top: 1px solid #ccc; margin-top: 10px; color: #666;">
-      This is a computer-generated URD Purchase Bill. | ${firm.addressLine1 || ''}, ${firm.city || ''} | Printed: ${new Date().toLocaleString('en-IN')}
+      This is a computer-generated URD Purchase Bill. | ${firm.addressLine1 || ''}, ${firm.addressLine2 ? firm.addressLine2 + ', ' : ''}${firm.city || ''}, ${firm.stateName || ''} - ${firm.pincode || ''} | Printed: ${new Date().toLocaleString('en-IN')}
     </div>
   </div>
 </body>

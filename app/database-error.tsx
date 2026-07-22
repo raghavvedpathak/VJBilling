@@ -13,10 +13,6 @@ export default function DatabaseErrorScreen() {
   const [showFactoryReset, setShowFactoryReset] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState('');
 
-  useEffect(() => {
-    checkSnapshot();
-  }, []);
-
   const checkSnapshot = async () => {
     try {
       // RULE 3: Check file existence via getInfoAsync()
@@ -28,6 +24,10 @@ export default function DatabaseErrorScreen() {
       setIsChecking(false);
     }
   };
+
+  useEffect(() => {
+    checkSnapshot();
+  }, []);
 
   const handleExportRaw = async () => {
     alert("Raw data export will be wired up in Phase 2.");

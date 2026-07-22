@@ -5,11 +5,7 @@ import { TwoToneWrapper } from '../../components/TwoToneWrapper';
 import { GlassButton } from '../../components/ui/Glass';
 import { Layers, CheckCircle } from 'lucide-react-native';
 import { useFirmStore } from '../../store/firmStore';
-import { db } from '../../db/client';
-import { categories as categoriesTable } from '../../db/schema';
-import { eq, and, sql } from 'drizzle-orm';
-import { now } from '../../utils/now';
-import * as Crypto from 'expo-crypto';
+import { categoryService } from '../../services/categoryService';
 import { TouchableOpacity } from 'react-native';
 
 const COLORS = {
@@ -36,44 +32,14 @@ export default function CreateCategoryScreen() {
     
     setIsSubmitting(true);
     try {
-      // Restore soft-deleted if exists
-      const existing = await db.select().from(categoriesTable)
-        .where(and(eq(categoriesTable.firmId, activeFirmId), eq(categoriesTable.name, newName.trim())))
-        .limit(1);
-        
-      if (existing.length > 0) {
-        if (existing[0].isActive === 1) {
-          Alert.alert('Duplicate', 'A category with this name already exists.');
-          setIsSubmitting(false);
-          return;
-        } else {
-          await db.update(categoriesTable)
-            .set({ isActive: 1, metal: newMetal, updatedAt: now() })
-            .where(eq(categoriesTable.id, existing[0].id));
-            
-          setSuccessMessage('Category restored successfully');
-          setIsSubmitting(false);
-          return;
-        }
-      }
-
-      const countRes = await db.select({ count: sql<number>`count(*)` }).from(categoriesTable).where(and(eq(categoriesTable.firmId, activeFirmId), eq(categoriesTable.isActive, 1)));
-      const codeStr = `CAT${String(Number(countRes[0]?.count || 0) + 1).padStart(4, '0')}`;
-
-      await db.insert(categoriesTable).values({
-        id: Crypto.randomUUID(),
-        firmId: activeFirmId,
+      await categoryService.createCategory({
         name: newName.trim(),
-        metal: newMetal,
-        code: codeStr,
-        isActive: 1,
-        createdAt: now(),
-        updatedAt: now(),
-      });
+        metal: newMetal
+      }, activeFirmId);
       
       setSuccessMessage('Category added successfully');
     } catch (e: any) {
-      if (e.message?.includes('UNIQUE')) {
+      if (e.message?.includes('CATEGORY_NAME_DUPLICATE') || e.message?.includes('UNIQUE')) {
         Alert.alert('Duplicate', 'A category with this name already exists.');
       } else {
         Alert.alert('Error', e.message);

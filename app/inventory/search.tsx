@@ -1,6 +1,7 @@
 // app/inventory/search.tsx
-import React, { useState, useEffect } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator, FlatList } from 'react-native';
+import React, { useState, useEffect, useCallback, memo } from 'react';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
+import { FlashList } from '@shopify/flash-list';
 import { useRouter } from 'expo-router';
 import { Search, ArrowLeft, PackageSearch, Ghost, Hash } from 'lucide-react-native';
 import { inventorySearchService } from '../../services/inventorySearchService';
@@ -42,6 +43,72 @@ const HighlightText = ({ text, query, style }: { text?: string | null, query: st
   );
 };
 
+type SearchResultRowProps = {
+  item: ItemSearchResult;
+  query: string;
+  onPress: (itemId: string) => void;
+};
+
+const SearchResultRow = memo(({ item, query, onPress }: SearchResultRowProps) => {
+  const isGold = item.metal === 'GOLD';
+  const isPhantom = item.status === 'PHANTOM_AVAILABLE';
+  const activeQuery = query.trim();
+  const formatWeight = (mg?: number) => ((mg || 0) / 1000).toFixed(3) + ' g';
+
+  return (
+    <TouchableOpacity 
+      style={s.card}
+      activeOpacity={0.7}
+      onPress={() => onPress(item.itemId)}
+    >
+      <View style={s.cardHeader}>
+        <View style={s.badgeRow}>
+          <View style={[s.metalBadge, { backgroundColor: isGold ? COLORS.goldAccent + '20' : COLORS.silverAccent + '20' }]}>
+            <Text style={[s.metalText, { color: isGold ? COLORS.goldAccent : COLORS.silverAccent }]}>
+              {item.metal} {item.purityKarat}K
+            </Text>
+          </View>
+          
+          {item.sizeValue != null && (
+            <View style={[s.metalBadge, { backgroundColor: COLORS.border + '30', marginLeft: 6 }]}>
+              <Text style={[s.metalText, { color: COLORS.vjText }]}>
+                SZ: {item.sizeValue} {item.sizeUnit ? item.sizeUnit : ''}
+              </Text>
+            </View>
+          )}
+          
+          {isPhantom && (
+            <View style={[s.metalBadge, { backgroundColor: COLORS.phantom + '15', marginLeft: 6 }]}>
+              <Ghost size={10} color={COLORS.phantom} style={{ marginRight: 4 }} />
+              <Text style={[s.metalText, { color: COLORS.phantom }]}>PHANTOM</Text>
+            </View>
+          )}
+        </View>
+        
+        <Text style={s.huidText}>
+          HUID: <HighlightText text={item.huid || 'N/A'} query={activeQuery} style={s.huidText} />
+        </Text>
+      </View>
+
+      <View style={s.cardBody}>
+        <View style={s.mainDetails}>
+          <HighlightText text={item.sku} query={activeQuery} style={s.skuText} />
+          <Text style={s.categoryText}>
+            <HighlightText text={item.categoryName} query={activeQuery} style={s.categoryText} />
+            {' • '}
+            <HighlightText text={item.designName} query={activeQuery} style={s.categoryText} />
+          </Text>
+        </View>
+        
+        <View style={s.weightDetails}>
+          <Text style={s.weightLabel}>NET WT</Text>
+          <HighlightText text={formatWeight(item.netWeightMg)} query={activeQuery} style={s.weightValue} />
+        </View>
+      </View>
+    </TouchableOpacity>
+  );
+});
+
 export default function InventorySearchScreen() {
   const router = useRouter();
   const { activeFirmId } = useFirmStore();
@@ -74,68 +141,9 @@ export default function InventorySearchScreen() {
     return () => clearTimeout(delayDebounceFn);
   }, [query]);
 
-  // Fix: Handle undefined weights safely
-  const formatWeight = (mg?: number) => ((mg || 0) / 1000).toFixed(3) + ' g';
-
-  const renderItem = ({ item }: { item: ItemSearchResult }) => {
-    const isGold = item.metal === 'GOLD';
-    const isPhantom = item.status === 'PHANTOM_AVAILABLE';
-    const activeQuery = query.trim();
-
-    return (
-      <TouchableOpacity 
-        style={s.card}
-        activeOpacity={0.7}
-        onPress={() => router.push(`/inventory/item-detail?itemId=${item.itemId}`)}
-      >
-        <View style={s.cardHeader}>
-          <View style={s.badgeRow}>
-            <View style={[s.metalBadge, { backgroundColor: isGold ? COLORS.goldAccent + '20' : COLORS.silverAccent + '20' }]}>
-              <Text style={[s.metalText, { color: isGold ? COLORS.goldAccent : COLORS.silverAccent }]}>
-                {item.metal} {item.purityKarat}K
-              </Text>
-            </View>
-            
-            {item.sizeValue != null && (
-              <View style={[s.metalBadge, { backgroundColor: COLORS.border + '30', marginLeft: 6 }]}>
-                <Text style={[s.metalText, { color: COLORS.vjText }]}>
-                  SZ: {item.sizeValue} {item.sizeUnit ? item.sizeUnit : ''}
-                </Text>
-              </View>
-            )}
-            
-            {isPhantom && (
-              <View style={[s.metalBadge, { backgroundColor: COLORS.phantom + '15', marginLeft: 6 }]}>
-                <Ghost size={10} color={COLORS.phantom} style={{ marginRight: 4 }} />
-                <Text style={[s.metalText, { color: COLORS.phantom }]}>PHANTOM</Text>
-              </View>
-            )}
-          </View>
-          
-          <Text style={s.huidText}>
-            HUID: <HighlightText text={item.huid || 'N/A'} query={activeQuery} style={s.huidText} />
-          </Text>
-        </View>
-
-        <View style={s.cardBody}>
-          <View style={s.mainDetails}>
-            <HighlightText text={item.sku} query={activeQuery} style={s.skuText} />
-            <Text style={s.categoryText}>
-              <HighlightText text={item.categoryName} query={activeQuery} style={s.categoryText} />
-              {' • '}
-              <HighlightText text={item.designName} query={activeQuery} style={s.categoryText} />
-            </Text>
-          </View>
-          
-          <View style={s.weightDetails}>
-            <Text style={s.weightLabel}>NET WT</Text>
-            {/* We highlight the weight if the user searches for the exact formatted string */}
-            <HighlightText text={formatWeight(item.netWeightMg)} query={activeQuery} style={s.weightValue} />
-          </View>
-        </View>
-      </TouchableOpacity>
-    );
-  };
+  const handleItemPress = useCallback((itemId: string) => {
+    router.push(`/inventory/item-detail?itemId=${itemId}`);
+  }, [router]);
 
   return (
     <View style={s.container}>
@@ -175,13 +183,16 @@ export default function InventorySearchScreen() {
             <Text style={s.emptySub}>Try searching for a different SKU or HUID</Text>
           </View>
         ) : (
-          <FlatList
+          <FlashList
             data={results}
+            // @ts-ignore: estimatedItemSize required by spec even if missing from standard local FlashList type signatures
+            estimatedItemSize={95}
             keyExtractor={(item) => item.itemId}
-            renderItem={renderItem}
+            renderItem={({ item }) => (
+              <SearchResultRow item={item} query={query} onPress={handleItemPress} />
+            )}
             contentContainerStyle={s.listPadding}
             keyboardShouldPersistTaps="handled"
-            initialNumToRender={10}
           />
         )}
       </View>

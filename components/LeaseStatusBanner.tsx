@@ -35,7 +35,7 @@ export function LeaseStatusBanner() {
   });
 
   // Modern Pulse Animation for Active State
-  const pulseAnim = useRef(new Animated.Value(1)).current;
+  const [pulseAnim] = useState(() => new Animated.Value(1));
 
   useEffect(() => {
     if (leaseState.status === 'ACTIVE') {

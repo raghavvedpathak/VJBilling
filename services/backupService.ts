@@ -12,6 +12,7 @@ import * as Sharing from 'expo-sharing';
 import { Platform } from 'react-native';
 import { storage } from '../utils/storage';
 import CryptoJS from 'crypto-js';
+import * as Crypto from 'expo-crypto';
 import { db } from '../db/client';
 import { 
   firms, financialYears, auditLogs, safeModeState, appSettings, bisLogos,
@@ -161,9 +162,44 @@ export const backupService = {
         return CryptoJS.lib.WordArray.create(words, u8.length);
       };
 
-      // Generate random salt and iv using CryptoJS WordArray
-      const salt = CryptoJS.lib.WordArray.random(16);
-      const iv = CryptoJS.lib.WordArray.random(16);
+      const getRandomBytes = (nBytes: number): Uint8Array => {
+        // Tier 1: Try native Expo Crypto module
+        try {
+          if (Crypto && typeof Crypto.getRandomBytes === 'function') {
+            return Crypto.getRandomBytes(nBytes);
+          }
+        } catch {}
+
+        // Tier 2: Try Web Crypto API (if running in Node/Jest or browsers)
+        try {
+          const webCrypto = global.crypto || (global as any).msCrypto;
+          if (webCrypto && typeof webCrypto.getRandomValues === 'function') {
+            const u8 = new Uint8Array(nBytes);
+            webCrypto.getRandomValues(u8);
+            return u8;
+          }
+        } catch {}
+
+        // Tier 3: Try Node.js standard crypto (Jest)
+        try {
+          const nodeCrypto = require('crypto');
+          if (nodeCrypto && typeof nodeCrypto.randomBytes === 'function') {
+            return nodeCrypto.randomBytes(nBytes);
+          }
+        } catch {}
+
+        // Tier 4: Math.random fallback
+        const u8 = new Uint8Array(nBytes);
+        for (let i = 0; i < nBytes; i++) {
+          u8[i] = Math.floor(Math.random() * 256);
+        }
+        return u8;
+      };
+
+      const saltBytes = getRandomBytes(16);
+      const ivBytes = getRandomBytes(16);
+      const salt = toWordArray(saltBytes);
+      const iv = toWordArray(ivBytes);
 
       // Derive key using PBKDF2
       const keyMaterial = toWordArray(keySourceMaterial);
@@ -215,6 +251,9 @@ export const backupService = {
           }
         } catch (androidError) {
           console.warn('[Backup] Android SAF direct write failed, falling back to Sharing:', androidError);
+          try {
+            await storage.removeItem('vjbilling_android_backup_dir_uri');
+          } catch {}
         }
       }
 

@@ -7,6 +7,7 @@ import { getDeviceId } from '../utils/deviceId';
 import { now } from '../utils/now';
 import * as Crypto from 'expo-crypto';
 import type { CreateStoneInput, Stone } from '../types/phase2.types';
+import { ERR } from '../constants/errorCodes';
 
 export const stoneService = {
   // createStone() service body from Step 4
@@ -38,6 +39,30 @@ export const stoneService = {
       });
 
       return stone;
+    });
+  },
+
+  async softDeleteStone(stoneId: string, firmId: string): Promise<void> {
+    await leaseService.assertNoActiveLease();
+    safeModeService.assertNotInSafeMode();
+
+    const deviceId = await getDeviceId();
+
+    return db.transaction((tx) => {
+      const stone = stoneRepository.getById(tx, stoneId, firmId);
+      if (!stone || stone.firmId !== firmId) {
+        throw new Error(ERR.STONE_NOT_FOUND_OR_WRONG_FIRM);
+      }
+
+      stoneRepository.softDelete(tx, stoneId, firmId);
+
+      auditRepository.log(tx, {
+        eventType: 'STONE_DELETED',
+        firmId,
+        entityId: stoneId,
+        deviceId,
+        payload: JSON.stringify({ stoneId, name: stone.name })
+      });
     });
   }
 };

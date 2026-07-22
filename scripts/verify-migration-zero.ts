@@ -7,10 +7,7 @@
 //
 // SETUP: npm i --save-dev @types/node  (required for fs, path, __dirname)
 
-/* eslint-disable @typescript-eslint/no-var-requires */
-// eslint-disable-next-line @typescript-eslint/no-require-imports
 const fs   = require('fs')   as typeof import('fs');
-// eslint-disable-next-line @typescript-eslint/no-require-imports
 const path = require('path') as typeof import('path');
 
 // ------------------------------------------------------------------

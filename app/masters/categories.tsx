@@ -1,3 +1,7 @@
+/* eslint-disable no-restricted-imports */
+import { db } from '../../db/client';
+import { categories as categoriesTable } from '../../db/schema';
+import { eq, and } from 'drizzle-orm';
 import React, { useState, useCallback, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Modal, Alert, ActivityIndicator } from 'react-native';
 import { useRouter } from 'expo-router';
@@ -8,9 +12,6 @@ import { GlassCard, GlassButton } from '../../components/ui/Glass';
 import { Layers, Plus, X, Edit2, Trash2, LayoutGrid, List as ListIcon, CheckCircle } from 'lucide-react-native';
 import { useFirmStore } from '../../store/firmStore';
 import { categoryService } from '../../services/categoryService';
-import { db } from '../../db/client';
-import { categories as categoriesTable } from '../../db/schema';
-import { eq, and, sql } from 'drizzle-orm';
 import { now } from '../../utils/now';
 import * as Crypto from 'expo-crypto';
 

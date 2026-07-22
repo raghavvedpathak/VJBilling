@@ -29,10 +29,6 @@ export function PinGate({ onSuccess }: { onSuccess: () => void }) {
   
   const inputRef = useRef<TextInput>(null);
 
-  useEffect(() => {
-    checkInitialState();
-  }, []);
-
   const checkInitialState = () => {
     if (isLockedOut()) {
       startLockoutTimer();
@@ -48,6 +44,10 @@ export function PinGate({ onSuccess }: { onSuccess: () => void }) {
     
     setTimeout(() => inputRef.current?.focus(), 500);
   };
+
+  useEffect(() => {
+    checkInitialState();
+  }, []);
 
   const startLockoutTimer = () => {
     setMode('LOCKED');

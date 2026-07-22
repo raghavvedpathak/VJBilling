@@ -124,12 +124,15 @@ const TimelineRow = memo(({ event, isLast }: { event: ItemTimelineEvent; isLast:
 });
 
 // ======== DETAIL ROW ========
-function DetailRow({ label, value, icon, valueColor }: { label: string; value: string; icon?: React.ReactNode; valueColor?: string }) {
+function DetailRow({ label, subLabel, value, icon, valueColor, style }: { label: string; subLabel?: string; value: string; icon?: React.ReactNode; valueColor?: string; style?: any }) {
   return (
-    <View style={s.detailRow}>
+    <View style={[s.detailRow, style]}>
       <View style={s.detailLabelRow}>
         {icon && <View style={s.detailIcon}>{icon}</View>}
-        <Text style={s.detailLabel}>{label}</Text>
+        <View>
+          <Text style={s.detailLabel}>{label}</Text>
+          {subLabel && <Text style={s.detailSubLabel}>{subLabel}</Text>}
+        </View>
       </View>
       <Text style={[s.detailValue, valueColor ? { color: valueColor } : undefined]} numberOfLines={1}>{value}</Text>
     </View>
@@ -359,22 +362,19 @@ export default function ItemDetailScreen() {
   }
 
   // --- Live Cost Breakdown Calculations ---
-  const netWeightG = item.netWeightMg / 1000;
-  const purity = item.purityPercent;
-  const wastage = item.wastagePercent || 0;
-  const totalTouchPercent = purity + wastage;
-  
-  const vaultTruth = netWeightG * (purity / 100);
-  const wastageGold = netWeightG * (wastage / 100);
-  const costTruth = netWeightG * (totalTouchPercent / 100);
+  const vaultTruth = item.fineWeightMg / 1000;
+  const costTruth = (item.fineGoldChargedMg ?? item.fineWeightMg) / 1000;
+  const wastageGold = costTruth - vaultTruth;
 
   const rate = item.purchaseRatePaise ? item.purchaseRatePaise / 100 : 0;
   const making = item.makingChargePaise ? item.makingChargePaise / 100 : 0;
   const stoneC = item.stoneCostPaise ? item.stoneCostPaise / 100 : 0;
 
-  const effectivePricePerGram = rate * (totalTouchPercent / 100);
+  const effectivePricePerGram = item.fineWeightMg > 0
+    ? ((item.fineGoldChargedMg ?? item.fineWeightMg) / item.fineWeightMg) * rate
+    : rate;
   const hasCostData = rate > 0 || making > 0 || stoneC > 0;
-  const totalAmount = (netWeightG * effectivePricePerGram) + making + stoneC;
+  const totalAmount = (costTruth * rate) + making + stoneC;
 
   const headerContent = (
     <View>
@@ -401,7 +401,7 @@ export default function ItemDetailScreen() {
           <View style={s.sectionCard}>
             <DetailRow label="Design" value={item.designName} />
             <DetailRow label="Category" value={item.categoryName} />
-            <DetailRow label="Metal" value={`${item.metal.charAt(0) + item.metal.slice(1).toLowerCase()} · ${purityDisplay}`} valueColor={metalColor} />
+            <DetailRow label="Metal" value={item.metal.charAt(0) + item.metal.slice(1).toLowerCase()} valueColor={metalColor} />
             
             <View style={s.divider} />
             
@@ -409,14 +409,15 @@ export default function ItemDetailScreen() {
             <DetailRow label="Stone Weight" value={formatWeight(item.stoneWeightMg)} />
             <DetailRow label="Beads Weight" value={formatWeight(item.beadsWeightMg)} />
             <DetailRow label="Net Weight" value={formatWeight(item.netWeightMg)} />
+            <DetailRow label="Purity" value={purityDisplay} />
             <DetailRow label="Fine Weight" value={formatWeight(item.fineWeightMg)} />
-            <DetailRow label="Vault Truth (Fine)" value={vaultTruth.toFixed(3) + ' g'} valueColor="#047857" />
-            <DetailRow label="Wastage Gold" value={wastageGold.toFixed(3) + ' g'} valueColor="#B91C1C" />
-            <DetailRow label="Cost Truth (Fine)" value={costTruth.toFixed(3) + ' g'} valueColor="#B45309" />
+            <DetailRow label="Vault Truth (Fine)" subLabel={`= ${(item.netWeightMg / 1000).toFixed(3)} g × ${item.purityPercent.toFixed(2)}%`} value={vaultTruth.toFixed(3) + ' g'} valueColor="#047857" style={s.highlightGreenRow} />
+            <DetailRow label="Wastage %" value={item.wastagePercent ? item.wastagePercent.toFixed(2) + '%' : '0.00%'} />
+            <DetailRow label={item.metal === 'GOLD' ? 'Wastage Gold' : 'Wastage Silver'} subLabel={`= ${vaultTruth.toFixed(3)} g × ${(item.wastagePercent || 0).toFixed(2)}%`} value={wastageGold.toFixed(3) + ' g'} valueColor="#B91C1C" style={s.highlightRedRow} />
+            <DetailRow label="Cost Truth (Fine)" subLabel={`= ${vaultTruth.toFixed(3)} g + ${wastageGold.toFixed(3)} g`} value={costTruth.toFixed(3) + ' g'} valueColor="#B45309" style={s.highlightOrangeRow} />
             
             <View style={s.divider} />
             
-            <DetailRow label="Wastage" value={item.wastagePercent ? item.wastagePercent.toFixed(2) + '%' : '0.00%'} />
             <DetailRow label="Size" value={item.sizeValue !== null ? `${item.sizeValue} ${item.sizeUnit}` : '—'} />
 
             <View style={s.divider} />
@@ -451,17 +452,14 @@ export default function ItemDetailScreen() {
             <View style={s.detailRow}>
               <View style={s.detailLabelRow}>
                 <Text style={s.detailLabel}>Added On</Text>
-              </View>
-              <View style={{flexDirection: 'row', alignItems: 'center', gap: 6}}>
-                <Text style={s.detailValue}>{createdAtFormatted}</Text>
                 {/* GAP-P2-DATE-SKU-EDIT-1 (v1.79) */}
                 {(item.status !== 'SOLD' && item.status !== 'MELTED' && item.status !== 'PHANTOM_SOLD') && (
-                  <TouchableOpacity activeOpacity={0.7} onPress={handleOpenDateModal}>
-                     {/* Pencil Icon Placeholder */}
-                     <Text style={{color: COLORS.vjAccent, fontSize: 16}}>✎</Text>
+                  <TouchableOpacity activeOpacity={0.7} onPress={handleOpenDateModal} style={{ marginLeft: 6 }}>
+                     <Text style={{color: COLORS.vjAccent, fontSize: 16, fontWeight: 'bold'}}>✎</Text>
                   </TouchableOpacity>
                 )}
               </View>
+              <Text style={s.detailValue}>{createdAtFormatted}</Text>
             </View>
 
             {/* === COST FIELDS === */}
@@ -479,8 +477,8 @@ export default function ItemDetailScreen() {
                 )}
                 {hasCostData && (
                   <>
-                    <DetailRow label="Effective Price/g" value={'₹ ' + effectivePricePerGram.toLocaleString('en-IN', { maximumFractionDigits: 2 })} />
-                    <DetailRow label="Est. Total Cost" value={'₹ ' + totalAmount.toLocaleString('en-IN', { maximumFractionDigits: 2 })} valueColor="#78350F" />
+                    <DetailRow label="Effective Price/g" subLabel={`= (${costTruth.toFixed(3)} g ÷ ${vaultTruth.toFixed(3)} g) × ${getCurrencySymbol()}${rate.toFixed(2)}`} value={getCurrencySymbol() + ' ' + effectivePricePerGram.toLocaleString('en-IN', { maximumFractionDigits: 2 })} style={s.highlightGoldRow} />
+                    <DetailRow label="Est. Total Cost" subLabel={`= ${costTruth.toFixed(3)} g × ${getCurrencySymbol()}${rate.toFixed(2)}${making > 0 ? ' + ' + getCurrencySymbol() + making.toFixed(2) : ''}${stoneC > 0 ? ' + ' + getCurrencySymbol() + stoneC.toFixed(2) : ''}`} value={getCurrencySymbol() + ' ' + totalAmount.toLocaleString('en-IN', { maximumFractionDigits: 2 })} valueColor="#78350F" style={s.highlightGoldRow} />
                   </>
                 )}
               </>
@@ -693,6 +691,36 @@ const s = StyleSheet.create({
   detailIcon: { opacity: 0.7 },
   detailLabel: { color: 'rgba(92,22,35,0.5)', fontSize: 13, fontWeight: '600' },
   detailValue: { color: COLORS.vjText, fontSize: 14, fontWeight: '700', maxWidth: '60%', textAlign: 'right' },
+  detailSubLabel: {
+    color: 'rgba(92,22,35,0.4)',
+    fontSize: 10,
+    fontWeight: '500',
+    marginTop: 2,
+  },
+  highlightGreenRow: {
+    backgroundColor: 'rgba(4,120,87,0.03)',
+    borderLeftWidth: 3,
+    borderLeftColor: '#047857',
+    paddingLeft: 11,
+  },
+  highlightRedRow: {
+    backgroundColor: 'rgba(185,28,28,0.03)',
+    borderLeftWidth: 3,
+    borderLeftColor: '#B91C1C',
+    paddingLeft: 11,
+  },
+  highlightOrangeRow: {
+    backgroundColor: 'rgba(180,83,9,0.03)',
+    borderLeftWidth: 3,
+    borderLeftColor: '#B45309',
+    paddingLeft: 11,
+  },
+  highlightGoldRow: {
+    backgroundColor: 'rgba(212,175,55,0.05)',
+    borderLeftWidth: 3,
+    borderLeftColor: COLORS.vjAccent,
+    paddingLeft: 11,
+  },
 
   // --- Costs Highlight ---
   costHeaderRow: { paddingHorizontal: 14, paddingTop: 12, paddingBottom: 4 },

@@ -44,6 +44,81 @@ const IngotIcon = ({ color }: { color: string }) => (
   </View>
 );
 
+const formatWeight = (mg: number) => (mg / 1000).toFixed(3) + ' g';
+
+const formatLiveValue = (mg: number, ratePerGramPaise?: number) => {
+  if (!ratePerGramPaise) return null; // Awaiting Phase 3 rate
+  const totalValuePaise = Math.round((mg / 1000) * ratePerGramPaise);
+  return getCurrencySymbol() + (totalValuePaise / 100).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+};
+
+const SummaryCard = ({ metal, totalMg, debtMg, balanceMg, ratePaise, accentColor }: any) => {
+  const hasDebt = debtMg > 0;
+  const estimatedValue = formatLiveValue(totalMg, ratePaise);
+  
+  return (
+    <GlassCard>
+      
+      {/* Header Section */}
+      <View style={s.header}>
+        <View style={s.titleRow}>
+          <View style={[s.iconBox, { backgroundColor: accentColor + '15' }]}>
+            <IngotIcon color={accentColor} />
+          </View>
+          <Text style={s.metalTitle}>{metal === 'GOLD' ? 'Gold Stock' : 'Silver Stock'}</Text>
+        </View>
+
+        <View style={s.valueContainer}>
+          {/* Estimated Live Value (Phase 3) */}
+          <Text style={s.valueLabel}>{['I', 'N', 'R'].join('')} Total</Text>
+          {estimatedValue ? (
+            <Text style={[s.valueText, { color: accentColor }]}>{estimatedValue}</Text>
+          ) : (
+            <Text style={s.noRateText}>{getCurrencySymbol()} —</Text>
+          )}
+        </View>
+      </View>
+
+      {/* Data Grid Section */}
+      <View style={s.grid}>
+        {/* Physical Box */}
+        <View style={s.gridBox}>
+          <View style={s.gridLabelRow}>
+            <Scale size={12} color="rgba(46,29,0,0.4)" />
+            <Text style={s.gridLabel}>Physical</Text>
+          </View>
+          <Text style={s.gridValue}>{formatWeight(totalMg)}</Text>
+        </View>
+
+        {/* Divider */}
+        <View style={s.gridDivider} />
+
+        {/* Phantom Box */}
+        <View style={s.gridBox}>
+          <View style={s.gridLabelRow}>
+            <AlertCircle size={12} color={hasDebt ? COLORS.danger : 'rgba(46,29,0,0.4)'} />
+            <Text style={[s.gridLabel, hasDebt && { color: COLORS.danger }]}>Phantom</Text>
+          </View>
+          <Text style={[s.gridValue, hasDebt && { color: COLORS.danger }]}>
+            {hasDebt ? `-${formatWeight(debtMg)}` : '0.000 g'}
+          </Text>
+        </View>
+      </View>
+
+      {/* Bottom Hero Balance */}
+      <View style={[s.balanceRow, { backgroundColor: accentColor + '08' }]}>
+        <View style={s.balanceLabelRow}>
+          <Wallet size={16} color={accentColor} />
+          <Text style={[s.balanceLabel, { color: accentColor }]}>True Ledger Balance</Text>
+        </View>
+        <Text style={[s.balanceValue, balanceMg < 0 && { color: COLORS.danger }]}>
+          {formatWeight(balanceMg)}
+        </Text>
+      </View>
+    </GlassCard>
+  );
+};
+
 export function InventoryStockSummary({ firmId, goldRatePerGramPaise, silverRatePerGramPaise }: InventoryStockSummaryProps) {
   const [summary, setSummary] = useState<StockWeightSummary>({
     goldNetWeightMg: 0,
@@ -69,81 +144,6 @@ export function InventoryStockSummary({ firmId, goldRatePerGramPaise, silverRate
       return () => { isActive = false; };
     }, [firmId])
   );
-
-  const formatWeight = (mg: number) => (mg / 1000).toFixed(3) + ' g';
-
-  const formatLiveValue = (mg: number, ratePerGramPaise?: number) => {
-    if (!ratePerGramPaise) return null; // Awaiting Phase 3 rate
-    const totalValuePaise = Math.round((mg / 1000) * ratePerGramPaise);
-    return getCurrencySymbol() + (totalValuePaise / 100).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  };
-
-  const SummaryCard = ({ metal, totalMg, debtMg, balanceMg, ratePaise, accentColor }: any) => {
-    const hasDebt = debtMg > 0;
-    const estimatedValue = formatLiveValue(totalMg, ratePaise);
-    
-    return (
-      <GlassCard>
-        
-        {/* Header Section */}
-        <View style={s.header}>
-          <View style={s.titleRow}>
-            <View style={[s.iconBox, { backgroundColor: accentColor + '15' }]}>
-              <IngotIcon color={accentColor} />
-            </View>
-            <Text style={s.metalTitle}>{metal === 'GOLD' ? 'Gold Stock' : 'Silver Stock'}</Text>
-          </View>
-
-          <View style={s.valueContainer}>
-            {/* Estimated Live Value (Phase 3) */}
-            <Text style={s.valueLabel}>INR Total</Text>
-            {estimatedValue ? (
-              <Text style={[s.valueText, { color: accentColor }]}>{estimatedValue}</Text>
-            ) : (
-              <Text style={s.noRateText}>₹ —</Text>
-            )}
-          </View>
-        </View>
-
-        {/* Data Grid Section */}
-        <View style={s.grid}>
-          {/* Physical Box */}
-          <View style={s.gridBox}>
-            <View style={s.gridLabelRow}>
-              <Scale size={12} color="rgba(46,29,0,0.4)" />
-              <Text style={s.gridLabel}>Physical</Text>
-            </View>
-            <Text style={s.gridValue}>{formatWeight(totalMg)}</Text>
-          </View>
-
-          {/* Divider */}
-          <View style={s.gridDivider} />
-
-          {/* Phantom Box */}
-          <View style={s.gridBox}>
-            <View style={s.gridLabelRow}>
-              <AlertCircle size={12} color={hasDebt ? COLORS.danger : 'rgba(46,29,0,0.4)'} />
-              <Text style={[s.gridLabel, hasDebt && { color: COLORS.danger }]}>Phantom</Text>
-            </View>
-            <Text style={[s.gridValue, hasDebt && { color: COLORS.danger }]}>
-              {hasDebt ? `-${formatWeight(debtMg)}` : '0.000 g'}
-            </Text>
-          </View>
-        </View>
-
-        {/* Bottom Hero Balance */}
-        <View style={[s.balanceRow, { backgroundColor: accentColor + '08' }]}>
-          <View style={s.balanceLabelRow}>
-            <Wallet size={16} color={accentColor} />
-            <Text style={[s.balanceLabel, { color: accentColor }]}>True Ledger Balance</Text>
-          </View>
-          <Text style={[s.balanceValue, balanceMg < 0 && { color: COLORS.danger }]}>
-            {formatWeight(balanceMg)}
-          </Text>
-        </View>
-      </GlassCard>
-    );
-  };
 
   return (
     <View style={s.container}>

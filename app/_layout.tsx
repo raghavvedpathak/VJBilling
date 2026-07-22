@@ -1,3 +1,4 @@
+/* eslint-disable no-restricted-imports */
 // app/_layout.tsx
 import { useEffect, useState } from "react";
 import { Stack, router } from "expo-router";
@@ -47,6 +48,11 @@ export default function RootLayout() {
   const [bootstrapResult, setBootstrapResult] = useState<BootstrapResult>(null);
   const [dbMigrationError, setDbMigrationError] = useState<string | null>(null);
 
+  const [hasMounted, setHasMounted] = useState(false);
+  useEffect(() => {
+    setHasMounted(true);
+  }, []);
+
   // 0. PRE-MIGRATION SNAPSHOT & v7.29 PIN BYPASS EVALUATION
   useEffect(() => {
     const runSnapshot = async () => {
@@ -62,8 +68,8 @@ export default function RootLayout() {
     runSnapshot();
   }, []);
 
-  // 1. RUN BOOTSTRAP AND SET STATE
   useEffect(() => {
+    if (!hasMounted) return; // Wait for layout Stack / NavigationContainer to mount
     if (!pinVerified) return; // Hard Halt: Wait for explicit validation or skip authorization
 
     if (dbError) {
@@ -93,7 +99,7 @@ export default function RootLayout() {
     };
 
     runBootstrap();
-  }, [isLoaded, dbError, pinVerified]);
+  }, [isLoaded, dbError, pinVerified, hasMounted]);
 
   const showSnapshotLoading = snapshotStatus === "PENDING";
   const showPinGate = snapshotStatus === "DONE" && !pinVerified; 

@@ -1,3 +1,4 @@
+import { stoneRepository } from '../../repositories/stoneRepository';
 // app/masters/stones.tsx
 import React, { useState, useCallback } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Modal, TextInput, Alert, ActivityIndicator, KeyboardAvoidingView, Platform } from 'react-native';
@@ -8,8 +9,6 @@ import { GlassCard, GlassButton } from '../../components/ui/Glass';
 import { Gem, Plus, X, Trash2, LayoutGrid, List as ListIcon, CheckCircle } from 'lucide-react-native';
 import { useFirmStore } from '../../store/firmStore';
 import { stoneService } from '../../services/stoneService';
-import { stoneRepository } from '../../repositories/stoneRepository';
-import { db } from '../../db/client';
 import type { Stone } from '../../types/phase2.types';
 
 const COLORS = {
@@ -89,9 +88,7 @@ export default function StonesScreen() {
         style: 'destructive',
         onPress: async () => {
           try {
-            await db.transaction(async (tx) => {
-              await stoneRepository.softDelete(tx, s.id, activeFirmId);
-            });
+            await stoneService.softDeleteStone(s.id, activeFirmId);
             setSuccessMessage('Stone removed');
             loadStones();
           } catch (e: any) {

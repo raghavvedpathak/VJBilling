@@ -344,9 +344,11 @@ export default function AuditLogScreen() {
   const dateFormatToken = useStore(appSettingsStore, (s: any) => s.dateFormatToken);
 
   const toggleHandlerRef = useRef<(id: string) => void>(() => {});
-  toggleHandlerRef.current = (id: string) => {
-    setExpandedId(prev => prev === id ? null : id);
-  };
+  useEffect(() => {
+    toggleHandlerRef.current = (id: string) => {
+      setExpandedId(prev => prev === id ? null : id);
+    };
+  });
 
   useEffect(() => {
     loadInitialData();

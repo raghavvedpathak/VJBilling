@@ -109,7 +109,11 @@ export const restoreService = {
       if (!decryptedText) {
         throw new Error('Empty decryption result');
       }
-      backup = JSON.parse(decryptedText) as BackupEnvelope;
+      const payload = JSON.parse(decryptedText);
+      backup = {
+        ...parsedBlob,
+        payload
+      } as unknown as BackupEnvelope;
     } catch (e) {
       throw new Error(ERR.CHECKSUM_MISMATCH + ': Decryption failed — wrong password or tampered file');
     }
@@ -225,7 +229,11 @@ export const restoreService = {
         if (!decryptedText) {
           throw new Error('Empty decryption result');
         }
-        backup = JSON.parse(decryptedText) as BackupEnvelope;
+        const payload = JSON.parse(decryptedText);
+        backup = {
+          ...parsedBlob,
+          payload
+        } as unknown as BackupEnvelope;
       } catch (e) {
         throw new Error(ERR.CHECKSUM_MISMATCH + ': Decryption failed — wrong password or tampered file');
       }

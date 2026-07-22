@@ -1,4 +1,4 @@
-// app/inventory/edit-draft.tsx
+/* eslint-disable no-restricted-imports */
 import { db } from '../../db/client';
 import React, { useState, useEffect, useMemo } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator, Alert, ScrollView, Modal } from 'react-native';
@@ -8,7 +8,8 @@ import { useFirmStore } from '../../store/firmStore';
 import { itemRepository } from '../../repositories/itemRepository';
 import { itemService } from '../../services/itemService';
 import { formatSKUDisplay } from '../../utils/skuDisplay';
-import { percentToKarat } from '../../utils/purity.constants';
+import { percentToKarat, resolveFineWeightMg } from '../../utils/purity.constants';
+import { getCurrencySymbol } from '../../utils/currency';
 import { Edit3, Save, Calculator, CheckCircle } from 'lucide-react-native';
 import { GlassButton, GlassSmartSearch } from '../../components/ui/Glass';
 const COLORS = {
@@ -48,6 +49,7 @@ export default function EditDraftScreen() {
 
   const [location, setLocation] = useState('');
   const [huid, setHuid] = useState('');
+  const [metal, setMetal] = useState<'GOLD' | 'SILVER'>('GOLD');
   const [reason, setReason] = useState('Typo correction before activation');
 
   useEffect(() => {
@@ -75,6 +77,7 @@ export default function EditDraftScreen() {
           setSizeUnit(item.sizeUnit || '');
           setLocation(item.location || '');
           setHuid(item.huid || '');
+          setMetal(item.metal);
         } else if (active) {
             setErrorMessage('Failed to load item details.');
         }
@@ -100,24 +103,26 @@ export default function EditDraftScreen() {
     const stoneC = parseFloat(stoneCost) || 0;
 
     const netWeightG = Math.max(0, gross - stone - beads);
-    const vaultTruth = (netWeightG * purity) / 100;
+    const netWeightMg = Math.round(netWeightG * 1000);
+    const { fineWeightMg } = resolveFineWeightMg(netWeightMg, purity, metal);
+    const vaultTruth = fineWeightMg / 1000;
+
+    const fineGoldChargedMg = wastage > 0 ? Math.round(fineWeightMg * (1 + wastage / 100)) : null;
+    const costTruth = fineGoldChargedMg !== null ? fineGoldChargedMg / 1000 : vaultTruth;
     
-    const totalTouchPercent = purity + wastage;
-    const fineGoldChargedG = wastage > 0 ? (netWeightG * totalTouchPercent) / 100 : vaultTruth;
-    
-    const effectivePricePerGram = netWeightG > 0 ? (totalTouchPercent / 100) * rate : rate;
-    const totalGoldCost = fineGoldChargedG * rate;
+    const effectivePricePerGram = fineWeightMg > 0 ? (costTruth / vaultTruth) * rate : rate;
+    const totalGoldCost = costTruth * rate;
     const absoluteTotalCost = totalGoldCost + making + stoneC;
 
     return {
       netWeight: netWeightG.toFixed(3) + ' g',
-      totalTouch: totalTouchPercent.toFixed(2) + '%',
+      totalTouch: (purity + wastage).toFixed(2) + '%',
       pricePerGram: effectivePricePerGram,
       totalAmount: absoluteTotalCost,
       hasCostData: rate > 0 || making > 0 || stoneC > 0,
       isValid: netWeightG > 0 && purity > 0
     };
-  }, [grossG, stoneG, beadsG, purityPercent, wastagePercent, purchaseRate, makingCharge, stoneCost]);
+  }, [grossG, stoneG, beadsG, purityPercent, wastagePercent, purchaseRate, makingCharge, stoneCost, metal]);
 
   const handleSave = async () => {
     if (!activeFirmId || !itemId) return;
@@ -260,15 +265,15 @@ export default function EditDraftScreen() {
             </View>
             <View style={s.row}>
               <View style={[s.inputGroup, { flex: 1, paddingRight: 6 }]}>
-                <Text style={s.label}>Rate (₹)</Text>
+                <Text style={s.label}>Rate ({getCurrencySymbol()})</Text>
                 <TextInput style={s.input} value={purchaseRate} onChangeText={setPurchaseRate} keyboardType="numeric" />
               </View>
               <View style={[s.inputGroup, { flex: 1, paddingHorizontal: 6 }]}>
-                <Text style={s.label}>Making (₹)</Text>
+                <Text style={s.label}>Making ({getCurrencySymbol()})</Text>
                 <TextInput style={s.input} value={makingCharge} onChangeText={setMakingCharge} keyboardType="numeric" />
               </View>
               <View style={[s.inputGroup, { flex: 1, paddingLeft: 6 }]}>
-                <Text style={s.label}>Stn Cost (₹)</Text>
+                <Text style={s.label}>Stn Cost ({getCurrencySymbol()})</Text>
                 <TextInput style={s.input} value={stoneCost} onChangeText={setStoneCost} keyboardType="numeric" />
               </View>
             </View>
@@ -338,11 +343,11 @@ export default function EditDraftScreen() {
                   <>
                     <View className="flex-row justify-between py-1 mt-2 border-b border-black/5">
                       <Text className="text-xs text-vj-text/60 font-medium">Effective Price/g:</Text>
-                      <Text className="text-xs text-vj-text font-bold font-mono">₹ {liveWastageSeparation.pricePerGram.toLocaleString('en-IN', { maximumFractionDigits: 2 })}</Text>
+                      <Text className="text-xs text-vj-text font-bold font-mono">{getCurrencySymbol()} {liveWastageSeparation.pricePerGram.toLocaleString('en-IN', { maximumFractionDigits: 2 })}</Text>
                     </View>
                     <View className="flex-row justify-between pt-2">
-                      <Text className="text-sm text-vj-text font-black">Est. Total Cost (₹):</Text>
-                      <Text className="text-sm font-black font-mono text-amber-900">₹ {liveWastageSeparation.totalAmount.toLocaleString('en-IN', { maximumFractionDigits: 2 })}</Text>
+                      <Text className="text-sm text-vj-text font-black">Est. Total Cost ({getCurrencySymbol()}):</Text>
+                      <Text className="text-sm font-black font-mono text-amber-900">{getCurrencySymbol()} {liveWastageSeparation.totalAmount.toLocaleString('en-IN', { maximumFractionDigits: 2 })}</Text>
                     </View>
                   </>
                 )}
