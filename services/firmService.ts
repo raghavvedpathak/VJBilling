@@ -21,17 +21,8 @@ import { validatePincode } from '../utils/validatePincode';
 import { getDeviceId } from '../utils/deviceId';
 import { now } from '../utils/now';
 import { sanitizeText } from '../utils/sanitize';
-
-type CreateFirmInput = Omit<NewFirm, 'id' | 'createdAt' | 'updatedAt' | 'isActive' | 'isArchived' | 'bisLogoRef'> & {
-  firmCode: string;
-  bisLogoUri?: string | null;
-  firmLogoRef?: string | null;
-};
-
-type UpdateFirmInput = Partial<Omit<NewFirm, 'bisLogoRef'>> & {
-  bisLogoUri?: string | null;
-  firmLogoRef?: string | null;
-};
+import type { CreateFirmInput, UpdateFirmInput } from '../types/firm';
+export type { CreateFirmInput, UpdateFirmInput };
 
 // ============================================================================
 // v2.8 FULL COMPLIANCE: The Dual Guard Pattern

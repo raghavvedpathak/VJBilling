@@ -14,6 +14,7 @@ import { oldGoldLots, appSettings, financialYears, FYStatus } from '../db/schema
 import { appSettingsStore } from '../store/appSettingsStore';
 import type { DrizzleTransaction, VerifyIssue } from '../types/phase2.types';
 import { ERR } from '../constants/errorCodes';
+import { purgeExpiredAuditLogs } from './auditRetentionService';
 
 // FIX-V718-1: Hooks must be strictly synchronous to execute safely inside the JSI transaction boundary
 const fyCloseHooks: Array<(tx: DrizzleTransaction, firmId: string, fyId: string) => void> = [];
@@ -66,7 +67,7 @@ export async function closeFY(fyId: string, firmId: string): Promise<void> {
   await leaseService.assertNoActiveLease();
   safeModeService.assertNotInSafeMode();
 
-  const leaseId = await leaseService.acquire('WRITE', firmId);
+  const leaseId = await leaseService.acquire('FY_CLOSE', firmId);
   
   try {
     // FIX-CLOSEFY-VERIFY-SYNC-1 (v1.82): run outside transaction
@@ -143,15 +144,10 @@ export async function closeFY(fyId: string, firmId: string): Promise<void> {
         payload: JSON.stringify({ fyId, fyLabel: fy.label, rowCount: auditRowCount }) 
       });
 
-      // AUDIT-RETENTION-ENFORCE (Phase 1 v7.7 constitutional rule — FIX-V78-6 per-firmId scope)
-      const settings = appSettingsStore.getState();
-      tx.run(sql`
-        DELETE FROM audit_logs
-        WHERE firm_id = ${firmId}
-        AND created_at < datetime('now', '-' || ${settings.auditRetentionDays} || ' days')
-        AND created_at NOT BETWEEN ${fy.startDate} AND ${fy.endDate}
-      `);
     });
+
+    // v7.10 AUDIT-RETENTION-MONTHLY: call purgeExpiredAuditLogs() after transaction commit
+    await purgeExpiredAuditLogs().catch(console.error);
   } finally {
     await leaseService.release(leaseId);
   }

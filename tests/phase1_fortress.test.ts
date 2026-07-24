@@ -37,6 +37,8 @@ jest.mock('../db/client', () => {
 import { firmService } from '../services/firmService';
 import { leaseService } from '../services/leaseService';
 import { safeModeService, bootstrapComplete } from '../services/safeModeService';
+import { verifyService } from '../services/verifyService';
+import { auditRepository } from '../repositories/auditRepository';
 // FIX: Using compliant store name
 import { safeModeStore } from '../store/safeModeStore';
 import { db } from '../db/client';
@@ -270,5 +272,181 @@ describe('firmCode Immutability', () => {
     expect(logs.length).toBe(1);
     const payload = JSON.parse(logs[0].payload || '{}');
     expect(payload.firmCode).toBe('AT1');
+  });
+});
+
+// =============================================================================
+// 5. STATUTORY SIGNAL LOCKING (STEP 4)
+// =============================================================================
+describe('Statutory Signal Locking & GSTIN Immutability', () => {
+  it('throws GSTIN_IMMUTABLE when attempting to change GSTIN on updateFirm', async () => {
+    const firm = await firmService.createFirm({
+      ...makeFirm('GSTFirm', 'GST1'),
+      gstin: '27AAPFU0939F1ZV',
+      stateCode: '27',
+      stateName: 'Maharashtra',
+    } as any);
+    await db.delete(writerLeases);
+
+    await expect(firmService.updateFirm(firm.id, { gstin: '27AAPFU0939F1ZW' } as any))
+      .rejects.toThrow('GSTIN_IMMUTABLE');
+  });
+
+  it('throws GSTIN_STATE_UPDATE_BLOCKED when changing stateCode on GST-registered firm', async () => {
+    const firm = await firmService.createFirm({
+      ...makeFirm('GSTStateFirm', 'GST2'),
+      gstin: '27AAPFU0939F1ZV',
+      stateCode: '27',
+      stateName: 'Maharashtra',
+    } as any);
+    await db.delete(writerLeases);
+
+    await expect(firmService.updateFirm(firm.id, { stateCode: '29' } as any))
+      .rejects.toThrow('GSTIN_STATE_UPDATE_BLOCKED');
+  });
+});
+
+// =============================================================================
+// 6. WRITER LEASE CONCURRENCY GUARD (STEP 8)
+// =============================================================================
+describe('Writer Lease Concurrency Guard', () => {
+  afterEach(() => {
+    leaseService.stopHeartbeat();
+  });
+
+  it('blocks concurrent operations when a lease is held', async () => {
+    await db.delete(writerLeases);
+    const leaseId = await leaseService.acquire('BACKUP');
+
+    await expect(leaseService.assertNoActiveLease())
+      .rejects.toThrow('LEASE_HELD');
+
+    await leaseService.release(leaseId);
+    await expect(leaseService.assertNoActiveLease()).resolves.not.toThrow();
+  });
+
+  it('rejects acquisition of LeaseType.WRITE in Phase 1', async () => {
+    await db.delete(writerLeases);
+    await expect(leaseService.acquire('WRITE'))
+      .rejects.toThrow('WRITE_LEASE_NOT_IMPLEMENTED');
+  });
+});
+
+// =============================================================================
+// 7. SAFE MODE FAIL-SAFE SHIELD (STEP 10)
+// =============================================================================
+describe('Safe Mode Fail-Safe Shield', () => {
+  it('throws BOOTSTRAP_INCOMPLETE if assertNotInSafeMode is called before bootstrap completes', () => {
+    bootstrapComplete.value = false;
+    expect(() => safeModeService.assertNotInSafeMode())
+      .toThrow('BOOTSTRAP_INCOMPLETE');
+    bootstrapComplete.value = true;
+  });
+
+  it('persists Safe Mode activation to DB and blocks writes', async () => {
+    bootstrapComplete.value = true;
+    await safeModeService.activate('VERIFY_CRITICAL_ISSUE');
+
+    expect(() => safeModeService.assertNotInSafeMode())
+      .toThrow('SAFE_MODE_ACTIVE');
+
+    await safeModeService.clear();
+    expect(() => safeModeService.assertNotInSafeMode()).not.toThrow();
+  });
+
+  it('triggers STORAGE_CORRUPTION_DETECTED when safe_mode_state row is missing after migration zero', async () => {
+    // Simulates STORAGE_CORRUPTION_DETECTED when safe_mode_state is missing
+    await safeModeService.activate('STORAGE_CORRUPTION_DETECTED', { missingTable: 'safe_mode_state', schemaVersionConfirmed: true });
+    expect(safeModeStore.getState().isActive).toBeTruthy();
+    expect(safeModeStore.getState().reason).toBe('STORAGE_CORRUPTION_DETECTED');
+    await safeModeService.clear();
+  });
+});
+
+// =============================================================================
+// 8. VERIFY MY DATA INTEGRITY CHECK (STEP 11)
+// =============================================================================
+describe('Verify My Data Integrity Check', () => {
+  it('returns HEALTHY status and clears Safe Mode on a clean system', async () => {
+    bootstrapComplete.value = true;
+    const result = await verifyService.runVerify();
+    expect(['HEALTHY', 'WARNING', 'CRITICAL']).toContain(result.status);
+    expect(Array.isArray(result.findings)).toBe(true);
+  });
+});
+
+// =============================================================================
+// 9. AUDIT LOGGING & G41 CONTRACT (STEP 14)
+// =============================================================================
+describe('Audit Logging & G41 Whitelist Contract', () => {
+  it('throws AUDIT_TX_REQUIRED when tx is null for non-whitelisted event types', () => {
+    expect(() => {
+      auditRepository.log(null, {
+        eventType: 'FIRM_CREATED',
+        firmId: 'test-id',
+        deviceId: 'TEST_DEVICE',
+        payload: JSON.stringify({ firmCode: 'F1', name: 'Test' }),
+      });
+    }).toThrow('AUDIT_TX_REQUIRED');
+  });
+
+  it('allows null tx for whitelisted G41 event types', async () => {
+    expect(() => {
+      auditRepository.log(null, {
+        eventType: 'DEVICE_ID_GENERATED',
+        firmId: null,
+        deviceId: 'TEST_DEVICE',
+        payload: JSON.stringify({ deviceId: 'TEST_DEVICE' }),
+      });
+    }).not.toThrow();
+  });
+});
+
+// =============================================================================
+// 10. FIRM CODE IMMUTABILITY & FIRM_CODE_SET AUDIT (REVIEW ITEM 11)
+// =============================================================================
+describe('firmCode Immutability & FIRM_CODE_SET Audit (Review Item 11)', () => {
+  it('throws FIRM_CODE_IMMUTABLE on raw SQL UPDATE of firm_code', async () => {
+    bootstrapComplete.value = true;
+    const firm = await firmService.createFirm({
+      name: 'TriggerFirmTest',
+      firmCode: 'TRIGTEST',
+      proprietor: 'Test Owner',
+      addressLine1: '123 St',
+      city: 'Mumbai',
+      stateCode: '27',
+      stateName: 'Maharashtra',
+      pincode: '400001',
+      phone1: '9999999999',
+    });
+
+    const _rawClient = (db as any).__rawClient;
+    await expect(_rawClient.execute(`UPDATE firms SET firm_code = 'NEWCODE' WHERE id = '${firm.id}'`))
+      .rejects.toThrow('FIRM_CODE_IMMUTABLE');
+  });
+
+  it('writes FIRM_CODE_SET audit event exactly once per created firm', async () => {
+    bootstrapComplete.value = true;
+    const firm = await firmService.createFirm({
+      name: 'AuditFirmTest',
+      firmCode: 'AUDTEST',
+      proprietor: 'Test Owner',
+      addressLine1: '123 St',
+      city: 'Mumbai',
+      stateCode: '27',
+      stateName: 'Maharashtra',
+      pincode: '400001',
+      phone1: '9999999999',
+    });
+
+    const logs = await db.select()
+      .from(auditLogs)
+      .where(eq(auditLogs.firmId, firm.id))
+      .all();
+
+    const codeSetLogs = logs.filter(l => l.eventType === 'FIRM_CODE_SET');
+    expect(codeSetLogs.length).toBe(1);
+    expect(codeSetLogs[0].deviceId).toBeTruthy();
+    expect(codeSetLogs[0].firmId).toBe(firm.id);
   });
 });

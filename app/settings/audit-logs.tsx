@@ -35,7 +35,7 @@ const EVENT_MAPPING: Record<string, string> = {
   'BIS_LOGO_ARCHIVED': 'BIS Logo Removed',
   'PRE_MIGRATION_SNAPSHOT_FAILED': 'Pre-Migration Snapshot Failed',
   'AUDIT_RETENTION_PURGE_EXECUTED': 'Audit Log Retention Purge Ran',
-  'DEVICE_ID_CHANGED': 'Device ID Changed',
+  'DEVICE_ID_CHANGED': 'Device ID Changed (Reinstall / New Device)',
   'FACTORY_RESET_EXECUTED': 'Factory Reset Executed',
   
   // v7.29 PIN Security

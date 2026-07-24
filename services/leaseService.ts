@@ -55,7 +55,7 @@ export const leaseService = {
    * a TypeScript error after leaseStore was fixed to use `leaseType`.
    */
   async acquire(type: string, firmId?: string): Promise<string> {
-
+    if (type === 'WRITE') throw new Error('WRITE_LEASE_NOT_IMPLEMENTED: LeaseType.WRITE is reserved for Phase 2. Do not acquire in Phase 1.');
     await this.assertNoActiveLease();
 
     const newId = Crypto.randomUUID();
@@ -192,3 +192,9 @@ export const leaseService = {
     }
   },
 };
+
+export const assertNoActiveLease = leaseService.assertNoActiveLease.bind(leaseService);
+export const acquireLease = leaseService.acquire.bind(leaseService);
+export const releaseLease = leaseService.release.bind(leaseService);
+export const startLeaseHeartbeat = leaseService.startHeartbeat.bind(leaseService);
+export const stopLeaseHeartbeat = leaseService.stopHeartbeat.bind(leaseService);

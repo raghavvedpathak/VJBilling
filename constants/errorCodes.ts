@@ -39,6 +39,7 @@ export const ERR = {
   // v7.23 FIX-VSEC-3: PIN gate
   PIN_INCORRECT: 'PIN_INCORRECT',
   PIN_LOCKED: 'PIN_LOCKED',
+  PIN_DATA_CORRUPTED: 'PIN_DATA_CORRUPTED',
   // v7.23 FIX-VSEC-7: input sanitization
   INVALID_TEXT_CONTENT: 'INVALID_TEXT_CONTENT',
   // v7.23 FIX-VSEC-8: device ID audit chain

@@ -87,7 +87,7 @@ export async function auditDeviceIdIfNew(): Promise<void> {
  */
 export async function getDeviceDerivedKeyMaterial(): Promise<Uint8Array> {
   const deviceId = await getDeviceId();
-  // We use the stable device ID combined with a static app salt string
-  const rawMaterial = `${deviceId}_vjbilling_internal_salt_v1`;
-  return new TextEncoder().encode(rawMaterial);
+  const enc = new TextEncoder();
+  const raw = await crypto.subtle.digest('SHA-256', enc.encode('vjbilling_device_key_v1:' + deviceId));
+  return new Uint8Array(raw);
 }

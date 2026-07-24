@@ -21,6 +21,11 @@ const MAX_ATTEMPTS = 3;
 const BASE_LOCKOUT_MS = 30_000; // 30 seconds, doubles each subsequent lockout
 
 async function deriveKey(pin: string, saltHex: string): Promise<string> {
+  // v7.33 FIX-V733-1: saltHex null check on corrupted/tampered MMKV data.
+  const saltHexPairs = saltHex ? saltHex.match(/.{2}/g) : null;
+  if (!saltHexPairs) {
+    throw new Error(ERR.PIN_DATA_CORRUPTED + ': stored PIN salt is malformed');
+  }
   // WebCrypto (crypto.subtle.deriveKey) is unsupported natively on Android JS engine.
   // We use expo-crypto with iterative SHA-256 hashing to simulate PBKDF2 stretch.
   let hash = await Crypto.digestStringAsync(Crypto.CryptoDigestAlgorithm.SHA256, pin + saltHex);
