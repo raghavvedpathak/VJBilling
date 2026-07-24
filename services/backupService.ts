@@ -39,7 +39,7 @@ export interface BackupEnvelope {
   appVersion: string;
   exportedAt: string;
   deviceId: string;
-  encryptionVersion: 1;
+  encryptionVersion: 1 | 2;
   passwordProtected: boolean;
   iv: string;
   salt: string;
@@ -69,12 +69,21 @@ export interface BackupEnvelope {
 }
 
 async function getOrCreateSAFDirectory(parentUri: string, folderName: string): Promise<string> {
-  const files = await FileSystem.StorageAccessFramework.readDirectoryAsync(parentUri);
-  for (const fileUri of files) {
-    const decoded = decodeURIComponent(fileUri);
-    if (decoded.endsWith('/' + folderName) || decoded.endsWith('%2F' + folderName) || decoded.endsWith(':' + folderName)) {
-      return fileUri;
+  try {
+    const files = await FileSystem.StorageAccessFramework.readDirectoryAsync(parentUri);
+    for (const fileUri of files) {
+      const decoded = decodeURIComponent(fileUri);
+      const clean = decoded.endsWith('/') ? decoded.slice(0, -1) : decoded;
+      if (
+        clean.endsWith('/' + folderName) ||
+        clean.endsWith('%2F' + folderName) ||
+        clean.endsWith(':' + folderName)
+      ) {
+        return fileUri;
+      }
     }
+  } catch (err) {
+    console.warn(`[Backup SAF] Directory read failed for ${folderName}, creating fresh:`, err);
   }
   return await FileSystem.StorageAccessFramework.makeDirectoryAsync(parentUri, folderName);
 }
@@ -140,7 +149,7 @@ export const backupService = {
         appVersion: APP_VERSION,
         exportedAt: new Date().toISOString(), 
         deviceId: await getDeviceId(), 
-        encryptionVersion: 1 as const,
+        encryptionVersion: 2 as const,
         passwordProtected: !!password
       };
 
@@ -205,7 +214,7 @@ export const backupService = {
       const keyMaterial = toWordArray(keySourceMaterial);
       const key = CryptoJS.PBKDF2(keyMaterial, salt, {
         keySize: 256 / 32,
-        iterations: 100000,
+        iterations: 10000,
         hasher: CryptoJS.algo.SHA256,
       });
 

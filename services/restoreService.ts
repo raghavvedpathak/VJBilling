@@ -93,9 +93,10 @@ export const restoreService = {
       const iv = CryptoJS.enc.Base64.parse(parsedBlob.iv);
 
       const keyMaterial = toWordArray(keySourceMaterial);
+      const iterations = parsedBlob.encryptionVersion === 2 ? 10000 : 100000;
       const key = CryptoJS.PBKDF2(keyMaterial, salt, {
         keySize: 256 / 32,
-        iterations: 100000,
+        iterations: iterations,
         hasher: CryptoJS.algo.SHA256,
       });
 
@@ -183,7 +184,7 @@ export const restoreService = {
       const currentDeviceId = await getDeviceId();
 
       const parsedBlob = JSON.parse(encryptedFileContent) as { 
-        iv: string; salt: string; ciphertext: string; passwordProtected?: boolean 
+        iv: string; salt: string; ciphertext: string; passwordProtected?: boolean; encryptionVersion?: 1 | 2;
       };
 
       if (parsedBlob.passwordProtected === true && !password) {
@@ -213,9 +214,10 @@ export const restoreService = {
         const iv = CryptoJS.enc.Base64.parse(parsedBlob.iv);
 
         const keyMaterial = toWordArray(keySourceMaterial);
+        const iterations = parsedBlob.encryptionVersion === 2 ? 10000 : 100000;
         const key = CryptoJS.PBKDF2(keyMaterial, salt, {
           keySize: 256 / 32,
-          iterations: 100000,
+          iterations: iterations,
           hasher: CryptoJS.algo.SHA256,
         });
 
@@ -253,15 +255,8 @@ export const restoreService = {
         tx.delete(auditLogsTable).run();
         tx.update(auditDeleteGateTable).set({ gateOpen: 0 }).where(eq(auditDeleteGateTable.id, 1)).run();
 
-        // Phase 1 Wipe (Reverse FK dependency)
-        tx.delete(bisLogosTable).run();
-        tx.delete(financialYearsTable).run();
-        tx.delete(writerLeasesTable).run();
-        tx.delete(firmsTable).run();
-        tx.delete(appSettingsTable).run();
-        tx.delete(safeModeStateTable).run();
-
         // Phase 2 Wipe (Reverse FK dependency per STEP 12.12B)
+        // MUST happen BEFORE Phase 1 wipe so foreign keys are freed!
         tx.delete(urdPurchases).run();
         tx.delete(oldGoldLots).run();
         tx.delete(sequenceCounters).run();
@@ -273,6 +268,14 @@ export const restoreService = {
         tx.delete(designs).run();
         tx.delete(stones).run();
         tx.delete(categories).run();
+
+        // Phase 1 Wipe (Reverse FK dependency)
+        tx.delete(bisLogosTable).run();
+        tx.delete(financialYearsTable).run();
+        tx.delete(writerLeasesTable).run();
+        tx.delete(firmsTable).run();
+        tx.delete(appSettingsTable).run();
+        tx.delete(safeModeStateTable).run();
 
         // INSERT Phase 1 core backup data
         if (backup.payload.firms?.length) tx.insert(firmsTable).values(backup.payload.firms).run();

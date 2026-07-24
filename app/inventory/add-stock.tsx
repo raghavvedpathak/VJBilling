@@ -265,8 +265,15 @@ export default function AddStockScreen() {
                 if (activeFirmId) {
                   try {
                     const mappings = await designCategoryMapRepository.findByDesignId(selDesign.id, activeFirmId);
-                    if (mappings.length === 1) {
-                      const linkedCat = categories.find(c => c.id === mappings[0].categoryId);
+                    if (mappings.length > 0) {
+                      // Sort by createdAt descending to get the most recently used category
+                      mappings.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+                      let catList = categories;
+                      if (catList.length === 0) {
+                        catList = await categoryRepository.findByFirmId(activeFirmId);
+                        setCategories(catList);
+                      }
+                      const linkedCat = catList.find(c => c.id === mappings[0].categoryId);
                       if (linkedCat) {
                         setSelectedCategory(linkedCat);
                         return;

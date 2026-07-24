@@ -12,6 +12,7 @@ import { categoryRepository } from '../../repositories/categoryRepository';
 import { hsnMasterRepository } from '../../repositories/hsnMasterRepository';
 import { stoneRepository } from '../../repositories/stoneRepository';
 import { itemRepository } from '../../repositories/itemRepository';
+import { designCategoryMapRepository } from '../../repositories/designCategoryMapRepository';
 import type { Design, Category, HsnCode, Stone } from '../../types/phase2.types';
 import { Package, Plus, Trash2, Calculator, Layers, MapPin, Wallet, CheckCircle } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -390,10 +391,32 @@ export default function BulkAddScreen() {
                   setDesigns(d);
                 }
               }}
-              onSelect={(opt) => {
+              onSelect={async (opt) => {
                 if (!opt) return setSelectedDesign(null);
                 const selDesign = designs.find(d => d.id === opt.id)!;
                 setSelectedDesign(selDesign);
+                
+                if (activeFirmId) {
+                  try {
+                    const mappings = await designCategoryMapRepository.findByDesignId(selDesign.id, activeFirmId);
+                    if (mappings.length > 0) {
+                      mappings.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+                      let catList = categories;
+                      if (catList.length === 0) {
+                        catList = await categoryRepository.findByFirmId(activeFirmId);
+                        setCategories(catList);
+                      }
+                      const linkedCat = catList.find(c => c.id === mappings[0].categoryId);
+                      if (linkedCat) {
+                        setSelectedCategory(linkedCat);
+                        return;
+                      }
+                    }
+                  } catch (err) {
+                    console.warn("Failed to auto-select category in bulk add:", err);
+                  }
+                }
+
                 if (selectedCategory && selectedCategory.metal !== selDesign.metal) {
                   setSelectedCategory(null);
                 }

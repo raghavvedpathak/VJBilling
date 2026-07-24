@@ -87,7 +87,10 @@ export async function auditDeviceIdIfNew(): Promise<void> {
  */
 export async function getDeviceDerivedKeyMaterial(): Promise<Uint8Array> {
   const deviceId = await getDeviceId();
+  const hexHash = await Crypto.digestStringAsync(
+    Crypto.CryptoDigestAlgorithm.SHA256,
+    'vjbilling_device_key_v1:' + deviceId
+  );
   const enc = new TextEncoder();
-  const raw = await crypto.subtle.digest('SHA-256', enc.encode('vjbilling_device_key_v1:' + deviceId));
-  return new Uint8Array(raw);
+  return enc.encode(hexHash);
 }
