@@ -295,6 +295,8 @@ export type DesignCategoryStockResult = {
   totalNetWeightMg: number;
 };
 
+
+
 // Phantom inventory types (FEAT-PHANTOM-INVENTORY-1 v1.67)
 export type CreatePhantomItemInput = {
   designId: string;

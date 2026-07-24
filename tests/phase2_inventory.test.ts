@@ -44,7 +44,7 @@ import {
 } from '../db/schema';
 import { generateDesignPrefix } from '../services/skuEngine';
 import { formatSKUDisplay } from '../utils/skuDisplay';
-import { isStandardPurityGrade, resolveFineWeightMg } from '../utils/purity.constants';
+import { isStandardPurityGrade, resolveFineWeightMg, computeEffectivePricePaisePerGram, computeEstTotalCostPaise } from '../utils/purity.constants';
 import { gemstoneLotService } from '../services/gemstoneLotService';
 import { oldGoldLotService } from '../services/oldGoldLotService';
 import { backupService } from '../services/backupService';
@@ -217,6 +217,17 @@ describe('SKU Engine', () => {
     expect(formatSKUDisplay('LRIN-0125-0010')).toBe('LRIN-0125-10');
     expect(formatSKUDisplay('CHA-1225-0100')).toBe('CHA-1225-100'); // 3 digits shown as is
   });
+
+  it('computes effective price per gram and est total cost (FEAT-EFFECTIVE-PRICE-1)', () => {
+    // 600000 paise/g (₹6000/g), 91.6% purity, 5% wastage
+    const effPrice = computeEffectivePricePaisePerGram(600000, 91.6, 5);
+    expect(effPrice).toBe(577080); // Math.round(600000 * 0.916 * 1.05) = 577080 paise/g = ₹5770.80/g
+
+    // 12000 mg (12.000 g)
+    const estTotalCost = computeEstTotalCostPaise(effPrice, 12000);
+    expect(estTotalCost).toBe(6924960); // Math.round(577080 * 12) = 6924960 paise = ₹69249.60
+  });
+
 
   it('generates sequence starting at 1 and pads to 4 digits', async () => {
     // skuEngine tests require transaction and are implicitly tested during item creation
@@ -485,7 +496,52 @@ describe('updateItem Guard', () => {
     await expect(itemService.updateItem(item.id, FIRM_ID, { location: 'SHOP' }))
       .rejects.toThrow('ITEM_EDIT_LOCKED_TERMINAL_STATUS');
   });
+
+  it('handles sizeValue and sizeUnit editing with pairing guard (GAP-P2-SIZE-EDIT-1)', async () => {
+    const d = await createTestDesign();
+    const item = await itemService.createItem({
+      designId: d.id, categoryId: 'CAT_1', hsnCode: '7113', purityPercent: 91.6, purityKarat: 22, grossWeightMg: 1000 }, FIRM_ID);
+
+    // Reject partial size update
+    await expect(itemService.updateItem(item.id, FIRM_ID, { sizeValue: 10 }))
+      .rejects.toThrow('ITEM_SIZE_PAIRING_INVALID');
+    await expect(itemService.updateItem(item.id, FIRM_ID, { sizeUnit: 'INCH' }))
+      .rejects.toThrow('ITEM_SIZE_PAIRING_INVALID');
+
+    // Accept valid paired size update
+    await itemService.updateItem(item.id, FIRM_ID, { sizeValue: 10, sizeUnit: 'INCH' });
+    const detail = await inventoryDrillDownService.getItemDetail(FIRM_ID, item.id);
+    expect(detail.sizeValue).toBe(10);
+    expect(detail.sizeUnit).toBe('INCH');
+
+    // Accept clearing size together
+    await itemService.updateItem(item.id, FIRM_ID, { sizeValue: null, sizeUnit: null });
+    const detailCleared = await inventoryDrillDownService.getItemDetail(FIRM_ID, item.id);
+    expect(detailCleared.sizeValue).toBeNull();
+    expect(detailCleared.sizeUnit).toBeNull();
+  });
+
+  it('corrects item entry date with same-month short-circuit and cross-month SKU regeneration (GAP-P2-DATE-SKU-EDIT-1)', async () => {
+    const d = await createTestDesign();
+    const item = await itemService.createItem({
+      designId: d.id, categoryId: 'CAT_1', hsnCode: '7113', purityPercent: 91.6, purityKarat: 22, grossWeightMg: 1000, entryDate: '2026-06-15' }, FIRM_ID);
+
+    const origSku = item.sku;
+
+    // Same-month correction (June 15 -> June 10): SKU remains identical
+    const sameMonthResult = await itemService.correctItemEntryDate(item.id, '2026-06-10', FIRM_ID);
+    expect(sameMonthResult.sku).toBe(origSku);
+    expect(sameMonthResult.createdAt.startsWith('2026-06-10')).toBe(true);
+
+    // Cross-month correction (June 10 -> May 20): SKU regenerated
+    const diffMonthResult = await itemService.correctItemEntryDate(item.id, '2026-05-20', FIRM_ID);
+    expect(diffMonthResult.sku).not.toBe(origSku);
+    expect(diffMonthResult.createdAt.startsWith('2026-05-20')).toBe(true);
+    expect(diffMonthResult.sku.includes('0526')).toBe(true); // May 2026 -> MMYY = 0526
+  });
 });
+
+
 
 // ============================================================================
 // TEST 13: State Machine (Items)
@@ -572,7 +628,18 @@ describe('Phantom Inventory', () => {
       itemService.reconcilePhantomItem(phantom.id, realMismatchPurity.id, FIRM_ID)
     ).rejects.toThrow('RECONCILE_PURITY_MISMATCH');
   });
+
+  it('calculates getStockWeightSummary correctly with phantom debt (STEP 9-Lite)', async () => {
+    const summary = await itemRepository.getStockWeightSummary(FIRM_ID);
+    expect(summary).toHaveProperty('goldNetWeightMg');
+    expect(summary).toHaveProperty('goldPhantomDebtMg');
+    expect(summary).toHaveProperty('goldBalanceMg');
+    expect(summary).toHaveProperty('silverNetWeightMg');
+    expect(summary).toHaveProperty('silverPhantomDebtMg');
+    expect(summary).toHaveProperty('silverBalanceMg');
+  });
 });
+
 
 // ============================================================================
 // TEST 15: State Machine (OldGoldLots)

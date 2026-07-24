@@ -74,3 +74,13 @@ export function getDisplayPurity(purityPercent: number, purityKarat: number | nu
   if (metal === "GOLD" && purityKarat !== null && purityKarat > 0) return `${purityKarat}K`;
   return `${purityPercent}%`;
 }
+
+// FEAT-EFFECTIVE-PRICE-1 (v2.00): computeEffectivePricePaisePerGram() / computeEstTotalCostPaise() — UI DISPLAY LAYER ONLY.
+export function computeEffectivePricePaisePerGram(purchaseRatePaise: number, purityPercent: number, wastagePercent: number): number {
+  return Math.round(purchaseRatePaise * (purityPercent / 100) * (1 + wastagePercent / 100));
+}
+
+export function computeEstTotalCostPaise(effectivePricePaisePerGram: number, netWeightMg: number): number {
+  return Math.round(effectivePricePaisePerGram * (netWeightMg / 1000));
+}
+
