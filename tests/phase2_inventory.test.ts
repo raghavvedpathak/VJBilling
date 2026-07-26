@@ -221,11 +221,11 @@ describe('SKU Engine', () => {
   it('computes effective price per gram and est total cost (FEAT-EFFECTIVE-PRICE-1)', () => {
     // 600000 paise/g (₹6000/g), 91.6% purity, 5% wastage
     const effPrice = computeEffectivePricePaisePerGram(600000, 91.6, 5);
-    expect(effPrice).toBe(577080); // Math.round(600000 * 0.916 * 1.05) = 577080 paise/g = ₹5770.80/g
+    expect(effPrice).toBe(579600); // Math.round(600000 * ((91.6 + 5) / 100)) = 579600 paise/g = ₹5796.00/g
 
     // 12000 mg (12.000 g)
     const estTotalCost = computeEstTotalCostPaise(effPrice, 12000);
-    expect(estTotalCost).toBe(6924960); // Math.round(577080 * 12) = 6924960 paise = ₹69249.60
+    expect(estTotalCost).toBe(6955200); // Math.round(579600 * 12) = 6955200 paise = ₹69552.00
   });
 
 

@@ -7,15 +7,9 @@
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
-    "splash": {
-      "image": "./assets/splash-icon.png",
-      "resizeMode": "contain",
-      "backgroundColor": "#5C1623"
-    },
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.vjbilling.app",
-      "supportsDocumentBrowser": true,
       "infoPlist": {
         "UIFileSharingEnabled": true,
         "LSSupportsOpeningDocumentsInPlace": true
