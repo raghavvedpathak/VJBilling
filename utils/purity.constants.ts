@@ -76,11 +76,20 @@ export function getDisplayPurity(purityPercent: number, purityKarat: number | nu
 }
 
 // FEAT-EFFECTIVE-PRICE-1 (v2.00): computeEffectivePricePaisePerGram() / computeEstTotalCostPaise() — UI DISPLAY LAYER ONLY.
+export function computeEffectivePricePerGram(ratePerGram: number, purityPercent: number, wastagePercent: number): number {
+  return ratePerGram * ((purityPercent + wastagePercent) / 100);
+}
+
 export function computeEffectivePricePaisePerGram(purchaseRatePaise: number, purityPercent: number, wastagePercent: number): number {
   return Math.round(purchaseRatePaise * ((purityPercent + wastagePercent) / 100));
 }
 
 export function computeEstTotalCostPaise(effectivePricePaisePerGram: number, netWeightMg: number): number {
   return Math.round(effectivePricePaisePerGram * (netWeightMg / 1000));
+}
+
+export function computeFineGoldChargedMg(netWeightMg: number, purityPercent: number, wastagePercent: number): number | null {
+  if (wastagePercent <= 0) return null;
+  return Math.round(netWeightMg * ((purityPercent + wastagePercent) / 100));
 }
 

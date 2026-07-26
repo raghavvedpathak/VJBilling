@@ -18,7 +18,7 @@ import type { Design, Category, HsnCode, Stone } from '../../types/phase2.types'
 import { Package, Scale, Percent, MapPin, Calculator, Wallet, CheckCircle, RefreshCw } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { seedHsnCodes } from '../../db/seed';
-import { percentToKarat, resolveFineWeightMg } from '../../utils/purity.constants';
+import { percentToKarat, resolveFineWeightMg, computeFineGoldChargedMg, computeEffectivePricePerGram } from '../../utils/purity.constants';
 import { formatSKUDisplay } from '../../utils/skuDisplay';
 import { getCurrencySymbol } from '../../utils/currency';
 
@@ -128,11 +128,11 @@ export default function AddStockScreen() {
     const { fineWeightMg } = resolveFineWeightMg(netWeightMg, p, metal);
     const vaultTruth = fineWeightMg / 1000;
 
-    const fineGoldChargedMg = w > 0 ? Math.round(fineWeightMg * (1 + w / 100)) : null;
+    const fineGoldChargedMg = computeFineGoldChargedMg(netWeightMg, p, w);
     const costTruth = fineGoldChargedMg !== null ? fineGoldChargedMg / 1000 : vaultTruth;
     
-    const effectivePricePerGram = fineWeightMg > 0 ? (costTruth / vaultTruth) * rate : rate;
-    const totalGoldCost = costTruth * rate;
+    const effectivePricePerGram = computeEffectivePricePerGram(rate, p, w);
+    const totalGoldCost = netWeightG * effectivePricePerGram;
     const absoluteTotalCost = totalGoldCost + making + stoneC;
 
     return {

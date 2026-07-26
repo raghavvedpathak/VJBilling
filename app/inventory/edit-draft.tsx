@@ -8,7 +8,7 @@ import { useFirmStore } from '../../store/firmStore';
 import { itemRepository } from '../../repositories/itemRepository';
 import { itemService } from '../../services/itemService';
 import { formatSKUDisplay } from '../../utils/skuDisplay';
-import { percentToKarat, resolveFineWeightMg } from '../../utils/purity.constants';
+import { percentToKarat, resolveFineWeightMg, computeFineGoldChargedMg, computeEffectivePricePerGram } from '../../utils/purity.constants';
 import { getCurrencySymbol } from '../../utils/currency';
 import { Edit3, Save, Calculator, CheckCircle } from 'lucide-react-native';
 import { GlassButton, GlassSmartSearch } from '../../components/ui/Glass';
@@ -107,11 +107,11 @@ export default function EditDraftScreen() {
     const { fineWeightMg } = resolveFineWeightMg(netWeightMg, purity, metal);
     const vaultTruth = fineWeightMg / 1000;
 
-    const fineGoldChargedMg = wastage > 0 ? Math.round(fineWeightMg * (1 + wastage / 100)) : null;
+    const fineGoldChargedMg = computeFineGoldChargedMg(netWeightMg, purity, wastage);
     const costTruth = fineGoldChargedMg !== null ? fineGoldChargedMg / 1000 : vaultTruth;
     
-    const effectivePricePerGram = fineWeightMg > 0 ? (costTruth / vaultTruth) * rate : rate;
-    const totalGoldCost = costTruth * rate;
+    const effectivePricePerGram = computeEffectivePricePerGram(rate, purity, wastage);
+    const totalGoldCost = netWeightG * effectivePricePerGram;
     const absoluteTotalCost = totalGoldCost + making + stoneC;
 
     return {

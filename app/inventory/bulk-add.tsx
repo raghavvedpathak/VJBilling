@@ -16,7 +16,7 @@ import { designCategoryMapRepository } from '../../repositories/designCategoryMa
 import type { Design, Category, HsnCode, Stone } from '../../types/phase2.types';
 import { Package, Plus, Trash2, Calculator, Layers, MapPin, Wallet, CheckCircle } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { percentToKarat, resolveFineWeightMg } from '../../utils/purity.constants';
+import { percentToKarat, resolveFineWeightMg, computeFineGoldChargedMg, computeEffectivePricePerGram } from '../../utils/purity.constants';
 import { getCurrencySymbol } from '../../utils/currency';
 
 const COLORS = {
@@ -46,14 +46,11 @@ const BulkItemRow = ({ index, row, updateRow, removeRow, stones, metal }: any) =
     const { fineWeightMg } = resolveFineWeightMg(netWeightMg, purity, metal || 'GOLD');
     const vaultTruth = fineWeightMg / 1000;
 
-    const fineGoldChargedMg = wastage > 0 ? Math.round(fineWeightMg * (1 + wastage / 100)) : null;
+    const fineGoldChargedMg = computeFineGoldChargedMg(netWeightMg, purity, wastage);
     const costTruth = fineGoldChargedMg !== null ? fineGoldChargedMg / 1000 : vaultTruth;
 
-    // FIX-PPG-DISPLAY-1 (v1.52): Price Per Gram = (fineGoldChargedMg ?? fineWeightMg) / fineWeightMg * purchaseRatePerGram
-    const effectivePricePerGram = fineWeightMg > 0 ? (costTruth / vaultTruth) * rate : rate;
-    
-    // FIX-UI-TOTAL-1 (v1.51): Total Purchase Amount = (fineGoldChargedMg ?? fineWeightMg) / 1000 * purchaseRatePerGram
-    const totalGoldCost = costTruth * rate;
+    const effectivePricePerGram = computeEffectivePricePerGram(rate, purity, wastage);
+    const totalGoldCost = netWeightG * effectivePricePerGram;
     const absoluteTotalCost = totalGoldCost + making + stoneC;
 
     const wastageGold = costTruth - vaultTruth;

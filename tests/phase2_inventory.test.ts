@@ -291,7 +291,7 @@ describe('createItem Validation & Weight Calculations', () => {
 
     expect(item.netWeightMg).toBe(9000); // 10000 - 1000
     expect(item.fineWeightMg).toBe(8244); // 9000 * 0.916 = 8244
-    expect(item.fineGoldChargedMg).toBe(9068); // 8244 * 1.10 = 9068
+    expect(item.fineGoldChargedMg).toBe(9144); // 9000 * (0.916 + 0.10) = 9144
   });
 
   it('leaves fineGoldChargedMg as null when wastage is 0', async () => {
@@ -319,7 +319,7 @@ describe('adjustWeight Guard', () => {
     const [updated] = await db.select().from(items).where(eq(items.id, item.id));
     expect(updated?.netWeightMg).toBe(12000);
     expect(updated?.fineWeightMg).toBe(Math.round(12000 * 0.916)); // 10992
-    expect(updated?.fineGoldChargedMg).toBe(12091); // 10992 * 1.10 = 12091
+    expect(updated?.fineGoldChargedMg).toBe(12192); // 12000 * (0.916 + 0.10) = 12192
 
     // Check Audit Log
     const events = await db.select().from(itemEvents).where(eq(itemEvents.itemId, item.id));
@@ -903,7 +903,7 @@ describe('Purity Map and Utilities', () => {
     expect(results).toHaveLength(2);
     expect(results[0].sku).toBeDefined();
     expect(results[1].sku).toBeDefined();
-    expect(results[0].fineGoldChargedMg).toBe(Math.round(results[0].fineWeightMg * 1.10)); // 10% wastage
+    expect(results[0].fineGoldChargedMg).toBe(Math.round(results[0].netWeightMg * ((results[0].purityPercent + results[0].wastagePercent) / 100))); // 10% wastage on net weight
     expect(results[1].fineGoldChargedMg).toBeNull(); // 0% wastage
 
     // Verify Design-Category Map insertion
@@ -1011,7 +1011,7 @@ describe('Purity Map and Utilities', () => {
     const [adjustedItem] = await db.select().from(items).where(eq(items.id, itemAdjust.id));
     expect(adjustedItem?.grossWeightMg).toBe(12000);
     expect(adjustedItem?.wastagePercent).toBe(5);
-    expect(adjustedItem?.fineGoldChargedMg).toBe(Math.round(adjustedItem!.fineWeightMg * 1.05));
+    expect(adjustedItem?.fineGoldChargedMg).toBe(Math.round(adjustedItem!.netWeightMg * ((adjustedItem!.purityPercent + adjustedItem!.wastagePercent) / 100)));
   });
 
   it('corrects item entry date and regenerates SKU when crossing months', async () => {
@@ -1618,9 +1618,8 @@ describe('Purity Map and Utilities', () => {
     expect(html).toContain('₹6500.00'); // Rate/g
     expect(html).toContain('₹71448.00'); // Total Value
     expect(html).toContain('Rupees Seventy One Thousand Four Hundred Forty Eight Only'); // Amt in words
-    expect(html).toContain('Seller Signature');
-    expect(html).toContain('Authorized Signatory');
-    expect(html).toContain('I confirm that I have sold the above article(s) and received the stated amount.');
-    expect(html).toContain('This is a computer-generated URD Purchase Bill.');
+    expect(html).toContain('Customer Signature');
+    expect(html).toContain('Authorised Signatory');
+    expect(html).toContain('! Thank You !');
   });
 });

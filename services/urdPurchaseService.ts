@@ -17,6 +17,8 @@ import * as Crypto from 'expo-crypto';
 import { firmRepository } from '../repositories/firmRepository';
 import { amountToWords, getCurrencySymbol } from '../utils/currency';
 
+import { urdPrintService } from './urdPrintService';
+
 function uuid() {
   return Crypto.randomUUID();
 }
@@ -35,6 +37,20 @@ export async function generateURDPurchaseBill(
   return urdPurchaseService.generateURDPurchaseBill(urdId, firmId);
 }
 
+export async function generateURDCustomerDeclaration(
+  urdId: string,
+  firmId: string,
+): Promise<string> {
+  return urdPurchaseService.generateURDCustomerDeclaration(urdId, firmId);
+}
+
+export async function deleteURDPurchase(
+  urdId: string,
+  firmId: string,
+): Promise<void> {
+  return urdPurchaseService.deleteURDPurchase(urdId, firmId);
+}
+
 export const urdPurchaseService = {
   // PUBLIC EXPORT — Phase 3 cross-phase seam. Phase 3 MUST call this;
   // NEVER call urdPurchaseRepository.getById() from Phase 3 directly.
@@ -48,14 +64,6 @@ export const urdPurchaseService = {
       .then(res => res[0] as unknown as URDPurchase || null);
       
     if (!urd || urd.firmId !== firmId) return null;
-    
-    // Returns all fields Phase 3 needs for URD bill rendering:
-    // totalValuePaise, paymentMode, bankAccountId,
-    // customerAadhaar, customerPAN (snapshot fields from purchase time),
-    // purchaseDate, urdNumber, status, firmId, id,
-    // customerName, customerAddress, customerMobile,
-    // metalType, grossWeightMg, purityPercent, fineWeightMg,
-    // ratePerGramPaise, oldGoldLotId, customerId, fyId
     return urd;
   },
 
@@ -80,11 +88,9 @@ export const urdPurchaseService = {
     const fineWeightMg = Math.round(input.grossWeightMg * input.purityPercent / 100);
     const totalValuePaise = Math.round((fineWeightMg / 1000) * input.ratePerGramPaise);
 
-    // Hoisted async calls outside the transaction
     const fyId = await fyService.resolveTransactionFyId(firmId, input.purchaseDate);
     const deviceId = await getDeviceId();
 
-    // FIX-V718-1: Synchronous transaction execution
     return db.transaction((tx) => {
       const lot = oldGoldLotRepository.insert(tx, {
         id: uuid(),
@@ -144,28 +150,132 @@ export const urdPurchaseService = {
     });
   },
 
+  async updateURDPurchase(
+    urdId: string,
+    firmId: string,
+    input: Partial<CreateURDPurchaseInput>
+  ): Promise<URDPurchase> {
+    await leaseService.assertNoActiveLease();
+    safeModeService.assertNotInSafeMode();
+    const deviceId = await getDeviceId();
+
+    return db.transaction((tx) => {
+      const urd = urdPurchaseRepository.getById(tx, firmId, urdId);
+      if (!urd || urd.firmId !== firmId) throw new Error(ERR.URD_NOT_FOUND_OR_WRONG_FIRM);
+      if (urd.status !== 'DRAFT') throw new Error(ERR.URD_ALREADY_CONFIRMED);
+
+      const customerName = input.customerName ?? urd.customerName;
+      const grossWeightMg = input.grossWeightMg ?? urd.grossWeightMg;
+      const purityPercent = input.purityPercent ?? urd.purityPercent;
+      const ratePerGramPaise = input.ratePerGramPaise ?? urd.ratePerGramPaise;
+      const paymentMode = input.paymentMode ?? urd.paymentMode;
+      const bankAccountId = paymentMode === 'CASH' ? null : (input.bankAccountId ?? urd.bankAccountId);
+
+      if (!customerName?.trim()) throw new Error(ERR.URD_CUSTOMER_NAME_REQUIRED);
+      if (grossWeightMg <= 0) throw new Error(ERR.URD_GROSS_WEIGHT_INVALID);
+      if (purityPercent <= 0 || purityPercent > 100) throw new Error(ERR.URD_PURITY_PERCENT_INVALID);
+      if (ratePerGramPaise <= 0) throw new Error(ERR.URD_RATE_INVALID);
+
+      const fineWeightMg = Math.round(grossWeightMg * purityPercent / 100);
+      const totalValuePaise = Math.round((fineWeightMg / 1000) * ratePerGramPaise);
+
+      if (urd.oldGoldLotId) {
+        oldGoldLotRepository.insert(tx, {
+          id: urd.oldGoldLotId,
+          firmId,
+          receivedFrom: customerName,
+          customerId: input.customerId ?? urd.customerId,
+          receivedDate: input.purchaseDate ?? urd.purchaseDate,
+          grossWeightMg,
+          purityPercent,
+          metalSource: 'CUSTOMER',
+          fineWeightMg,
+          purchaseRatePaise: ratePerGramPaise,
+          totalAmountPaise: totalValuePaise,
+          notes: input.notes ?? urd.notes,
+          status: 'RECEIVED',
+          createdAt: urd.createdAt, updatedAt: now(),
+        });
+      }
+
+      urdPurchaseRepository.update(tx, firmId, urdId, {
+        customerName,
+        customerAddress: input.customerAddress !== undefined ? input.customerAddress : urd.customerAddress,
+        customerMobile: input.customerMobile !== undefined ? input.customerMobile : urd.customerMobile,
+        customerAadhaar: input.customerAadhaar !== undefined ? input.customerAadhaar : urd.customerAadhaar,
+        customerPAN: input.customerPAN !== undefined ? input.customerPAN : urd.customerPAN,
+        metalType: input.metalType ?? urd.metalType,
+        grossWeightMg,
+        purityPercent,
+        fineWeightMg,
+        ratePerGramPaise,
+        totalValuePaise,
+        paymentMode,
+        bankAccountId,
+        notes: input.notes !== undefined ? input.notes : urd.notes,
+        updatedAt: now(),
+      });
+
+      auditRepository.log(tx, {
+        eventType: 'URD_PURCHASE_UPDATED', firmId, entityId: urdId,
+        deviceId,
+        payload: JSON.stringify({ urdId, customerName, grossWeightMg, purityPercent, totalValuePaise }),
+      });
+
+      return {
+        ...urd,
+        customerName,
+        grossWeightMg,
+        purityPercent,
+        fineWeightMg,
+        ratePerGramPaise,
+        totalValuePaise,
+        paymentMode,
+        bankAccountId,
+        updatedAt: now(),
+      };
+    });
+  },
+
+  async deleteURDPurchase(urdId: string, firmId: string): Promise<void> {
+    await leaseService.assertNoActiveLease();
+    safeModeService.assertNotInSafeMode();
+    const deviceId = await getDeviceId();
+
+    return db.transaction((tx) => {
+      const urd = urdPurchaseRepository.getById(tx, firmId, urdId);
+      if (!urd || urd.firmId !== firmId) throw new Error(ERR.URD_NOT_FOUND_OR_WRONG_FIRM);
+      if (urd.status !== 'DRAFT') throw new Error('Cannot delete confirmed URD purchase bill.');
+
+      if (urd.oldGoldLotId) {
+        oldGoldLotRepository.delete(tx, firmId, urd.oldGoldLotId);
+      }
+      urdPurchaseRepository.delete(tx, firmId, urdId);
+
+      auditRepository.log(tx, {
+        eventType: 'URD_PURCHASE_DELETED', firmId, entityId: urdId,
+        deviceId,
+        payload: JSON.stringify({ urdId, urdNumber: urd.urdNumber }),
+      });
+    });
+  },
+
   async confirmURDPurchase(
     urdId: string,
     firmId: string
   ): Promise<URDPurchase> {
     await leaseService.assertNoActiveLease();
     safeModeService.assertNotInSafeMode();
-
-    // Hoisted async call outside the transaction
     const deviceId = await getDeviceId();
 
-    // FIX-V718-1: Synchronous transaction execution
     return db.transaction((tx) => {
       const urd = urdPurchaseRepository.getById(tx, firmId, urdId);
       if (!urd || urd.firmId !== firmId) throw new Error(ERR.URD_NOT_FOUND_OR_WRONG_FIRM);
       if (urd.status !== 'DRAFT') throw new Error(ERR.URD_ALREADY_CONFIRMED);
 
-      // PHASE 1 ALIGNMENT LIMIT: Max value ₹99,99,999.99 to prevent amountToWords overflow
       if (urd.totalValuePaise > 999999999) throw new Error(ERR.URD_AMOUNT_EXCEEDS_MAX);
 
-      // Synchronous Sequence Counter call
       const seq = sequenceCounterRepository.nextVal(tx, firmId, urd.fyId, 'URD');
-      
       const fy = financialYearRepository.getById(tx, firmId, urd.fyId);
       if (!fy) throw new Error(ERR.FY_NOT_FOUND);
       const fyLabel = fy.label;
@@ -189,306 +299,10 @@ export const urdPurchaseService = {
   },
 
   async generateURDPurchaseBill(urdId: string, firmId: string): Promise<string> {
-    // This executes globally so standard async query flow is safe
-    const urd = await urdPurchaseRepository.getById(db as any, firmId, urdId);
-    if (!urd || urd.firmId !== firmId) throw new Error(ERR.URD_NOT_FOUND_OR_WRONG_FIRM);
-    if (urd.status !== 'CONFIRMED') throw new Error(ERR.URD_NOT_CONFIRMED);
+    return urdPrintService.generateURDPurchaseBill(urdId, firmId);
+  },
 
-    const firm = await firmRepository.getById(firmId);
-    if (!firm) throw new Error(ERR.FIRM_NOT_FOUND);
-
-    const symbol = getCurrencySymbol();
-    
-    let identityHtml = '';
-    if (urd.customerAadhaar) {
-      const masked = urd.customerAadhaar.length >= 4 
-        ? 'XXXX-XXXX-' + urd.customerAadhaar.slice(-4) 
-        : 'XXXX-XXXX-' + urd.customerAadhaar;
-      identityHtml += `<div>Aadhaar:</div><div class="info-val">${masked}</div>`;
-    }
-    if (urd.customerPAN) {
-      identityHtml += `<div>PAN:</div><div class="info-val">${urd.customerPAN}</div>`;
-    }
-    if (!urd.customerAadhaar && !urd.customerPAN) {
-      identityHtml += `<div>Identity Proof:</div><div class="info-val">Not Provided</div>`;
-    }
-
-    const html = `
-<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<style>
-  @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap');
-  @page {
-    size: A5 portrait;
-    margin: 5mm;
-  }
-  body {
-    font-family: 'Poppins', Arial, sans-serif;
-    margin: 0;
-    padding: 0;
-    background: #f0f0f0;
-  }
-  .invoice-container {
-    width: 100%;
-    max-width: 148mm;
-    min-height: auto;
-    margin: 0 auto;
-    background: white;
-    border: 1px solid #ccc;
-    box-sizing: border-box;
-    position: relative;
-    box-shadow: 0 0 10px rgba(0,0,0,0.1);
-  }
-  .header {
-    background-color: #8b2538;
-    color: white;
-    padding: 15px 15px;
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-start;
-  }
-  .header-left {
-    font-size: 9px;
-    line-height: 1.4;
-  }
-  .header-center {
-    text-align: center;
-    flex-grow: 1;
-    padding: 0 10px;
-  }
-  .header-center h1 {
-    margin: 0;
-    font-size: 28px;
-    font-weight: 700;
-    letter-spacing: 1px;
-    line-height: 1.1;
-  }
-  .header-center p {
-    margin: 5px 0 0 0;
-    font-size: 11px;
-    opacity: 0.9;
-  }
-  .header-center .tax-invoice {
-    font-size: 16px;
-    color: #f7d273;
-    margin-bottom: 3px;
-    font-weight: 700;
-    letter-spacing: 1px;
-  }
-  .header-right {
-    font-size: 9px;
-    text-align: right;
-    line-height: 1.4;
-  }
-  .info-section {
-    display: flex;
-    justify-content: space-between;
-    padding: 10px 15px;
-    border-bottom: 1.5px solid #8b2538;
-    font-size: 10px;
-    font-weight: 600;
-  }
-  .info-left, .info-right {
-    display: grid;
-    grid-template-columns: 80px 1fr;
-    gap: 4px;
-    width: 48%;
-  }
-  .info-val {
-    font-weight: 400;
-    border-bottom: 1px dotted #ccc;
-  }
-  table {
-    width: 100%;
-    border-collapse: collapse;
-    font-size: 10px;
-    position: relative;
-    z-index: 2;
-  }
-  th {
-    background-color: #fcfcfc;
-    border: 1px solid #000;
-    padding: 8px 4px;
-    text-align: center;
-    color: #333;
-  }
-  td {
-    border: 1px solid #000;
-    padding: 8px 4px;
-    text-align: center;
-    vertical-align: top;
-  }
-  .watermark {
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    opacity: 0.04;
-    z-index: 1;
-    font-size: 250px;
-    font-weight: bold;
-    color: #8b2538;
-    pointer-events: none;
-    font-family: serif;
-  }
-  .footer-grid {
-    display: grid;
-    grid-template-columns: 1fr 180px;
-    border-top: 1.5px solid #8b2538;
-    font-size: 10px;
-  }
-  .amount-words {
-    padding: 10px 15px;
-    border-right: 1px solid #000;
-    border-bottom: 1px solid #000;
-    font-weight: 600;
-  }
-  .totals-table {
-    width: 100%;
-    border-collapse: collapse;
-  }
-  .totals-table td {
-    border: none;
-    border-bottom: 1px solid #000;
-    padding: 6px 10px;
-    text-align: right;
-  }
-  .totals-table tr td:first-child {
-    border-right: 1px solid #000;
-  }
-  .signatures {
-    display: flex;
-    justify-content: space-between;
-    padding: 20px 10px 10px 10px;
-    font-size: 11px;
-    font-weight: 600;
-  }
-</style>
-</head>
-<body>
-  <div class="invoice-container">
-    <div class="watermark">${firm.name.charAt(0)}</div>
-    
-    <div class="header">
-      <div class="header-left">
-        <div>Subject to ${firm.city || 'Local'} Jurisdiction</div>
-        <div>GSTIN: ${firm.gstin || 'Unregistered'}</div>
-      </div>
-      <div class="header-center">
-        <div class="tax-invoice">URD PURCHASE BILL</div>
-        <h1>${firm.name}</h1>
-        <p>${firm.addressLine1 || ''}, ${firm.city || ''}, ${firm.stateName || ''}</p>
-      </div>
-      <div class="header-right">
-        <div>For: ${firm.proprietor || 'Proprietor'}</div>
-        <div>Mo. ${firm.phone1}</div>
-        ${firm.phone2 ? `<div>Mo. ${firm.phone2}</div>` : ''}
-      </div>
-    </div>
-
-    <div class="info-section">
-      <div class="info-left">
-        <div>Name:</div>
-        <div class="info-val">${urd.customerName}</div>
-        <div>Address:</div>
-        <div class="info-val">${urd.customerAddress || '-'}</div>
-        <div>Mob:</div>
-        <div class="info-val">${urd.customerMobile || '-'}</div>
-        ${identityHtml}
-      </div>
-      <div class="info-right">
-        <div>Date:</div>
-        <div class="info-val">${urd.purchaseDate}</div>
-        <div>URD Number:</div>
-        <div class="info-val">${urd.urdNumber}</div>
-        <div>Pay Mode:</div>
-        <div class="info-val">${urd.paymentMode}</div>
-      </div>
-    </div>
-
-    <table>
-      <thead>
-        <tr>
-          <th style="width: 5%;">#</th>
-          <th style="width: 25%;">Description</th>
-          <th style="width: 15%;">Gross Wt (g)</th>
-          <th style="width: 15%;">Purity (%)</th>
-          <th style="width: 15%;">Fine Wt (g)</th>
-          <th style="width: 10%;">Rate/g</th>
-          <th style="width: 15%;">Total Value</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr style="height: auto;">
-          <td style="padding-bottom: 25px;">1</td>
-          <td style="text-align: left; padding-bottom: 25px;">Old ${urd.metalType} Jewellery (${urd.purityPercent}%)</td>
-          <td style="padding-bottom: 25px;">${(urd.grossWeightMg / 1000).toFixed(3)}</td>
-          <td style="padding-bottom: 25px;">${urd.purityPercent}</td>
-          <td style="padding-bottom: 25px;">${(urd.fineWeightMg / 1000).toFixed(3)}</td>
-          <td style="padding-bottom: 25px;">${symbol}${(urd.ratePerGramPaise / 100).toFixed(2)}</td>
-          <td style="padding-bottom: 25px;">${symbol}${(urd.totalValuePaise / 100).toFixed(2)}</td>
-        </tr>
-      </tbody>
-    </table>
-
-    <div class="footer-grid">
-      <div style="display: flex; flex-direction: column; justify-content: space-between;">
-        <div class="amount-words">
-          <div>Amt. In Words: <span style="font-weight: normal; margin-left: 5px;">${amountToWords(urd.totalValuePaise)}</span></div>
-          ${urd.paymentMode === 'BANK' || urd.paymentMode === 'UPI' ? `<div style="margin-top: 5px; font-weight: normal;">Payment Mode: ${urd.paymentMode}${urd.bankAccountId ? ` (Bank ID: ${urd.bankAccountId})` : ''}</div>` : `<div style="margin-top: 5px; font-weight: normal;">Payment Mode: Cash</div>`}
-        </div>
-        <div class="signatures">
-          <div style="text-align: left;">
-            <div style="margin-bottom: 30px;">Seller Signature</div>
-            <div>${urd.customerName}</div>
-          </div>
-          <div style="text-align: right;">
-            <div style="margin-bottom: 30px;">Authorized Signatory</div>
-            <div>For: ${firm.name}</div>
-          </div>
-        </div>
-        <div style="padding: 10px; font-size: 10px; font-weight: 600; text-align: center; border-right: 1px solid #000; border-top: 1px solid #000;">
-          I confirm that I have sold the above article(s) and received the stated amount.
-        </div>
-      </div>
-      <div>
-        <table class="totals-table">
-          <tr>
-            <td style="width: 50%;">NET TOTAL</td>
-            <td>${symbol}${(urd.totalValuePaise / 100).toFixed(2)}</td>
-          </tr>
-          <tr>
-            <td>Round Off</td>
-            <td>0.00</td>
-          </tr>
-          <tr>
-            <td style="font-weight: bold; font-size: 14px;">GRAND TOTAL</td>
-            <td style="font-weight: bold; font-size: 14px;">${symbol}${(urd.totalValuePaise / 100).toFixed(2)}</td>
-          </tr>
-          <tr>
-            <td>NET AMOUNT</td>
-            <td>${symbol}${(urd.totalValuePaise / 100).toFixed(2)}</td>
-          </tr>
-          <tr>
-            <td>AMT PAID</td>
-            <td>${symbol}${(urd.totalValuePaise / 100).toFixed(2)}</td>
-          </tr>
-          <tr>
-            <td style="border-bottom: none;">BALANCE</td>
-            <td style="border-bottom: none;">0.00</td>
-          </tr>
-        </table>
-      </div>
-    </div>
-    <div style="text-align: center; font-size: 9px; padding: 10px; border-top: 1px solid #ccc; margin-top: 10px; color: #666;">
-      This is a computer-generated URD Purchase Bill. | ${firm.addressLine1 || ''}, ${firm.addressLine2 ? firm.addressLine2 + ', ' : ''}${firm.city || ''}, ${firm.stateName || ''} - ${firm.pincode || ''} | Printed: ${new Date().toLocaleString('en-IN')}
-    </div>
-  </div>
-</body>
-</html>
-`;
-    return html;
+  async generateURDCustomerDeclaration(urdId: string, firmId: string): Promise<string> {
+    return urdPrintService.generateURDCustomerDeclaration(urdId, firmId);
   }
 };

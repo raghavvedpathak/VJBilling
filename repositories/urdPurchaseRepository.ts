@@ -22,6 +22,10 @@ export const urdPurchaseRepository = {
     tx.update(urdPurchases).set(data).where(and(eq(urdPurchases.id, id), eq(urdPurchases.firmId, firmId))).run();
   },
 
+  delete(tx: DrizzleTransaction, firmId: string, id: string): void {
+    tx.delete(urdPurchases).where(and(eq(urdPurchases.id, id), eq(urdPurchases.firmId, firmId))).run();
+  },
+
   // Operates globally outside a transaction — safely left as async
   async findByFirmId(firmId: string): Promise<URDPurchase[]> {
     return db.select()

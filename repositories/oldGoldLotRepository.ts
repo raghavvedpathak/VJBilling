@@ -31,6 +31,10 @@ export const oldGoldLotRepository = {
       .run();
   },
 
+  delete(tx: DrizzleTransaction, firmId: string, id: string): void {
+    tx.delete(oldGoldLots).where(and(eq(oldGoldLots.id, id), eq(oldGoldLots.firmId, firmId))).run();
+  },
+
   // Operates globally outside a transaction — safely left as async
   async findAvailableForIssuance(firmId: string): Promise<OldGoldLot[]> {
     return db

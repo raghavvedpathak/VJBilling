@@ -12,7 +12,7 @@ import { appSettingsStore } from '../../store/appSettingsStore';
 import { GlassCard } from '../../components/ui/Glass';
 import { inventoryDrillDownService } from '../../services/inventoryDrillDownService';
 import { itemService } from '../../services/itemService';
-import { getDisplayPurity } from '../../utils/purity.constants';
+import { getDisplayPurity, computeEffectivePricePerGram } from '../../utils/purity.constants';
 import { getCurrencySymbol } from '../../utils/currency';
 import { formatSKUDisplay } from '../../utils/skuDisplay';
 import { format, parseISO } from 'date-fns';
@@ -370,9 +370,7 @@ export default function ItemDetailScreen() {
   const making = item.makingChargePaise ? item.makingChargePaise / 100 : 0;
   const stoneC = item.stoneCostPaise ? item.stoneCostPaise / 100 : 0;
 
-  const effectivePricePerGram = item.fineWeightMg > 0
-    ? ((item.fineGoldChargedMg ?? item.fineWeightMg) / item.fineWeightMg) * rate
-    : rate;
+  const effectivePricePerGram = computeEffectivePricePerGram(rate, item.purityPercent, item.wastagePercent || 0);
   const hasCostData = rate > 0 || making > 0 || stoneC > 0;
   const totalAmount = (costTruth * rate) + making + stoneC;
 
@@ -413,8 +411,8 @@ export default function ItemDetailScreen() {
             <DetailRow label="Fine Weight" value={formatWeight(item.fineWeightMg)} />
             <DetailRow label="Vault Truth (Fine)" subLabel={`= ${(item.netWeightMg / 1000).toFixed(3)} g × ${item.purityPercent.toFixed(2)}%`} value={vaultTruth.toFixed(3) + ' g'} valueColor="#047857" style={s.highlightGreenRow} />
             <DetailRow label="Wastage %" value={item.wastagePercent ? item.wastagePercent.toFixed(2) + '%' : '0.00%'} />
-            <DetailRow label={item.metal === 'GOLD' ? 'Wastage Gold' : 'Wastage Silver'} subLabel={`= ${vaultTruth.toFixed(3)} g × ${(item.wastagePercent || 0).toFixed(2)}%`} value={wastageGold.toFixed(3) + ' g'} valueColor="#B91C1C" style={s.highlightRedRow} />
-            <DetailRow label="Cost Truth (Fine)" subLabel={`= ${vaultTruth.toFixed(3)} g + ${wastageGold.toFixed(3)} g`} value={costTruth.toFixed(3) + ' g'} valueColor="#B45309" style={s.highlightOrangeRow} />
+            <DetailRow label={item.metal === 'GOLD' ? 'Wastage Gold' : 'Wastage Silver'} subLabel={`= ${(item.netWeightMg / 1000).toFixed(3)} g × ${(item.wastagePercent || 0).toFixed(2)}%`} value={wastageGold.toFixed(3) + ' g'} valueColor="#B91C1C" style={s.highlightRedRow} />
+            <DetailRow label="Cost Truth (Fine)" subLabel={`= ${(item.netWeightMg / 1000).toFixed(3)} g × ${(item.purityPercent + (item.wastagePercent || 0)).toFixed(2)}%`} value={costTruth.toFixed(3) + ' g'} valueColor="#B45309" style={s.highlightOrangeRow} />
             
             <View style={s.divider} />
             
@@ -477,8 +475,8 @@ export default function ItemDetailScreen() {
                 )}
                 {hasCostData && (
                   <>
-                    <DetailRow label="Effective Price/g" subLabel={`= (${costTruth.toFixed(3)} g ÷ ${vaultTruth.toFixed(3)} g) × ${getCurrencySymbol()}${rate.toFixed(2)}`} value={getCurrencySymbol() + ' ' + effectivePricePerGram.toLocaleString('en-IN', { maximumFractionDigits: 2 })} style={s.highlightGoldRow} />
-                    <DetailRow label="Est. Total Cost" subLabel={`= ${costTruth.toFixed(3)} g × ${getCurrencySymbol()}${rate.toFixed(2)}${making > 0 ? ' + ' + getCurrencySymbol() + making.toFixed(2) : ''}${stoneC > 0 ? ' + ' + getCurrencySymbol() + stoneC.toFixed(2) : ''}`} value={getCurrencySymbol() + ' ' + totalAmount.toLocaleString('en-IN', { maximumFractionDigits: 2 })} valueColor="#78350F" style={s.highlightGoldRow} />
+                    <DetailRow label="Effective Price/g" subLabel={`= ${getCurrencySymbol()}${rate.toFixed(2)} × ${(item.purityPercent + (item.wastagePercent || 0)).toFixed(2)}%`} value={getCurrencySymbol() + ' ' + effectivePricePerGram.toLocaleString('en-IN', { maximumFractionDigits: 2 })} style={s.highlightGoldRow} />
+                    <DetailRow label="Est. Total Cost" subLabel={`= ${(item.netWeightMg / 1000).toFixed(3)} g × ${getCurrencySymbol()}${effectivePricePerGram.toFixed(2)}${making > 0 ? ' + ' + getCurrencySymbol() + making.toFixed(2) : ''}${stoneC > 0 ? ' + ' + getCurrencySymbol() + stoneC.toFixed(2) : ''}`} value={getCurrencySymbol() + ' ' + totalAmount.toLocaleString('en-IN', { maximumFractionDigits: 2 })} valueColor="#78350F" style={s.highlightGoldRow} />
                   </>
                 )}
               </>
