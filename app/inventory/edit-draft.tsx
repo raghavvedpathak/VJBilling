@@ -7,9 +7,18 @@ import { TwoToneWrapper } from '../../components/TwoToneWrapper';
 import { useFirmStore } from '../../store/firmStore';
 import { itemRepository } from '../../repositories/itemRepository';
 import { itemService } from '../../services/itemService';
-import { formatSKUDisplay } from '../../utils/skuDisplay';
-import { percentToKarat, resolveFineWeightMg, computeFineGoldChargedMg, computeEffectivePricePerGram } from '../../utils/purity.constants';
-import { getCurrencySymbol } from '../../utils/currency';
+import { 
+  formatSKUDisplay, 
+  percentToKarat, 
+  resolveFineWeightMg, 
+  computeFineGoldChargedMg, 
+  computeEffectivePricePerGram,
+  computeVaultTruthGrams,
+  computeCostTruthGrams,
+  computeAbsoluteTotalCostRupees,
+  rupeesToPaise,
+  getCurrencySymbol 
+} from '../../utils/calculations';
 import { Edit3, Save, Calculator, CheckCircle } from 'lucide-react-native';
 import { GlassButton, GlassSmartSearch } from '../../components/ui/Glass';
 const COLORS = {
@@ -105,14 +114,13 @@ export default function EditDraftScreen() {
     const netWeightG = Math.max(0, gross - stone - beads);
     const netWeightMg = Math.round(netWeightG * 1000);
     const { fineWeightMg } = resolveFineWeightMg(netWeightMg, purity, metal);
-    const vaultTruth = fineWeightMg / 1000;
+    const vaultTruth = computeVaultTruthGrams(fineWeightMg);
 
     const fineGoldChargedMg = computeFineGoldChargedMg(netWeightMg, purity, wastage);
-    const costTruth = fineGoldChargedMg !== null ? fineGoldChargedMg / 1000 : vaultTruth;
+    const costTruth = computeCostTruthGrams(fineGoldChargedMg, fineWeightMg);
     
     const effectivePricePerGram = computeEffectivePricePerGram(rate, purity, wastage);
-    const totalGoldCost = netWeightG * effectivePricePerGram;
-    const absoluteTotalCost = totalGoldCost + making + stoneC;
+    const absoluteTotalCost = computeAbsoluteTotalCostRupees(netWeightG, effectivePricePerGram, making, stoneC);
 
     return {
       netWeight: netWeightG.toFixed(3) + ' g',
@@ -161,9 +169,9 @@ export default function EditDraftScreen() {
       const newBeadsMg = Math.round(parsedBeads * 1000);
       
       const newPurityKarat = percentToKarat(parsedPurity) || 0;
-      const newRatePaise = purchaseRate ? Math.round(parseFloat(purchaseRate) * 100) : null;
-      const newMakingPaise = makingCharge ? Math.round(parseFloat(makingCharge) * 100) : null;
-      const newStoneCostPaise = stoneCost ? Math.round(parseFloat(stoneCost) * 100) : null;
+      const newRatePaise = rupeesToPaise(purchaseRate);
+      const newMakingPaise = rupeesToPaise(makingCharge);
+      const newStoneCostPaise = rupeesToPaise(stoneCost);
 
       // 1. Weight adjustment (must happen via adjustWeight)
       await itemService.adjustWeight(

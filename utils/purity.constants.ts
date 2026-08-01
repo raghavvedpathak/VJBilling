@@ -93,3 +93,160 @@ export function computeFineGoldChargedMg(netWeightMg: number, purityPercent: num
   return Math.round(netWeightMg * ((purityPercent + wastagePercent) / 100));
 }
 
+// --- INVENTORY ITEM COST & TRUTH HELPERS FOR ALL SCREENS ---
+export function computeVaultTruthGrams(fineWeightMg: number): number {
+  return fineWeightMg / 1000;
+}
+
+export function computeCostTruthGrams(fineGoldChargedMg: number | null, fineWeightMg: number): number {
+  return fineGoldChargedMg !== null ? fineGoldChargedMg / 1000 : computeVaultTruthGrams(fineWeightMg);
+}
+
+export function computeWastageGoldGrams(costTruthGrams: number, vaultTruthGrams: number): number {
+  return Math.max(0, costTruthGrams - vaultTruthGrams);
+}
+
+export function computeAbsoluteTotalCostRupees(
+  netWeightGrams: number,
+  effectivePricePerGram: number,
+  makingCharges: number = 0,
+  stoneCost: number = 0
+): number {
+  const totalGoldCost = netWeightGrams * effectivePricePerGram;
+  return totalGoldCost + makingCharges + stoneCost;
+}
+
+// --- WEIGHT FORMULAS & CONVERSIONS (RULE-1A-WEIGHT-DISPLAY) ---
+export function formatWeightMg(mg: number | null | undefined): string {
+  if (mg === null || mg === undefined || isNaN(mg)) return '0.000 g';
+  return (mg / 1000).toFixed(3) + ' g';
+}
+
+export function formatWeightGrams(grams: number | null | undefined): string {
+  if (grams === null || grams === undefined || isNaN(grams)) return '0.000 g';
+  return grams.toFixed(3) + ' g';
+}
+
+export function mgToGrams(mg: number): number {
+  return mg / 1000;
+}
+
+export function gramsToMg(grams: number): number {
+  return Math.round(grams * 1000);
+}
+
+export function computeNetWeightMg(grossWeightMg: number, stoneWeightMg: number = 0, beadsWeightMg: number = 0): number {
+  return Math.max(0, grossWeightMg - stoneWeightMg - beadsWeightMg);
+}
+
+export function caratX100ToCarats(caratX100: number): number {
+  return caratX100 / 100;
+}
+
+export function caratsToCaratX100(carats: number): number {
+  return Math.round(carats * 100);
+}
+
+export function formatCarats(caratX100: number | null | undefined): string {
+  if (caratX100 === null || caratX100 === undefined || isNaN(caratX100)) return '0.00 cts';
+  return (caratX100 / 100).toFixed(2) + ' cts';
+}
+
+// --- CENTRAL URD PURCHASE FORMULAS & LIVE COST BREAKDOWN ---
+export interface URDCostBreakdown {
+  grossWeightMg: number;
+  grossWeightGrams: number;
+  purityPercent: number;
+  fineWeightMg: number;
+  fineWeightGrams: number;
+  ratePerGramPaise: number;
+  ratePerGramRupees: number;
+  grossValuePaise: number;
+  grossValueRupees: number;
+  discountPaise: number;
+  discountRupees: number;
+  subtotalPaise: number;
+  subtotalRupees: number;
+  roundOffPaise: number;
+  roundOffRupees: number;
+  totalValuePaise: number;
+  totalValueRupees: number;
+  formattedFineGrams: string;
+  formattedGrossValue: string;
+  formattedSubtotal: string;
+  formattedDiscount: string;
+  formattedRoundOff: string;
+  formattedTotalValue: string;
+}
+
+export function computeURDFineWeightMg(grossWeightMg: number, purityPercent: number): number {
+  const safeGrossMg = Math.max(0, grossWeightMg || 0);
+  const safePurity = Math.max(0, Math.min(100, purityPercent || 0));
+  return Math.round(safeGrossMg * (safePurity / 100));
+}
+
+export function computeURDTotalValuePaise(fineWeightMg: number, ratePerGramPaise: number, discountPaise: number = 0): number {
+  const safeFineMg = Math.max(0, fineWeightMg || 0);
+  const safeRatePaise = Math.max(0, ratePerGramPaise || 0);
+  const safeDiscountPaise = Math.max(0, discountPaise || 0);
+  const grossValuePaise = Math.round((safeFineMg / 1000) * safeRatePaise);
+  const subtotalPaise = Math.max(0, grossValuePaise - safeDiscountPaise);
+  return Math.round(subtotalPaise / 100) * 100;
+}
+
+export function computeURDCostBreakdown(
+  grossWeightMg: number,
+  purityPercent: number,
+  ratePerGramPaise: number,
+  discountPaise: number = 0
+): URDCostBreakdown {
+  const safeGrossMg = Math.max(0, grossWeightMg || 0);
+  const safePurity = Math.max(0, Math.min(100, purityPercent || 0));
+  const safeRatePaise = Math.max(0, ratePerGramPaise || 0);
+  const safeDiscountPaise = Math.max(0, discountPaise || 0);
+
+  const fineWeightMg = computeURDFineWeightMg(safeGrossMg, safePurity);
+  const grossValuePaise = Math.round((fineWeightMg / 1000) * safeRatePaise);
+  const subtotalAfterDiscountPaise = Math.max(0, grossValuePaise - safeDiscountPaise);
+  
+  // Round to nearest rupee (100 paise)
+  const totalValuePaise = Math.round(subtotalAfterDiscountPaise / 100) * 100;
+  const roundOffPaise = totalValuePaise - subtotalAfterDiscountPaise;
+
+  const grossWeightGrams = safeGrossMg / 1000;
+  const fineWeightGrams = fineWeightMg / 1000;
+  const ratePerGramRupees = safeRatePaise / 100;
+  const grossValueRupees = grossValuePaise / 100;
+  const discountRupees = safeDiscountPaise / 100;
+  const subtotalRupees = subtotalAfterDiscountPaise / 100;
+  const roundOffRupees = roundOffPaise / 100;
+  const totalValueRupees = totalValuePaise / 100;
+
+  return {
+    grossWeightMg: safeGrossMg,
+    grossWeightGrams,
+    purityPercent: safePurity,
+    fineWeightMg,
+    fineWeightGrams,
+    ratePerGramPaise: safeRatePaise,
+    ratePerGramRupees,
+    grossValuePaise,
+    grossValueRupees,
+    discountPaise: safeDiscountPaise,
+    discountRupees,
+    subtotalPaise: subtotalAfterDiscountPaise,
+    subtotalRupees,
+    roundOffPaise,
+    roundOffRupees,
+    totalValuePaise,
+    totalValueRupees,
+    formattedFineGrams: fineWeightGrams.toFixed(3) + ' g',
+    formattedGrossValue: '₹' + grossValueRupees.toFixed(2),
+    formattedSubtotal: '₹' + subtotalRupees.toFixed(2),
+    formattedDiscount: '₹' + discountRupees.toFixed(2),
+    formattedRoundOff: (roundOffRupees >= 0 ? '+' : '') + roundOffRupees.toFixed(2),
+    formattedTotalValue: '₹' + totalValueRupees.toFixed(2),
+  };
+}
+
+

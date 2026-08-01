@@ -7,7 +7,7 @@ import { GlassCard, GlassInput, GlassButton } from '../../components/ui/Glass';
 import { useFirmStore } from '../../store/firmStore';
 import { gemstoneLotService } from '../../services/gemstoneLotService';
 import { stoneRepository } from '../../repositories/stoneRepository';
-import { getCurrencySymbol } from '../../utils/currency';
+import { getCurrencySymbol } from '../../utils/calculations';
 import { Gem, Diamond, Banknote, X, CheckCircle } from 'lucide-react-native';
 import type { Stone } from '../../types/phase2.types';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';

@@ -14,10 +14,8 @@ import { TwoToneWrapper } from '../../components/TwoToneWrapper';
 import { useFirmStore } from '../../store/firmStore';
 import { inventoryDrillDownService } from '../../services/inventoryDrillDownService';
 import type { DesignCategoryStockResult } from '../../types/phase2.types';
-import { getDisplayPurity } from '../../utils/purity.constants';
+import { getDisplayPurity, formatWeightMg as formatWeight } from '../../utils/calculations';
 import { ChevronRight, Layers, Tag } from 'lucide-react-native';
-
-const formatWeight = (mg: number): string => (mg / 1000).toFixed(3) + ' g';
 
 const COLORS = {
   vjText: '#5C1623',

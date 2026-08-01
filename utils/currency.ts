@@ -130,3 +130,20 @@ import { appSettingsStore } from '../store/appSettingsStore';
 export function getCurrencySymbol(): string {
   return appSettingsStore.getState().currencySymbol ?? '\u20B9';
 }
+
+export function rupeesToPaise(rupees: number | string | null | undefined): number | null {
+  if (rupees === null || rupees === undefined) return null;
+  const num = typeof rupees === 'string' ? parseFloat(rupees) : rupees;
+  if (isNaN(num)) return null;
+  return Math.round(num * 100);
+}
+
+export function paiseToRupees(paise: number | null | undefined): number {
+  if (paise === null || paise === undefined || isNaN(paise)) return 0;
+  return paise / 100;
+}
+
+export function formatRupees(paise: number | null | undefined): string {
+  if (paise === null || paise === undefined || isNaN(paise)) return '₹0.00';
+  return '₹' + (paise / 100).toFixed(2);
+}

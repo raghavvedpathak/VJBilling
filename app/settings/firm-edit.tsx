@@ -154,12 +154,23 @@ export default function EditFirmScreen() {
         return;
       }
 
-      // G58: Deterministic storage
+      // G58: Storage with timestamp cache-busting to ensure immediate updates across all components
       const logosDir = FileSystem.documentDirectory + 'logos/';
       await FileSystem.makeDirectoryAsync(logosDir, { intermediates: true });
       
-      const fileName = field === 'logoUri' ? `firm_${id}.jpg` : `bis_firm_${id}.jpg`;
+      const timeStamp = Date.now();
+      const fileName = field === 'logoUri' ? `firm_${id}_${timeStamp}.jpg` : `bis_firm_${id}_${timeStamp}.jpg`;
       const destPath = logosDir + fileName;
+      
+      // Clean up previous image file if replacing an existing image
+      const currentUri = form[field];
+      if (currentUri && currentUri !== destPath) {
+        try {
+          await FileSystem.deleteAsync(currentUri, { idempotent: true });
+        } catch (e) {
+          // ignore cleanup error
+        }
+      }
       
       await FileSystem.copyAsync({ from: finalUri, to: destPath });
       setForm(prev => ({ ...prev, [field]: destPath }));
@@ -187,8 +198,8 @@ export default function EditFirmScreen() {
           name: form.name,
           proprietor: form.proprietor,
           bisLicence: form.bisLicence || null,
-          bisLogoRef: form.bisLogoUri !== originalFirm.bisLogoRef ? form.bisLogoUri : undefined, 
-          firmLogoRef: form.logoUri !== originalFirm.firmLogoRef ? form.logoUri : undefined,  
+          bisLogoRef: form.bisLogoUri !== (originalFirm?.bisLogoRef || null) ? form.bisLogoUri : undefined, 
+          firmLogoRef: form.logoUri !== (originalFirm?.firmLogoRef || null) ? form.logoUri : undefined,  
           phone1: form.phone1,
           phone2: form.phone2 || null,
           phone3: form.phone3 || null,

@@ -10,11 +10,8 @@ import { useFirmStore } from '../../store/firmStore';
 import { inventoryDrillDownService } from '../../services/inventoryDrillDownService';
 import { itemService } from '../../services/itemService';
 import type { ItemSearchResult } from '../../types/phase2.types';
-import { getDisplayPurity } from '../../utils/purity.constants';
-import { formatSKUDisplay } from '../../utils/skuDisplay'; 
-import { Check, ClipboardList, PackageSearch, Edit3, CheckCircle } from 'lucide-react-native'; // <-- Added Edit3 icon
-
-const formatWeight = (mg: number): string => (mg / 1000).toFixed(3) + ' g';
+import { getDisplayPurity, formatSKUDisplay, formatWeightMg as formatWeight } from '../../utils/calculations';
+import { Check, ClipboardList, PackageSearch, Edit3, CheckCircle } from 'lucide-react-native';
 
 const COLORS = {
   vjText: '#5C1623',

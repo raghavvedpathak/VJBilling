@@ -16,8 +16,17 @@ import { designCategoryMapRepository } from '../../repositories/designCategoryMa
 import type { Design, Category, HsnCode, Stone } from '../../types/phase2.types';
 import { Package, Plus, Trash2, Calculator, Layers, MapPin, Wallet, CheckCircle } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { percentToKarat, resolveFineWeightMg, computeFineGoldChargedMg, computeEffectivePricePerGram } from '../../utils/purity.constants';
-import { getCurrencySymbol } from '../../utils/currency';
+import { 
+  percentToKarat, 
+  resolveFineWeightMg, 
+  computeFineGoldChargedMg, 
+  computeEffectivePricePerGram,
+  computeVaultTruthGrams,
+  computeCostTruthGrams,
+  computeAbsoluteTotalCostRupees,
+  rupeesToPaise,
+  getCurrencySymbol 
+} from '../../utils/calculations';
 
 const COLORS = {
   vjText: '#5C1623',
@@ -44,14 +53,13 @@ const BulkItemRow = ({ index, row, updateRow, removeRow, stones, metal }: any) =
     const netWeightG = Math.max(0, gross - stone - beads);
     const netWeightMg = Math.round(netWeightG * 1000);
     const { fineWeightMg } = resolveFineWeightMg(netWeightMg, purity, metal || 'GOLD');
-    const vaultTruth = fineWeightMg / 1000;
+    const vaultTruth = computeVaultTruthGrams(fineWeightMg);
 
     const fineGoldChargedMg = computeFineGoldChargedMg(netWeightMg, purity, wastage);
-    const costTruth = fineGoldChargedMg !== null ? fineGoldChargedMg / 1000 : vaultTruth;
+    const costTruth = computeCostTruthGrams(fineGoldChargedMg, fineWeightMg);
 
     const effectivePricePerGram = computeEffectivePricePerGram(rate, purity, wastage);
-    const totalGoldCost = netWeightG * effectivePricePerGram;
-    const absoluteTotalCost = totalGoldCost + making + stoneC;
+    const absoluteTotalCost = computeAbsoluteTotalCostRupees(netWeightG, effectivePricePerGram, making, stoneC);
 
     const wastageGold = costTruth - vaultTruth;
 
@@ -328,9 +336,9 @@ export default function BulkAddScreen() {
         purityPercent: purity,
         purityKarat: computedKarat,
         wastagePercent: parseFloat(r.wastagePercent) || 0,
-        purchaseRatePaise: r.purchaseRate ? Math.round(parseFloat(r.purchaseRate) * 100) : undefined,
-        makingChargePaise: r.makingCharge ? Math.round(parseFloat(r.makingCharge) * 100) : undefined,
-        stoneCostPaise: r.stoneCost ? Math.round(parseFloat(r.stoneCost) * 100) : undefined,
+        purchaseRatePaise: rupeesToPaise(r.purchaseRate) ?? undefined,
+        makingChargePaise: rupeesToPaise(r.makingCharge) ?? undefined,
+        stoneCostPaise: rupeesToPaise(r.stoneCost) ?? undefined,
         location: r.location?.trim() || undefined,
         sizeValue: r.sizeValue ? parseFloat(r.sizeValue) : undefined,
         sizeUnit: r.sizeUnit || undefined,

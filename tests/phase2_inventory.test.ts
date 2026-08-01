@@ -43,8 +43,7 @@ import {
   financialYears, firms, appSettings, safeModeState, bisLogos, auditDeleteGate
 } from '../db/schema';
 import { generateDesignPrefix } from '../services/skuEngine';
-import { formatSKUDisplay } from '../utils/skuDisplay';
-import { isStandardPurityGrade, resolveFineWeightMg, computeEffectivePricePaisePerGram, computeEstTotalCostPaise } from '../utils/purity.constants';
+import { formatSKUDisplay, isStandardPurityGrade, resolveFineWeightMg, computeEffectivePricePaisePerGram, computeEstTotalCostPaise } from '../utils/calculations';
 import { gemstoneLotService } from '../services/gemstoneLotService';
 import { oldGoldLotService } from '../services/oldGoldLotService';
 import { backupService } from '../services/backupService';
@@ -1033,7 +1032,7 @@ describe('Purity Map and Utilities', () => {
 
     // 1. Future date check
     await expect(
-      itemService.correctItemEntryDate(item.id, '2026-08-01', FIRM_ID)
+      itemService.correctItemEntryDate(item.id, '2099-01-01', FIRM_ID)
     ).rejects.toThrow('ENTRY_DATE_IN_FUTURE');
 
     // 2. Closed FY check (throws because FY2025 is CLOSED)

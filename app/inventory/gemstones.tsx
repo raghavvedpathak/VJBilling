@@ -8,7 +8,7 @@ import { TwoToneWrapper } from '../../components/TwoToneWrapper';
 import { GlassCard } from '../../components/ui/Glass';
 import { useFirmStore } from '../../store/firmStore';
 import { gemstoneLotRepository } from '../../repositories/gemstoneLotRepository';
-import { getCurrencySymbol } from '../../utils/currency';
+import { getCurrencySymbol } from '../../utils/calculations';
 import { Gem, Plus, Diamond, Banknote, ShieldAlert, CheckCircle } from 'lucide-react-native';
 import type { GemstoneLot } from '../../types/phase2.types';
 

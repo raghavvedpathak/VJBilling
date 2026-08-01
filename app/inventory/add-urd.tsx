@@ -6,7 +6,7 @@ import { TwoToneWrapper } from '../../components/TwoToneWrapper';
 import { GlassCard, GlassInput, GlassButton } from '../../components/ui/Glass';
 import { useFirmStore } from '../../store/firmStore';
 import { urdPurchaseService } from '../../services/urdPurchaseService';
-import { getCurrencySymbol } from '../../utils/currency';
+import { getCurrencySymbol, computeURDCostBreakdown } from '../../utils/calculations';
 import { User, Scale, Banknote, CheckCircle } from 'lucide-react-native';
 import type { URDMetalType } from '../../types/phase2.types';
 
@@ -24,6 +24,7 @@ export default function AddURDScreen() {
   const [grossWeight, setGrossWeight] = useState('');
   const [purityPercent, setPurityPercent] = useState('');
   const [ratePerGram, setRatePerGram] = useState('');
+  const [discount, setDiscount] = useState('');
   
   const [paymentMode, setPaymentMode] = useState<'CASH' | 'BANK' | 'UPI'>('CASH');
   const [bankAccountId, setBankAccountId] = useState('');
@@ -31,19 +32,15 @@ export default function AddURDScreen() {
   const [loading, setLoading] = useState(false);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
-  // Auto-calculate expected totals for the UI preview
-  const previewData = useMemo(() => {
-    const w = parseFloat(grossWeight) || 0;
-    const p = parseFloat(purityPercent) || 0;
-    const r = parseFloat(ratePerGram) || 0;
+  // Centralized Live Cost Breakdown for UI preview
+  const liveCostBreakdown = useMemo(() => {
+    const grossMg = Math.round((parseFloat(grossWeight) || 0) * 1000);
+    const purity = parseFloat(purityPercent) || 0;
+    const ratePaise = Math.round((parseFloat(ratePerGram) || 0) * 100);
+    const discountPaise = Math.round((parseFloat(discount) || 0) * 100);
 
-    const fineMg = Math.round((w * 1000) * (p / 100));
-    const totalRupees = (fineMg / 1000) * r;
-    return { 
-      fineGrams: (fineMg / 1000).toFixed(3), 
-      total: Math.round(totalRupees) 
-    };
-  }, [grossWeight, purityPercent, ratePerGram]);
+    return computeURDCostBreakdown(grossMg, purity, ratePaise, discountPaise);
+  }, [grossWeight, purityPercent, ratePerGram, discount]);
 
   const handleSubmit = async () => {
     if (!activeFirmId) return;
@@ -130,7 +127,7 @@ export default function AddURDScreen() {
           
           <View style={{ backgroundColor: 'rgba(92,22,35,0.03)', padding: 12, borderRadius: 10, marginTop: 8 }}>
             <Text style={{ fontSize: 12, color: 'rgba(92,22,35,0.6)', textTransform: 'uppercase', fontWeight: '700', marginBottom: 4 }}>Auto-Calculated Fine Weight</Text>
-            <Text style={{ fontSize: 18, fontWeight: '700', color: '#5C1623', fontFamily: 'monospace' }}>{previewData.fineGrams} g</Text>
+            <Text style={{ fontSize: 18, fontWeight: '700', color: '#5C1623', fontFamily: 'monospace' }}>{liveCostBreakdown.formattedFineGrams}</Text>
           </View>
         </GlassCard>
 
@@ -142,6 +139,7 @@ export default function AddURDScreen() {
           </View>
 
           <GlassInput label={`Rate Per Gram (${getCurrencySymbol()}) *`} placeholder="e.g. 7000" keyboardType="numeric" value={ratePerGram} onChangeText={setRatePerGram} />
+          <GlassInput label={`Discount Deduction (${getCurrencySymbol()})`} placeholder="0 (Optional deduction)" keyboardType="numeric" value={discount} onChangeText={setDiscount} />
           
           <Text style={{ fontSize: 12, fontWeight: '700', color: 'rgba(92,22,35,0.6)', textTransform: 'uppercase', marginBottom: 8, marginTop: 4 }}>Payout Mode</Text>
           <View style={{ flexDirection: 'row', gap: 8, marginBottom: 16 }}>
@@ -157,8 +155,24 @@ export default function AddURDScreen() {
           </View>
 
           <View style={{ backgroundColor: '#5C1623', padding: 16, borderRadius: 12, marginTop: 8 }}>
-            <Text style={{ fontSize: 12, color: 'rgba(255,255,255,0.7)', textTransform: 'uppercase', fontWeight: '700', marginBottom: 4 }}>Final Payout Amount</Text>
-            <Text style={{ fontSize: 28, fontWeight: '800', color: '#FCFBF8', fontFamily: 'monospace' }}>{getCurrencySymbol()}{previewData.total.toLocaleString('en-IN')}</Text>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
+              <Text style={{ fontSize: 12, color: 'rgba(255,255,255,0.7)', fontWeight: '600' }}>Gross Valuation</Text>
+              <Text style={{ fontSize: 12, color: '#FCFBF8', fontWeight: 'bold' }}>{liveCostBreakdown.formattedGrossValue}</Text>
+            </View>
+            {liveCostBreakdown.discountPaise > 0 && (
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
+                <Text style={{ fontSize: 12, color: '#F7D273', fontWeight: '600' }}>Discount Deduction</Text>
+                <Text style={{ fontSize: 12, color: '#F7D273', fontWeight: 'bold' }}>-{liveCostBreakdown.formattedDiscount}</Text>
+              </View>
+            )}
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 }}>
+              <Text style={{ fontSize: 12, color: 'rgba(255,255,255,0.7)', fontWeight: '600' }}>Round Off Adjustment</Text>
+              <Text style={{ fontSize: 12, color: '#FCFBF8', fontWeight: 'bold' }}>{liveCostBreakdown.formattedRoundOff}</Text>
+            </View>
+            <View style={{ borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.2)', paddingTop: 8 }}>
+              <Text style={{ fontSize: 11, color: 'rgba(255,255,255,0.7)', textTransform: 'uppercase', fontWeight: '700', marginBottom: 2 }}>Final Payout Amount</Text>
+              <Text style={{ fontSize: 26, fontWeight: '800', color: '#FCFBF8', fontFamily: 'monospace' }}>{liveCostBreakdown.formattedTotalValue}</Text>
+            </View>
           </View>
         </GlassCard>
 

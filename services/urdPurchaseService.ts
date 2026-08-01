@@ -15,7 +15,7 @@ import { getDeviceId } from '../utils/deviceId';
 import { now } from '../utils/now';
 import * as Crypto from 'expo-crypto';
 import { firmRepository } from '../repositories/firmRepository';
-import { amountToWords, getCurrencySymbol } from '../utils/currency';
+import { amountToWords, getCurrencySymbol, computeURDFineWeightMg, computeURDTotalValuePaise } from '../utils/calculations';
 
 import { urdPrintService } from './urdPrintService';
 
@@ -85,8 +85,8 @@ export const urdPurchaseService = {
     if (input.paymentMode === 'CASH' && input.bankAccountId)
       throw new Error(ERR.URD_BANK_ACCOUNT_MUST_BE_NULL_FOR_CASH);
 
-    const fineWeightMg = Math.round(input.grossWeightMg * input.purityPercent / 100);
-    const totalValuePaise = Math.round((fineWeightMg / 1000) * input.ratePerGramPaise);
+    const fineWeightMg = computeURDFineWeightMg(input.grossWeightMg, input.purityPercent);
+    const totalValuePaise = computeURDTotalValuePaise(fineWeightMg, input.ratePerGramPaise);
 
     const fyId = await fyService.resolveTransactionFyId(firmId, input.purchaseDate);
     const deviceId = await getDeviceId();
@@ -140,9 +140,8 @@ export const urdPurchaseService = {
         deviceId,
         payload: JSON.stringify({
           urdId: urd.id, lotId: lot.id,
-          customerName: urd.customerName, customerId: urd.customerId,
-          grossWeightMg: input.grossWeightMg, purityPercent: input.purityPercent,
-          fineWeightMg, totalValuePaise,
+          status: urd.status,
+          createdAt: urd.createdAt,
         }),
       });
 
@@ -152,17 +151,17 @@ export const urdPurchaseService = {
 
   async updateURDPurchase(
     urdId: string,
-    firmId: string,
-    input: Partial<CreateURDPurchaseInput>
+    input: Partial<CreateURDPurchaseInput>,
+    firmId: string
   ): Promise<URDPurchase> {
     await leaseService.assertNoActiveLease();
     safeModeService.assertNotInSafeMode();
     const deviceId = await getDeviceId();
 
     return db.transaction((tx) => {
-      const urd = urdPurchaseRepository.getById(tx, firmId, urdId);
+      const urd = urdPurchaseRepository.getById(tx as any, firmId, urdId);
       if (!urd || urd.firmId !== firmId) throw new Error(ERR.URD_NOT_FOUND_OR_WRONG_FIRM);
-      if (urd.status !== 'DRAFT') throw new Error(ERR.URD_ALREADY_CONFIRMED);
+      if (urd.status !== 'CONFIRMED') throw new Error(ERR.URD_NOT_CONFIRMED);
 
       const customerName = input.customerName ?? urd.customerName;
       const grossWeightMg = input.grossWeightMg ?? urd.grossWeightMg;
@@ -176,8 +175,8 @@ export const urdPurchaseService = {
       if (purityPercent <= 0 || purityPercent > 100) throw new Error(ERR.URD_PURITY_PERCENT_INVALID);
       if (ratePerGramPaise <= 0) throw new Error(ERR.URD_RATE_INVALID);
 
-      const fineWeightMg = Math.round(grossWeightMg * purityPercent / 100);
-      const totalValuePaise = Math.round((fineWeightMg / 1000) * ratePerGramPaise);
+      const fineWeightMg = computeURDFineWeightMg(grossWeightMg, purityPercent);
+      const totalValuePaise = computeURDTotalValuePaise(fineWeightMg, ratePerGramPaise);
 
       if (urd.oldGoldLotId) {
         oldGoldLotRepository.insert(tx, {

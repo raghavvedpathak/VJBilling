@@ -312,8 +312,8 @@ export const firmService = {
         auditRepository.create(
           {
             firmId,
-            eventType: 'FIRM_UPDATED',
-            payload: JSON.stringify({ action: 'ARCHIVED' }),
+            eventType: 'FIRM_ARCHIVED',
+            payload: JSON.stringify({ archivedAt: now() }),
             deviceId,
           },
           tx
@@ -350,8 +350,8 @@ export const firmService = {
         auditRepository.create(
           {
             firmId,
-            eventType: 'FIRM_UPDATED',
-            payload: JSON.stringify({ action: 'UNARCHIVED' }),
+            eventType: 'FIRM_UNARCHIVED',
+            payload: JSON.stringify({ unarchivedAt: now() }),
             deviceId,
           },
           tx

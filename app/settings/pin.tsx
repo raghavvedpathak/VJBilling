@@ -155,17 +155,28 @@ export default function PinSettingsScreen() {
         subtitle = 'Verify your identity';
      }
 
-     return (
-       <TwoToneWrapper title={hasPin ? "Manage PIN" : "Setup PIN"} showBack>
-         <View className="flex-1 items-center justify-center px-8 pb-32">
-            <TouchableOpacity 
-              className="absolute top-4 right-4 p-2" 
-              onPress={resetFlow}
-            >
-               <X size={24} color="#5C1623" />
-            </TouchableOpacity>
+     const flowHeader = (
+       <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
+         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1 }}>
+           <View style={{ width: 44, height: 44, borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.15)', justifyContent: 'center', alignItems: 'center', borderWidth: 1.5, borderColor: 'rgba(212,175,55,0.4)' }}>
+             {isConfirmStep ? <CheckCircle2 size={22} color="#D4AF37" /> : <Lock size={22} color="#D4AF37" />}
+           </View>
+           <View style={{ flex: 1 }}>
+             <Text style={{ color: '#FCFBF8', fontSize: 20, fontWeight: '800' }}>{title}</Text>
+             <Text style={{ color: 'rgba(250,243,224,0.6)', fontSize: 11, fontWeight: '600' }}>{subtitle}</Text>
+           </View>
+         </View>
+         <TouchableOpacity onPress={resetFlow} style={{ padding: 8, backgroundColor: 'rgba(255,255,255,0.15)', borderRadius: 10, borderWidth: 1, borderColor: 'rgba(255,255,255,0.2)' }}>
+           <X size={18} color="#FCFBF8" />
+         </TouchableOpacity>
+       </View>
+     );
 
-            <View className="items-center mb-8">
+     return (
+       <TwoToneWrapper headerContent={flowHeader}>
+         <View className="flex-1 items-center justify-center px-8 pb-32">
+
+            <View className="items-center mb-8 mt-4">
               <View className="bg-white/50 p-4 rounded-full mb-4 border border-vj-text/10">
                 {isConfirmStep ? (
                   <CheckCircle2 size={48} color="#D4AF37" />
@@ -232,8 +243,20 @@ export default function PinSettingsScreen() {
      );
   }
 
+  const menuHeader = (
+    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+      <View style={{ width: 44, height: 44, borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.15)', justifyContent: 'center', alignItems: 'center', borderWidth: 1.5, borderColor: 'rgba(212,175,55,0.4)' }}>
+        <KeyRound size={22} color="#D4AF37" />
+      </View>
+      <View style={{ flex: 1 }}>
+        <Text style={{ color: '#FCFBF8', fontSize: 22, fontWeight: '800' }}>Security PIN</Text>
+        <Text style={{ color: 'rgba(250,243,224,0.6)', fontSize: 12, fontWeight: '600' }}>App Lock & Authentication</Text>
+      </View>
+    </View>
+  );
+
   return (
-    <TwoToneWrapper title="Security PIN" showBack>
+    <TwoToneWrapper showBack headerContent={menuHeader}>
       <ScrollView 
         showsVerticalScrollIndicator={false} 
         contentContainerStyle={{paddingBottom: 120, paddingTop: 32}}

@@ -18,9 +18,18 @@ import type { Design, Category, HsnCode, Stone } from '../../types/phase2.types'
 import { Package, Scale, Percent, MapPin, Calculator, Wallet, CheckCircle, RefreshCw } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { seedHsnCodes } from '../../db/seed';
-import { percentToKarat, resolveFineWeightMg, computeFineGoldChargedMg, computeEffectivePricePerGram } from '../../utils/purity.constants';
-import { formatSKUDisplay } from '../../utils/skuDisplay';
-import { getCurrencySymbol } from '../../utils/currency';
+import { 
+  percentToKarat, 
+  resolveFineWeightMg, 
+  computeFineGoldChargedMg, 
+  computeEffectivePricePerGram,
+  computeVaultTruthGrams,
+  computeCostTruthGrams,
+  computeAbsoluteTotalCostRupees,
+  rupeesToPaise,
+  formatSKUDisplay,
+  getCurrencySymbol 
+} from '../../utils/calculations';
 
 const COLORS = {
   vjText: '#5C1623',
@@ -126,14 +135,13 @@ export default function AddStockScreen() {
     const netWeightMg = Math.round(netWeightG * 1000);
     const metal = selectedDesign?.metal || 'GOLD';
     const { fineWeightMg } = resolveFineWeightMg(netWeightMg, p, metal);
-    const vaultTruth = fineWeightMg / 1000;
+    const vaultTruth = computeVaultTruthGrams(fineWeightMg);
 
     const fineGoldChargedMg = computeFineGoldChargedMg(netWeightMg, p, w);
-    const costTruth = fineGoldChargedMg !== null ? fineGoldChargedMg / 1000 : vaultTruth;
+    const costTruth = computeCostTruthGrams(fineGoldChargedMg, fineWeightMg);
     
     const effectivePricePerGram = computeEffectivePricePerGram(rate, p, w);
-    const totalGoldCost = netWeightG * effectivePricePerGram;
-    const absoluteTotalCost = totalGoldCost + making + stoneC;
+    const absoluteTotalCost = computeAbsoluteTotalCostRupees(netWeightG, effectivePricePerGram, making, stoneC);
 
     return {
       isValid: netWeightG > 0 && p > 0,
@@ -180,9 +188,9 @@ export default function AddStockScreen() {
     }
 
     const wPercent = parseFloat(wastagePercent) || 0;
-    const pRatePaise = purchaseRate ? Math.round(parseFloat(purchaseRate) * 100) : null;
-    const mChargePaise = makingCharge ? Math.round(parseFloat(makingCharge) * 100) : null;
-    const sCostPaise = stoneCost ? Math.round(parseFloat(stoneCost) * 100) : null;
+    const pRatePaise = rupeesToPaise(purchaseRate);
+    const mChargePaise = rupeesToPaise(makingCharge);
+    const sCostPaise = rupeesToPaise(stoneCost);
     const kVal = percentToKarat(purity) || 0; 
 
     try {

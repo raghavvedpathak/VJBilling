@@ -12,19 +12,26 @@ import { appSettingsStore } from '../../store/appSettingsStore';
 import { GlassCard } from '../../components/ui/Glass';
 import { inventoryDrillDownService } from '../../services/inventoryDrillDownService';
 import { itemService } from '../../services/itemService';
-import { getDisplayPurity, computeEffectivePricePerGram } from '../../utils/purity.constants';
-import { getCurrencySymbol } from '../../utils/currency';
-import { formatSKUDisplay } from '../../utils/skuDisplay';
+import {
+  getDisplayPurity,
+  computeEffectivePricePerGram,
+  computeVaultTruthGrams,
+  computeCostTruthGrams,
+  computeWastageGoldGrams,
+  computeAbsoluteTotalCostRupees,
+  getCurrencySymbol,
+  formatSKUDisplay,
+  formatWeightMg as formatWeight
+} from '../../utils/calculations';
 import { format, parseISO } from 'date-fns';
 import {
   Package, Tag, Scale, Gem, FileText,
   Clock, AlertTriangle, Info, AlertCircle,
-  Shield, MapPin, Calculator, Tag as TagIcon // or Pencil
+  Shield, MapPin, Calculator, Tag as TagIcon,
+  Trash2
 } from 'lucide-react-native';
 import type { ItemDetail, ItemTimelineEvent } from '../../types/phase2.types';
 import { TERMINAL_ITEM_STATUSES } from '../../types/phase2.types';
-
-const formatWeight = (mg: number): string => (mg / 1000).toFixed(3) + ' g';
 const formatCurrency = (paise: number | null): string => {
   if (paise === null || paise === undefined) return '—';
   return getCurrencySymbol() + (Math.round(paise) / 100).toFixed(2);
@@ -168,6 +175,37 @@ export default function ItemDetailScreen() {
   const [huidInput, setHuidInput] = useState('');
   const [addingHuid, setAddingHuid] = useState(false);
   const [correctingDate, setCorrectingDate] = useState(false);
+
+  // Delete Item State
+  const [isDeleteModalVisible, setDeleteModalVisible] = useState(false);
+  const [deleteReason, setDeleteReason] = useState('');
+  const [deleting, setDeleting] = useState(false);
+
+  const handleOpenDeleteModal = useCallback(() => {
+    setDeleteReason('');
+    setDeleteModalVisible(true);
+  }, []);
+
+  const handleDeleteItem = async () => {
+    if (!item || !activeFirmId) return;
+    const reasonTrimmed = deleteReason.trim();
+    if (!reasonTrimmed) {
+      Alert.alert('Reason Required', 'Please enter a reason for deleting this item.');
+      return;
+    }
+    setDeleting(true);
+    try {
+      await itemService.deleteItem(item.id, activeFirmId, reasonTrimmed);
+      setDeleteModalVisible(false);
+      Alert.alert('Success', 'Item deleted successfully.', [
+        { text: 'OK', onPress: () => router.back() }
+      ]);
+    } catch (e: any) {
+      Alert.alert('Error', e.message || 'Failed to delete item');
+    } finally {
+      setDeleting(false);
+    }
+  };
 
   const handleOpenDateModal = () => {
     const currentDate = item?.createdAt ? parseISO(item.createdAt) : new Date();
@@ -362,9 +400,9 @@ export default function ItemDetailScreen() {
   }
 
   // --- Live Cost Breakdown Calculations ---
-  const vaultTruth = item.fineWeightMg / 1000;
-  const costTruth = (item.fineGoldChargedMg ?? item.fineWeightMg) / 1000;
-  const wastageGold = costTruth - vaultTruth;
+  const vaultTruth = computeVaultTruthGrams(item.fineWeightMg);
+  const costTruth = computeCostTruthGrams(item.fineGoldChargedMg, item.fineWeightMg);
+  const wastageGold = computeWastageGoldGrams(costTruth, vaultTruth);
 
   const rate = item.purchaseRatePaise ? item.purchaseRatePaise / 100 : 0;
   const making = item.makingChargePaise ? item.makingChargePaise / 100 : 0;
@@ -372,18 +410,31 @@ export default function ItemDetailScreen() {
 
   const effectivePricePerGram = computeEffectivePricePerGram(rate, item.purityPercent, item.wastagePercent || 0);
   const hasCostData = rate > 0 || making > 0 || stoneC > 0;
-  const totalAmount = (costTruth * rate) + making + stoneC;
+  const totalAmount = computeAbsoluteTotalCostRupees(costTruth, rate, making, stoneC);
+
+  const canDelete = !TERMINAL_ITEM_STATUSES.includes(item.status);
 
   const headerContent = (
-    <View>
+    <View style={s.headerContainer}>
       <View style={s.headerTopRow}>
-        <View style={[s.headerMetalBadge, { borderColor: metalColor }]}>
-          <Gem size={22} color={metalColor} />
-        </View>
-        {isPhantom && (
-          <View style={s.headerPhantomBadge}>
-            <Text style={s.headerPhantomText}>PHANTOM</Text>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+          <View style={[s.headerMetalBadge, { borderColor: metalColor }]}>
+            <Gem size={22} color={metalColor} />
           </View>
+          {isPhantom && (
+            <View style={s.headerPhantomBadge}>
+              <Text style={s.headerPhantomText}>PHANTOM</Text>
+            </View>
+          )}
+        </View>
+        {canDelete && (
+          <TouchableOpacity 
+            activeOpacity={0.7} 
+            onPress={handleOpenDeleteModal}
+            style={s.deleteHeaderBtn}
+          >
+            <Trash2 size={20} color="#EF4444" />
+          </TouchableOpacity>
         )}
       </View>
       <Text style={s.headerSku} selectable>{formatSKUDisplay(item.sku)}</Text>
@@ -643,6 +694,37 @@ export default function ItemDetailScreen() {
           </View>
         </View>
       </Modal>
+
+      {/* Delete Item Modal */}
+      <Modal visible={isDeleteModalVisible} transparent animationType="fade">
+        <View style={s.modalOverlay}>
+          <View style={s.modalContent}>
+            <Text style={[s.modalTitle, { color: COLORS.error }]}>Delete Item</Text>
+            
+            <Text style={{ fontSize: 13, color: '#4B5563', marginBottom: 16 }}>
+              Are you sure you want to delete SKU <Text style={{ fontWeight: 'bold' }}>{formatSKUDisplay(item.sku)}</Text>? This action is permanent and will remove the item from inventory.
+            </Text>
+
+            <Text style={s.modalLabel}>Reason for Deletion *</Text>
+            <TextInput 
+              style={s.modalInput}
+              value={deleteReason}
+              onChangeText={setDeleteReason}
+              placeholder="e.g. Duplicate entry / Incorrect data"
+              editable={!deleting}
+            />
+
+            <View style={s.modalActions}>
+              <TouchableOpacity style={s.modalBtnSecondary} onPress={() => setDeleteModalVisible(false)} disabled={deleting}>
+                <Text style={s.modalBtnTextSecondary}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={[s.modalBtnPrimary, { backgroundColor: COLORS.error }]} onPress={handleDeleteItem} disabled={deleting}>
+                {deleting ? <ActivityIndicator color="#fff" /> : <Text style={s.modalBtnTextPrimary}>Delete</Text>}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </TwoToneWrapper>
   );
 }
@@ -655,7 +737,15 @@ const s = StyleSheet.create({
   emptyTitle: { color: 'rgba(92,22,35,0.5)', fontSize: 18, fontWeight: '700' },
 
   // --- Header ---
-  headerTopRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 12 },
+  headerContainer: { width: '100%' },
+  headerTopRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 },
+  deleteHeaderBtn: {
+    padding: 8,
+    backgroundColor: 'rgba(239, 68, 68, 0.15)',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(239, 68, 68, 0.3)',
+  },
   headerMetalBadge: {
     width: 48, height: 48, borderRadius: 14,
     backgroundColor: 'rgba(255,255,255,0.6)',

@@ -9,12 +9,12 @@ import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator } from 'rea
 import { FlashList } from '@shopify/flash-list';
 import { useRouter } from 'expo-router';
 import { useFocusEffect } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { TwoToneWrapper } from '../../components/TwoToneWrapper';
 import { useFirmStore } from '../../store/firmStore';
 import { inventoryDrillDownService } from '../../services/inventoryDrillDownService';
+import { formatWeightMg as formatWeight } from '../../utils/calculations';
 import { ChevronRight, Package, Layers, Plus } from 'lucide-react-native';
-
-const formatWeight = (mg: number): string => (mg / 1000).toFixed(3) + ' g';
 
 const COLORS = {
   vjText: '#5C1623',
@@ -65,6 +65,7 @@ const CategoryRow = memo(({ item, onPress }: CategoryRowProps) => {
 
 export default function DrillDownScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const { activeFirmId } = useFirmStore();
   const [data, setData] = useState<{ id: string; name: string; availableCount: number; totalNetWeightMg: number; lowStockThreshold: number | null }[]>([]);
   const [loading, setLoading] = useState(true);
@@ -143,7 +144,7 @@ export default function DrillDownScreen() {
         )}
       </View>
       <TouchableOpacity 
-        style={s.fab}
+        style={[s.fab, { bottom: Math.max(insets.bottom + 24, 64) }]}
         onPress={() => router.push('/inventory/add-stock')}
         activeOpacity={0.8}
       >

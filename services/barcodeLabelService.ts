@@ -7,12 +7,11 @@ import { itemRepository } from '../repositories/itemRepository';
 import { itemEventRepository } from '../repositories/itemEventRepository';
 import { auditRepository } from '../repositories/auditRepository';
 import { getDeviceId } from '../utils/deviceId';
-import { getDisplayPurity } from '../utils/purity.constants';
+import { getDisplayPurity, formatSKUDisplay, formatWeightMg } from '../utils/calculations';
 import { now } from '../utils/now';
 import * as Crypto from 'expo-crypto';
 import type { BarcodeLabel } from '../types/phase2.types';
 import { ERR } from '../constants/errorCodes';
-import { formatSKUDisplay } from '../utils/skuDisplay';
 
 export const barcodeLabelService = {
   // Read-only, safely async
@@ -27,8 +26,8 @@ export const barcodeLabelService = {
       frontSide: {
         designName: row.designName,
         purityDisplay: getDisplayPurity(row.purityPercent, row.purityKarat, row.metal),
-        grossWeightDisplay: (row.grossWeightMg / 1000).toFixed(3) + ' g',
-        netWeightDisplay: (row.netWeightMg / 1000).toFixed(3) + ' g',
+        grossWeightDisplay: formatWeightMg(row.grossWeightMg),
+        netWeightDisplay: formatWeightMg(row.netWeightMg),
       },
       backSide: {
         firmCode: firm.firmCode,

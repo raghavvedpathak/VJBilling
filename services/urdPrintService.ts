@@ -1,8 +1,33 @@
+import * as FileSystem from 'expo-file-system/legacy';
 import { db } from '../db/client';
 import { urdPurchaseRepository } from '../repositories/urdPurchaseRepository';
 import { firmRepository } from '../repositories/firmRepository';
+import { bisLogoRepository } from '../repositories/bisLogoRepository';
 import { ERR } from '../constants/errorCodes';
-import { amountToWords, getCurrencySymbol } from '../utils/currency';
+import { amountToWords, getCurrencySymbol, formatWeightMg } from '../utils/calculations';
+import { formatDate } from '../utils/formatDate';
+
+async function getBase64ImageUri(fileUri: string | null | undefined): Promise<string | null> {
+  if (!fileUri) return null;
+  if (fileUri.startsWith('data:image')) return fileUri;
+  try {
+    const info = await FileSystem.getInfoAsync(fileUri);
+    if (!info.exists) return null;
+    const base64 = await FileSystem.readAsStringAsync(fileUri, {
+      encoding: FileSystem.EncodingType.Base64,
+    });
+    let mimeType = 'image/jpeg';
+    const lower = fileUri.toLowerCase();
+    if (lower.endsWith('.png')) mimeType = 'image/png';
+    else if (lower.endsWith('.webp')) mimeType = 'image/webp';
+    else if (lower.endsWith('.svg')) mimeType = 'image/svg+xml';
+    
+    return `data:${mimeType};base64,${base64}`;
+  } catch (e) {
+    console.warn('[urdPrintService] Base64 image conversion failed:', e);
+    return fileUri;
+  }
+}
 
 export const urdPrintService = {
   /**
@@ -16,22 +41,27 @@ export const urdPrintService = {
     const firm = await firmRepository.getById(firmId);
     if (!firm) throw new Error(ERR.FIRM_NOT_FOUND);
 
+    const activeBisLogo = bisLogoRepository.findActiveByFirmId(firmId);
+    const bisLogoUri = await getBase64ImageUri(activeBisLogo?.fileRef);
+    const firmLogoUri = await getBase64ImageUri(firm.firmLogoRef);
+
     const symbol = getCurrencySymbol();
-    const grossGrams = (urd.grossWeightMg / 1000).toFixed(3);
-    const fineGrams = (urd.fineWeightMg / 1000).toFixed(3);
+    const grossGrams = formatWeightMg(urd.grossWeightMg);
+    const fineGrams = formatWeightMg(urd.fineWeightMg);
     const totalRupees = (urd.totalValuePaise / 100).toFixed(2);
     const rateRupees = (urd.ratePerGramPaise / 100).toFixed(2);
     const words = amountToWords(urd.totalValuePaise);
+    const formattedDate = formatDate(urd.purchaseDate);
 
     let idProofHtml = '';
     if (urd.customerAadhaar) {
       const masked = urd.customerAadhaar.length >= 4 
         ? 'XXXX-XXXX-' + urd.customerAadhaar.slice(-4) 
         : 'XXXX-XXXX-' + urd.customerAadhaar;
-      idProofHtml = `<div class="cust-row"><span class="cust-label">Aadhaar :</span><span class="cust-val">${masked}</span></div>`;
+      idProofHtml = `<div class="cust-row"><span class="cust-label">Aadhaar:</span><span class="cust-val">${masked}</span></div>`;
     }
     if (urd.customerPAN) {
-      idProofHtml += `<div class="cust-row"><span class="cust-label">PAN :</span><span class="cust-val">${urd.customerPAN}</span></div>`;
+      idProofHtml += `<div class="cust-row"><span class="cust-label">PAN:</span><span class="cust-val">${urd.customerPAN}</span></div>`;
     }
 
     const cashAmt = urd.paymentMode === 'CASH' ? totalRupees : '0.00';
@@ -127,6 +157,7 @@ export const urdPrintService = {
   }
   .cust-val {
     font-weight: 500;
+    padding-left: 4px;
   }
   table.items-table {
     width: 100%;
@@ -162,7 +193,7 @@ export const urdPrintService = {
     top: 48%;
     left: 50%;
     transform: translate(-50%, -50%);
-    opacity: 0.05;
+    opacity: 0.15;
     text-align: center;
     pointer-events: none;
     z-index: 1;
@@ -262,7 +293,16 @@ export const urdPrintService = {
 
     <!-- WATERMARK -->
     <div class="watermark">
-      <div class="watermark-circle">${firm.name.charAt(0)}</div>
+      ${firmLogoUri ? `
+        <img src="${firmLogoUri}" alt="Watermark Logo" style="max-width: 220px; max-height: 180px; object-fit: contain; display: block; margin: 0 auto 6px auto; opacity: 1;" />
+      ` : `
+        <svg width="180" height="180" viewBox="0 0 200 200" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <circle cx="100" cy="100" r="90" stroke="#8b2538" stroke-width="2" stroke-dasharray="4 4" fill="none"/>
+          <circle cx="100" cy="100" r="75" stroke="#8b2538" stroke-width="1.5" fill="none"/>
+          <circle cx="100" cy="100" r="45" stroke="#8b2538" stroke-width="2" fill="none"/>
+          <text x="100" y="118" font-size="52" fill="#8b2538" font-weight="bold" text-anchor="middle">${firm.name.charAt(0)}</text>
+        </svg>
+      `}
       <div class="watermark-text">${firm.name.toUpperCase()}</div>
     </div>
 
@@ -270,18 +310,18 @@ export const urdPrintService = {
     <div class="maroon-banner">
       <div class="banner-left">
         <div>Subject to ${firm.city || 'Local'} Jurisdiction</div>
-        <div>GSTIN ${firm.gstin || 'Unregistered'}</div>
+        ${firm.gstin ? `<div style="font-weight: bold; margin-top: 1px;">GSTIN ${firm.gstin}</div>` : ''}
+        ${bisLogoUri ? `<div style="margin-top: 4px;"><img src="${bisLogoUri}" alt="BIS Logo" style="max-height: 38px; max-width: 60px; object-fit: contain;" /></div>` : ''}
       </div>
       <div class="banner-center">
         <div class="voucher-title">URD PURCHASE BILL</div>
         <div class="firm-name-dev">${firm.name}</div>
-        <div class="firm-addr">${firm.addressLine1 || ''}, ${firm.city || ''}, ${firm.stateName || ''}</div>
+        <div class="firm-addr" style="color: #f7d273; font-size: 10px; font-weight: 500; margin-top: 2px;">${firm.addressLine1 || ''}, ${firm.city || ''}, ${firm.stateName || ''}</div>
       </div>
       <div class="banner-right">
-        <div>प्रोप्रा. ${firm.proprietor || firm.name}</div>
-        <div>Mo. ${firm.phone1}</div>
-        ${firm.phone2 ? `<div>${firm.phone2}</div>` : ''}
-        <div style="margin-top: 4px; font-weight: bold;">1/1</div>
+        <div style="font-weight: bold; font-size: 10.5px; color: #f7d273;">प्रोप्रा. ${firm.proprietor || firm.name}</div>
+        <div style="font-weight: 500;">Mo. ${firm.phone1}</div>
+        ${firm.phone2 ? `<div style="font-weight: 500;">${firm.phone2}</div>` : ''}
       </div>
     </div>
 
@@ -290,13 +330,12 @@ export const urdPrintService = {
       <div class="cust-left">
         <div class="cust-row"><span class="cust-label">Name:</span><span class="cust-val">${urd.customerName}</span></div>
         <div class="cust-row"><span class="cust-label">Address:</span><span class="cust-val">${urd.customerAddress || '-'}</span></div>
-        <div class="cust-row"><span class="cust-label">Mob :</span><span class="cust-val">${urd.customerMobile || '-'}</span></div>
+        <div class="cust-row"><span class="cust-label">Mob:</span><span class="cust-val">${urd.customerMobile || '-'}</span></div>
         ${idProofHtml}
       </div>
       <div class="cust-right">
-        <div class="cust-row"><span class="cust-label">Date :</span><span class="cust-val">${urd.purchaseDate}</span></div>
-        <div class="cust-row"><span class="cust-label">Voucher No. :</span><span class="cust-val">${urd.urdNumber || 'DRAFT'}</span></div>
-        <div class="cust-row"><span class="cust-label">GSTIN :</span><span class="cust-val">${urd.customerPAN || '-'}</span></div>
+        <div class="cust-row"><span class="cust-label" style="width: 80px;">Date:</span><span class="cust-val">${formattedDate}</span></div>
+        <div class="cust-row"><span class="cust-label" style="width: 80px;">Invoice No.:</span><span class="cust-val">${urd.urdNumber || 'DRAFT'}</span></div>
       </div>
     </div>
 
@@ -305,30 +344,24 @@ export const urdPrintService = {
       <thead>
         <tr>
           <th style="width: 4%;">#</th>
-          <th style="width: 28%;">Description</th>
+          <th style="width: 32%;">Description</th>
           <th style="width: 10%;">HSN</th>
-          <th style="width: 10%;">HUID</th>
-          <th style="width: 12%;">Net Wt (g)</th>
-          <th style="width: 12%;">Rate (${symbol})</th>
-          <th style="width: 10%;">Purity</th>
+          <th style="width: 14%;">Net Wt (g)</th>
+          <th style="width: 12%;">Purity</th>
+          <th style="width: 14%;">Rate (${symbol})</th>
           <th style="width: 14%;">Amount (${symbol})</th>
         </tr>
       </thead>
       <tbody>
         <tr>
           <td>1</td>
-          <td style="text-align: left; font-weight: 600;">OLD ${urd.metalType} ORNAMENT (${urd.purityPercent}%) - Fine: ${fineGrams}g</td>
+          <td style="text-align: left; font-weight: 600;">OLD ${urd.metalType} ORNAMENT - Fine: ${fineGrams}g</td>
           <td>7113</td>
-          <td>-</td>
           <td>${grossGrams}</td>
-          <td>${symbol}${rateRupees}</td>
           <td>${urd.purityPercent}%</td>
+          <td>${symbol}${rateRupees}</td>
           <td style="font-weight: bold;">${symbol}${totalRupees}</td>
         </tr>
-        <tr><td>&nbsp;</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
-        <tr><td>&nbsp;</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
-        <tr><td>&nbsp;</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
-        <tr><td>&nbsp;</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
       </tbody>
     </table>
 
@@ -337,10 +370,9 @@ export const urdPrintService = {
       <div class="summary-left">
         <table class="pay-table">
           <tr><td>CASH</td><td>${symbol}${cashAmt}</td></tr>
-          <tr><td>NEFT / BANK</td><td>${symbol}${bankAmt}</td></tr>
+          <tr><td>NEFT</td><td>${symbol}${bankAmt}</td></tr>
           <tr><td>CHEQUE</td><td>${symbol}${chequeAmt}</td></tr>
-          <tr><td>UPI / MOBILE</td><td>${symbol}${upiAmt}</td></tr>
-          <tr><td>OLD ORNA</td><td>${symbol}0.00</td></tr>
+          <tr><td>UPI/MOBILE</td><td>${symbol}${upiAmt}</td></tr>
         </table>
         <div class="words-row">
           Amt. In Words : <span style="font-weight: normal;">${words}</span>
@@ -352,19 +384,22 @@ export const urdPrintService = {
           <tr><td>GRAND TOTAL</td><td>${symbol}${totalRupees}</td></tr>
           <tr><td>Round Off</td><td>0.00</td></tr>
           <tr class="highlight-net"><td>NET AMOUNT</td><td>${symbol}${totalRupees}</td></tr>
-          <tr><td>AMT PAID</td><td>${symbol}${totalRupees}</td></tr>
+          <tr><td>AMT RECEIVED</td><td>${symbol}${totalRupees}</td></tr>
           <tr><td>BALANCE</td><td>${symbol}0.00</td></tr>
         </table>
       </div>
     </div>
 
     <!-- FOOTER SIGNATURES -->
-    <div class="footer-row">
-      <div>Customer Signature</div>
-      <div style="font-size: 11px; font-weight: bold;">! Thank You !</div>
-      <div style="text-align: right;">
+    <div class="footer-row" style="margin-top: 35px; padding-top: 10px;">
+      <div style="min-height: 45px; display: flex; flex-direction: column; justify-content: space-between;">
+        <div style="border-top: 1px dotted #000; width: 120px; margin-bottom: 4px;"></div>
+        <div>Customer Signature</div>
+      </div>
+      <div style="font-size: 11px; font-weight: bold; align-self: flex-end; margin-bottom: 4px;">! Thank You !</div>
+      <div style="min-height: 45px; display: flex; flex-direction: column; justify-content: space-between; text-align: right;">
         <div>तर्फे : ${firm.name}</div>
-        <div style="margin-top: 2px;">Authorised Signatory</div>
+        <div style="margin-top: 25px;">Authorised Signatory</div>
       </div>
     </div>
 
@@ -384,10 +419,14 @@ export const urdPrintService = {
     const firm = await firmRepository.getById(firmId);
     if (!firm) throw new Error(ERR.FIRM_NOT_FOUND);
 
+    const firmLogoUri = await getBase64ImageUri(firm.firmLogoRef);
+
     const symbol = getCurrencySymbol();
-    const grossGrams = (urd.grossWeightMg / 1000).toFixed(3);
-    const fineGrams = (urd.fineWeightMg / 1000).toFixed(3);
+    const grossGrams = formatWeightMg(urd.grossWeightMg);
+    const fineGrams = formatWeightMg(urd.fineWeightMg);
+    const ratePerGram = (urd.ratePerGramPaise / 100).toFixed(2);
     const totalRupees = (urd.totalValuePaise / 100).toFixed(2);
+    const formattedDate = formatDate(urd.purchaseDate);
 
     let idProofType = urd.customerAadhaar ? 'आधार कार्ड' : (urd.customerPAN ? 'पॅन कार्ड' : 'आधार / पॅन कार्ड');
     let idProofNumber = urd.customerAadhaar || urd.customerPAN || '-';
@@ -422,15 +461,36 @@ export const urdPrintService = {
     border: 1.5px solid #000;
     padding: 16px;
     box-sizing: border-box;
-    min-height: 275mm;
     position: relative;
+    overflow: hidden;
+  }
+  .watermark {
+    position: absolute;
+    top: 48%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    opacity: 0.15;
+    text-align: center;
+    pointer-events: none;
+    z-index: 1;
+  }
+  .watermark-text {
+    font-size: 18px;
+    font-weight: bold;
+    color: #8b2538;
+    letter-spacing: 2px;
   }
   .firm-box {
     border: 1.5px solid #000;
     border-radius: 6px;
     padding: 10px;
-    text-align: center;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 14px;
     margin-bottom: 12px;
+    position: relative;
+    z-index: 2;
   }
   .firm-title {
     font-size: 22px;
@@ -446,10 +506,14 @@ export const urdPrintService = {
     font-size: 14px;
     font-weight: bold;
     margin-bottom: 10px;
+    position: relative;
+    z-index: 2;
   }
   .center-header {
     text-align: center;
     margin-bottom: 10px;
+    position: relative;
+    z-index: 2;
   }
   .doc-sub {
     font-size: 13px;
@@ -470,11 +534,15 @@ export const urdPrintService = {
     font-size: 13px;
     margin-bottom: 8px;
     text-align: justify;
+    position: relative;
+    z-index: 2;
   }
   .field-row {
     font-size: 13.5px;
     margin-bottom: 6px;
     display: flex;
+    position: relative;
+    z-index: 2;
   }
   .field-label {
     font-weight: bold;
@@ -491,11 +559,14 @@ export const urdPrintService = {
     border-collapse: collapse;
     margin: 10px 0;
     font-size: 13px;
+    position: relative;
+    z-index: 2;
   }
   table.form-table th, table.form-table td {
     border: 1px solid #000;
     padding: 6px 8px;
     text-align: center;
+    background-color: rgba(255,255,255,0.85);
   }
   table.form-table th {
     background-color: #f9f9f9;
@@ -504,8 +575,10 @@ export const urdPrintService = {
     display: flex;
     justify-content: space-between;
     align-items: flex-end;
-    margin-top: 25px;
+    margin-top: 40px;
     font-size: 14px;
+    position: relative;
+    z-index: 2;
   }
   .witness-left {
     line-height: 1.8;
@@ -524,14 +597,27 @@ export const urdPrintService = {
   <!-- PAGE 1: भाग - १ -->
   <div class="page">
     <div class="border-box">
+      <!-- WATERMARK -->
+      <div class="watermark">
+        ${firmLogoUri ? `
+          <img src="${firmLogoUri}" alt="Watermark Logo" style="max-width: 240px; max-height: 200px; object-fit: contain; display: block; margin: 0 auto 6px auto; opacity: 1;" />
+        ` : `
+          <div style="font-size: 48px; font-weight: bold; color: #8b2538; opacity: 0.2;">${firm.name.charAt(0)}</div>
+        `}
+        <div class="watermark-text">${firm.name.toUpperCase()}</div>
+      </div>
+
       <div class="firm-box">
-        <div class="firm-title">${firm.name}</div>
-        <div class="firm-sub">${firm.addressLine1 || ''}, ${firm.city || ''}, ${firm.stateName || ''} | मो. ${firm.phone1}</div>
+        ${firmLogoUri ? `<img src="${firmLogoUri}" alt="Firm Logo" style="max-height: 50px; max-width: 85px; object-fit: contain;" />` : ''}
+        <div style="text-align: center;">
+          <div class="firm-title">${firm.name}</div>
+          <div class="firm-sub">${firm.addressLine1 || ''}, ${firm.city || ''}, ${firm.stateName || ''} | मो. ${firm.phone1}</div>
+        </div>
       </div>
 
       <div class="top-meta-row">
         <div>अनु.क्र. : <span style="border-bottom: 1px dotted #000; padding: 0 20px;">${urd.urdNumber || 'DRAFT'}</span></div>
-        <div>दिनांक : <span style="border-bottom: 1px dotted #000; padding: 0 20px;">${urd.purchaseDate}</span></div>
+        <div>दिनांक : <span style="border-bottom: 1px dotted #000; padding: 0 20px;">${formattedDate}</span></div>
       </div>
 
       <div class="center-header">
@@ -551,7 +637,7 @@ export const urdPrintService = {
         <b>३)</b> भविष्यामध्ये मी विकत असलेल्या खालील दागिन्यांमुळे सदर ज्वेलर्सवरती कोणत्याही प्रकारची कायदेशीर कारवाई झाली आणि आर्थिक नुकसान झाले तर नुकसान भरपाईसाठी सर्वस्वी मी व माझे कुटुंब जबाबदार असेल.
       </div>
 
-      <div style="margin-top: 10px;">
+      <div style="margin-top: 10px; position: relative; z-index: 2;">
         <div class="field-row"><span class="field-label">ग्राहकाचे नांव :</span> <span class="field-line">${urd.customerName}</span></div>
         <div class="field-row"><span class="field-label">पत्ता :</span> <span class="field-line">${urd.customerAddress || ''}</span></div>
         <div class="field-row"><span class="field-label">मोबाईल नंबर :</span> <span class="field-line">${urd.customerMobile || ''}</span></div>
@@ -561,13 +647,14 @@ export const urdPrintService = {
         <div class="field-row"><span class="field-label">खरेदी पावती नसल्याचे कारण :</span> <span class="field-line">जुने कौटुंबिक दागिने</span></div>
       </div>
 
-      <div style="text-align: center; font-weight: bold; font-size: 14px; margin-top: 12px;">✽ दागिन्यांचे वर्णन ✽</div>
+      <div style="text-align: center; font-weight: bold; font-size: 14px; margin-top: 12px; position: relative; z-index: 2;">✽ दागिन्यांचे वर्णन ✽</div>
       <table class="form-table">
         <thead>
           <tr>
             <th style="width: 10%;">अ.क्र.</th>
             <th>दागिन्यांचे वर्णन</th>
-            <th style="width: 25%;">ग्रॅम</th>
+            <th style="width: 20%;">वजन (ग्रॅम)</th>
+            <th style="width: 20%;">दर (प्रति ग्रॅम)</th>
           </tr>
         </thead>
         <tbody>
@@ -575,10 +662,8 @@ export const urdPrintService = {
             <td>१</td>
             <td style="text-align: left;">जुने ${urd.metalType === 'GOLD' ? 'सोने' : 'चांदी'} दागिने (${urd.purityPercent}% शुद्धता)</td>
             <td>${grossGrams} g</td>
+            <td>${symbol}${ratePerGram} /g</td>
           </tr>
-          <tr><td>२</td><td></td><td></td></tr>
-          <tr><td>३</td><td></td><td></td></tr>
-          <tr><td>४</td><td></td><td></td></tr>
         </tbody>
       </table>
 
@@ -599,13 +684,23 @@ export const urdPrintService = {
   <!-- PAGE 2: भाग - २ -->
   <div class="page page-break">
     <div class="border-box">
+      <!-- WATERMARK -->
+      <div class="watermark">
+        ${firmLogoUri ? `
+          <img src="${firmLogoUri}" alt="Watermark Logo" style="max-width: 240px; max-height: 200px; object-fit: contain; display: block; margin: 0 auto 6px auto; opacity: 1;" />
+        ` : `
+          <div style="font-size: 48px; font-weight: bold; color: #8b2538; opacity: 0.2;">${firm.name.charAt(0)}</div>
+        `}
+        <div class="watermark-text">${firm.name.toUpperCase()}</div>
+      </div>
+
       <div class="center-header" style="margin-bottom: 12px;">
         <div class="part-tag" style="font-size: 18px;">भाग - २</div>
         <div class="part-sub">(ज्वेलर्सच्या वतीने भरावयाची माहिती)</div>
       </div>
 
       <div class="field-row" style="margin-bottom: 12px;">
-        <span class="field-label">जुने दागिने खरेदी पावती क्रमांक :</span> <span class="field-line"><b>${urd.urdNumber || 'DRAFT'}</b> (दिनांक : ${urd.purchaseDate})</span>
+        <span class="field-label">जुने दागिने खरेदी पावती क्रमांक :</span> <span class="field-line"><b>${urd.urdNumber || 'DRAFT'}</b> (दिनांक : ${formattedDate})</span>
       </div>
 
       <table class="form-table">
@@ -613,8 +708,9 @@ export const urdPrintService = {
           <tr>
             <th style="width: 8%;">अ.क्र.</th>
             <th>दागिन्यांचे वर्णन</th>
-            <th style="width: 18%;">ढोबळ वजन (ग्रॅम)</th>
-            <th style="width: 18%;">निव्वळ वजन (ग्रॅम)</th>
+            <th style="width: 16%;">ढोबळ (g)</th>
+            <th style="width: 16%;">निव्वळ (g)</th>
+            <th style="width: 18%;">दर / ग्रॅम</th>
             <th style="width: 20%;">किंमत</th>
           </tr>
         </thead>
@@ -624,26 +720,18 @@ export const urdPrintService = {
             <td style="text-align: left;">जुने ${urd.metalType === 'GOLD' ? 'सोने' : 'चांदी'} (${urd.purityPercent}%)</td>
             <td>${grossGrams}</td>
             <td>${fineGrams}</td>
+            <td>${symbol}${ratePerGram}</td>
             <td>${symbol}${totalRupees}</td>
           </tr>
-          <tr><td>२</td><td></td><td></td><td></td><td></td></tr>
-          <tr><td>३</td><td></td><td></td><td></td><td></td></tr>
           <tr>
             <td colspan="2" style="text-align: right; font-weight: bold;">एकूण ग्रॅम</td>
             <td style="font-weight: bold;">${grossGrams} g</td>
             <td style="font-weight: bold;">${fineGrams} g</td>
             <td></td>
+            <td></td>
           </tr>
           <tr>
-            <td colspan="4" style="text-align: right; font-weight: bold;">एकूण किंमत</td>
-            <td style="font-weight: bold;">${symbol}${totalRupees}</td>
-          </tr>
-          <tr>
-            <td colspan="4" style="text-align: right; font-weight: bold;">वजा - तूट</td>
-            <td>-</td>
-          </tr>
-          <tr>
-            <td colspan="4" style="text-align: right; font-weight: bold;">एकूण खरेदी किंमत</td>
+            <td colspan="5" style="text-align: right; font-weight: bold;">एकूण खरेदी किंमत</td>
             <td style="font-weight: bold; font-size: 15px;">${symbol}${totalRupees}</td>
           </tr>
         </tbody>
@@ -659,7 +747,7 @@ export const urdPrintService = {
         <div class="field-row"><b>ज्वेलर्सच्या वतीने दागिने तपासलेल्या व्यक्तीकडून व्यवहाराचा भरावयाचा तपशील :</b></div>
         <div class="field-row" style="margin-top: 6px;"><span class="field-label">तपासणी केलेल्या व्यक्तीचे नांव :</span> <span class="field-line">${firm.proprietor || firm.name}</span></div>
         <div class="field-row"><span class="field-label">स्वाक्षरी :</span> <span class="field-line"></span></div>
-        <div class="field-row"><span class="field-label">तारीख :</span> <span class="field-line">${urd.purchaseDate}</span> <span class="field-label" style="margin-left: 20px;">वेळ :</span> <span class="field-line"></span></div>
+        <div class="field-row"><span class="field-label">तारीख :</span> <span class="field-line">${formattedDate}</span> <span class="field-label" style="margin-left: 20px;">वेळ :</span> <span class="field-line"></span></div>
         <div class="field-row"><span class="field-label">खरेदी केलेल्या दागिन्यांच्या पेमेंटचा तपशील :</span> <span class="field-line">${urd.paymentMode}</span></div>
         <div class="field-row"><span class="field-label">चेकने पेमेंट केल्यास चेक क्रमांक :</span> <span class="field-line">${urd.bankAccountId || ''}</span></div>
       </div>
@@ -672,7 +760,7 @@ export const urdPrintService = {
           भाग-२ मध्ये केलेल्या आमच्या सर्व दागिन्यांचे व्हॅल्युएशन आम्हाला मान्य असून त्याबाबत कोणतीही तक्रार नाही. व्यवहारानुसार आम्हाला आमच्या दागिन्यांची पूर्ण रक्कम मिळाली आहे आणि ती आम्हाला मान्य आहे.
         </div>
         <div style="text-align: right; font-size: 13px; font-weight: bold; margin-top: 8px;">
-          दिनांक : <span style="border-bottom: 1px dotted #000; padding: 0 15px;">${urd.purchaseDate}</span>
+          दिनांक : <span style="border-bottom: 1px dotted #000; padding: 0 15px;">${formattedDate}</span>
         </div>
       </div>
 

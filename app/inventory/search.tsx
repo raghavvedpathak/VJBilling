@@ -5,6 +5,7 @@ import { FlashList } from '@shopify/flash-list';
 import { useRouter } from 'expo-router';
 import { Search, ArrowLeft, PackageSearch, Ghost, Hash } from 'lucide-react-native';
 import { inventorySearchService } from '../../services/inventorySearchService';
+import { formatWeightMg as formatWeight } from '../../utils/calculations';
 import type { ItemSearchResult } from '../../types/phase2.types';
 
 import { useFirmStore } from '../../store/firmStore';
@@ -53,7 +54,6 @@ const SearchResultRow = memo(({ item, query, onPress }: SearchResultRowProps) =>
   const isGold = item.metal === 'GOLD';
   const isPhantom = item.status === 'PHANTOM_AVAILABLE';
   const activeQuery = query.trim();
-  const formatWeight = (mg?: number) => ((mg || 0) / 1000).toFixed(3) + ' g';
 
   return (
     <TouchableOpacity 

@@ -12,7 +12,7 @@ import { leaseService } from './leaseService';
 import { safeModeService } from './safeModeService';
 import { getDeviceId } from '../utils/deviceId';
 import { now } from '../utils/now';
-import { resolveFineWeightMg } from '../utils/purity.constants';
+import { resolveFineWeightMg, computeFineGoldChargedMg, computeEffectivePricePerGram, computeEstTotalCostPaise } from '../utils/calculations';
 import * as Crypto from 'expo-crypto';
 import { ERR } from '../constants/errorCodes';
 import type { CreatePhantomItemInput, Item, CreateItemInput, UpdateableItemDraftFields, StockStatus, MetalSource } from '../types/phase2.types';

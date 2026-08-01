@@ -7,7 +7,7 @@ import { View, Text, StyleSheet } from 'react-native';
 import { GlassCard } from './ui/Glass';
 import { useFocusEffect } from 'expo-router';
 import { itemRepository } from '../repositories/itemRepository';
-import { getCurrencySymbol } from '../utils/currency';
+import { getCurrencySymbol } from '../utils/calculations';
 import { Scale, AlertCircle, Wallet, TrendingUp } from 'lucide-react-native';
 
 const COLORS = {

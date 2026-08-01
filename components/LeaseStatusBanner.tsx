@@ -103,41 +103,33 @@ export function LeaseStatusBanner() {
 
   if (leaseState.status === 'CHECKING') {
     return (
-      <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.4)', padding: 10, borderRadius: 12, borderWidth: 1, borderColor: 'rgba(255,255,255,0.5)', marginBottom: 8 }}>
-        <ActivityIndicator size="small" color="#9ca3af" style={{ marginRight: 8 }} />
-        <Text style={{ color: 'rgba(92,22,35,0.6)', fontWeight: '700', fontSize: 12, textTransform: 'uppercase', letterSpacing: 0.5 }}>Synchronizing State...</Text>
+      <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.08)', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, borderWidth: 1, borderColor: 'rgba(255,255,255,0.12)', alignSelf: 'flex-start', marginBottom: 8 }}>
+        <ActivityIndicator size="small" color="#F7D273" style={{ marginRight: 6 }} />
+        <Text style={{ color: '#FCFBF8', fontWeight: '600', fontSize: 11 }}>Checking lease...</Text>
       </View>
     );
   }
 
   if (leaseState.status === 'ACTIVE') {
     return (
-      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: 'rgba(239,68,68,0.1)', padding: 12, borderRadius: 12, borderWidth: 1, borderColor: 'rgba(239,68,68,0.3)', marginBottom: 8 }}>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-          <Animated.View style={{ opacity: pulseAnim }}>
-            <View style={{ backgroundColor: '#fff', padding: 6, borderRadius: 9999 }}>
-              <Lock size={14} color="#ef4444" />
-            </View>
-          </Animated.View>
-          <Text style={{ color: '#ef4444', fontWeight: '900', fontSize: 11, textTransform: 'uppercase', letterSpacing: 1 }}>
-            {leaseState.leaseType} ACTIVE
+      <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(239,68,68,0.15)', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, borderWidth: 1, borderColor: 'rgba(239,68,68,0.3)', alignSelf: 'flex-start', marginBottom: 8 }}>
+        <Animated.View style={{ opacity: pulseAnim, flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+          <Lock size={13} color="#EF4444" />
+          <Text style={{ color: '#FCA5A5', fontWeight: '700', fontSize: 11, textTransform: 'uppercase' }}>
+            {leaseState.leaseType} Locked ({formatElapsed(leaseState.elapsedSeconds)})
           </Text>
-        </View>
-        <View style={{ backgroundColor: '#fff', paddingHorizontal: 12, paddingVertical: 4, borderRadius: 9999, borderWidth: 1, borderColor: 'rgba(239,68,68,0.2)' }}>
-          <Text style={{ color: '#ef4444', fontSize: 12, fontWeight: '900', letterSpacing: 1 }}>
-            {formatElapsed(leaseState.elapsedSeconds)}
-          </Text>
-        </View>
+        </Animated.View>
       </View>
     );
   }
 
   return (
-    <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(21,128,61,0.1)', padding: 10, borderRadius: 12, borderWidth: 1, borderColor: 'rgba(21,128,61,0.2)', marginBottom: 8 }}>
-      <View style={{ backgroundColor: '#fff', padding: 4, borderRadius: 9999, marginRight: 8, borderWidth: 1, borderColor: 'rgba(21,128,61,0.1)' }}>
-        <ShieldCheck size={14} color="#15803d" />
-      </View>
-      <Text style={{ color: '#15803d', fontWeight: '900', fontSize: 11, textTransform: 'uppercase', letterSpacing: 1 }}>System Secure & Free</Text>
+    <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(16,185,129,0.12)', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, borderWidth: 1, borderColor: 'rgba(16,185,129,0.25)', alignSelf: 'flex-start', marginBottom: 8, gap: 6 }}>
+      <View style={{ width: 7, height: 7, borderRadius: 3.5, backgroundColor: '#10B981' }} />
+      <ShieldCheck size={13} color="#10B981" />
+      <Text style={{ color: '#E2E8F0', fontWeight: '600', fontSize: 11, letterSpacing: 0.3 }}>
+        System Ready • Secure
+      </Text>
     </View>
   );
 }

@@ -8,7 +8,7 @@ import { leaseService } from './leaseService';
 import { safeModeService } from './safeModeService';
 import { getDeviceId } from '../utils/deviceId';
 import { now } from '../utils/now';
-import { resolveFineWeightMg } from '../utils/purity.constants';
+import { resolveFineWeightMg } from '../utils/calculations';
 import * as Crypto from 'expo-crypto';
 
 export const oldGoldLotService = {

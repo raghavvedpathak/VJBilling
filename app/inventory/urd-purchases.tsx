@@ -1,18 +1,20 @@
 // app/inventory/urd-purchases.tsx
 import React, { useState, useCallback } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Alert, Modal, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Alert, Modal, ScrollView, Image } from 'react-native';
 import { FlashList } from '@shopify/flash-list';
 import { useRouter } from 'expo-router';
 import { useFocusEffect } from 'expo-router';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { TwoToneWrapper } from '../../components/TwoToneWrapper';
 import { GlassCard, GlassButton } from '../../components/ui/Glass';
 import { useFirmStore } from '../../store/firmStore';
 import { urdPurchaseRepository } from '../../repositories/urdPurchaseRepository';
 import { firmRepository } from '../../repositories/firmRepository';
 import { urdPurchaseService } from '../../services/urdPurchaseService';
-import { amountToWords, getCurrencySymbol } from '../../utils/currency';
+import { amountToWords, getCurrencySymbol, formatWeightMg as formatWeight } from '../../utils/calculations';
+import { formatDate } from '../../utils/formatDate';
 import { FileDown, Plus, Scale, Banknote, ShieldAlert, CheckCircle, Printer, Trash2, Eye, X, Share2 } from 'lucide-react-native';
 import type { URDPurchase } from '../../types/phase2.types';
 import type { Firm } from '../../types/firm';
@@ -30,11 +32,11 @@ const COLORS = {
   danger: '#EF4444',
 };
 
-const formatWeight = (mg: number) => (mg / 1000).toFixed(3) + ' g';
 const formatCurrency = (paise: number) => getCurrencySymbol() + (paise / 100).toFixed(2);
 
 export default function URDPurchasesScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const { activeFirmId } = useFirmStore();
   const [data, setData] = useState<URDPurchase[]>([]);
   const [firm, setFirm] = useState<Firm | null>(null);
@@ -258,7 +260,7 @@ export default function URDPurchasesScreen() {
             data={data}
             renderItem={renderItem}
             estimatedItemSize={180}
-            contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 100 }}
+            contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 160 }}
             ListEmptyComponent={
               <View style={s.emptyContainer}>
                 <FileDown size={48} color="rgba(92,22,35,0.2)" />
@@ -272,7 +274,7 @@ export default function URDPurchasesScreen() {
 
       {/* FAB */}
       <TouchableOpacity
-        style={s.fab}
+        style={[s.fab, { bottom: Math.max(insets.bottom + 24, 64) }]}
         onPress={() => router.push('/inventory/add-urd')}
         activeOpacity={0.85}
       >
@@ -312,21 +314,35 @@ export default function URDPurchasesScreen() {
           <ScrollView style={s.previewBody} contentContainerStyle={s.previewContent}>
             {selectedUrd && docType === 'BILL' && (
               <View style={s.billPreviewPaper}>
+                {/* WATERMARK OVERLAY */}
+                <View style={s.previewWatermarkContainer} pointerEvents="none">
+                  {firm?.firmLogoRef ? (
+                    <Image source={{ uri: firm.firmLogoRef }} style={{ width: 120, height: 80, resizeMode: 'contain', opacity: 0.15, marginBottom: 4 }} />
+                  ) : (
+                    <View style={s.previewWatermarkCircle}>
+                      <Text style={s.previewWatermarkInitial}>{firmTitleDisplay.charAt(0)}</Text>
+                    </View>
+                  )}
+                  <Text style={s.previewWatermarkText}>{firmTitleDisplay.toUpperCase()}</Text>
+                </View>
+
                 {/* MAROON BANNER HEADER */}
                 <View style={s.billMaroonHeader}>
                   <View style={{ flex: 1 }}>
                     <Text style={{ fontSize: 8, color: '#fff' }}>Subject to {firm?.city || 'Local'} Jurisdiction</Text>
-                    <Text style={{ fontSize: 8, color: '#fff' }}>GSTIN {firm?.gstin || 'Unregistered'}</Text>
+                    {firm?.gstin ? <Text style={{ fontSize: 8, color: '#fff', fontWeight: 'bold' }}>GSTIN {firm.gstin}</Text> : null}
                   </View>
                   <View style={{ flex: 2, alignItems: 'center' }}>
                     <Text style={{ fontSize: 10, color: '#F7D273', fontWeight: 'bold' }}>URD PURCHASE BILL</Text>
                     <Text style={{ fontSize: 18, color: '#fff', fontWeight: 'bold' }}>{firmTitleDisplay}</Text>
-                    <Text style={{ fontSize: 8, color: '#fff' }}>{firmAddressDisplay}</Text>
+                    <Text style={{ fontSize: 8.5, color: '#F7D273', fontWeight: '600', marginTop: 1 }}>{firmAddressDisplay}</Text>
                   </View>
                   <View style={{ flex: 1, alignItems: 'flex-end' }}>
-                    <Text style={{ fontSize: 8, color: '#fff' }}>प्रोप्रा. {firm?.proprietor || firmTitleDisplay}</Text>
+                    {firm?.bisLicence ? (
+                      <Text style={{ fontSize: 8, color: '#F7D273', fontWeight: 'bold', marginBottom: 2 }}>BIS: {firm.bisLicence}</Text>
+                    ) : null}
+                    <Text style={{ fontSize: 8.5, color: '#F7D273', fontWeight: 'bold' }}>प्रोप्रा. {firm?.proprietor || firmTitleDisplay}</Text>
                     <Text style={{ fontSize: 8, color: '#fff' }}>Mo. {firmPhoneDisplay}</Text>
-                    <Text style={{ fontSize: 8, color: '#fff', fontWeight: 'bold', marginTop: 2 }}>1/1</Text>
                   </View>
                 </View>
 
@@ -340,9 +356,8 @@ export default function URDPurchasesScreen() {
                     {selectedUrd.customerPAN && <Text style={s.billCustRow}><Text style={{ fontWeight: 'bold' }}>PAN: </Text>{selectedUrd.customerPAN}</Text>}
                   </View>
                   <View style={{ flex: 1, alignItems: 'flex-end' }}>
-                    <Text style={s.billCustRow}><Text style={{ fontWeight: 'bold' }}>Date: </Text>{selectedUrd.purchaseDate}</Text>
-                    <Text style={s.billCustRow}><Text style={{ fontWeight: 'bold' }}>Voucher No: </Text>{selectedUrd.urdNumber || 'DRAFT'}</Text>
-                    <Text style={s.billCustRow}><Text style={{ fontWeight: 'bold' }}>GSTIN: </Text>{selectedUrd.customerPAN || '-'}</Text>
+                    <Text style={s.billCustRow}><Text style={{ fontWeight: 'bold' }}>Date: </Text>{formatDate(selectedUrd.purchaseDate)}</Text>
+                    <Text style={s.billCustRow}><Text style={{ fontWeight: 'bold' }}>Invoice No: </Text>{selectedUrd.urdNumber || 'DRAFT'}</Text>
                   </View>
                 </View>
 
@@ -352,73 +367,85 @@ export default function URDPurchasesScreen() {
                     <Text style={[s.billTh, { flex: 1, textAlign: 'center' }]}>#</Text>
                     <Text style={[s.billTh, { flex: 4, textAlign: 'center' }]}>Description</Text>
                     <Text style={[s.billTh, { flex: 2, textAlign: 'center' }]}>HSN</Text>
-                    <Text style={[s.billTh, { flex: 2, textAlign: 'center' }]}>HUID</Text>
                     <Text style={[s.billTh, { flex: 2, textAlign: 'center' }]}>Net Wt</Text>
-                    <Text style={[s.billTh, { flex: 2, textAlign: 'center' }]}>Rate</Text>
                     <Text style={[s.billTh, { flex: 2, textAlign: 'center' }]}>Purity</Text>
+                    <Text style={[s.billTh, { flex: 2, textAlign: 'center' }]}>Rate/g</Text>
                     <Text style={[s.billTh, { flex: 3, textAlign: 'center' }]}>Amount</Text>
                   </View>
                   <View style={s.billTableRow}>
                     <Text style={[s.billTd, { flex: 1, textAlign: 'center' }]}>1</Text>
-                    <Text style={[s.billTd, { flex: 4, textAlign: 'left', fontWeight: 'bold' }]}>OLD {selectedUrd.metalType} ORNAMENT ({selectedUrd.purityPercent}%)</Text>
+                    <Text style={[s.billTd, { flex: 4, textAlign: 'left', fontWeight: 'bold' }]}>OLD {selectedUrd.metalType} ORNAMENT</Text>
                     <Text style={[s.billTd, { flex: 2, textAlign: 'center' }]}>7113</Text>
-                    <Text style={[s.billTd, { flex: 2, textAlign: 'center' }]}>-</Text>
                     <Text style={[s.billTd, { flex: 2, textAlign: 'center' }]}>{formatWeight(selectedUrd.grossWeightMg)}</Text>
-                    <Text style={[s.billTd, { flex: 2, textAlign: 'center' }]}>{formatCurrency(selectedUrd.ratePerGramPaise)}</Text>
                     <Text style={[s.billTd, { flex: 2, textAlign: 'center' }]}>{selectedUrd.purityPercent}%</Text>
+                    <Text style={[s.billTd, { flex: 2, textAlign: 'center' }]}>{formatCurrency(selectedUrd.ratePerGramPaise)}</Text>
                     <Text style={[s.billTd, { flex: 3, textAlign: 'center', fontWeight: 'bold' }]}>{formatCurrency(selectedUrd.totalValuePaise)}</Text>
                   </View>
-                  {[2, 3, 4].map((i) => (
-                    <View key={i} style={s.billTableRow}>
-                      <Text style={[s.billTd, { flex: 1, textAlign: 'center' }]}>{i}</Text>
-                      <Text style={[s.billTd, { flex: 4 }]}></Text>
-                      <Text style={[s.billTd, { flex: 2 }]}></Text>
-                      <Text style={[s.billTd, { flex: 2 }]}></Text>
-                      <Text style={[s.billTd, { flex: 2 }]}></Text>
-                      <Text style={[s.billTd, { flex: 2 }]}></Text>
-                      <Text style={[s.billTd, { flex: 2 }]}></Text>
-                      <Text style={[s.billTd, { flex: 3 }]}></Text>
-                    </View>
-                  ))}
                 </View>
 
                 {/* SUMMARY & TOTALS */}
                 <View style={s.billSummaryGrid}>
                   <View style={s.billPayCol}>
-                    <View style={s.billPayRow}><Text style={{ fontWeight: 'bold' }}>PAYMENT MODE</Text><Text style={{ fontWeight: 'bold' }}>{selectedUrd.paymentMode}</Text></View>
-                    <View style={s.billPayRow}><Text style={{ fontWeight: 'bold' }}>AMOUNT PAID</Text><Text style={{ fontWeight: 'bold' }}>{formatCurrency(selectedUrd.totalValuePaise)}</Text></View>
-                    <View style={{ marginTop: 6 }}><Text style={{ fontSize: 10, fontWeight: 'bold' }}>Amt In Words: <Text style={{ fontWeight: 'normal' }}>{amountToWords(selectedUrd.totalValuePaise)}</Text></Text></View>
+                    <View style={s.billPayRow}><Text style={{ fontWeight: 'bold', fontSize: 10 }}>CASH</Text><Text style={{ fontWeight: 'bold', fontSize: 10 }}>{selectedUrd.paymentMode === 'CASH' ? formatCurrency(selectedUrd.totalValuePaise) : '₹0.00'}</Text></View>
+                    <View style={s.billPayRow}><Text style={{ fontWeight: 'bold', fontSize: 10 }}>NEFT</Text><Text style={{ fontWeight: 'bold', fontSize: 10 }}>{selectedUrd.paymentMode === 'BANK_TRANSFER' || selectedUrd.paymentMode === 'NEFT' ? formatCurrency(selectedUrd.totalValuePaise) : '₹0.00'}</Text></View>
+                    <View style={s.billPayRow}><Text style={{ fontWeight: 'bold', fontSize: 10 }}>CHEQUE</Text><Text style={{ fontWeight: 'bold', fontSize: 10 }}>{selectedUrd.paymentMode === 'CHEQUE' ? formatCurrency(selectedUrd.totalValuePaise) : '₹0.00'}</Text></View>
+                    <View style={s.billPayRow}><Text style={{ fontWeight: 'bold', fontSize: 10 }}>UPI/MOBILE</Text><Text style={{ fontWeight: 'bold', fontSize: 10 }}>{selectedUrd.paymentMode === 'UPI' ? formatCurrency(selectedUrd.totalValuePaise) : '₹0.00'}</Text></View>
+                    <View style={{ marginTop: 6, paddingTop: 4, borderTopWidth: 1, borderTopColor: '#000' }}><Text style={{ fontSize: 9, fontWeight: 'bold' }}>Amt In Words: <Text style={{ fontWeight: 'normal' }}>{amountToWords(selectedUrd.totalValuePaise)}</Text></Text></View>
                   </View>
                   <View style={s.billTotalsCol}>
-                    <View style={s.billTotalRow}><Text style={{ fontWeight: 'bold' }}>NET TOTAL</Text><Text style={{ fontWeight: 'bold' }}>{formatCurrency(selectedUrd.totalValuePaise)}</Text></View>
-                    <View style={s.billTotalRow}><Text style={{ fontWeight: 'bold' }}>GRAND TOTAL</Text><Text style={{ fontWeight: 'bold' }}>{formatCurrency(selectedUrd.totalValuePaise)}</Text></View>
+                    <View style={s.billTotalRow}><Text style={{ fontWeight: 'bold', fontSize: 10 }}>NET TOTAL</Text><Text style={{ fontWeight: 'bold', fontSize: 10 }}>{formatCurrency(selectedUrd.totalValuePaise)}</Text></View>
+                    <View style={s.billTotalRow}><Text style={{ fontWeight: 'bold', fontSize: 10 }}>GRAND TOTAL</Text><Text style={{ fontWeight: 'bold', fontSize: 10 }}>{formatCurrency(selectedUrd.totalValuePaise)}</Text></View>
+                    <View style={s.billTotalRow}><Text style={{ fontWeight: 'bold', fontSize: 10 }}>Round Off</Text><Text style={{ fontWeight: 'bold', fontSize: 10 }}>0.00</Text></View>
+                    <View style={[s.billTotalRow, { backgroundColor: '#F9FAFB' }]}><Text style={{ fontWeight: 'bold', fontSize: 10 }}>NET AMOUNT</Text><Text style={{ fontWeight: 'bold', fontSize: 10 }}>{formatCurrency(selectedUrd.totalValuePaise)}</Text></View>
+                    <View style={s.billTotalRow}><Text style={{ fontWeight: 'bold', fontSize: 10 }}>AMT RECEIVED</Text><Text style={{ fontWeight: 'bold', fontSize: 10 }}>{formatCurrency(selectedUrd.totalValuePaise)}</Text></View>
+                    <View style={s.billTotalRow}><Text style={{ fontWeight: 'bold', fontSize: 10 }}>BALANCE</Text><Text style={{ fontWeight: 'bold', fontSize: 10 }}>₹0.00</Text></View>
                   </View>
                 </View>
 
                 {/* SIGNATURES */}
-                <View style={s.billFooterRow}>
-                  <Text style={{ fontWeight: 'bold', fontSize: 11 }}>Customer Signature</Text>
-                  <Text style={{ fontWeight: 'bold', fontSize: 11, color: COLORS.vjText }}>! Thank You !</Text>
-                  <View style={{ alignItems: 'flex-end' }}>
+                <View style={[s.billFooterRow, { marginTop: 24, paddingTop: 12 }]}>
+                  <View style={{ minHeight: 40, justifyContent: 'space-between' }}>
+                    <View style={{ borderTopWidth: 1, borderTopColor: '#000', width: 90, marginBottom: 4 }} />
+                    <Text style={{ fontWeight: 'bold', fontSize: 11 }}>Customer Signature</Text>
+                  </View>
+                  <Text style={{ fontWeight: 'bold', fontSize: 11, color: COLORS.vjText, alignSelf: 'flex-end', marginBottom: 4 }}>! Thank You !</Text>
+                  <View style={{ alignItems: 'flex-end', minHeight: 40, justifyContent: 'space-between' }}>
                     <Text style={{ fontSize: 10 }}>तर्फे : {firmTitleDisplay}</Text>
-                    <Text style={{ fontWeight: 'bold', fontSize: 11 }}>Authorised Signatory</Text>
+                    <Text style={{ fontWeight: 'bold', fontSize: 11, marginTop: 20 }}>Authorised Signatory</Text>
                   </View>
                 </View>
               </View>
             )}
 
             {selectedUrd && docType === 'DECLARATION' && (
-              <View style={s.declPreviewPaper}>
+              <View style={[s.declPreviewPaper, { position: 'relative' }]}>
+                {/* WATERMARK OVERLAY */}
+                <View style={s.previewWatermarkContainer} pointerEvents="none">
+                  {firm?.firmLogoRef ? (
+                    <Image source={{ uri: firm.firmLogoRef }} style={{ width: 140, height: 95, resizeMode: 'contain', opacity: 0.15, marginBottom: 4 }} />
+                  ) : (
+                    <View style={s.previewWatermarkCircle}>
+                      <Text style={s.previewWatermarkInitial}>{firmTitleDisplay.charAt(0)}</Text>
+                    </View>
+                  )}
+                  <Text style={s.previewWatermarkText}>{firmTitleDisplay.toUpperCase()}</Text>
+                </View>
+
                 {/* PAGE 1 HEADER */}
                 <View style={s.declOuterBox}>
-                  <View style={s.declFirmBox}>
-                    <Text style={s.declFirmTitle}>{firmTitleDisplay}</Text>
-                    <Text style={s.declFirmSub}>{firmAddressDisplay} | मो. {firmPhoneDisplay}</Text>
+                  <View style={[s.declFirmBox, { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 12 }]}>
+                    {firm?.firmLogoRef ? (
+                      <Image source={{ uri: firm.firmLogoRef }} style={{ width: 44, height: 32, resizeMode: 'contain' }} />
+                    ) : null}
+                    <View style={{ alignItems: 'center' }}>
+                      <Text style={s.declFirmTitle}>{firmTitleDisplay}</Text>
+                      <Text style={s.declFirmSub}>{firmAddressDisplay} | मो. {firmPhoneDisplay}</Text>
+                    </View>
                   </View>
 
                   <View style={s.declMetaRow}>
                     <Text style={{ fontWeight: 'bold' }}>अनु.क्र. : {selectedUrd.urdNumber || 'DRAFT'}</Text>
-                    <Text style={{ fontWeight: 'bold' }}>दिनांक : {selectedUrd.purchaseDate}</Text>
+                    <Text style={{ fontWeight: 'bold' }}>दिनांक : {formatDate(selectedUrd.purchaseDate)}</Text>
                   </View>
 
                   <View style={{ alignItems: 'center', marginVertical: 8 }}>
@@ -457,12 +484,14 @@ export default function URDPurchasesScreen() {
                     <View style={s.declTableHead}>
                       <Text style={[s.declTh, { flex: 1, textAlign: 'center' }]}>अ.क्र.</Text>
                       <Text style={[s.declTh, { flex: 4, textAlign: 'center' }]}>दागिन्यांचे वर्णन</Text>
-                      <Text style={[s.declTh, { flex: 2, textAlign: 'center' }]}>ग्रॅम</Text>
+                      <Text style={[s.declTh, { flex: 2, textAlign: 'center' }]}>वजन (g)</Text>
+                      <Text style={[s.declTh, { flex: 2, textAlign: 'center' }]}>दर (प्रति g)</Text>
                     </View>
                     <View style={s.declTableRow}>
                       <Text style={[s.declTd, { flex: 1, textAlign: 'center' }]}>१</Text>
                       <Text style={[s.declTd, { flex: 4, textAlign: 'left' }]}>जुने {selectedUrd.metalType === 'GOLD' ? 'सोने' : 'चांदी'} दागिने ({selectedUrd.purityPercent}% शुद्धता)</Text>
                       <Text style={[s.declTd, { flex: 2, textAlign: 'center' }]}>{formatWeight(selectedUrd.grossWeightMg)}</Text>
+                      <Text style={[s.declTd, { flex: 2, textAlign: 'center' }]}>{formatCurrency(selectedUrd.ratePerGramPaise)} /g</Text>
                     </View>
                   </View>
 
@@ -480,27 +509,29 @@ export default function URDPurchasesScreen() {
                     <Text style={{ fontSize: 12, color: '#666' }}>(ज्वेलर्सच्या वतीने भरावयाची माहिती)</Text>
                   </View>
 
-                  <Text style={{ fontWeight: 'bold', marginBottom: 8, fontSize: 12 }}>जुने दागिने खरेदी पावती क्रमांक : {selectedUrd.urdNumber || 'DRAFT'} (दिनांक : {selectedUrd.purchaseDate})</Text>
+                  <Text style={{ fontWeight: 'bold', marginBottom: 8, fontSize: 12 }}>जुने दागिने खरेदी पावती क्रमांक : {selectedUrd.urdNumber || 'DRAFT'} (दिनांक : {formatDate(selectedUrd.purchaseDate)})</Text>
 
                   {/* PAGE 2 TABLE */}
                   <View style={s.declTable}>
                     <View style={s.declTableHead}>
                       <Text style={[s.declTh, { flex: 1, textAlign: 'center' }]}>अ.क्र.</Text>
-                      <Text style={[s.declTh, { flex: 4, textAlign: 'center' }]}>वर्णन</Text>
+                      <Text style={[s.declTh, { flex: 3, textAlign: 'center' }]}>वर्णन</Text>
                       <Text style={[s.declTh, { flex: 2, textAlign: 'center' }]}>ढोबळ (g)</Text>
                       <Text style={[s.declTh, { flex: 2, textAlign: 'center' }]}>निव्वळ (g)</Text>
+                      <Text style={[s.declTh, { flex: 2, textAlign: 'center' }]}>दर / g</Text>
                       <Text style={[s.declTh, { flex: 2, textAlign: 'center' }]}>किंमत</Text>
                     </View>
                     <View style={s.declTableRow}>
                       <Text style={[s.declTd, { flex: 1, textAlign: 'center' }]}>१</Text>
-                      <Text style={[s.declTd, { flex: 4, textAlign: 'left' }]}>जुने {selectedUrd.metalType === 'GOLD' ? 'सोने' : 'चांदी'} ({selectedUrd.purityPercent}%)</Text>
+                      <Text style={[s.declTd, { flex: 3, textAlign: 'left' }]}>जुने {selectedUrd.metalType === 'GOLD' ? 'सोने' : 'चांदी'} ({selectedUrd.purityPercent}%)</Text>
                       <Text style={[s.declTd, { flex: 2, textAlign: 'center' }]}>{formatWeight(selectedUrd.grossWeightMg)}</Text>
                       <Text style={[s.declTd, { flex: 2, textAlign: 'center' }]}>{formatWeight(selectedUrd.fineWeightMg)}</Text>
+                      <Text style={[s.declTd, { flex: 2, textAlign: 'center' }]}>{formatCurrency(selectedUrd.ratePerGramPaise)}</Text>
                       <Text style={[s.declTd, { flex: 2, textAlign: 'center' }]}>{formatCurrency(selectedUrd.totalValuePaise)}</Text>
                     </View>
                     <View style={s.declTableRow}>
                       <Text style={[s.declTd, { flex: 5, fontWeight: 'bold' }]}>एकूण खरेदी किंमत</Text>
-                      <Text style={[s.declTd, { flex: 6, fontWeight: 'bold' }]}>{formatCurrency(selectedUrd.totalValuePaise)}</Text>
+                      <Text style={[s.declTd, { flex: 7, fontWeight: 'bold' }]}>{formatCurrency(selectedUrd.totalValuePaise)}</Text>
                     </View>
                   </View>
 
@@ -527,7 +558,7 @@ export default function URDPurchasesScreen() {
             )}
           </ScrollView>
 
-          <View style={s.previewFooter}>
+          <View style={[s.previewFooter, { paddingBottom: Math.max(insets.bottom + 12, 16) }]}>
             <TouchableOpacity style={s.previewShareBtn} onPress={handleShareFromPreview}>
               <Share2 size={16} color={COLORS.vjText} />
               <Text style={s.previewShareBtnText}>Share PDF</Text>
@@ -601,7 +632,11 @@ const s = StyleSheet.create({
   previewPrintBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 12, borderRadius: 12, backgroundColor: '#D4AF37' },
   previewPrintBtnText: { color: '#ffffff', fontWeight: '800', fontSize: 14 },
 
-  billPreviewPaper: { backgroundColor: '#ffffff', borderRadius: 12, borderWidth: 1.5, borderColor: '#000000', overflow: 'hidden', marginBottom: 20 },
+  billPreviewPaper: { backgroundColor: '#ffffff', borderRadius: 12, borderWidth: 1.5, borderColor: '#000000', overflow: 'hidden', marginBottom: 20, position: 'relative' },
+  previewWatermarkContainer: { position: 'absolute', top: 0, bottom: 0, left: 0, right: 0, justifyContent: 'center', alignItems: 'center', opacity: 0.18, zIndex: 0 },
+  previewWatermarkCircle: { width: 90, height: 90, borderRadius: 45, borderWidth: 3, borderColor: '#8B2538', justifyContent: 'center', alignItems: 'center', marginBottom: 4 },
+  previewWatermarkInitial: { fontSize: 40, fontWeight: 'bold', color: '#8B2538' },
+  previewWatermarkText: { fontSize: 11, fontWeight: 'bold', color: '#8B2538', letterSpacing: 1.5 },
   billMaroonHeader: { backgroundColor: '#8B2538', padding: 10, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   billCustGrid: { padding: 12, borderBottomWidth: 1, borderBottomColor: '#000000', flexDirection: 'row', justifyContent: 'space-between' },
   billCustRow: { fontSize: 12, color: '#000000', marginBottom: 3 },
@@ -630,5 +665,5 @@ const s = StyleSheet.create({
   declTh: { padding: 6, fontSize: 11, fontWeight: 'bold', color: '#000000', borderRightWidth: 1, borderRightColor: '#000000' },
   declTableRow: { flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: '#E5E7EB' },
   declTd: { padding: 6, fontSize: 11, color: '#000000', borderRightWidth: 1, borderRightColor: '#000000' },
-  declSigRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', marginTop: 14, paddingTop: 10, borderTopWidth: 1, borderTopColor: '#E5E7EB' },
+  declSigRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', marginTop: 32, paddingTop: 16, borderTopWidth: 1, borderTopColor: '#E5E7EB' },
 }) as any;
