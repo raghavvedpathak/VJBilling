@@ -8,7 +8,7 @@ import { TwoToneWrapper } from '../../components/TwoToneWrapper';
 import { useFirmStore } from '../../store/firmStore';
 import { inventoryDrillDownService } from '../../services/inventoryDrillDownService';
 import { getDisplayPurity, formatSKUDisplay, formatWeightMg as formatWeight } from '../../utils/calculations';
-import { ChevronRight, Tag, Gem, MapPin, Printer } from 'lucide-react-native';
+import { ChevronRight, Tag, Gem, MapPin, Printer, Sparkles, Coins } from 'lucide-react-native';
 import type { ItemSearchResult } from '../../types/phase2.types';
 
 const COLORS = {
@@ -157,7 +157,7 @@ export default function PurityItemsScreen() {
       <View>
         <View style={s.headerIconRow}>
           <View style={s.headerIconCircle}>
-            <Gem size={28} color={COLORS.vjBg} />
+            {metal === 'GOLD' ? <Sparkles size={28} color={COLORS.vjBg} /> : <Coins size={28} color={COLORS.vjBg} />}
           </View>
         </View>
         <Text style={s.headerTitle} numberOfLines={1}>{designName || 'Items'}</Text>

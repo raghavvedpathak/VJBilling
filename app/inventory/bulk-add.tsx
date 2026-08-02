@@ -16,6 +16,7 @@ import { designCategoryMapRepository } from '../../repositories/designCategoryMa
 import type { Design, Category, HsnCode, Stone } from '../../types/phase2.types';
 import { Package, Plus, Trash2, Calculator, Layers, MapPin, Wallet, CheckCircle } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { PURITY_MAP } from '../../utils/purity.constants';
 import { 
   percentToKarat, 
   resolveFineWeightMg, 
@@ -39,12 +40,25 @@ const BULK_ITEM_MAX = 50;
 import { GlassSmartSearch } from '../../components/ui/Glass';
 
 const BulkItemRow = ({ index, row, updateRow, removeRow, stones, metal }: any) => {
+  // Compute Karat badge for GOLD items
+  const computedKarat = useMemo(() => {
+    const p = parseFloat(row.purityPercent);
+    if (isNaN(p) || p <= 0) return '';
+    if (metal === 'SILVER') return 'SILVER';
+    if (PURITY_MAP[p] !== undefined) return `${p}K`;
+    const k = percentToKarat(p);
+    return k && k > 0 ? `${k}K` : '';
+  }, [row.purityPercent, metal]);
+
   // Pure Wholesale Costing Engine
   const calculations = useMemo(() => {
     const gross = parseFloat(row.grossWeight) || 0;
     const stone = parseFloat(row.stoneWeight) || 0;
     const beads = parseFloat(row.beadsWeight) || 0;
-    const purity = parseFloat(row.purityPercent) || 0;
+    let purity = parseFloat(row.purityPercent) || 0;
+    if (metal === 'GOLD' && PURITY_MAP[purity] !== undefined) {
+      purity = PURITY_MAP[purity];
+    }
     const wastage = parseFloat(row.wastagePercent) || 0;
     const rate = parseFloat(row.purchaseRate) || 0;
     const making = parseFloat(row.makingCharge) || 0;
@@ -55,10 +69,10 @@ const BulkItemRow = ({ index, row, updateRow, removeRow, stones, metal }: any) =
     const { fineWeightMg } = resolveFineWeightMg(netWeightMg, purity, metal || 'GOLD');
     const vaultTruth = computeVaultTruthGrams(fineWeightMg);
 
-    const fineGoldChargedMg = computeFineGoldChargedMg(netWeightMg, purity, wastage);
+    const fineGoldChargedMg = computeFineGoldChargedMg(netWeightMg, purity, wastage, metal);
     const costTruth = computeCostTruthGrams(fineGoldChargedMg, fineWeightMg);
 
-    const effectivePricePerGram = computeEffectivePricePerGram(rate, purity, wastage);
+    const effectivePricePerGram = computeEffectivePricePerGram(rate, purity, wastage, metal);
     const absoluteTotalCost = computeAbsoluteTotalCostRupees(netWeightG, effectivePricePerGram, making, stoneC);
 
     const wastageGold = costTruth - vaultTruth;
@@ -96,9 +110,84 @@ const BulkItemRow = ({ index, row, updateRow, removeRow, stones, metal }: any) =
 
       {/* Purity & Rate */}
       <View style={s.inputGrid}>
-        <View style={s.inputCol}><GlassInput label="Purity %*" value={row.purityPercent} onChangeText={(t: string) => updateRow(index, 'purityPercent', t)} keyboardType="numeric" /></View>
+        <View style={s.inputCol}>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+            <Text style={{ fontSize: 12, fontWeight: '700', color: 'rgba(92,22,35,0.6)', textTransform: 'uppercase', marginLeft: 4 }}>Purity %*</Text>
+            {computedKarat && computedKarat !== 'SILVER' ? (
+              <View style={{ backgroundColor: 'rgba(212,175,55,0.2)', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 }}>
+                <Text style={{ fontSize: 11, fontWeight: '800', color: '#D4AF37' }}>{computedKarat}</Text>
+              </View>
+            ) : null}
+          </View>
+          <GlassInput 
+            placeholder={metal === 'SILVER' ? 'e.g. 92.5' : 'e.g. 91.6 or 22'} 
+            value={row.purityPercent} 
+            onChangeText={(t: string) => updateRow(index, 'purityPercent', t)} 
+            keyboardType="numeric" 
+          />
+        </View>
         <View style={s.inputCol}><GlassInput label="Wastage %" value={row.wastagePercent} onChangeText={(t: string) => updateRow(index, 'wastagePercent', t)} keyboardType="numeric" /></View>
         <View style={s.inputCol}><GlassInput label={`Rate/g (${getCurrencySymbol()})`} value={row.purchaseRate} onChangeText={(t: string) => updateRow(index, 'purchaseRate', t)} keyboardType="numeric" /></View>
+      </View>
+
+      {/* Quick Purity Preset Chips */}
+      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 4, marginBottom: 12 }}>
+        {metal === 'GOLD' ? (
+          [
+            { label: '22K (91.6%)', val: '91.6' },
+            { label: '18K (75%)', val: '75.0' },
+            { label: '24K (99.9%)', val: '99.9' },
+            { label: '24K (99.5%)', val: '99.50' },
+            { label: '24K (99.99%)', val: '99.99' },
+            { label: '20K (83.3%)', val: '83.3' },
+            { label: '14K (58.3%)', val: '58.3' }
+          ].map(preset => (
+            <TouchableOpacity
+              key={preset.val}
+              onPress={() => updateRow(index, 'purityPercent', preset.val)}
+              style={{
+                backgroundColor: row.purityPercent === preset.val || row.purityPercent === preset.label.split('K')[0] ? '#D4AF37' : 'rgba(212,175,55,0.12)',
+                paddingHorizontal: 8,
+                paddingVertical: 4,
+                borderRadius: 6
+              }}
+            >
+              <Text style={{
+                fontSize: 11,
+                fontWeight: '700',
+                color: row.purityPercent === preset.val || row.purityPercent === preset.label.split('K')[0] ? '#FFF' : '#5C1623'
+              }}>
+                {preset.label}
+              </Text>
+            </TouchableOpacity>
+          ))
+        ) : (
+          [
+            { label: '92.5% Sterling', val: '92.5' },
+            { label: '99.9% Fine', val: '99.9' },
+            { label: '83.5%', val: '83.5' },
+            { label: '80.0%', val: '80.0' }
+          ].map(preset => (
+            <TouchableOpacity
+              key={preset.val}
+              onPress={() => updateRow(index, 'purityPercent', preset.val)}
+              style={{
+                backgroundColor: row.purityPercent === preset.val ? '#D4AF37' : 'rgba(212,175,55,0.12)',
+                paddingHorizontal: 8,
+                paddingVertical: 4,
+                borderRadius: 6
+              }}
+            >
+              <Text style={{
+                fontSize: 11,
+                fontWeight: '700',
+                color: row.purityPercent === preset.val ? '#FFF' : '#5C1623'
+              }}>
+                {preset.label}
+              </Text>
+            </TouchableOpacity>
+          ))
+        )}
       </View>
 
       {/* Costs */}
@@ -303,7 +392,7 @@ export default function BulkAddScreen() {
     for (let i = 0; i < rows.length; i++) {
       const r = rows[i];
       const gross = parseFloat(r.grossWeight);
-      const purity = parseFloat(r.purityPercent);
+      let purity = parseFloat(r.purityPercent);
 
       if (isNaN(gross) || gross <= 0) {
         Alert.alert('Validation Error', `Item #${i + 1} has an invalid gross weight.`);
@@ -311,6 +400,19 @@ export default function BulkAddScreen() {
       }
       if (isNaN(purity) || purity <= 0 || purity > 100) {
         Alert.alert('Validation Error', `Item #${i + 1} has an invalid purity percentage.`);
+        return;
+      }
+
+      // Convert direct Karat entry (e.g. 22 or 18 or 24 for GOLD) to exact purity percentage
+      if (selectedDesign.metal === 'GOLD' && PURITY_MAP[purity] !== undefined) {
+        purity = PURITY_MAP[purity];
+      }
+
+      // Size pairing guard
+      const hasSizeVal = r.sizeValue && r.sizeValue.trim() !== '';
+      const hasSizeUnit = r.sizeUnit && r.sizeUnit.trim() !== '';
+      if ((hasSizeVal && !hasSizeUnit) || (!hasSizeVal && hasSizeUnit)) {
+        Alert.alert('Validation Error', `Item #${i + 1}: Size Value and Size Unit must both be specified together, or both left blank.`);
         return;
       }
 
@@ -323,7 +425,7 @@ export default function BulkAddScreen() {
         }
       }
 
-      const computedKarat = percentToKarat(purity) || 0;
+      const computedKarat = selectedDesign.metal === 'GOLD' ? (percentToKarat(purity) || 0) : 0;
 
       inputs.push({
         designId: selectedDesign.id,

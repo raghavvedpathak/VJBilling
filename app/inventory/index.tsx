@@ -12,7 +12,8 @@ import {
   PackagePlus, 
   ClipboardList, 
   FileDown, 
-  Diamond,
+  Gem,
+  Coins,
   Database,
   ChevronRight,
   Search
@@ -100,14 +101,14 @@ export default function InventoryHubScreen() {
           <MenuTile 
             title="URD Purchases" 
             subtitle="Scrap & Old Gold" 
-            icon={<FileDown size={24} color="#5C1623" />} 
+            icon={<Coins size={24} color="#5C1623" />} 
             onPress={() => router.push('/inventory/urd-purchases')} 
           />
 
           <MenuTile 
             title="Gemstone Lots" 
             subtitle="Physical Intake" 
-            icon={<Diamond size={24} color="#5C1623" />} 
+            icon={<Gem size={24} color="#5C1623" />} 
             onPress={() => router.push('/inventory/gemstones')} 
           />
         </View>

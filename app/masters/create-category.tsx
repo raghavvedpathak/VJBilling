@@ -20,6 +20,7 @@ export default function CreateCategoryScreen() {
   
   const [newName, setNewName] = useState('');
   const [newMetal, setNewMetal] = useState<'GOLD' | 'SILVER'>('GOLD');
+  const [lowStockThreshold, setLowStockThreshold] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
@@ -29,12 +30,15 @@ export default function CreateCategoryScreen() {
       Alert.alert('Validation Error', 'Category name is required');
       return;
     }
+
+    const thresholdNum = lowStockThreshold.trim() !== '' ? parseInt(lowStockThreshold, 10) : null;
     
     setIsSubmitting(true);
     try {
       await categoryService.createCategory({
         name: newName.trim(),
-        metal: newMetal
+        metal: newMetal,
+        lowStockThreshold: thresholdNum && !isNaN(thresholdNum) && thresholdNum > 0 ? thresholdNum : null
       }, activeFirmId);
       
       setSuccessMessage('Category added successfully');
@@ -97,6 +101,17 @@ export default function CreateCategoryScreen() {
                   <Text style={[s.toggleText, newMetal === 'SILVER' && s.toggleTextActive]}>SILVER</Text>
                 </TouchableOpacity>
               </View>
+            </View>
+
+            <View style={s.formGroup}>
+              <Text style={s.label}>Low-Stock Alert Threshold (Count)</Text>
+              <TextInput 
+                style={s.input}
+                value={lowStockThreshold}
+                onChangeText={setLowStockThreshold}
+                placeholder="e.g. 5 (Optional - alert when stock <= this)"
+                keyboardType="numeric"
+              />
             </View>
           </View>
         </ScrollView>

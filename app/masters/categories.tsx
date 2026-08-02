@@ -78,7 +78,14 @@ export default function CategoriesScreen() {
   };
 
   const openEdit = (cat: Category) => {
-    router.push({ pathname: '/masters/edit-category', params: { id: cat.id, initialName: cat.name } });
+    router.push({ 
+      pathname: '/masters/edit-category', 
+      params: { 
+        id: cat.id, 
+        initialName: cat.name,
+        initialThreshold: cat.lowStockThreshold?.toString() || ''
+      } 
+    });
   };
 
   const headerContent = (

@@ -36,6 +36,7 @@ export {
   caratX100ToCarats,
   caratsToCaratX100,
   formatCarats,
+  computeGemstoneTotalPaise,
 
   // Central URD Purchase & Live Cost Breakdown Formulas
   computeURDFineWeightMg,

@@ -28,7 +28,7 @@ import {
   Package, Tag, Scale, Gem, FileText,
   Clock, AlertTriangle, Info, AlertCircle,
   Shield, MapPin, Calculator, Tag as TagIcon,
-  Trash2
+  Trash2, Sparkles, Coins
 } from 'lucide-react-native';
 import type { ItemDetail, ItemTimelineEvent } from '../../types/phase2.types';
 import { TERMINAL_ITEM_STATUSES } from '../../types/phase2.types';
@@ -408,7 +408,7 @@ export default function ItemDetailScreen() {
   const making = item.makingChargePaise ? item.makingChargePaise / 100 : 0;
   const stoneC = item.stoneCostPaise ? item.stoneCostPaise / 100 : 0;
 
-  const effectivePricePerGram = computeEffectivePricePerGram(rate, item.purityPercent, item.wastagePercent || 0);
+  const effectivePricePerGram = computeEffectivePricePerGram(rate, item.purityPercent, item.wastagePercent || 0, item.metal);
   const hasCostData = rate > 0 || making > 0 || stoneC > 0;
   const totalAmount = computeAbsoluteTotalCostRupees(costTruth, rate, making, stoneC);
 
@@ -419,7 +419,7 @@ export default function ItemDetailScreen() {
       <View style={s.headerTopRow}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
           <View style={[s.headerMetalBadge, { borderColor: metalColor }]}>
-            <Gem size={22} color={metalColor} />
+            {item.metal === 'GOLD' ? <Sparkles size={22} color={metalColor} /> : <Coins size={22} color={metalColor} />}
           </View>
           {isPhantom && (
             <View style={s.headerPhantomBadge}>

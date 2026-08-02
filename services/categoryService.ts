@@ -145,7 +145,7 @@ export const categoryService = {
   },
 
   // 🔴 FIX-UPDATE-CAT-1 (v1.44) — updateCategory() Service
-  async updateCategory(categoryId: string, firmId: string, name: string): Promise<void> {
+  async updateCategory(categoryId: string, firmId: string, name: string, lowStockThreshold?: number | null): Promise<void> {
     await leaseService.assertNoActiveLease();
     safeModeService.assertNotInSafeMode();
     
@@ -162,7 +162,11 @@ export const categoryService = {
       // UNIQUE INDEX uq_category_firm_name enforces name uniqueness at DB level.
       // Catch Drizzle unique constraint violation and re-throw as CATEGORY_NAME_DUPLICATE.
       try {
-        categoryRepository.update(tx, firmId, categoryId, { name: sanitizedName });
+        const updatePayload: Partial<Pick<Category, 'name' | 'lowStockThreshold'>> = { name: sanitizedName };
+        if (lowStockThreshold !== undefined) {
+          updatePayload.lowStockThreshold = lowStockThreshold;
+        }
+        categoryRepository.update(tx, firmId, categoryId, updatePayload);
       } catch (e: any) {
         if (e.message?.includes('UNIQUE constraint failed') || e.code === 'SQLITE_CONSTRAINT_UNIQUE') {
           throw new Error(ERR.CATEGORY_NAME_DUPLICATE);

@@ -2,6 +2,7 @@
 import React, { useState, useCallback } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Alert, Modal, ScrollView, Image } from 'react-native';
 import { FlashList } from '@shopify/flash-list';
+import { WebView } from 'react-native-webview';
 import { useRouter } from 'expo-router';
 import { useFocusEffect } from 'expo-router';
 import * as Print from 'expo-print';
@@ -311,252 +312,20 @@ export default function URDPurchasesScreen() {
             </TouchableOpacity>
           </View>
 
-          <ScrollView style={s.previewBody} contentContainerStyle={s.previewContent}>
-            {selectedUrd && docType === 'BILL' && (
-              <View style={s.billPreviewPaper}>
-                {/* WATERMARK OVERLAY */}
-                <View style={s.previewWatermarkContainer} pointerEvents="none">
-                  {firm?.firmLogoRef ? (
-                    <Image source={{ uri: firm.firmLogoRef }} style={{ width: 120, height: 80, resizeMode: 'contain', opacity: 0.15, marginBottom: 4 }} />
-                  ) : (
-                    <View style={s.previewWatermarkCircle}>
-                      <Text style={s.previewWatermarkInitial}>{firmTitleDisplay.charAt(0)}</Text>
-                    </View>
-                  )}
-                  <Text style={s.previewWatermarkText}>{firmTitleDisplay.toUpperCase()}</Text>
-                </View>
-
-                {/* MAROON BANNER HEADER */}
-                <View style={s.billMaroonHeader}>
-                  <View style={{ flex: 1 }}>
-                    <Text style={{ fontSize: 8, color: '#fff' }}>Subject to {firm?.city || 'Local'} Jurisdiction</Text>
-                    {firm?.gstin ? <Text style={{ fontSize: 8, color: '#fff', fontWeight: 'bold' }}>GSTIN {firm.gstin}</Text> : null}
-                  </View>
-                  <View style={{ flex: 2, alignItems: 'center' }}>
-                    <Text style={{ fontSize: 10, color: '#F7D273', fontWeight: 'bold' }}>URD PURCHASE BILL</Text>
-                    <Text style={{ fontSize: 18, color: '#fff', fontWeight: 'bold' }}>{firmTitleDisplay}</Text>
-                    <Text style={{ fontSize: 8.5, color: '#F7D273', fontWeight: '600', marginTop: 1 }}>{firmAddressDisplay}</Text>
-                  </View>
-                  <View style={{ flex: 1, alignItems: 'flex-end' }}>
-                    {firm?.bisLicence ? (
-                      <Text style={{ fontSize: 8, color: '#F7D273', fontWeight: 'bold', marginBottom: 2 }}>BIS: {firm.bisLicence}</Text>
-                    ) : null}
-                    <Text style={{ fontSize: 8.5, color: '#F7D273', fontWeight: 'bold' }}>प्रोप्रा. {firm?.proprietor || firmTitleDisplay}</Text>
-                    <Text style={{ fontSize: 8, color: '#fff' }}>Mo. {firmPhoneDisplay}</Text>
-                  </View>
-                </View>
-
-                {/* CUSTOMER & VOUCHER DETAILS */}
-                <View style={s.billCustGrid}>
-                  <View style={{ flex: 1 }}>
-                    <Text style={s.billCustRow}><Text style={{ fontWeight: 'bold' }}>Name: </Text>{selectedUrd.customerName}</Text>
-                    <Text style={s.billCustRow}><Text style={{ fontWeight: 'bold' }}>Address: </Text>{selectedUrd.customerAddress || '-'}</Text>
-                    <Text style={s.billCustRow}><Text style={{ fontWeight: 'bold' }}>Mob: </Text>{selectedUrd.customerMobile || '-'}</Text>
-                    {selectedUrd.customerAadhaar && <Text style={s.billCustRow}><Text style={{ fontWeight: 'bold' }}>Aadhaar: </Text>XXXX-XXXX-{selectedUrd.customerAadhaar.slice(-4)}</Text>}
-                    {selectedUrd.customerPAN && <Text style={s.billCustRow}><Text style={{ fontWeight: 'bold' }}>PAN: </Text>{selectedUrd.customerPAN}</Text>}
-                  </View>
-                  <View style={{ flex: 1, alignItems: 'flex-end' }}>
-                    <Text style={s.billCustRow}><Text style={{ fontWeight: 'bold' }}>Date: </Text>{formatDate(selectedUrd.purchaseDate)}</Text>
-                    <Text style={s.billCustRow}><Text style={{ fontWeight: 'bold' }}>Invoice No: </Text>{selectedUrd.urdNumber || 'DRAFT'}</Text>
-                  </View>
-                </View>
-
-                {/* TABLE OF ITEMS */}
-                <View style={s.billTable}>
-                  <View style={s.billTableHead}>
-                    <Text style={[s.billTh, { flex: 1, textAlign: 'center' }]}>#</Text>
-                    <Text style={[s.billTh, { flex: 4, textAlign: 'center' }]}>Description</Text>
-                    <Text style={[s.billTh, { flex: 2, textAlign: 'center' }]}>HSN</Text>
-                    <Text style={[s.billTh, { flex: 2, textAlign: 'center' }]}>Net Wt</Text>
-                    <Text style={[s.billTh, { flex: 2, textAlign: 'center' }]}>Purity</Text>
-                    <Text style={[s.billTh, { flex: 2, textAlign: 'center' }]}>Rate/g</Text>
-                    <Text style={[s.billTh, { flex: 3, textAlign: 'center' }]}>Amount</Text>
-                  </View>
-                  <View style={s.billTableRow}>
-                    <Text style={[s.billTd, { flex: 1, textAlign: 'center' }]}>1</Text>
-                    <Text style={[s.billTd, { flex: 4, textAlign: 'left', fontWeight: 'bold' }]}>OLD {selectedUrd.metalType} ORNAMENT</Text>
-                    <Text style={[s.billTd, { flex: 2, textAlign: 'center' }]}>7113</Text>
-                    <Text style={[s.billTd, { flex: 2, textAlign: 'center' }]}>{formatWeight(selectedUrd.grossWeightMg)}</Text>
-                    <Text style={[s.billTd, { flex: 2, textAlign: 'center' }]}>{selectedUrd.purityPercent}%</Text>
-                    <Text style={[s.billTd, { flex: 2, textAlign: 'center' }]}>{formatCurrency(selectedUrd.ratePerGramPaise)}</Text>
-                    <Text style={[s.billTd, { flex: 3, textAlign: 'center', fontWeight: 'bold' }]}>{formatCurrency(selectedUrd.totalValuePaise)}</Text>
-                  </View>
-                </View>
-
-                {/* SUMMARY & TOTALS */}
-                <View style={s.billSummaryGrid}>
-                  <View style={s.billPayCol}>
-                    <View style={s.billPayRow}><Text style={{ fontWeight: 'bold', fontSize: 10 }}>CASH</Text><Text style={{ fontWeight: 'bold', fontSize: 10 }}>{selectedUrd.paymentMode === 'CASH' ? formatCurrency(selectedUrd.totalValuePaise) : '₹0.00'}</Text></View>
-                    <View style={s.billPayRow}><Text style={{ fontWeight: 'bold', fontSize: 10 }}>NEFT</Text><Text style={{ fontWeight: 'bold', fontSize: 10 }}>{selectedUrd.paymentMode === 'BANK_TRANSFER' || selectedUrd.paymentMode === 'NEFT' ? formatCurrency(selectedUrd.totalValuePaise) : '₹0.00'}</Text></View>
-                    <View style={s.billPayRow}><Text style={{ fontWeight: 'bold', fontSize: 10 }}>CHEQUE</Text><Text style={{ fontWeight: 'bold', fontSize: 10 }}>{selectedUrd.paymentMode === 'CHEQUE' ? formatCurrency(selectedUrd.totalValuePaise) : '₹0.00'}</Text></View>
-                    <View style={s.billPayRow}><Text style={{ fontWeight: 'bold', fontSize: 10 }}>UPI/MOBILE</Text><Text style={{ fontWeight: 'bold', fontSize: 10 }}>{selectedUrd.paymentMode === 'UPI' ? formatCurrency(selectedUrd.totalValuePaise) : '₹0.00'}</Text></View>
-                    <View style={{ marginTop: 6, paddingTop: 4, borderTopWidth: 1, borderTopColor: '#000' }}><Text style={{ fontSize: 9, fontWeight: 'bold' }}>Amt In Words: <Text style={{ fontWeight: 'normal' }}>{amountToWords(selectedUrd.totalValuePaise)}</Text></Text></View>
-                  </View>
-                  <View style={s.billTotalsCol}>
-                    <View style={s.billTotalRow}><Text style={{ fontWeight: 'bold', fontSize: 10 }}>NET TOTAL</Text><Text style={{ fontWeight: 'bold', fontSize: 10 }}>{formatCurrency(selectedUrd.totalValuePaise)}</Text></View>
-                    <View style={s.billTotalRow}><Text style={{ fontWeight: 'bold', fontSize: 10 }}>GRAND TOTAL</Text><Text style={{ fontWeight: 'bold', fontSize: 10 }}>{formatCurrency(selectedUrd.totalValuePaise)}</Text></View>
-                    <View style={s.billTotalRow}><Text style={{ fontWeight: 'bold', fontSize: 10 }}>Round Off</Text><Text style={{ fontWeight: 'bold', fontSize: 10 }}>0.00</Text></View>
-                    <View style={[s.billTotalRow, { backgroundColor: '#F9FAFB' }]}><Text style={{ fontWeight: 'bold', fontSize: 10 }}>NET AMOUNT</Text><Text style={{ fontWeight: 'bold', fontSize: 10 }}>{formatCurrency(selectedUrd.totalValuePaise)}</Text></View>
-                    <View style={s.billTotalRow}><Text style={{ fontWeight: 'bold', fontSize: 10 }}>AMT RECEIVED</Text><Text style={{ fontWeight: 'bold', fontSize: 10 }}>{formatCurrency(selectedUrd.totalValuePaise)}</Text></View>
-                    <View style={s.billTotalRow}><Text style={{ fontWeight: 'bold', fontSize: 10 }}>BALANCE</Text><Text style={{ fontWeight: 'bold', fontSize: 10 }}>₹0.00</Text></View>
-                  </View>
-                </View>
-
-                {/* SIGNATURES */}
-                <View style={[s.billFooterRow, { marginTop: 24, paddingTop: 12 }]}>
-                  <View style={{ minHeight: 40, justifyContent: 'space-between' }}>
-                    <View style={{ borderTopWidth: 1, borderTopColor: '#000', width: 90, marginBottom: 4 }} />
-                    <Text style={{ fontWeight: 'bold', fontSize: 11 }}>Customer Signature</Text>
-                  </View>
-                  <Text style={{ fontWeight: 'bold', fontSize: 11, color: COLORS.vjText, alignSelf: 'flex-end', marginBottom: 4 }}>! Thank You !</Text>
-                  <View style={{ alignItems: 'flex-end', minHeight: 40, justifyContent: 'space-between' }}>
-                    <Text style={{ fontSize: 10 }}>तर्फे : {firmTitleDisplay}</Text>
-                    <Text style={{ fontWeight: 'bold', fontSize: 11, marginTop: 20 }}>Authorised Signatory</Text>
-                  </View>
-                </View>
+          <View style={{ flex: 1, backgroundColor: '#ffffff' }}>
+            {previewHtml ? (
+              <WebView
+                source={{ html: previewHtml }}
+                style={{ flex: 1 }}
+                originWhitelist={['*']}
+                scalesPageToFit
+              />
+            ) : (
+              <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+                <ActivityIndicator size="large" color="#8B2538" />
               </View>
             )}
-
-            {selectedUrd && docType === 'DECLARATION' && (
-              <View style={[s.declPreviewPaper, { position: 'relative' }]}>
-                {/* WATERMARK OVERLAY */}
-                <View style={s.previewWatermarkContainer} pointerEvents="none">
-                  {firm?.firmLogoRef ? (
-                    <Image source={{ uri: firm.firmLogoRef }} style={{ width: 140, height: 95, resizeMode: 'contain', opacity: 0.15, marginBottom: 4 }} />
-                  ) : (
-                    <View style={s.previewWatermarkCircle}>
-                      <Text style={s.previewWatermarkInitial}>{firmTitleDisplay.charAt(0)}</Text>
-                    </View>
-                  )}
-                  <Text style={s.previewWatermarkText}>{firmTitleDisplay.toUpperCase()}</Text>
-                </View>
-
-                {/* PAGE 1 HEADER */}
-                <View style={s.declOuterBox}>
-                  <View style={[s.declFirmBox, { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 12 }]}>
-                    {firm?.firmLogoRef ? (
-                      <Image source={{ uri: firm.firmLogoRef }} style={{ width: 44, height: 32, resizeMode: 'contain' }} />
-                    ) : null}
-                    <View style={{ alignItems: 'center' }}>
-                      <Text style={s.declFirmTitle}>{firmTitleDisplay}</Text>
-                      <Text style={s.declFirmSub}>{firmAddressDisplay} | मो. {firmPhoneDisplay}</Text>
-                    </View>
-                  </View>
-
-                  <View style={s.declMetaRow}>
-                    <Text style={{ fontWeight: 'bold' }}>अनु.क्र. : {selectedUrd.urdNumber || 'DRAFT'}</Text>
-                    <Text style={{ fontWeight: 'bold' }}>दिनांक : {formatDate(selectedUrd.purchaseDate)}</Text>
-                  </View>
-
-                  <View style={{ alignItems: 'center', marginVertical: 8 }}>
-                    <Text style={{ fontSize: 12 }}>जुने किंवा वापरलेल्या दागिन्यांच्या मालकीबाबत...</Text>
-                    <Text style={{ fontSize: 20, fontWeight: 'bold', marginVertical: 2 }}>घोषणापत्र / शपथपत्र</Text>
-                    <Text style={{ fontSize: 14, fontWeight: 'bold' }}>भाग - १</Text>
-                    <Text style={{ fontSize: 11, color: '#666' }}>(खालील नियम वाचून ग्राहकांनी भरवायची माहिती)</Text>
-                  </View>
-
-                  {/* 3 MARATHI CLAUSES */}
-                  <View style={{ gap: 8, marginVertical: 8 }}>
-                    <Text style={s.declClauseText}>
-                      १) मी या घोषणापत्र/शपथपत्राद्वारे प्रमाणित करतो की, खाली नमूद केलेल्या वर्णनाचे दागिने माझ्या स्वतःच्या / कुटुंबातील व्यक्ती (नांव: <Text style={{ fontWeight: 'bold' }}>{selectedUrd.customerName}</Text> ) पूर्ण मालकीचे आहेत. सदर वर्णनाचे दागिने मी/कुटुंबातील व्यक्तीने कायदेशीररित्या मिळवले असून मालकी हक्काबाबत भविष्यात काही कायदेशीर कारवाई झाली तर त्याला सर्वस्वी मी व माझे कुटुंब जबाबदार असेल.
-                    </Text>
-                    <Text style={s.declClauseText}>
-                      २) खाली नमूद सर्व दागिने माझ्या स्वतःच्या तसेच कुटुंबातील सर्वांच्या संमतीने तुम्हास विकत आहे. त्याबाबत कोणतीही तक्रार मी व माझ्या कुटुंबाकडून येणार नाही.
-                    </Text>
-                    <Text style={s.declClauseText}>
-                      ३) भविष्यामध्ये मी विकत असलेल्या खालील दागिन्यांमुळे सदर ज्वेलर्सवरती कोणत्याही प्रकारची कायदेशीर कारवाई झाली आणि आर्थिक नुकसान झाले तर नुकसान भरपाईसाठी सर्वस्वी मी व माझे कुटुंब जबाबदार असेल.
-                    </Text>
-                  </View>
-
-                  {/* FORM FIELDS */}
-                  <View style={{ gap: 6, marginVertical: 8 }}>
-                    <Text style={s.declFieldRow}><Text style={{ fontWeight: 'bold' }}>ग्राहकाचे नांव : </Text>{selectedUrd.customerName}</Text>
-                    <Text style={s.declFieldRow}><Text style={{ fontWeight: 'bold' }}>पत्ता : </Text>{selectedUrd.customerAddress || 'माहिती उपलब्ध नाही'}</Text>
-                    <Text style={s.declFieldRow}><Text style={{ fontWeight: 'bold' }}>मोबाईल नंबर : </Text>{selectedUrd.customerMobile || 'माहिती उपलब्ध नाही'}</Text>
-                    <Text style={s.declFieldRow}><Text style={{ fontWeight: 'bold' }}>ओळखपत्र पुरावा : </Text>{selectedUrd.customerAadhaar ? 'आधार कार्ड (' + selectedUrd.customerAadhaar + ')' : (selectedUrd.customerPAN ? 'पॅन कार्ड (' + selectedUrd.customerPAN + ')' : 'पॅन / आधार कार्ड')}</Text>
-                    <Text style={s.declFieldRow}><Text style={{ fontWeight: 'bold' }}>दागिना पावती तपशील : </Text>URD खरेदी पावती क्र. {selectedUrd.urdNumber || 'DRAFT'}</Text>
-                    <Text style={s.declFieldRow}><Text style={{ fontWeight: 'bold' }}>पावती नसल्याचे कारण : </Text>जुने कौटुंबिक वारसा दागिने</Text>
-                  </View>
-
-                  {/* TABLE OF ORNAMENTS */}
-                  <Text style={{ textAlign: 'center', fontWeight: 'bold', fontSize: 13, marginTop: 8 }}>✽ दागिन्यांचे वर्णन ✽</Text>
-                  <View style={s.declTable}>
-                    <View style={s.declTableHead}>
-                      <Text style={[s.declTh, { flex: 1, textAlign: 'center' }]}>अ.क्र.</Text>
-                      <Text style={[s.declTh, { flex: 4, textAlign: 'center' }]}>दागिन्यांचे वर्णन</Text>
-                      <Text style={[s.declTh, { flex: 2, textAlign: 'center' }]}>वजन (g)</Text>
-                      <Text style={[s.declTh, { flex: 2, textAlign: 'center' }]}>दर (प्रति g)</Text>
-                    </View>
-                    <View style={s.declTableRow}>
-                      <Text style={[s.declTd, { flex: 1, textAlign: 'center' }]}>१</Text>
-                      <Text style={[s.declTd, { flex: 4, textAlign: 'left' }]}>जुने {selectedUrd.metalType === 'GOLD' ? 'सोने' : 'चांदी'} दागिने ({selectedUrd.purityPercent}% शुद्धता)</Text>
-                      <Text style={[s.declTd, { flex: 2, textAlign: 'center' }]}>{formatWeight(selectedUrd.grossWeightMg)}</Text>
-                      <Text style={[s.declTd, { flex: 2, textAlign: 'center' }]}>{formatCurrency(selectedUrd.ratePerGramPaise)} /g</Text>
-                    </View>
-                  </View>
-
-                  {/* PAGE 1 FOOTER */}
-                  <View style={s.declSigRow}>
-                    <View><Text style={{ fontWeight: 'bold', fontSize: 12 }}>साक्षीदार : १) ____________________</Text><Text style={{ fontWeight: 'bold', fontSize: 12, marginTop: 4 }}>           २) ____________________</Text></View>
-                    <View><Text style={{ fontWeight: 'bold', fontSize: 12 }}>ग्राहकाची सही</Text></View>
-                  </View>
-
-                  <View style={{ height: 2, backgroundColor: '#8B2538', marginVertical: 20 }} />
-
-                  {/* PAGE 2 HEADER (भाग - २) */}
-                  <View style={{ alignItems: 'center', marginBottom: 12 }}>
-                    <Text style={{ fontSize: 16, fontWeight: 'bold' }}>भाग - २</Text>
-                    <Text style={{ fontSize: 12, color: '#666' }}>(ज्वेलर्सच्या वतीने भरावयाची माहिती)</Text>
-                  </View>
-
-                  <Text style={{ fontWeight: 'bold', marginBottom: 8, fontSize: 12 }}>जुने दागिने खरेदी पावती क्रमांक : {selectedUrd.urdNumber || 'DRAFT'} (दिनांक : {formatDate(selectedUrd.purchaseDate)})</Text>
-
-                  {/* PAGE 2 TABLE */}
-                  <View style={s.declTable}>
-                    <View style={s.declTableHead}>
-                      <Text style={[s.declTh, { flex: 1, textAlign: 'center' }]}>अ.क्र.</Text>
-                      <Text style={[s.declTh, { flex: 3, textAlign: 'center' }]}>वर्णन</Text>
-                      <Text style={[s.declTh, { flex: 2, textAlign: 'center' }]}>ढोबळ (g)</Text>
-                      <Text style={[s.declTh, { flex: 2, textAlign: 'center' }]}>निव्वळ (g)</Text>
-                      <Text style={[s.declTh, { flex: 2, textAlign: 'center' }]}>दर / g</Text>
-                      <Text style={[s.declTh, { flex: 2, textAlign: 'center' }]}>किंमत</Text>
-                    </View>
-                    <View style={s.declTableRow}>
-                      <Text style={[s.declTd, { flex: 1, textAlign: 'center' }]}>१</Text>
-                      <Text style={[s.declTd, { flex: 3, textAlign: 'left' }]}>जुने {selectedUrd.metalType === 'GOLD' ? 'सोने' : 'चांदी'} ({selectedUrd.purityPercent}%)</Text>
-                      <Text style={[s.declTd, { flex: 2, textAlign: 'center' }]}>{formatWeight(selectedUrd.grossWeightMg)}</Text>
-                      <Text style={[s.declTd, { flex: 2, textAlign: 'center' }]}>{formatWeight(selectedUrd.fineWeightMg)}</Text>
-                      <Text style={[s.declTd, { flex: 2, textAlign: 'center' }]}>{formatCurrency(selectedUrd.ratePerGramPaise)}</Text>
-                      <Text style={[s.declTd, { flex: 2, textAlign: 'center' }]}>{formatCurrency(selectedUrd.totalValuePaise)}</Text>
-                    </View>
-                    <View style={s.declTableRow}>
-                      <Text style={[s.declTd, { flex: 5, fontWeight: 'bold' }]}>एकूण खरेदी किंमत</Text>
-                      <Text style={[s.declTd, { flex: 7, fontWeight: 'bold' }]}>{formatCurrency(selectedUrd.totalValuePaise)}</Text>
-                    </View>
-                  </View>
-
-                  <View style={{ marginVertical: 8 }}>
-                    <Text style={{ fontSize: 11, fontWeight: 'bold' }}>* टीप :</Text>
-                    <Text style={{ fontSize: 11, color: '#444' }}>१) दागिन्यांची किंमत हजर बाजारभावच्या सोन्याच्या किंमतीवर आधारित आहे.</Text>
-                    <Text style={{ fontSize: 11, color: '#444' }}>२) तूटीची टक्केवारी वजा केल्यावर खरेदी किंमत काढली जाते.</Text>
-                  </View>
-
-                  <View style={{ backgroundColor: 'rgba(212,175,55,0.1)', padding: 10, borderRadius: 8, marginVertical: 10, borderWidth: 1, borderColor: 'rgba(212,175,55,0.3)' }}>
-                    <Text style={{ fontWeight: 'bold', fontSize: 12, textAlign: 'center', marginBottom: 4 }}>ग्राहकाकडून दागिन्यांच्या केलेल्या व्हॅल्युएशनबाबत घोषणापत्र / शपथपत्र</Text>
-                    <Text style={{ fontSize: 11, textAlign: 'center', color: '#444' }}>
-                      भाग-२ मध्ये केलेल्या आमच्या सर्व दागिन्यांचे व्हॅल्युएशन आम्हाला मान्य असून त्याबाबत कोणतीही तक्रार नाही. व्यवहारानुसार आम्हाला आमच्या दागिन्यांची पूर्ण रक्कम मिळाली आहे आणि ती आम्हाला मान्य आहे.
-                    </Text>
-                  </View>
-
-                  <View style={s.declSigRow}>
-                    <View><Text style={{ fontWeight: 'bold', fontSize: 12 }}>साक्षीदार : १) ____________________</Text><Text style={{ fontWeight: 'bold', fontSize: 12, marginTop: 4 }}>           २) ____________________</Text></View>
-                    <View><Text style={{ fontWeight: 'bold', fontSize: 12 }}>ग्राहकाची सही</Text></View>
-                  </View>
-
-                </View>
-              </View>
-            )}
-          </ScrollView>
+          </View>
 
           <View style={[s.previewFooter, { paddingBottom: Math.max(insets.bottom + 12, 16) }]}>
             <TouchableOpacity style={s.previewShareBtn} onPress={handleShareFromPreview}>

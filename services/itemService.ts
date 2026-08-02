@@ -188,9 +188,7 @@ export const itemService = {
 
       // FIX-WAST-2 (v1.26): Supplier cost truth — gold actually billed
       const wastagePercent = input.wastagePercent ?? 0;
-      const fineGoldChargedMg = wastagePercent > 0
-        ? Math.round(netWeightMg * ((input.purityPercent + wastagePercent) / 100))
-        : null;
+      const fineGoldChargedMg = computeFineGoldChargedMg(netWeightMg, input.purityPercent, wastagePercent, design.metal);
 
       const item = itemRepository.insert(tx, {
         id: Crypto.randomUUID(), sku, barcode: sku,
@@ -443,7 +441,7 @@ export const itemService = {
         const { fineWeightMg, purityRoundingDeltaMg } = resolveFineWeightMg(netWeightMg, input.purityPercent, design.metal); // FEAT-PURITY-ROUND-1 (v1.90)
         
         const wastagePercent = input.wastagePercent ?? 0;
-        const fineGoldChargedMg = wastagePercent > 0 ? Math.round(netWeightMg * ((input.purityPercent + wastagePercent) / 100)) : null;
+        const fineGoldChargedMg = computeFineGoldChargedMg(netWeightMg, input.purityPercent, wastagePercent, design.metal);
 
         // FIX-UI-TOTAL-1 (v1.51): UI display — Total Purchase Amount = (fineGoldChargedMg ?? fineWeightMg) / 1000 * purchaseRatePerGram
         // FIX-PPG-DISPLAY-1 (v1.52): UI display — Price Per Gram = (fineGoldChargedMg ?? fineWeightMg) / fineWeightMg * purchaseRatePerGram

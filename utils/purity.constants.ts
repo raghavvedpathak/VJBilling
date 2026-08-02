@@ -35,7 +35,7 @@ export const PURITY_ROUND_TO_100: Record<'GOLD' | 'SILVER', number[]> = {
 // unexplained shortfall. verifyService surfaces the accumulated total for visibility today.
 export function resolveFineWeightMg(netWeightMg: number, purityPercent: number, metal: 'GOLD' | 'SILVER'): { fineWeightMg: number; purityRoundingDeltaMg: number } {
   const trueFineWeightMg = Math.round(netWeightMg * purityPercent / 100);
-  const isRounded = PURITY_ROUND_TO_100[metal].includes(purityPercent);
+  const isRounded = PURITY_ROUND_TO_100[metal].some(target => Math.abs(target - purityPercent) < 0.01);
   if (!isRounded) return { fineWeightMg: trueFineWeightMg, purityRoundingDeltaMg: 0 };
   return { fineWeightMg: netWeightMg, purityRoundingDeltaMg: netWeightMg - trueFineWeightMg };
 }
@@ -58,11 +58,10 @@ export function karatToPercent(karat: number): number {
   return pct;
 }
 
-// percentToKarat() — checks PURITY_PERCENT_EXTENDED first (exact match), then PURITY_MAP (within 0.05%). Returns null if no match.
+// percentToKarat() — checks PURITY_MAP direct karat match first, then PURITY_PERCENT_EXTENDED (exact match), then PURITY_MAP (within 0.05%). Returns null if no match.
 export function percentToKarat(percent: number): number | null {
-  // FIX-24K-PURITY-1 (v1.57): check extended map first (exact match)
+  if (PURITY_MAP[percent] !== undefined) return percent;
   if (PURITY_PERCENT_EXTENDED[percent] !== undefined) return PURITY_PERCENT_EXTENDED[percent];
-  // then fall through to PURITY_MAP tolerance check
   for (const [k, v] of Object.entries(PURITY_MAP)) {
     if (Math.abs(v - percent) < 0.05) return Number(k);
   }
@@ -70,27 +69,42 @@ export function percentToKarat(percent: number): number | null {
 }
 
 // getDisplayPurity() — UI DISPLAY LAYER ONLY. NEVER used in math.
-export function getDisplayPurity(purityPercent: number, purityKarat: number | null, metal: 'GOLD' | 'SILVER'): string {
-  if (metal === "GOLD" && purityKarat !== null && purityKarat > 0) return `${purityKarat}K`;
-  return `${purityPercent}%`;
+export function getDisplayPurity(purityPercent?: number | null, purityKarat?: number | null, metal: 'GOLD' | 'SILVER' = 'GOLD'): string {
+  const safePercent = purityPercent != null && !isNaN(Number(purityPercent)) ? Number(purityPercent) : 0;
+  const resolvedKarat = (purityKarat != null && purityKarat > 0) 
+    ? purityKarat 
+    : (metal === 'GOLD' ? percentToKarat(safePercent) : null);
+
+  if (metal === 'GOLD' && resolvedKarat && resolvedKarat > 0) {
+    return `${resolvedKarat}K`;
+  }
+  return `${safePercent}%`;
+}
+
+export function resolveEffectivePurityPercent(purityPercent: number, metal: 'GOLD' | 'SILVER' = 'GOLD'): number {
+  const isRounded = PURITY_ROUND_TO_100[metal]?.some(target => Math.abs(target - purityPercent) < 0.01);
+  return isRounded ? 100 : purityPercent;
 }
 
 // FEAT-EFFECTIVE-PRICE-1 (v2.00): computeEffectivePricePaisePerGram() / computeEstTotalCostPaise() — UI DISPLAY LAYER ONLY.
-export function computeEffectivePricePerGram(ratePerGram: number, purityPercent: number, wastagePercent: number): number {
-  return ratePerGram * ((purityPercent + wastagePercent) / 100);
+export function computeEffectivePricePerGram(ratePerGram: number, purityPercent: number, wastagePercent: number, metal: 'GOLD' | 'SILVER' = 'GOLD'): number {
+  const effPurity = resolveEffectivePurityPercent(purityPercent, metal);
+  return ratePerGram * ((effPurity + wastagePercent) / 100);
 }
 
-export function computeEffectivePricePaisePerGram(purchaseRatePaise: number, purityPercent: number, wastagePercent: number): number {
-  return Math.round(purchaseRatePaise * ((purityPercent + wastagePercent) / 100));
+export function computeEffectivePricePaisePerGram(purchaseRatePaise: number, purityPercent: number, wastagePercent: number, metal: 'GOLD' | 'SILVER' = 'GOLD'): number {
+  const effPurity = resolveEffectivePurityPercent(purityPercent, metal);
+  return Math.round(purchaseRatePaise * ((effPurity + wastagePercent) / 100));
 }
 
 export function computeEstTotalCostPaise(effectivePricePaisePerGram: number, netWeightMg: number): number {
   return Math.round(effectivePricePaisePerGram * (netWeightMg / 1000));
 }
 
-export function computeFineGoldChargedMg(netWeightMg: number, purityPercent: number, wastagePercent: number): number | null {
+export function computeFineGoldChargedMg(netWeightMg: number, purityPercent: number, wastagePercent: number, metal: 'GOLD' | 'SILVER' = 'GOLD'): number | null {
   if (wastagePercent <= 0) return null;
-  return Math.round(netWeightMg * ((purityPercent + wastagePercent) / 100));
+  const effPurity = resolveEffectivePurityPercent(purityPercent, metal);
+  return Math.round(netWeightMg * ((effPurity + wastagePercent) / 100));
 }
 
 // --- INVENTORY ITEM COST & TRUTH HELPERS FOR ALL SCREENS ---
@@ -150,6 +164,11 @@ export function caratsToCaratX100(carats: number): number {
 export function formatCarats(caratX100: number | null | undefined): string {
   if (caratX100 === null || caratX100 === undefined || isNaN(caratX100)) return '0.00 cts';
   return (caratX100 / 100).toFixed(2) + ' cts';
+}
+
+export function computeGemstoneTotalPaise(weightCaratX100: number, purchaseRatePaisePerCarat: number | null | undefined): number | null {
+  if (purchaseRatePaisePerCarat === null || purchaseRatePaisePerCarat === undefined) return null;
+  return Math.round((weightCaratX100 / 100) * purchaseRatePaisePerCarat);
 }
 
 // --- CENTRAL URD PURCHASE FORMULAS & LIVE COST BREAKDOWN ---

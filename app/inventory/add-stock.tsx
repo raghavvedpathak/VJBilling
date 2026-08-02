@@ -137,10 +137,10 @@ export default function AddStockScreen() {
     const { fineWeightMg } = resolveFineWeightMg(netWeightMg, p, metal);
     const vaultTruth = computeVaultTruthGrams(fineWeightMg);
 
-    const fineGoldChargedMg = computeFineGoldChargedMg(netWeightMg, p, w);
+    const fineGoldChargedMg = computeFineGoldChargedMg(netWeightMg, p, w, metal);
     const costTruth = computeCostTruthGrams(fineGoldChargedMg, fineWeightMg);
     
-    const effectivePricePerGram = computeEffectivePricePerGram(rate, p, w);
+    const effectivePricePerGram = computeEffectivePricePerGram(rate, p, w, metal);
     const absoluteTotalCost = computeAbsoluteTotalCostRupees(netWeightG, effectivePricePerGram, making, stoneC);
 
     return {
@@ -360,13 +360,77 @@ export default function AddStockScreen() {
             <View style={{ flex: 1 }}>
               <View className="flex-row justify-between items-center mb-1">
                 <Text style={{ fontSize: 12, fontWeight: '700', color: 'rgba(92,22,35,0.6)', textTransform: 'uppercase' }}>Purity % *</Text>
-                {computedKarat ? <Text style={{ fontSize: 12, fontWeight: '800', color: '#D4AF37' }}>{computedKarat}</Text> : null}
+                {computedKarat ? (
+                  <View style={{ backgroundColor: 'rgba(212,175,55,0.2)', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 }}>
+                    <Text style={{ fontSize: 11, fontWeight: '800', color: '#D4AF37' }}>{computedKarat}</Text>
+                  </View>
+                ) : null}
               </View>
-              <GlassInput placeholder="e.g. 91.6" keyboardType="numeric" value={purityPercent} onChangeText={setPurityPercent} />
+              <GlassInput placeholder="e.g. 91.6 or 22" keyboardType="numeric" value={purityPercent} onChangeText={setPurityPercent} />
             </View>
             <View style={{ flex: 1 }}>
               <GlassInput label="Wastage %" placeholder="e.g. 5.0" keyboardType="numeric" value={wastagePercent} onChangeText={setWastagePercent} />
             </View>
+          </View>
+
+          {/* Quick Purity Preset Chips */}
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 8 }}>
+            {(selectedDesign?.metal || 'GOLD') === 'GOLD' ? (
+              [
+                { label: '22K (91.6%)', val: '91.6' },
+                { label: '18K (75%)', val: '75.0' },
+                { label: '24K (99.9%)', val: '99.9' },
+                { label: '24K (99.5%)', val: '99.50' },
+                { label: '24K (99.99%)', val: '99.99' },
+                { label: '20K (83.3%)', val: '83.3' },
+                { label: '14K (58.3%)', val: '58.3' }
+              ].map(preset => (
+                <TouchableOpacity
+                  key={preset.val}
+                  onPress={() => setPurityPercent(preset.val)}
+                  style={{
+                    backgroundColor: purityPercent === preset.val || purityPercent === preset.label.split('K')[0] ? '#D4AF37' : 'rgba(212,175,55,0.12)',
+                    paddingHorizontal: 8,
+                    paddingVertical: 4,
+                    borderRadius: 6
+                  }}
+                >
+                  <Text style={{
+                    fontSize: 11,
+                    fontWeight: '700',
+                    color: purityPercent === preset.val || purityPercent === preset.label.split('K')[0] ? '#FFF' : '#5C1623'
+                  }}>
+                    {preset.label}
+                  </Text>
+                </TouchableOpacity>
+              ))
+            ) : (
+              [
+                { label: '92.5% Sterling', val: '92.5' },
+                { label: '99.9% Fine', val: '99.9' },
+                { label: '83.5%', val: '83.5' },
+                { label: '80.0%', val: '80.0' }
+              ].map(preset => (
+                <TouchableOpacity
+                  key={preset.val}
+                  onPress={() => setPurityPercent(preset.val)}
+                  style={{
+                    backgroundColor: purityPercent === preset.val ? '#D4AF37' : 'rgba(212,175,55,0.12)',
+                    paddingHorizontal: 8,
+                    paddingVertical: 4,
+                    borderRadius: 6
+                  }}
+                >
+                  <Text style={{
+                    fontSize: 11,
+                    fontWeight: '700',
+                    color: purityPercent === preset.val ? '#FFF' : '#5C1623'
+                  }}>
+                    {preset.label}
+                  </Text>
+                </TouchableOpacity>
+              ))
+            )}
           </View>
         </GlassCard>
 

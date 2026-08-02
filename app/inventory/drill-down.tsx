@@ -14,12 +14,29 @@ import { TwoToneWrapper } from '../../components/TwoToneWrapper';
 import { useFirmStore } from '../../store/firmStore';
 import { inventoryDrillDownService } from '../../services/inventoryDrillDownService';
 import { formatWeightMg as formatWeight } from '../../utils/calculations';
-import { ChevronRight, Package, Layers, Plus } from 'lucide-react-native';
+import { ChevronRight, Package, Layers, Plus, Coins, Sparkles, Gem, Tag, CircleDot } from 'lucide-react-native';
 
 const COLORS = {
   vjText: '#5C1623',
   vjBg: '#FCFBF8',
   vjAccent: '#D4AF37',
+};
+
+const getCategoryIcon = (name: string) => {
+  const lower = (name || '').toLowerCase();
+  if (lower.includes('coin') || lower.includes('bar') || lower.includes('vedhani')) {
+    return <Coins size={20} color={COLORS.vjAccent} />;
+  }
+  if (lower.includes('ring') || lower.includes('bangle') || lower.includes('bracelet') || lower.includes('kaddan')) {
+    return <CircleDot size={20} color={COLORS.vjAccent} />;
+  }
+  if (lower.includes('diamond') || lower.includes('pendant') || lower.includes('earring') || lower.includes('stone')) {
+    return <Gem size={20} color={COLORS.vjAccent} />;
+  }
+  if (lower.includes('chain') || lower.includes('necklace') || lower.includes('mangalsutra') || lower.includes('haresh')) {
+    return <Sparkles size={20} color={COLORS.vjAccent} />;
+  }
+  return <Layers size={20} color={COLORS.vjAccent} />;
 };
 
 type CategoryRowProps = {
@@ -38,7 +55,7 @@ const CategoryRow = memo(({ item, onPress }: CategoryRowProps) => {
       style={s.card}
     >
       <View style={s.metalBadge}>
-        <Layers size={20} color={COLORS.vjAccent} />
+        {getCategoryIcon(item.name)}
       </View>
 
       <View style={s.cardBody}>

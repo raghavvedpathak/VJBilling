@@ -7,7 +7,12 @@ import { GlassCard, GlassInput, GlassButton } from '../../components/ui/Glass';
 import { useFirmStore } from '../../store/firmStore';
 import { gemstoneLotService } from '../../services/gemstoneLotService';
 import { stoneRepository } from '../../repositories/stoneRepository';
-import { getCurrencySymbol } from '../../utils/calculations';
+import { 
+  getCurrencySymbol, 
+  caratsToCaratX100, 
+  rupeesToPaise, 
+  computeGemstoneTotalPaise 
+} from '../../utils/calculations';
 import { Gem, Diamond, Banknote, X, CheckCircle } from 'lucide-react-native';
 import type { Stone } from '../../types/phase2.types';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -93,9 +98,9 @@ export default function AddGemstoneScreen() {
     if (isNaN(caratVal) || caratVal <= 0) { Alert.alert('Error', 'Invalid Carat Weight'); return; }
     if (isNaN(qtyVal) || qtyVal <= 0) { Alert.alert('Error', 'Invalid Quantity'); return; }
 
-    const weightCaratX100 = Math.round(caratVal * 100);
-    const ratePaise = ratePerCarat ? Math.round(parseFloat(ratePerCarat) * 100) : null;
-    const totalPaise = ratePaise !== null ? Math.round((weightCaratX100 / 100) * ratePaise) : null;
+    const weightCaratX100 = caratsToCaratX100(caratVal);
+    const ratePaise = rupeesToPaise(ratePerCarat);
+    const totalPaise = computeGemstoneTotalPaise(weightCaratX100, ratePaise);
 
     setLoading(true);
     try {

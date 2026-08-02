@@ -87,6 +87,21 @@ export const urdPrintService = {
     padding: 0;
     background: #fff;
     color: #000;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    color-adjust: exact !important;
+  }
+  @media print {
+    * {
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
+      color-adjust: exact !important;
+    }
+    .watermark {
+      opacity: 0.25 !important;
+      display: block !important;
+      visibility: visible !important;
+    }
   }
   .bill-container {
     width: 100%;
@@ -96,6 +111,7 @@ export const urdPrintService = {
     box-sizing: border-box;
     position: relative;
     background: #fff;
+    overflow: hidden;
   }
   .maroon-banner {
     background-color: #8b2538;
@@ -142,7 +158,7 @@ export const urdPrintService = {
     padding: 6px 10px;
     border-bottom: 1px solid #000;
     font-size: 10px;
-    background: #fff;
+    background: transparent;
   }
   .cust-left, .cust-right {
     width: 48%;
@@ -190,13 +206,16 @@ export const urdPrintService = {
   }
   .watermark {
     position: absolute;
-    top: 48%;
+    top: 50%;
     left: 50%;
     transform: translate(-50%, -50%);
-    opacity: 0.15;
+    opacity: 0.22;
     text-align: center;
     pointer-events: none;
     z-index: 1;
+    width: 100%;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
   }
   .watermark-circle {
     width: 140px;
@@ -223,7 +242,7 @@ export const urdPrintService = {
     font-size: 9.5px;
     position: relative;
     z-index: 2;
-    background: #fff;
+    background: transparent;
   }
   .summary-left {
     width: 55%;
@@ -284,7 +303,7 @@ export const urdPrintService = {
     padding: 8px 12px 4px 12px;
     font-size: 9.5px;
     font-weight: bold;
-    background: #fff;
+    background: transparent;
   }
 </style>
 </head>
@@ -294,16 +313,15 @@ export const urdPrintService = {
     <!-- WATERMARK -->
     <div class="watermark">
       ${firmLogoUri ? `
-        <img src="${firmLogoUri}" alt="Watermark Logo" style="max-width: 220px; max-height: 180px; object-fit: contain; display: block; margin: 0 auto 6px auto; opacity: 1;" />
+        <img src="${firmLogoUri}" alt="Watermark Logo" style="max-width: 260px; max-height: 150px; object-fit: contain; display: block; margin: 0 auto; opacity: 1; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important;" />
       ` : `
-        <svg width="180" height="180" viewBox="0 0 200 200" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <svg width="180" height="140" viewBox="0 0 200 200" fill="none" xmlns="http://www.w3.org/2000/svg">
           <circle cx="100" cy="100" r="90" stroke="#8b2538" stroke-width="2" stroke-dasharray="4 4" fill="none"/>
           <circle cx="100" cy="100" r="75" stroke="#8b2538" stroke-width="1.5" fill="none"/>
           <circle cx="100" cy="100" r="45" stroke="#8b2538" stroke-width="2" fill="none"/>
           <text x="100" y="118" font-size="52" fill="#8b2538" font-weight="bold" text-anchor="middle">${firm.name.charAt(0)}</text>
         </svg>
       `}
-      <div class="watermark-text">${firm.name.toUpperCase()}</div>
     </div>
 
     <!-- MAROON HEADER BANNER -->
@@ -333,9 +351,9 @@ export const urdPrintService = {
         <div class="cust-row"><span class="cust-label">Mob:</span><span class="cust-val">${urd.customerMobile || '-'}</span></div>
         ${idProofHtml}
       </div>
-      <div class="cust-right">
-        <div class="cust-row"><span class="cust-label" style="width: 80px;">Date:</span><span class="cust-val">${formattedDate}</span></div>
-        <div class="cust-row"><span class="cust-label" style="width: 80px;">Invoice No.:</span><span class="cust-val">${urd.urdNumber || 'DRAFT'}</span></div>
+      <div class="cust-right" style="text-align: right;">
+        <div class="cust-row" style="justify-content: flex-end;"><span class="cust-label" style="text-align: right; width: auto; margin-right: 4px;">Date:</span><span class="cust-val">${formattedDate}</span></div>
+        <div class="cust-row" style="justify-content: flex-end;"><span class="cust-label" style="text-align: right; width: auto; margin-right: 4px;">Invoice No.:</span><span class="cust-val">${urd.urdNumber || 'DRAFT'}</span></div>
       </div>
     </div>
 
@@ -381,7 +399,6 @@ export const urdPrintService = {
       <div class="summary-right">
         <table class="totals-table">
           <tr><td>NET TOTAL</td><td>${symbol}${totalRupees}</td></tr>
-          <tr><td>GRAND TOTAL</td><td>${symbol}${totalRupees}</td></tr>
           <tr><td>Round Off</td><td>0.00</td></tr>
           <tr class="highlight-net"><td>NET AMOUNT</td><td>${symbol}${totalRupees}</td></tr>
           <tr><td>AMT RECEIVED</td><td>${symbol}${totalRupees}</td></tr>
@@ -450,6 +467,21 @@ export const urdPrintService = {
     color: #000;
     line-height: 1.4;
     background: #fff;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    color-adjust: exact !important;
+  }
+  @media print {
+    * {
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
+      color-adjust: exact !important;
+    }
+    .watermark {
+      opacity: 0.25 !important;
+      display: block !important;
+      visibility: visible !important;
+    }
   }
   .page {
     width: 100%;
@@ -466,10 +498,10 @@ export const urdPrintService = {
   }
   .watermark {
     position: absolute;
-    top: 48%;
+    top: 50%;
     left: 50%;
     transform: translate(-50%, -50%);
-    opacity: 0.15;
+    opacity: 0.22;
     text-align: center;
     pointer-events: none;
     z-index: 1;
@@ -600,11 +632,10 @@ export const urdPrintService = {
       <!-- WATERMARK -->
       <div class="watermark">
         ${firmLogoUri ? `
-          <img src="${firmLogoUri}" alt="Watermark Logo" style="max-width: 240px; max-height: 200px; object-fit: contain; display: block; margin: 0 auto 6px auto; opacity: 1;" />
+          <img src="${firmLogoUri}" alt="Watermark Logo" style="max-width: 300px; max-height: 220px; object-fit: contain; display: block; margin: 0 auto 6px auto; opacity: 1;" />
         ` : `
-          <div style="font-size: 48px; font-weight: bold; color: #8b2538; opacity: 0.2;">${firm.name.charAt(0)}</div>
+          <div style="font-size: 56px; font-weight: bold; color: #8b2538; opacity: 0.25;">${firm.name.charAt(0)}</div>
         `}
-        <div class="watermark-text">${firm.name.toUpperCase()}</div>
       </div>
 
       <div class="firm-box">
@@ -687,11 +718,10 @@ export const urdPrintService = {
       <!-- WATERMARK -->
       <div class="watermark">
         ${firmLogoUri ? `
-          <img src="${firmLogoUri}" alt="Watermark Logo" style="max-width: 240px; max-height: 200px; object-fit: contain; display: block; margin: 0 auto 6px auto; opacity: 1;" />
+          <img src="${firmLogoUri}" alt="Watermark Logo" style="max-width: 300px; max-height: 220px; object-fit: contain; display: block; margin: 0 auto 6px auto; opacity: 1;" />
         ` : `
-          <div style="font-size: 48px; font-weight: bold; color: #8b2538; opacity: 0.2;">${firm.name.charAt(0)}</div>
+          <div style="font-size: 56px; font-weight: bold; color: #8b2538; opacity: 0.25;">${firm.name.charAt(0)}</div>
         `}
-        <div class="watermark-text">${firm.name.toUpperCase()}</div>
       </div>
 
       <div class="center-header" style="margin-bottom: 12px;">
