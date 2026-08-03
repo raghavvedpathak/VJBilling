@@ -16,6 +16,7 @@ import { inventoryDrillDownService } from '../../services/inventoryDrillDownServ
 import type { DesignCategoryStockResult } from '../../types/phase2.types';
 import { getDisplayPurity, formatWeightMg as formatWeight } from '../../utils/calculations';
 import { ChevronRight, Layers, Tag } from 'lucide-react-native';
+import { getJewelryCategoryIcon } from '../../utils/jewelryIcons';
 
 const COLORS = {
   vjText: '#5C1623',
@@ -105,7 +106,7 @@ export default function CategoryItemsScreen() {
     <View>
       <View style={s.headerIconRow}>
         <View style={s.headerIconCircle}>
-          <Tag size={28} color={COLORS.vjBg} />
+          {getJewelryCategoryIcon(categoryName, undefined, undefined, 28, COLORS.vjBg)}
         </View>
       </View>
       <Text style={s.headerTitle} numberOfLines={1}>{categoryName || 'Category'}</Text>

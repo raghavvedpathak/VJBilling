@@ -14,29 +14,13 @@ import { TwoToneWrapper } from '../../components/TwoToneWrapper';
 import { useFirmStore } from '../../store/firmStore';
 import { inventoryDrillDownService } from '../../services/inventoryDrillDownService';
 import { formatWeightMg as formatWeight } from '../../utils/calculations';
-import { ChevronRight, Package, Layers, Plus, Coins, Sparkles, Gem, Tag, CircleDot } from 'lucide-react-native';
+import { ChevronRight, Package, Layers, Plus, Tag } from 'lucide-react-native';
+import { getJewelryCategoryIcon } from '../../utils/jewelryIcons';
 
 const COLORS = {
   vjText: '#5C1623',
   vjBg: '#FCFBF8',
   vjAccent: '#D4AF37',
-};
-
-const getCategoryIcon = (name: string) => {
-  const lower = (name || '').toLowerCase();
-  if (lower.includes('coin') || lower.includes('bar') || lower.includes('vedhani')) {
-    return <Coins size={20} color={COLORS.vjAccent} />;
-  }
-  if (lower.includes('ring') || lower.includes('bangle') || lower.includes('bracelet') || lower.includes('kaddan')) {
-    return <CircleDot size={20} color={COLORS.vjAccent} />;
-  }
-  if (lower.includes('diamond') || lower.includes('pendant') || lower.includes('earring') || lower.includes('stone')) {
-    return <Gem size={20} color={COLORS.vjAccent} />;
-  }
-  if (lower.includes('chain') || lower.includes('necklace') || lower.includes('mangalsutra') || lower.includes('haresh')) {
-    return <Sparkles size={20} color={COLORS.vjAccent} />;
-  }
-  return <Layers size={20} color={COLORS.vjAccent} />;
 };
 
 type CategoryRowProps = {
@@ -55,7 +39,7 @@ const CategoryRow = memo(({ item, onPress }: CategoryRowProps) => {
       style={s.card}
     >
       <View style={s.metalBadge}>
-        {getCategoryIcon(item.name)}
+        {getJewelryCategoryIcon(item.name, undefined, undefined, 20, COLORS.vjAccent)}
       </View>
 
       <View style={s.cardBody}>
@@ -187,8 +171,10 @@ const s = StyleSheet.create({
   metalBadge: {
     width: 44,
     height: 44,
-    borderRadius: 12,
-    backgroundColor: 'rgba(184,115,51,0.08)',
+    borderRadius: 14,
+    backgroundColor: 'rgba(212,175,55,0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(212,175,55,0.3)',
     justifyContent: 'center',
     alignItems: 'center',
   },

@@ -3,7 +3,7 @@ import React, { useState, useEffect, useCallback, memo } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
 import { FlashList } from '@shopify/flash-list';
 import { useRouter } from 'expo-router';
-import { Search, ArrowLeft, PackageSearch, Ghost, Hash } from 'lucide-react-native';
+import { Search, ArrowLeft, PackageSearch, Ghost, Hash, Sparkles, Coins } from 'lucide-react-native';
 import { inventorySearchService } from '../../services/inventorySearchService';
 import { formatWeightMg as formatWeight } from '../../utils/calculations';
 import type { ItemSearchResult } from '../../types/phase2.types';
@@ -63,9 +63,10 @@ const SearchResultRow = memo(({ item, query, onPress }: SearchResultRowProps) =>
     >
       <View style={s.cardHeader}>
         <View style={s.badgeRow}>
-          <View style={[s.metalBadge, { backgroundColor: isGold ? COLORS.goldAccent + '20' : COLORS.silverAccent + '20' }]}>
+          <View style={[s.metalBadge, { backgroundColor: isGold ? COLORS.goldAccent + '20' : COLORS.silverAccent + '20', flexDirection: 'row', alignItems: 'center', gap: 4 }]}>
+            {isGold ? <Sparkles size={12} color={COLORS.goldAccent} /> : <Coins size={12} color={COLORS.silverAccent} />}
             <Text style={[s.metalText, { color: isGold ? COLORS.goldAccent : COLORS.silverAccent }]}>
-              {item.metal} {item.purityKarat}K
+              {item.metal} {item.purityKarat ? `${item.purityKarat}K` : `${item.purityPercent}%`}
             </Text>
           </View>
           

@@ -28,10 +28,11 @@ import {
   Package, Tag, Scale, Gem, FileText,
   Clock, AlertTriangle, Info, AlertCircle,
   Shield, MapPin, Calculator, Tag as TagIcon,
-  Trash2, Sparkles, Coins
+  Trash2, Sparkles, Coins, Percent
 } from 'lucide-react-native';
 import type { ItemDetail, ItemTimelineEvent } from '../../types/phase2.types';
 import { TERMINAL_ITEM_STATUSES } from '../../types/phase2.types';
+import { getJewelryCategoryIcon } from '../../utils/jewelryIcons';
 const formatCurrency = (paise: number | null): string => {
   if (paise === null || paise === undefined) return '—';
   return getCurrencySymbol() + (Math.round(paise) / 100).toFixed(2);
@@ -159,7 +160,7 @@ export default function ItemDetailScreen() {
   const { itemId } = useLocalSearchParams<{ itemId: string }>();
   const { activeFirmId } = useFirmStore();
   const [item, setItem] = useState<ItemDetail | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [isDateModalVisible, setDateModalVisible] = useState(false);
   const [dateReason, setDateReason] = useState('');
 
@@ -319,14 +320,11 @@ export default function ItemDetailScreen() {
       let active = true;
       const load = async () => {
         if (!activeFirmId || !itemId) return;
-        setLoading(true);
         try {
           const detail = await inventoryDrillDownService.getItemDetail(activeFirmId, itemId);
           if (active) setItem(detail);
         } catch (e) {
           console.error('[ItemDetail] load failed:', e);
-        } finally {
-          if (active) setLoading(false);
         }
       };
       load();
@@ -334,23 +332,12 @@ export default function ItemDetailScreen() {
     }, [activeFirmId, itemId])
   );
 
-  if (loading) {
+  if (!item) {
     return (
       <TwoToneWrapper title="" showBack>
         <View style={s.loadingContainer}>
           <ActivityIndicator size="large" color={COLORS.vjAccent} />
-          <Text style={s.loadingText}>Loading item...</Text>
-        </View>
-      </TwoToneWrapper>
-    );
-  }
-
-  if (!item) {
-    return (
-      <TwoToneWrapper title="" showBack>
-        <View style={s.emptyContainer}>
-          <Package size={48} color="rgba(92,22,35,0.2)" />
-          <Text style={s.emptyTitle}>Item Not Found</Text>
+          <Text style={s.loadingText}>Loading item details...</Text>
         </View>
       </TwoToneWrapper>
     );
@@ -419,7 +406,7 @@ export default function ItemDetailScreen() {
       <View style={s.headerTopRow}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
           <View style={[s.headerMetalBadge, { borderColor: metalColor }]}>
-            {item.metal === 'GOLD' ? <Sparkles size={22} color={metalColor} /> : <Coins size={22} color={metalColor} />}
+            {getJewelryCategoryIcon(item.categoryName, item.designName, item.metal, 22, metalColor)}
           </View>
           {isPhantom && (
             <View style={s.headerPhantomBadge}>
@@ -448,31 +435,32 @@ export default function ItemDetailScreen() {
         {/* === DETAILS CARD === */}
         <View style={s.section}>
           <View style={s.sectionCard}>
-            <DetailRow label="Design" value={item.designName} />
-            <DetailRow label="Category" value={item.categoryName} />
-            <DetailRow label="Metal" value={item.metal.charAt(0) + item.metal.slice(1).toLowerCase()} valueColor={metalColor} />
+            <DetailRow label="Design" value={item.designName} icon={<Sparkles size={14} color={COLORS.vjAccent} />} />
+            <DetailRow label="Category" value={item.categoryName} icon={<Tag size={14} color={COLORS.vjAccent} />} />
+            <DetailRow label="Metal" value={item.metal.charAt(0) + item.metal.slice(1).toLowerCase()} valueColor={metalColor} icon={<Coins size={14} color={metalColor} />} />
             
             <View style={s.divider} />
             
             <DetailRow label="Gross Weight" value={formatWeight(item.grossWeightMg)} icon={<Scale size={14} color={COLORS.vjAccent} />} />
-            <DetailRow label="Stone Weight" value={formatWeight(item.stoneWeightMg)} />
-            <DetailRow label="Beads Weight" value={formatWeight(item.beadsWeightMg)} />
-            <DetailRow label="Net Weight" value={formatWeight(item.netWeightMg)} />
-            <DetailRow label="Purity" value={purityDisplay} />
-            <DetailRow label="Fine Weight" value={formatWeight(item.fineWeightMg)} />
-            <DetailRow label="Vault Truth (Fine)" subLabel={`= ${(item.netWeightMg / 1000).toFixed(3)} g × ${item.purityPercent.toFixed(2)}%`} value={vaultTruth.toFixed(3) + ' g'} valueColor="#047857" style={s.highlightGreenRow} />
-            <DetailRow label="Wastage %" value={item.wastagePercent ? item.wastagePercent.toFixed(2) + '%' : '0.00%'} />
-            <DetailRow label={item.metal === 'GOLD' ? 'Wastage Gold' : 'Wastage Silver'} subLabel={`= ${(item.netWeightMg / 1000).toFixed(3)} g × ${(item.wastagePercent || 0).toFixed(2)}%`} value={wastageGold.toFixed(3) + ' g'} valueColor="#B91C1C" style={s.highlightRedRow} />
-            <DetailRow label="Cost Truth (Fine)" subLabel={`= ${(item.netWeightMg / 1000).toFixed(3)} g × ${(item.purityPercent + (item.wastagePercent || 0)).toFixed(2)}%`} value={costTruth.toFixed(3) + ' g'} valueColor="#B45309" style={s.highlightOrangeRow} />
+            <DetailRow label="Stone Weight" value={formatWeight(item.stoneWeightMg)} icon={<Gem size={14} color={COLORS.vjAccent} />} />
+            <DetailRow label="Beads Weight" value={formatWeight(item.beadsWeightMg)} icon={<Package size={14} color={COLORS.vjAccent} />} />
+            <DetailRow label="Net Weight" value={formatWeight(item.netWeightMg)} icon={<Scale size={14} color={COLORS.vjAccent} />} />
+            <DetailRow label="Purity" value={purityDisplay} icon={<Percent size={14} color={COLORS.vjAccent} />} />
+            <DetailRow label="Fine Weight" value={formatWeight(item.fineWeightMg)} icon={<Sparkles size={14} color={COLORS.vjAccent} />} />
+            <DetailRow label="Vault Truth (Fine)" subLabel={`= ${(item.netWeightMg / 1000).toFixed(3)} g × ${item.purityPercent.toFixed(2)}%`} value={vaultTruth.toFixed(3) + ' g'} valueColor="#047857" style={s.highlightGreenRow} icon={<Shield size={14} color="#047857" />} />
+            <DetailRow label="Wastage %" value={item.wastagePercent ? item.wastagePercent.toFixed(2) + '%' : '0.00%'} icon={<Percent size={14} color={COLORS.vjAccent} />} />
+            <DetailRow label={item.metal === 'GOLD' ? 'Wastage Gold' : 'Wastage Silver'} subLabel={`= ${(item.netWeightMg / 1000).toFixed(3)} g × ${(item.wastagePercent || 0).toFixed(2)}%`} value={wastageGold.toFixed(3) + ' g'} valueColor="#B91C1C" style={s.highlightRedRow} icon={<Coins size={14} color="#B91C1C" />} />
+            <DetailRow label="Cost Truth (Fine)" subLabel={`= ${(item.netWeightMg / 1000).toFixed(3)} g × ${(item.purityPercent + (item.wastagePercent || 0)).toFixed(2)}%`} value={costTruth.toFixed(3) + ' g'} valueColor="#B45309" style={s.highlightOrangeRow} icon={<Calculator size={14} color="#B45309" />} />
             
             <View style={s.divider} />
             
-            <DetailRow label="Size" value={item.sizeValue !== null ? `${item.sizeValue} ${item.sizeUnit}` : '—'} />
+            <DetailRow label="Size" value={item.sizeValue !== null ? `${item.sizeValue} ${item.sizeUnit}` : '—'} icon={<TagIcon size={14} color={COLORS.vjAccent} />} />
 
             <View style={s.divider} />
 
             <View style={s.detailRow}>
               <View style={s.detailLabelRow}>
+                <View style={s.detailIcon}><Shield size={14} color={COLORS.vjAccent} /></View>
                 <Text style={s.detailLabel}>HUID</Text>
               </View>
               <View style={{flexDirection: 'row', alignItems: 'center', gap: 6}}>
@@ -485,7 +473,7 @@ export default function ItemDetailScreen() {
               </View>
             </View>
             
-            <DetailRow label="Barcode" value={formatSKUDisplay(item.barcode)} />
+            <DetailRow label="Barcode" value={formatSKUDisplay(item.barcode)} icon={<TagIcon size={14} color={COLORS.vjAccent} />} />
             
             <View style={s.divider} />
 
@@ -494,12 +482,13 @@ export default function ItemDetailScreen() {
               value={item.location || '—'} 
               icon={<MapPin size={14} color={COLORS.vjAccent} />} 
             />
-            <DetailRow label="Status" value={item.status.replace(/_/g, ' ')} />
-            <DetailRow label="Metal Source" value={item.metalSource.replace(/_/g, ' ')} />
-            <DetailRow label="HSN Code" value={item.hsnCode} />
+            <DetailRow label="Status" value={item.status.replace(/_/g, ' ')} icon={<Info size={14} color={COLORS.vjAccent} />} />
+            <DetailRow label="Metal Source" value={item.metalSource.replace(/_/g, ' ')} icon={<Package size={14} color={COLORS.vjAccent} />} />
+            <DetailRow label="HSN Code" value={item.hsnCode} icon={<FileText size={14} color={COLORS.vjAccent} />} />
             
             <View style={s.detailRow}>
               <View style={s.detailLabelRow}>
+                <View style={s.detailIcon}><Clock size={14} color={COLORS.vjAccent} /></View>
                 <Text style={s.detailLabel}>Added On</Text>
                 {/* GAP-P2-DATE-SKU-EDIT-1 (v1.79) */}
                 {(item.status !== 'SOLD' && item.status !== 'MELTED' && item.status !== 'PHANTOM_SOLD') && (
@@ -516,18 +505,18 @@ export default function ItemDetailScreen() {
               <>
                 <View style={s.divider} />
                 {item.purchaseRatePaise !== null && (
-                  <DetailRow label="Purchase Rate" value={formatCurrency(item.purchaseRatePaise) + ' /g'} />
+                  <DetailRow label="Purchase Rate" value={formatCurrency(item.purchaseRatePaise) + ' /g'} icon={<Calculator size={14} color={COLORS.vjAccent} />} />
                 )}
                 {item.makingChargePaise !== null && (
-                  <DetailRow label="Making Charge" value={formatCurrency(item.makingChargePaise)} />
+                  <DetailRow label="Making Charge" value={formatCurrency(item.makingChargePaise)} icon={<Calculator size={14} color={COLORS.vjAccent} />} />
                 )}
                 {item.stoneCostPaise !== null && (
-                  <DetailRow label="Stone Cost" value={formatCurrency(item.stoneCostPaise)} />
+                  <DetailRow label="Stone Cost" value={formatCurrency(item.stoneCostPaise)} icon={<Gem size={14} color={COLORS.vjAccent} />} />
                 )}
                 {hasCostData && (
                   <>
-                    <DetailRow label="Effective Price/g" subLabel={`= ${getCurrencySymbol()}${rate.toFixed(2)} × ${(item.purityPercent + (item.wastagePercent || 0)).toFixed(2)}%`} value={getCurrencySymbol() + ' ' + effectivePricePerGram.toLocaleString('en-IN', { maximumFractionDigits: 2 })} style={s.highlightGoldRow} />
-                    <DetailRow label="Est. Total Cost" subLabel={`= ${(item.netWeightMg / 1000).toFixed(3)} g × ${getCurrencySymbol()}${effectivePricePerGram.toFixed(2)}${making > 0 ? ' + ' + getCurrencySymbol() + making.toFixed(2) : ''}${stoneC > 0 ? ' + ' + getCurrencySymbol() + stoneC.toFixed(2) : ''}`} value={getCurrencySymbol() + ' ' + totalAmount.toLocaleString('en-IN', { maximumFractionDigits: 2 })} valueColor="#78350F" style={s.highlightGoldRow} />
+                    <DetailRow label="Effective Price/g" subLabel={`= ${getCurrencySymbol()}${rate.toFixed(2)} × ${(item.purityPercent + (item.wastagePercent || 0)).toFixed(2)}%`} value={getCurrencySymbol() + ' ' + effectivePricePerGram.toLocaleString('en-IN', { maximumFractionDigits: 2 })} style={s.highlightGoldRow} icon={<Calculator size={14} color={COLORS.vjAccent} />} />
+                    <DetailRow label="Est. Total Cost" subLabel={`= ${(item.netWeightMg / 1000).toFixed(3)} g × ${getCurrencySymbol()}${effectivePricePerGram.toFixed(2)}${making > 0 ? ' + ' + getCurrencySymbol() + making.toFixed(2) : ''}${stoneC > 0 ? ' + ' + getCurrencySymbol() + stoneC.toFixed(2) : ''}`} value={getCurrencySymbol() + ' ' + totalAmount.toLocaleString('en-IN', { maximumFractionDigits: 2 })} valueColor="#78350F" style={s.highlightGoldRow} icon={<Calculator size={14} color="#78350F" />} />
                   </>
                 )}
               </>
