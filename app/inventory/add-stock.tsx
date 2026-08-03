@@ -266,21 +266,25 @@ export default function AddStockScreen() {
                 }
               }}
               onSelect={async (opt) => {
-                if (!opt) return setSelectedDesign(null);
+                if (!opt) {
+                  setSelectedDesign(null);
+                  return;
+                }
                 const selDesign = designs.find(d => d.id === opt.id)!;
                 setSelectedDesign(selDesign);
                 
                 if (activeFirmId) {
                   try {
+                    // Auto-select linked Category if mapped to this design
                     const mappings = await designCategoryMapRepository.findByDesignId(selDesign.id, activeFirmId);
+                    let catList = categories;
+                    if (catList.length === 0) {
+                      catList = await categoryRepository.findByFirmId(activeFirmId);
+                      setCategories(catList || []);
+                    }
+
                     if (mappings.length > 0) {
-                      // Sort by createdAt descending to get the most recently used category
                       mappings.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-                      let catList = categories;
-                      if (catList.length === 0) {
-                        catList = await categoryRepository.findByFirmId(activeFirmId);
-                        setCategories(catList);
-                      }
                       const linkedCat = catList.find(c => c.id === mappings[0].categoryId);
                       if (linkedCat) {
                         setSelectedCategory(linkedCat);
@@ -291,7 +295,7 @@ export default function AddStockScreen() {
                     console.warn("Failed to auto-select category:", err);
                   }
                 }
-      
+
                 if (selectedCategory && selectedCategory.metal !== selDesign.metal) {
                   setSelectedCategory(null);
                 }
@@ -366,7 +370,7 @@ export default function AddStockScreen() {
                   </View>
                 ) : null}
               </View>
-              <GlassInput placeholder="e.g. 91.6 or 22" keyboardType="numeric" value={purityPercent} onChangeText={setPurityPercent} />
+              <GlassInput placeholder={(selectedDesign?.metal || 'GOLD') === 'SILVER' ? 'e.g. 92.5, 99.9' : 'e.g. 91.6, 75.0, 99.9'} keyboardType="numeric" value={purityPercent} onChangeText={setPurityPercent} />
             </View>
             <View style={{ flex: 1 }}>
               <GlassInput label="Wastage %" placeholder="e.g. 5.0" keyboardType="numeric" value={wastagePercent} onChangeText={setWastagePercent} />

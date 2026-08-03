@@ -55,10 +55,7 @@ const BulkItemRow = ({ index, row, updateRow, removeRow, stones, metal }: any) =
     const gross = parseFloat(row.grossWeight) || 0;
     const stone = parseFloat(row.stoneWeight) || 0;
     const beads = parseFloat(row.beadsWeight) || 0;
-    let purity = parseFloat(row.purityPercent) || 0;
-    if (metal === 'GOLD' && PURITY_MAP[purity] !== undefined) {
-      purity = PURITY_MAP[purity];
-    }
+    const purity = parseFloat(row.purityPercent) || 0;
     const wastage = parseFloat(row.wastagePercent) || 0;
     const rate = parseFloat(row.purchaseRate) || 0;
     const making = parseFloat(row.makingCharge) || 0;
@@ -76,13 +73,17 @@ const BulkItemRow = ({ index, row, updateRow, removeRow, stones, metal }: any) =
     const absoluteTotalCost = computeAbsoluteTotalCostRupees(netWeightG, effectivePricePerGram, making, stoneC);
 
     const wastageGold = costTruth - vaultTruth;
+    const hasCostData = rate > 0 || making > 0 || stoneC > 0;
 
     return {
       netWeight: netWeightG,
+      purityRaw: purity,
+      wastageRaw: wastage,
       totalTouch: purity + wastage,
       vaultTruth,
       wastageGold,
       costTruth,
+      hasCostData,
       pricePerGram: effectivePricePerGram,
       totalAmount: absoluteTotalCost,
       isValid: netWeightG > 0 && purity > 0
@@ -120,7 +121,7 @@ const BulkItemRow = ({ index, row, updateRow, removeRow, stones, metal }: any) =
             ) : null}
           </View>
           <GlassInput 
-            placeholder={metal === 'SILVER' ? 'e.g. 92.5' : 'e.g. 91.6 or 22'} 
+            placeholder={metal === 'SILVER' ? 'e.g. 92.5, 99.9' : 'e.g. 91.6, 75.0, 99.9'} 
             value={row.purityPercent} 
             onChangeText={(t: string) => updateRow(index, 'purityPercent', t)} 
             keyboardType="numeric" 
@@ -248,7 +249,7 @@ const BulkItemRow = ({ index, row, updateRow, removeRow, stones, metal }: any) =
       </View>
 
       {/* Live Cost Breakdown */}
-      {calculations.isValid && row.purchaseRate !== '' && (
+      {calculations.isValid && (
         <View style={s.liveMathBox}>
           <View style={s.mathHeader}>
             <Calculator size={14} color="#D4AF37" />
@@ -259,26 +260,34 @@ const BulkItemRow = ({ index, row, updateRow, removeRow, stones, metal }: any) =
             <Text style={s.mathValue}>{calculations.netWeight.toFixed(3)} g</Text>
           </View>
           <View style={s.mathRow}>
-            <Text style={s.mathLabel}>{metal === 'SILVER' ? 'Wastage Silver:' : 'Wastage Gold:'}</Text>
-            <Text style={[s.mathValue, { color: '#BE123C' }]}>{(calculations.costTruth - calculations.vaultTruth).toFixed(3)} g</Text>
+            <Text style={s.mathLabel}>Total Touch:</Text>
+            <Text style={s.mathValue}>{calculations.purityRaw}% + {calculations.wastageRaw}% = {calculations.totalTouch.toFixed(2)}%</Text>
           </View>
           <View style={s.mathRow}>
             <Text style={s.mathLabel}>Vault Truth (Fine):</Text>
             <Text style={[s.mathValue, { color: '#047857' }]}>{calculations.vaultTruth.toFixed(3)} g</Text>
           </View>
-
+          <View style={s.mathRow}>
+            <Text style={s.mathLabel}>{metal === 'SILVER' ? 'Wastage Silver:' : 'Wastage Gold:'}</Text>
+            <Text style={[s.mathValue, { color: '#BE123C' }]}>{(calculations.costTruth - calculations.vaultTruth).toFixed(3)} g</Text>
+          </View>
           <View style={s.mathRow}>
             <Text style={s.mathLabel}>Cost Truth (Fine):</Text>
             <Text style={[s.mathValue, { color: '#B45309' }]}>{calculations.costTruth.toFixed(3)} g</Text>
           </View>
-          <View style={s.mathRow}>
-            <Text style={s.mathLabel}>Effective Price/g:</Text>
-            <Text style={s.mathValue}>{getCurrencySymbol()} {calculations.pricePerGram.toLocaleString('en-IN', { maximumFractionDigits: 2 })}</Text>
-          </View>
-          <View style={s.mathRow}>
-            <Text style={s.mathLabel}>Est. Total ({getCurrencySymbol()}):</Text>
-            <Text style={s.mathHighlight}>{getCurrencySymbol()} {calculations.totalAmount.toLocaleString('en-IN', { maximumFractionDigits: 2 })}</Text>
-          </View>
+
+          {calculations.hasCostData && (
+            <>
+              <View style={s.mathRow}>
+                <Text style={s.mathLabel}>Effective Price/g:</Text>
+                <Text style={s.mathValue}>{getCurrencySymbol()} {calculations.pricePerGram.toLocaleString('en-IN', { maximumFractionDigits: 2 })}</Text>
+              </View>
+              <View style={s.mathRow}>
+                <Text style={s.mathLabel}>Est. Total ({getCurrencySymbol()}):</Text>
+                <Text style={s.mathHighlight}>{getCurrencySymbol()} {calculations.totalAmount.toLocaleString('en-IN', { maximumFractionDigits: 2 })}</Text>
+              </View>
+            </>
+          )}
         </View>
       )}
       </GlassCard>
@@ -403,11 +412,6 @@ export default function BulkAddScreen() {
         return;
       }
 
-      // Convert direct Karat entry (e.g. 22 or 18 or 24 for GOLD) to exact purity percentage
-      if (selectedDesign.metal === 'GOLD' && PURITY_MAP[purity] !== undefined) {
-        purity = PURITY_MAP[purity];
-      }
-
       // Size pairing guard
       const hasSizeVal = r.sizeValue && r.sizeValue.trim() !== '';
       const hasSizeUnit = r.sizeUnit && r.sizeUnit.trim() !== '';
@@ -499,20 +503,25 @@ export default function BulkAddScreen() {
                 }
               }}
               onSelect={async (opt) => {
-                if (!opt) return setSelectedDesign(null);
+                if (!opt) {
+                  setSelectedDesign(null);
+                  return;
+                }
                 const selDesign = designs.find(d => d.id === opt.id)!;
                 setSelectedDesign(selDesign);
                 
                 if (activeFirmId) {
                   try {
+                    // Auto-select linked Category if mapped to this design
                     const mappings = await designCategoryMapRepository.findByDesignId(selDesign.id, activeFirmId);
+                    let catList = categories;
+                    if (catList.length === 0) {
+                      catList = await categoryRepository.findByFirmId(activeFirmId);
+                      setCategories(catList || []);
+                    }
+
                     if (mappings.length > 0) {
                       mappings.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-                      let catList = categories;
-                      if (catList.length === 0) {
-                        catList = await categoryRepository.findByFirmId(activeFirmId);
-                        setCategories(catList);
-                      }
                       const linkedCat = catList.find(c => c.id === mappings[0].categoryId);
                       if (linkedCat) {
                         setSelectedCategory(linkedCat);
@@ -555,8 +564,13 @@ export default function BulkAddScreen() {
             <GlassSmartSearch 
               label="HSN Code *"
               placeholder="Search HSN codes..."
-              options={hsnCodes.map(h => ({ id: h.id, label: h.code, sublabel: h.description }))}
+              showAllOnFocus={true}
+              options={hsnCodes.map(h => ({ id: h.id, label: h.code || 'No Code', sublabel: h.description || '' }))}
               selectedId={selectedHsn?.id || null}
+              onFocusFetch={async () => {
+                const h = await hsnMasterRepository.findByChapter('71');
+                setHsnCodes(h || []);
+              }}
               onSelect={(opt) => {
                 if (!opt) return setSelectedHsn(null);
                 const selHsn = hsnCodes.find(h => h.id === opt.id)!;

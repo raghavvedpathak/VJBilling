@@ -74,6 +74,7 @@ export const urdPrintService = {
 <html lang="mr">
 <head>
 <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>URD Purchase Bill - ${urd.urdNumber || 'DRAFT'}</title>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Tiro+Devanagari+Marathi&family=Poppins:wght@400;500;600;700&display=swap');
@@ -453,6 +454,7 @@ export const urdPrintService = {
 <html lang="mr">
 <head>
 <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>घोषणापत्र / शपथपत्र</title>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Tiro+Devanagari+Marathi&family=Poppins:wght@400;600;700&display=swap');

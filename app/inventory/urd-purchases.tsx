@@ -97,29 +97,35 @@ export default function URDPurchasesScreen() {
   };
 
   const handlePreviewBill = async (item: URDPurchase) => {
+    if (!activeFirmId) return;
+    setSelectedUrd(item);
+    setDocType('BILL');
+    setPreviewTitle('URD Purchase Bill Preview');
+    setPreviewHtml(null);
+    setPreviewVisible(true); // Open modal INSTANTLY on click (0ms delay)
+
     try {
-      if (!activeFirmId) return;
-      setSelectedUrd(item);
-      setDocType('BILL');
-      setPreviewTitle('URD Purchase Bill Preview');
       const html = await urdPurchaseService.generateURDPurchaseBill(item.id, activeFirmId);
       setPreviewHtml(html);
-      setPreviewVisible(true);
     } catch (error: any) {
+      setPreviewVisible(false);
       Alert.alert('Preview Error', error.message);
     }
   };
 
   const handlePreviewDeclaration = async (item: URDPurchase) => {
+    if (!activeFirmId) return;
+    setSelectedUrd(item);
+    setDocType('DECLARATION');
+    setPreviewTitle('घोषणापत्र / शपथपत्र Preview');
+    setPreviewHtml(null);
+    setPreviewVisible(true); // Open modal INSTANTLY on click (0ms delay)
+
     try {
-      if (!activeFirmId) return;
-      setSelectedUrd(item);
-      setDocType('DECLARATION');
-      setPreviewTitle('घोषणापत्र / शपथपत्र Preview');
       const html = await urdPurchaseService.generateURDCustomerDeclaration(item.id, activeFirmId);
       setPreviewHtml(html);
-      setPreviewVisible(true);
     } catch (error: any) {
+      setPreviewVisible(false);
       Alert.alert('Preview Error', error.message);
     }
   };
@@ -225,12 +231,10 @@ export default function URDPurchasesScreen() {
               <Text style={s.declarationBtnText}>Preview शपथपत्र (Declaration)</Text>
             </TouchableOpacity>
 
-            {!isConfirmed && (
-              <TouchableOpacity style={s.deleteBtn} onPress={() => handleDelete(item.id, item.customerName)}>
-                <Trash2 size={14} color={COLORS.danger} />
-                <Text style={s.deleteBtnText}>Delete</Text>
-              </TouchableOpacity>
-            )}
+            <TouchableOpacity style={s.deleteBtn} onPress={() => handleDelete(item.id, item.customerName)}>
+              <Trash2 size={14} color={COLORS.danger} />
+              <Text style={s.deleteBtnText}>Delete</Text>
+            </TouchableOpacity>
           </View>
         </View>
       </GlassCard>
@@ -318,11 +322,15 @@ export default function URDPurchasesScreen() {
                 source={{ html: previewHtml }}
                 style={{ flex: 1 }}
                 originWhitelist={['*']}
-                scalesPageToFit
+                scalesPageToFit={true}
+                showsHorizontalScrollIndicator={false}
+                showsVerticalScrollIndicator={true}
+                setBuiltInZoomControls={false}
               />
             ) : (
-              <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+              <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', gap: 12 }}>
                 <ActivityIndicator size="large" color="#8B2538" />
+                <Text style={{ color: '#8B2538', fontWeight: '700', fontSize: 14 }}>Loading preview document...</Text>
               </View>
             )}
           </View>

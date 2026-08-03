@@ -183,18 +183,25 @@ export function GlassSmartSearch({
 }: GlassSmartSearchProps) {
   const [query, setQuery] = React.useState('');
   const [isFocused, setIsFocused] = React.useState(false);
+  const lastSyncedId = React.useRef<string | null>(null);
 
-  // Sync input display text with selected item when not typing
+  // Sync input display text with selected item when selectedId or options change
   React.useEffect(() => {
-    if (!isFocused) {
-      if (selectedId) {
-        const selectedOpt = options.find((o) => o.id === selectedId);
-        setQuery(selectedOpt ? selectedOpt.label : '');
-      } else {
+    if (selectedId) {
+      const selectedOpt = options.find((o) => o.id === selectedId);
+      if (selectedOpt) {
+        if (lastSyncedId.current !== selectedId || query !== selectedOpt.label) {
+          setQuery(selectedOpt.label);
+          lastSyncedId.current = selectedId;
+        }
+      }
+    } else {
+      if (lastSyncedId.current !== null && !isFocused) {
         setQuery('');
+        lastSyncedId.current = null;
       }
     }
-  }, [isFocused, selectedId, options]);
+  }, [selectedId, options, isFocused, query]);
 
   const shouldShowOptions = React.useMemo(() => {
     if (!isFocused) return false;
