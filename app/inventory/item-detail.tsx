@@ -38,17 +38,7 @@ const formatCurrency = (paise: number | null): string => {
   return getCurrencySymbol() + (Math.round(paise) / 100).toFixed(2);
 };
 
-const COLORS = {
-  vjText: '#5C1623',
-  vjBg: '#FCFBF8',
-  vjAccent: '#D4AF37',
-  gold: '#C8860A',
-  silver: '#6B7280',
-  info: '#3B82F6',
-  warning: '#F59E0B',
-  error: '#EF4444',
-  phantom: '#7C3AED',
-};
+import { COLORS } from '../../constants/theme';
 
 // EVENT LABEL MAPPING (mandatory)
 const getEventLabel = (event: ItemTimelineEvent): string => {
@@ -159,7 +149,16 @@ export default function ItemDetailScreen() {
   const router = useRouter();
   const { itemId } = useLocalSearchParams<{ itemId: string }>();
   const { activeFirmId } = useFirmStore();
-  const [item, setItem] = useState<ItemDetail | null>(null);
+  const [item, setItem] = useState<ItemDetail | null>(() => {
+    if (activeFirmId && itemId) {
+      try {
+        return inventoryDrillDownService.getItemDetailSync(activeFirmId, itemId);
+      } catch (e) {
+        return null;
+      }
+    }
+    return null;
+  });
   const [loading, setLoading] = useState(false);
   const [isDateModalVisible, setDateModalVisible] = useState(false);
   const [dateReason, setDateReason] = useState('');

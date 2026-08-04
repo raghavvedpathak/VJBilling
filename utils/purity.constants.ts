@@ -1,4 +1,4 @@
-import { ERR } from '../constants/errorCodes';
+import { ERR } from '../constants';
 
 // purity.constants.ts — FIX-GAP-D-1 (v1.19)
 export const PURITY_MAP: Record<number, number> = {

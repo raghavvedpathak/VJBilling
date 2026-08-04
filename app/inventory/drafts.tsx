@@ -13,14 +13,7 @@ import type { ItemSearchResult } from '../../types/phase2.types';
 import { getDisplayPurity, formatSKUDisplay, formatWeightMg as formatWeight } from '../../utils/calculations';
 import { Check, ClipboardList, PackageSearch, Edit3, CheckCircle } from 'lucide-react-native';
 
-const COLORS = {
-  vjText: '#5C1623',
-  vjBg: '#FCFBF8',
-  vjAccent: '#D4AF37',
-  gold: '#C8860A',
-  silver: '#6B7280',
-  success: '#22c55e'
-};
+import { COLORS } from '../../constants/theme';
 
 type DraftRowProps = {
   item: ItemSearchResult;

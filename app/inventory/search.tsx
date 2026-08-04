@@ -10,17 +10,11 @@ import type { ItemSearchResult } from '../../types/phase2.types';
 
 import { useFirmStore } from '../../store/firmStore';
 
+import { COLORS as CENTRAL_COLORS } from '../../constants/theme';
+
 const COLORS = {
-  vjText: '#5C1623',
-  vjBg: '#FCFBF8',
-  surface: '#FFFFFF',
-  border: 'rgba(92,22,35,0.08)',
-  goldAccent: '#D97706',
-  silverAccent: '#9CA3AF',
-  phantom: '#8B5CF6',
-  danger: '#DC2626',
+  ...CENTRAL_COLORS,
   highlight: '#FDE047', // Yellow Highlight
-  muted: 'rgba(92,22,35,0.5)',
 };
 
 // --- Custom Component: Smart Text Highlighter ---

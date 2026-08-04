@@ -21,14 +21,7 @@ import {
 } from '../../utils/calculations';
 import { Edit3, Save, Calculator, CheckCircle } from 'lucide-react-native';
 import { GlassButton, GlassSmartSearch } from '../../components/ui/Glass';
-const COLORS = {
-  vjText: '#5C1623',
-  vjBg: '#FCFBF8',
-  vjAccent: '#D4AF37',
-  inputBg: '#F3F4F6',
-  inputBorder: '#D1D5DB',
-  success: '#10B981',
-};
+import { COLORS } from '../../constants/theme';
 
 export default function EditDraftScreen() {
   const router = useRouter();

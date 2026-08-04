@@ -16,6 +16,7 @@ import {
 } from '../services/pinService';
 import { TwoToneWrapper } from './TwoToneWrapper';
 import { storage } from '../utils/storage';
+import { COLORS } from '../constants/theme';
 
 type PinMode = 'LOADING' | 'SETUP_STEP_1' | 'SETUP_STEP_2' | 'VERIFY' | 'LOCKED';
 

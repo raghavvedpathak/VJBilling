@@ -17,6 +17,7 @@ import { safeModeStore } from '../store/safeModeStore';
 import { safeModeService } from '../services/safeModeService';
 import { bootstrapService } from '../services/bootstrapService';
 import { GlassCard, GlassButton, GlassInput } from '../components/ui/Glass';
+import { COLORS } from '../constants/theme';
 
 export default function SafeModeScreen() {
   const router = useRouter();

@@ -3,7 +3,8 @@ import { safeModeRepository } from '../repositories/safeModeRepository';
 import { auditRepository } from '../repositories/auditRepository';
 import { safeModeStore, SafeModeTrigger } from '../store/safeModeStore';
 import { now } from '../utils/now';
-import { getDeviceId } from '../utils/deviceId'; 
+import { getDeviceId } from '../utils/deviceId';
+import { ERR } from '../constants'; 
 
 // v2.8 G31 MANDATORY: bootstrapComplete flag object reference
 export const bootstrapComplete = { value: false };

@@ -15,11 +15,7 @@ import { categoryService } from '../../services/categoryService';
 import { now } from '../../utils/now';
 import * as Crypto from 'expo-crypto';
 
-const COLORS = {
-  vjText: '#5C1623',
-  vjBg: '#FCFBF8',
-  vjAccent: '#D4AF37',
-};
+import { COLORS } from '../../constants/theme';
 
 type Category = typeof categoriesTable.$inferSelect;
 

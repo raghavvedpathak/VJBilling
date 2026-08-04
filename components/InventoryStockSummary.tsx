@@ -10,15 +10,7 @@ import { itemRepository } from '../repositories/itemRepository';
 import { getCurrencySymbol } from '../utils/calculations';
 import { Scale, AlertCircle, Wallet, TrendingUp } from 'lucide-react-native';
 
-const COLORS = {
-  vjText: '#2E1D00',
-  vjBg: '#FAF3E0',
-  goldAccent: '#D97706', // Premium Gold
-  silverAccent: '#9CA3AF', // True Gray (Removed Blue Tint)
-  danger: '#DC2626',
-  surface: '#FFFFFF',
-  border: 'rgba(46,29,0,0.06)',
-};
+import { COLORS } from '../constants/theme';
 
 interface StockWeightSummary {
   goldNetWeightMg: number;

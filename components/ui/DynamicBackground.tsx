@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, StyleSheet, Dimensions } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import { COLORS } from '../../constants/theme';
 
 const { width, height } = Dimensions.get('window');
 
@@ -13,7 +14,7 @@ export const DynamicBackground = React.memo(function DynamicBackground() {
   return (
     <View style={styles.container} pointerEvents="none">
       {/* 1. Base Luxury Pearl Ivory */}
-      <View style={[StyleSheet.absoluteFill, { backgroundColor: '#FCFBF8' }]} />
+      <View style={[StyleSheet.absoluteFill, { backgroundColor: COLORS.vjBg }]} />
       
       {/* 2. Top-Right Ambient Rich Gold Glow */}
       <View style={[

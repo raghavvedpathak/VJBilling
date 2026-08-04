@@ -31,11 +31,7 @@ import {
   getCurrencySymbol 
 } from '../../utils/calculations';
 
-const COLORS = {
-  vjText: '#5C1623',
-  vjBg: '#FCFBF8',
-  vjAccent: '#D4AF37',
-};
+import { COLORS } from '../../constants/theme';
 
 import { GlassSmartSearch } from '../../components/ui/Glass';
 

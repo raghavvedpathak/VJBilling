@@ -16,12 +16,7 @@ import { inventoryDrillDownService } from '../../services/inventoryDrillDownServ
 import { formatWeightMg as formatWeight } from '../../utils/calculations';
 import { ChevronRight, Package, Layers, Plus, Tag } from 'lucide-react-native';
 import { getJewelryCategoryIcon } from '../../utils/jewelryIcons';
-
-const COLORS = {
-  vjText: '#5C1623',
-  vjBg: '#FCFBF8',
-  vjAccent: '#D4AF37',
-};
+import { COLORS } from '../../constants/theme';
 
 type CategoryRowProps = {
   item: { id: string; name: string; availableCount: number; totalNetWeightMg: number; lowStockThreshold: number | null };

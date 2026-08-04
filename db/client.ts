@@ -3,11 +3,12 @@ import { openDatabaseSync } from 'expo-sqlite';
 import { drizzle } from 'drizzle-orm/expo-sqlite';
 import { migrate } from 'drizzle-orm/expo-sqlite/migrator';
 import migrations from '../drizzle/migrations';
+import { STORAGE_PATHS } from '../constants';
 
 // ---------------------------------------------------------------------------
 // Database connection (single instance — module-level singleton)
 // ---------------------------------------------------------------------------
-export const expoDb = openDatabaseSync('vjbilling_v2.db');
+export const expoDb = openDatabaseSync(STORAGE_PATHS.DB_FILENAME);
 
 // CRITICAL FIX 1: Apply WAL PRAGMAs IMMEDIATELY upon opening the connection,
 // synchronously, BEFORE Drizzle is initialized and BEFORE any pre-migration

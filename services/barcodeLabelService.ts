@@ -11,7 +11,7 @@ import { getDisplayPurity, formatSKUDisplay, formatWeightMg } from '../utils/cal
 import { now } from '../utils/now';
 import * as Crypto from 'expo-crypto';
 import type { BarcodeLabel } from '../types/phase2.types';
-import { ERR } from '../constants/errorCodes';
+import { ERR } from '../constants';
 
 export const barcodeLabelService = {
   // Read-only, safely async

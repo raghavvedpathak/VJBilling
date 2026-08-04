@@ -4,6 +4,7 @@ import { View, Text } from 'react-native';
 import { useStore } from 'zustand';
 import { safeModeStore, SafeModeTrigger } from '../store/safeModeStore';
 import { ShieldAlert } from 'lucide-react-native';
+import { COLORS } from '../constants/theme';
 
 export function SafeModeBanner() {
   // FIX: Adapted to React hook pattern

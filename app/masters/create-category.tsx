@@ -8,11 +8,7 @@ import { useFirmStore } from '../../store/firmStore';
 import { categoryService } from '../../services/categoryService';
 import { TouchableOpacity } from 'react-native';
 
-const COLORS = {
-  vjText: '#5C1623',
-  vjBg: '#FCFBF8',
-  vjAccent: '#D4AF37',
-};
+import { COLORS } from '../../constants/theme';
 
 export default function CreateCategoryScreen() {
   const router = useRouter();

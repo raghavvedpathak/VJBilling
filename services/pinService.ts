@@ -7,7 +7,7 @@
 // =================================================================
 
 import { storage } from '../utils/storage';
-import { ERR } from '../constants/errorCodes';
+import { ERR } from '../constants';
 import * as Crypto from 'expo-crypto';
 
 const PIN_HASH_KEY = 'vjbilling_pin_hash';

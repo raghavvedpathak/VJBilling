@@ -6,6 +6,7 @@ import { useFirmStore } from '../../store/firmStore';
 import { firmService } from '../../services/firmService';
 import { GlassCard, GlassButton } from '../../components/ui/Glass'; 
 import { Building2, Plus, Pencil, Archive, ArchiveRestore, AlertTriangle } from 'lucide-react-native';
+import { COLORS } from '../../constants/theme';
 
 type DialogState = {
   visible: boolean;

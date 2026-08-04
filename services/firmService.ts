@@ -21,6 +21,7 @@ import { validatePincode } from '../utils/validatePincode';
 import { getDeviceId } from '../utils/deviceId';
 import { now } from '../utils/now';
 import { sanitizeText } from '../utils/sanitize';
+import { ERR } from '../constants';
 import type { CreateFirmInput, UpdateFirmInput } from '../types/firm';
 export type { CreateFirmInput, UpdateFirmInput };
 

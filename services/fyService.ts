@@ -13,7 +13,7 @@ import * as Crypto from 'expo-crypto';
 import { oldGoldLots, appSettings, financialYears, FYStatus } from '../db/schema';
 import { appSettingsStore } from '../store/appSettingsStore';
 import type { DrizzleTransaction, VerifyIssue } from '../types/phase2.types';
-import { ERR } from '../constants/errorCodes';
+import { ERR } from '../constants';
 import { purgeExpiredAuditLogs } from './auditRetentionService';
 
 // FIX-V718-1: Hooks must be strictly synchronous to execute safely inside the JSI transaction boundary

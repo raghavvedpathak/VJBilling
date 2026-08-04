@@ -22,16 +22,7 @@ import type { Firm } from '../../types/firm';
 
 const FlashListAny: any = FlashList;
 
-const COLORS = {
-  vjText: '#5C1623',
-  vjBg: '#FCFBF8',
-  vjAccent: '#D4AF37',
-  gold: '#C8860A',
-  silver: '#6B7280',
-  success: '#10B981',
-  warning: '#F59E0B',
-  danger: '#EF4444',
-};
+import { COLORS } from '../../constants/theme';
 
 const formatCurrency = (paise: number) => getCurrencySymbol() + (paise / 100).toFixed(2);
 

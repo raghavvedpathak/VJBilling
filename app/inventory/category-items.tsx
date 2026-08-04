@@ -17,14 +17,7 @@ import type { DesignCategoryStockResult } from '../../types/phase2.types';
 import { getDisplayPurity, formatWeightMg as formatWeight } from '../../utils/calculations';
 import { ChevronRight, Layers, Tag } from 'lucide-react-native';
 import { getJewelryCategoryIcon } from '../../utils/jewelryIcons';
-
-const COLORS = {
-  vjText: '#5C1623',
-  vjBg: '#FCFBF8',
-  vjAccent: '#D4AF37',
-  gold: '#C8860A',
-  silver: '#6B7280',
-};
+import { COLORS } from '../../constants/theme';
 
 type DesignRowProps = {
   item: DesignCategoryStockResult;

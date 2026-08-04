@@ -9,6 +9,7 @@ import { GlassCard, GlassButton } from '../components/ui/Glass';
 import { LeaseStatusBanner } from '../components/LeaseStatusBanner'; 
 import { FYEndBanner } from '../components/FYEndBanner'; 
 import { LogOut, Settings, ShieldCheck, FileText, Package, TrendingUp, ChevronRight, Gem, Landmark } from 'lucide-react-native';
+import { COLORS } from '../constants/theme';
 
 export default function Dashboard() {
   const router = useRouter();

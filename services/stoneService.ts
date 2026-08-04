@@ -7,7 +7,7 @@ import { getDeviceId } from '../utils/deviceId';
 import { now } from '../utils/now';
 import * as Crypto from 'expo-crypto';
 import type { CreateStoneInput, Stone } from '../types/phase2.types';
-import { ERR } from '../constants/errorCodes';
+import { ERR } from '../constants';
 
 export const stoneService = {
   // createStone() service body from Step 4

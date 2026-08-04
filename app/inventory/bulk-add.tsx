@@ -16,8 +16,8 @@ import { designCategoryMapRepository } from '../../repositories/designCategoryMa
 import type { Design, Category, HsnCode, Stone } from '../../types/phase2.types';
 import { Package, Plus, Trash2, Calculator, Layers, MapPin, Wallet, CheckCircle } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { PURITY_MAP } from '../../utils/purity.constants';
 import { 
+  PURITY_MAP,
   percentToKarat, 
   resolveFineWeightMg, 
   computeFineGoldChargedMg, 
@@ -29,11 +29,7 @@ import {
   getCurrencySymbol 
 } from '../../utils/calculations';
 
-const COLORS = {
-  vjText: '#5C1623',
-  vjBg: '#FCFBF8',
-  vjAccent: '#D4AF37',
-};
+import { COLORS } from '../../constants/theme';
 
 const BULK_ITEM_MAX = 50;
 

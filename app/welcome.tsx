@@ -7,6 +7,7 @@ import { GlassCard, GlassButton } from '../components/ui/Glass';
 import { restoreService } from '../services/restoreService';
 import { useSession } from '../hooks/useSession';
 import { ShieldCheck, HardDriveUpload, Plus, Search } from 'lucide-react-native';
+import { COLORS } from '../constants/theme';
 
 export default function WelcomeScreen() {
   const router = useRouter();

@@ -1,7 +1,7 @@
 import { eq, and } from 'drizzle-orm';
 import { db } from '../db/client';
 import { urdPurchases } from '../db/schema';
-import { ERR } from '../constants/errorCodes';
+import { ERR } from '../constants';
 import { urdPurchaseRepository } from '../repositories/urdPurchaseRepository';
 import { oldGoldLotRepository } from '../repositories/oldGoldLotRepository';
 import { sequenceCounterRepository } from '../repositories/sequenceCounterRepository';

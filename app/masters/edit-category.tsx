@@ -8,11 +8,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFirmStore } from '../../store/firmStore';
 import { categoryService } from '../../services/categoryService';
 
-const COLORS = {
-  vjText: '#5C1623',
-  vjBg: '#FCFBF8',
-  vjAccent: '#D4AF37',
-};
+import { COLORS } from '../../constants/theme';
 
 export default function EditCategoryScreen() {
   const router = useRouter();

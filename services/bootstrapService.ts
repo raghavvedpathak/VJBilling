@@ -29,7 +29,7 @@ import { firms, writerLeases, bisLogos, safeModeState, schemaVersion } from '../
 import { auditRepository } from '../repositories/auditRepository';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Crypto from 'expo-crypto';
-import { STORAGE_PATHS } from '../constants/storagePaths';
+import { STORAGE_PATHS } from '../constants';
 import { storage } from '../utils/storage';
 import { eq, isNotNull } from 'drizzle-orm';
 import { SafeModeTrigger } from '../store/safeModeStore';

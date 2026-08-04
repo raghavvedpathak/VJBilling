@@ -5,6 +5,7 @@ import { router } from 'expo-router';
 import { ChevronLeft } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import { DynamicBackground } from './ui/DynamicBackground';
+import { COLORS } from '../constants/theme';
 
 interface TwoToneWrapperProps {
   title?: string;

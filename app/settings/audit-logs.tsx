@@ -10,6 +10,7 @@ import { appSettingsStore } from '../../store/appSettingsStore';
 import { getDeviceId } from '../../utils/deviceId';
 import { FileText, Smartphone, Calendar, ChevronDown, ChevronUp, Share2, Filter } from 'lucide-react-native';
 import { format, parseISO } from 'date-fns';
+import { COLORS } from '../../constants/theme';
 
 const ToggleHandlerRef = React.createContext<React.MutableRefObject<(id: string) => void> | null>(null);
 

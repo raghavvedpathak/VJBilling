@@ -16,14 +16,7 @@ import { getDisplayPurity, formatSKUDisplay, formatWeightMg as formatWeight } fr
 import { ChevronRight, ChevronDown, Gem, Tag, MapPin, Sparkles, Coins } from 'lucide-react-native';
 import { getJewelryCategoryIcon } from '../../utils/jewelryIcons';
 import type { ItemSearchResult } from '../../types/phase2.types';
-
-const COLORS = {
-  vjText: '#5C1623',
-  vjBg: '#FCFBF8',
-  vjAccent: '#D4AF37',
-  gold: '#C8860A',
-  silver: '#6B7280',
-};
+import { COLORS } from '../../constants/theme';
 
 type GroupHeaderData = {
   purityPercent: number;

@@ -12,6 +12,7 @@ import { GlassCard, GlassInput, GlassButton } from '../../components/ui/Glass';
 import { Save, Building2, User, MapPin, Hash, Phone, ShieldCheck, ImagePlus, Tag, CheckCircle2, ArrowLeft, ChevronDown, X } from 'lucide-react-native';
 // ARCHITECT FIX: Import the mandatory G69 guard
 import { useUnsavedChangesGuard } from '../../hooks/useUnsavedChangesGuard';
+import { COLORS } from '../../constants/theme';
 
 export default function EditFirmScreen() {
   const router = useRouter();

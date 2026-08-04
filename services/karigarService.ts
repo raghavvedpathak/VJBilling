@@ -11,7 +11,7 @@ import { leaseService } from './leaseService';
 import { safeModeService } from './safeModeService';
 import { getDeviceId } from '../utils/deviceId';
 import { now } from '../utils/now';
-import { ERR } from '../constants/errorCodes';
+import { ERR } from '../constants';
 
 export type KarigarOutcome = 'REPAIRED' | 'UNREPAIRABLE' | 'PARTIALLY_REPAIRED';
 

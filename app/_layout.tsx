@@ -23,7 +23,7 @@ import * as Sharing from "expo-sharing";
 import { useDatabase } from "../db/client";
 import { bootstrapService, PRE_MIGRATION_SNAPSHOT_PATH } from "../services/bootstrapService";
 import { getDeviceDerivedKeyMaterial } from "../utils/deviceId";
-import { STORAGE_PATHS } from "../constants/storagePaths";
+import { STORAGE_PATHS, COLORS } from "../constants";
 import "./global.css";
 import { AlertTriangle, Download, LifeBuoy, Trash2 } from "lucide-react-native";
 
@@ -45,7 +45,7 @@ const vjTheme = {
   ...DefaultTheme,
   colors: {
     ...DefaultTheme.colors,
-    background: '#FCFBF8',
+    background: COLORS.vjBg,
   },
 };
 

@@ -12,13 +12,7 @@ import { getCurrencySymbol } from '../../utils/calculations';
 import { Gem, Plus, Diamond, Banknote, ShieldAlert, CheckCircle } from 'lucide-react-native';
 import type { GemstoneLot } from '../../types/phase2.types';
 
-const COLORS = {
-  vjText: '#5C1623',
-  vjBg: '#FCFBF8',
-  vjAccent: '#D4AF37',
-  success: '#10B981',
-  error: '#EF4444',
-};
+import { COLORS } from '../../constants/theme';
 
 const formatCarats = (caratsX100: number) => (caratsX100 / 100).toFixed(2) + ' ct';
 const formatCurrency = (paise: number | null) => paise === null ? '—' : getCurrencySymbol() + (paise / 100).toFixed(2);

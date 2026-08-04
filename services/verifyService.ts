@@ -29,7 +29,7 @@ import { safeModeService } from './safeModeService';
 import { verifyStore } from '../store/verifyStore';
 import { storage } from '../utils/storage';
 import { now } from '../utils/now';
-import { SCHEMA_VERSION } from '../constants/appVersion';
+import { SCHEMA_VERSION } from '../constants';
 
 const CACHE_KEY_STATUS = 'vjbilling_last_verify_status';
 const CACHE_KEY_AT     = 'vjbilling_last_verify_at';

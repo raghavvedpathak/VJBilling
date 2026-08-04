@@ -12,13 +12,7 @@ import { ChevronRight, Tag, Gem, MapPin, Printer, Sparkles, Coins } from 'lucide
 import { getJewelryCategoryIcon } from '../../utils/jewelryIcons';
 import type { ItemSearchResult } from '../../types/phase2.types';
 
-const COLORS = {
-  vjText: '#5C1623',
-  vjBg: '#FCFBF8',
-  vjAccent: '#D4AF37',
-  gold: '#C8860A',
-  silver: '#6B7280',
-};
+import { COLORS } from '../../constants/theme';
 
 const SkuRow = React.memo(({
   item,

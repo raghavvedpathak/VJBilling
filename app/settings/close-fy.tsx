@@ -12,14 +12,7 @@ import { backupService } from '../../services/backupService';
 import { Lock, ShieldAlert, ShieldCheck, HardDriveDownload, AlertTriangle, CheckCircle2 } from 'lucide-react-native';
 import type { VerifyIssue } from '../../types/phase2.types';
 
-const COLORS = {
-  vjText: '#5C1623',
-  vjBg: '#FCFBF8',
-  vjAccent: '#D4AF37',
-  danger: '#EF4444',
-  success: '#10B981',
-  warning: '#F59E0B',
-};
+import { COLORS } from '../../constants/theme';
 
 export default function CloseFYWizard() {
   const router = useRouter();

@@ -4,6 +4,7 @@ import { ShieldCheck, Lock } from 'lucide-react-native';
 // FIX: Constitutional Rule — Lease queries must route through leaseService to ensure top-level DB isolation.
 import { leaseService } from '../services/leaseService';
 import { now } from '../utils/now';
+import { COLORS } from '../constants/theme';
 
 // ============================================================================
 // POLLING INTERVAL — 5 seconds.

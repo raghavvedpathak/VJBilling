@@ -13,11 +13,7 @@ import { Printer, Share, CheckCircle, RefreshCcw } from 'lucide-react-native';
 import QRCode from 'react-native-qrcode-svg';
 import type { BarcodeLabel } from '../../types/phase2.types';
 
-const COLORS = {
-  vjText: '#5C1623',
-  vjBg: '#FCFBF8',
-  vjAccent: '#D4AF37',
-};
+import { COLORS } from '../../constants/theme';
 
 export default function BarcodePrintScreen() {
   const router = useRouter();

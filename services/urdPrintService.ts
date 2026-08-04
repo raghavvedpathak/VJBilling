@@ -3,7 +3,7 @@ import { db } from '../db/client';
 import { urdPurchaseRepository } from '../repositories/urdPurchaseRepository';
 import { firmRepository } from '../repositories/firmRepository';
 import { bisLogoRepository } from '../repositories/bisLogoRepository';
-import { ERR } from '../constants/errorCodes';
+import { ERR } from '../constants';
 import { amountToWords, getCurrencySymbol, formatWeightMg } from '../utils/calculations';
 import { formatDate } from '../utils/formatDate';
 

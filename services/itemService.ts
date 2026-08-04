@@ -14,7 +14,7 @@ import { getDeviceId } from '../utils/deviceId';
 import { now } from '../utils/now';
 import { resolveFineWeightMg, computeFineGoldChargedMg, computeEffectivePricePerGram, computeEstTotalCostPaise } from '../utils/calculations';
 import * as Crypto from 'expo-crypto';
-import { ERR } from '../constants/errorCodes';
+import { ERR } from '../constants';
 import type { CreatePhantomItemInput, Item, CreateItemInput, UpdateableItemDraftFields, StockStatus, MetalSource } from '../types/phase2.types';
 import { ALLOWED_TRANSITIONS, TERMINAL_ITEM_STATUSES } from '../types/phase2.types';
 import { format, parseISO } from 'date-fns';

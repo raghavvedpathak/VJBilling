@@ -11,6 +11,7 @@ import {
   HardDriveDownload, 
   Gem
 } from 'lucide-react-native';
+import { COLORS } from '../constants/theme';
 
 export default function SetupScreen() {
   const router = useRouter();
@@ -48,7 +49,7 @@ export default function SetupScreen() {
           {/* Glowing Glass Logo Container */}
           <View className="h-24 w-24 bg-vj-glass rounded-full border border-white/50 justify-center items-center mb-6 shadow-sm">
             <View className="h-20 w-20 bg-white/60 rounded-full justify-center items-center shadow-inner">
-              <Gem size={40} color="#D4AF37" />
+              <Gem size={40} color={COLORS.vjAccent} />
             </View>
           </View>
           
@@ -74,7 +75,7 @@ export default function SetupScreen() {
         <View className="gap-4">
           
           {hasBackup === null ? (
-            <ActivityIndicator size="large" color="#D4AF37" className="mt-4" />
+            <ActivityIndicator size="large" color={COLORS.vjAccent} className="mt-4" />
           ) : (
             <>
               {/* STEP 16 SPEC: Show Restore FIRST if Backup Detected */}
@@ -83,10 +84,10 @@ export default function SetupScreen() {
                   activeOpacity={0.8}
                   onPress={() => alert("Restore logic is available in Settings after setup.")}
                 >
-                  <GlassCard style={{ padding: 20, marginBottom: 0, borderColor: '#D4AF37', borderWidth: 2 }}>
+                  <GlassCard style={{ padding: 20, marginBottom: 0, borderColor: COLORS.vjAccent, borderWidth: 2 }}>
                     <View className="flex-row items-center gap-5">
                       <View className="bg-vj-bg p-4 rounded-2xl border border-vj-accent/30">
-                        <HardDriveDownload size={28} color="#D4AF37" />
+                        <HardDriveDownload size={28} color={COLORS.vjAccent} />
                       </View>
                       <View className="flex-1">
                         <Text className="text-vj-text font-bold text-lg mb-0.5">
@@ -109,7 +110,7 @@ export default function SetupScreen() {
                 <GlassCard style={{ padding: 20, marginBottom: 0 }}>
                   <View className="flex-row items-center gap-5">
                     <View className="bg-vj-text p-4 rounded-2xl shadow-sm">
-                      <Store size={28} color="#FCFBF8" />
+                      <Store size={28} color={COLORS.vjBg} />
                     </View>
                     <View className="flex-1">
                       <Text className="text-vj-text font-bold text-lg mb-0.5">
@@ -120,7 +121,7 @@ export default function SetupScreen() {
                       </Text>
                     </View>
                     <View className="bg-vj-glass p-2 rounded-full border border-white/20">
-                      <ArrowRight size={20} color="#5C1623" />
+                      <ArrowRight size={20} color={COLORS.vjText} />
                     </View>
                   </View>
                 </GlassCard>
@@ -132,7 +133,7 @@ export default function SetupScreen() {
 
         {/* 4. FOOTER BADGE */}
         <View className="mt-12 items-center flex-row justify-center gap-2 opacity-50">
-          <ShieldCheck size={14} color="#5C1623" />
+          <ShieldCheck size={14} color={COLORS.vjText} />
           <Text className="text-vj-text text-xs font-medium">
             100% Offline & Secure Storage
           </Text>

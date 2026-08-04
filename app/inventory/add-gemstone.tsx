@@ -16,6 +16,7 @@ import {
 import { Gem, Diamond, Banknote, X, CheckCircle } from 'lucide-react-native';
 import type { Stone } from '../../types/phase2.types';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { COLORS } from '../../constants/theme';
 
 const SelectModal = ({ visible, title, options, onSelect, onClose }: any) => {
   const insets = useSafeAreaInsets();

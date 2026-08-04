@@ -33,6 +33,7 @@ import {
   FileBox,
   KeyRound
 } from 'lucide-react-native';
+import { COLORS } from '../../constants/theme';
 
 export default function SettingsScreen() {
   const router = useRouter();

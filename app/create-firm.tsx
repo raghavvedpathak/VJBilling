@@ -36,6 +36,7 @@ import {
   X,
   AlertTriangle,
 } from 'lucide-react-native';
+import { COLORS } from '../constants/theme';
 
 // ============================================================================
 // G58 SPEC CONSTANTS — DO NOT change these values.

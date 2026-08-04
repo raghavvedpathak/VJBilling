@@ -3,7 +3,7 @@ import { eq, and } from 'drizzle-orm';
 import { sequenceCounters, items } from '../db/schema';
 import type { DrizzleTransaction, Design } from '../types/phase2.types';
 import { now } from '../utils/now';
-import { ERR } from '../constants/errorCodes';
+import { ERR } from '../constants';
 
 // FIX-SKU-PREFIX-1 (v1.34) UPDATED (v1.41): generateDesignPrefix()
 export function generateDesignPrefix(designName: string, metal: 'GOLD' | 'SILVER'): string {

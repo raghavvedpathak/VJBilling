@@ -14,7 +14,7 @@ import {
   GemstoneStatus, 
   GEMSTONE_LOT_TRANSITIONS 
 } from '../types/phase2.types';
-import { ERR } from '../constants/errorCodes';
+import { ERR } from '../constants';
 
 export const gemstoneLotService = {
   // createGemstoneLot() — Canonical Service Body (GEMSTONE-1 v1.21 + FIX-V1-2 v1.23)

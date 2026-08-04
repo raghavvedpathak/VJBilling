@@ -1,5 +1,5 @@
 import { db } from '../db/client';
-import { ERR } from '../constants/errorCodes';
+import { ERR } from '../constants';
 import type { OldGoldLot, CreateOldGoldLotInput, OldGoldLotStatus } from '../types/phase2.types';
 import { VALID_LOT_TRANSITIONS } from '../types/phase2.types';
 import { oldGoldLotRepository } from '../repositories/oldGoldLotRepository';

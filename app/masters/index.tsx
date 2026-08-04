@@ -6,11 +6,7 @@ import { TwoToneWrapper } from '../../components/TwoToneWrapper';
 import { GlassCard } from '../../components/ui/Glass';
 import { Settings2, Layers, Tag, ChevronRight, Gem } from 'lucide-react-native';
 
-const COLORS = {
-  vjText: '#5C1623',
-  vjBg: '#FCFBF8',
-  vjAccent: '#D4AF37',
-};
+import { COLORS } from '../../constants/theme';
 
 export default function MastersIndexScreen() {
   const router = useRouter();

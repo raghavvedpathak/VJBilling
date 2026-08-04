@@ -8,6 +8,7 @@ import { auditRepository } from '../repositories/auditRepository';
 import { getDeviceId } from '../utils/deviceId';
 import { now } from '../utils/now';
 import { appSettingsStore } from '../store/appSettingsStore';
+import { ERR } from '../constants';
 import type { UpdateSettingsInput } from '../types/settings'; 
 
 export const settingsService = {

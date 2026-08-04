@@ -9,6 +9,7 @@ import { urdPurchaseService } from '../../services/urdPurchaseService';
 import { getCurrencySymbol, computeURDCostBreakdown } from '../../utils/calculations';
 import { User, Scale, Banknote, CheckCircle, Trash2, Plus, Layers } from 'lucide-react-native';
 import type { URDMetalType } from '../../types/phase2.types';
+import { COLORS } from '../../constants/theme';
 
 export interface URDItemRow {
   id: string;

@@ -34,8 +34,7 @@ import { useLeaseStore } from '../store/leaseStore';
 import { storage } from '../utils/storage';
 import { safeModeService } from './safeModeService';
 import { now } from '../utils/now';
-import { SCHEMA_VERSION } from '../constants/appVersion';
-import { ERR } from '../constants/errorCodes';
+import { SCHEMA_VERSION, ERR } from '../constants';
 import type { BackupEnvelope } from './backupService';
 
 export const restoreService = {

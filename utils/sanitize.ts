@@ -5,7 +5,7 @@
 // Called by: createFirm(), updateFirm(), updateSettings() 
 // ================================================================ 
 
-import { ERR } from '../constants/errorCodes'; 
+import { ERR } from '../constants'; 
 
 export function sanitizeText(input: string): string { 
   if (typeof input !== 'string') throw new Error(ERR.INVALID_TEXT_CONTENT + ': input must be a string'); 

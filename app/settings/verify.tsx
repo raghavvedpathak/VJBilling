@@ -6,6 +6,7 @@ import { verifyService, VerifyFinding } from '../../services/verifyService';
 import { verifyStore } from '../../store/verifyStore';
 import { GlassCard, GlassButton } from '../../components/ui/Glass'; 
 import { ShieldCheck, AlertTriangle, CheckCircle, XCircle, Activity } from 'lucide-react-native';
+import { COLORS } from '../../constants/theme';
 
 const VerifyFindingRow = memo(({ item }: { item: VerifyFinding }) => {
   return (

@@ -15,10 +15,10 @@ import { designService } from '../../services/designService';
 import { now } from '../../utils/now';
 import * as Crypto from 'expo-crypto';
 
+import { COLORS as CENTRAL_COLORS } from '../../constants/theme';
+
 const COLORS = {
-  vjText: '#5C1623',
-  vjBg: '#FCFBF8',
-  vjAccent: '#D4AF37',
+  ...CENTRAL_COLORS,
   highlight: '#FDE047',
 };
 

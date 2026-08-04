@@ -6,6 +6,7 @@ import { ChevronLeft } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
 import { DynamicBackground } from './ui/DynamicBackground';
+import { COLORS } from '../constants/theme';
 
 interface ScreenWrapperProps {
   title?: string;

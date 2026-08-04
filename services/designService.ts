@@ -7,7 +7,7 @@ import { auditRepository } from '../repositories/auditRepository';
 import { getDeviceId } from '../utils/deviceId';
 import { now } from '../utils/now';
 import { sanitizeText } from '../utils/sanitize';
-import { ERR } from '../constants/errorCodes';
+import { ERR } from '../constants';
 import 'react-native-get-random-values';
 import { v4 as uuidv4 } from 'uuid';
 import { eq, and, desc } from 'drizzle-orm';

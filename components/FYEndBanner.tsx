@@ -5,6 +5,7 @@ import { useRouter } from 'expo-router';
 import { useSession } from '../hooks/useSession';
 import { useFyBannerStore } from '../store/fyBannerStore';
 import { AlertTriangle, X, ChevronRight } from 'lucide-react-native';
+import { COLORS } from '../constants/theme';
 
 export function FYEndBanner() {
   const router = useRouter();
@@ -18,7 +19,7 @@ export function FYEndBanner() {
   return (
     <View style={s.banner}>
       <View style={s.iconContainer}>
-        <AlertTriangle size={24} color="#B45309" />
+        <AlertTriangle size={24} color={COLORS.warningOrange} />
       </View>
       <View style={s.textContainer}>
         <Text style={s.title}>Financial Year Ended</Text>

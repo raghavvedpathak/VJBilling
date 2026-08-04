@@ -12,6 +12,7 @@ import {
   verifyPin,
   getPinLength
 } from '../../services/pinService';
+import { COLORS } from '../../constants/theme';
 
 type FlowState = 'MENU' | 'TURN_ON_NEW' | 'TURN_ON_CONFIRM' | 'TURN_OFF_CURRENT' | 'CHANGE_CURRENT' | 'CHANGE_NEW' | 'CHANGE_CONFIRM';
 

@@ -18,6 +18,7 @@ import {
   ChevronRight,
   Search
 } from 'lucide-react-native';
+import { COLORS } from '../../constants/theme';
 
 export default function InventoryHubScreen() {
   const router = useRouter();

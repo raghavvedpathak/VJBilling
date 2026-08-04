@@ -22,7 +22,7 @@ import {
 import { leaseService } from './leaseService';
 import { auditRepository } from '../repositories/auditRepository';
 import { getDeviceId, getDeviceDerivedKeyMaterial } from '../utils/deviceId';
-import { SCHEMA_VERSION, APP_VERSION } from '../constants/appVersion';
+import { SCHEMA_VERSION, APP_VERSION } from '../constants';
 
 export const BACKUP_DIR = FileSystem.documentDirectory + 'backups/';
 

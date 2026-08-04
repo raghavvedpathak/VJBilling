@@ -6,6 +6,7 @@ import { ScreenWrapper } from '../components/ScreenWrapper';
 import { AlertTriangle, Database, Trash2, Mail } from 'lucide-react-native';
 import * as Updates from 'expo-updates';
 import { GlassCard, GlassButton, GlassInput } from '../components/ui/Glass';
+import { COLORS } from '../constants/theme';
 
 export default function DatabaseErrorScreen() {
   const [snapshotAvailable, setSnapshotAvailable] = useState(false);

@@ -17,7 +17,7 @@ import { writerLeases, LeaseType } from '../db/schema';
 import { leaseRepository } from '../repositories/leaseRepository';
 import { useLeaseStore } from '../store/leaseStore';
 import { getDeviceId } from '../utils/deviceId';
-import { LEASE_TTL_MINUTES } from '../constants/leaseConfig';
+import { LEASE_TTL_MINUTES } from '../constants';
 import { now } from '../utils/now';
 import { addMinutes } from '../utils/addMinutes';
 
