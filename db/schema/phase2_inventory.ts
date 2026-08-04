@@ -40,7 +40,6 @@ export const categories = sqliteTable('categories', {
   metal: text('metal', { enum: ['GOLD', 'SILVER'] }).notNull(),
   isActive: integer('is_active').notNull().default(1),
   code: text('code').notNull(), // CAT-DES-DISPLAY-CODE (v1.42): e.g. CAT0001
-  lowStockThreshold: integer('low_stock_threshold'), // v1.66 FEAT-GAP3-LOWSTOCK-1 (nullable)
   createdAt: text('created_at').notNull(),
   updatedAt: text('updated_at').notNull(),
 }, (table) => ({
@@ -55,6 +54,7 @@ export const designs = sqliteTable('designs', {
   code: text('code').notNull(), // CAT-DES-DISPLAY-CODE (v1.42): e.g. DES0001
   metal: text('metal', { enum: ['GOLD', 'SILVER'] }).notNull(),
   defaultHsn: text('default_hsn'),
+  lowStockThreshold: integer('low_stock_threshold'), // FIX-LOWSTOCK-DESIGN-1 (v2.08): moved from categories to designs (nullable)
   firmId: text('firm_id').notNull(),
   isActive: integer('is_active').notNull().default(1),
   createdAt: text('created_at').notNull(),

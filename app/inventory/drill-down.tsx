@@ -19,12 +19,11 @@ import { getJewelryCategoryIcon } from '../../utils/jewelryIcons';
 import { COLORS } from '../../constants/theme';
 
 type CategoryRowProps = {
-  item: { id: string; name: string; availableCount: number; totalNetWeightMg: number; lowStockThreshold: number | null };
+  item: { id: string; name: string; availableCount: number; totalNetWeightMg: number };
   onPress: (categoryId: string, categoryName: string) => void;
 };
 
 const CategoryRow = memo(({ item, onPress }: CategoryRowProps) => {
-  const isLowStock = item.lowStockThreshold !== null && item.availableCount <= item.lowStockThreshold;
 
   return (
     <TouchableOpacity
@@ -40,11 +39,6 @@ const CategoryRow = memo(({ item, onPress }: CategoryRowProps) => {
       <View style={s.cardBody}>
         <View style={s.titleRow}>
           <Text style={s.categoryName} numberOfLines={1}>{item.name}</Text>
-          {isLowStock && (
-            <View style={s.lowStockBadge}>
-              <Text style={s.lowStockText}>Low Stock</Text>
-            </View>
-          )}
         </View>
         <Text style={s.weightText}>{formatWeight(item.totalNetWeightMg)}</Text>
       </View>
@@ -63,7 +57,7 @@ export default function DrillDownScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { activeFirmId } = useFirmStore();
-  const [data, setData] = useState<{ id: string; name: string; availableCount: number; totalNetWeightMg: number; lowStockThreshold: number | null }[]>([]);
+  const [data, setData] = useState<{ id: string; name: string; availableCount: number; totalNetWeightMg: number }[]>([]);
   const [loading, setLoading] = useState(true);
 
   useFocusEffect(

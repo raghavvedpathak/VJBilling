@@ -16,10 +16,9 @@ export default function EditCategoryScreen() {
   const insets = useSafeAreaInsets();
   
   // Get initial params from routing
-  const { id, initialName, initialThreshold } = useLocalSearchParams<{ id: string; initialName: string; initialThreshold?: string }>();
+  const { id, initialName } = useLocalSearchParams<{ id: string; initialName: string }>();
   
   const [newName, setNewName] = useState(initialName || '');
-  const [lowStockThreshold, setLowStockThreshold] = useState(initialThreshold || '');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
@@ -29,13 +28,10 @@ export default function EditCategoryScreen() {
       Alert.alert('Validation Error', 'Category name is required');
       return;
     }
-    
-    const thresholdNum = lowStockThreshold.trim() !== '' ? parseInt(lowStockThreshold, 10) : null;
-    const finalThreshold = thresholdNum && !isNaN(thresholdNum) && thresholdNum > 0 ? thresholdNum : null;
 
     setIsSubmitting(true);
     try {
-      await categoryService.updateCategory(id, activeFirmId, newName.trim(), finalThreshold);
+      await categoryService.updateCategory(id, activeFirmId, newName.trim());
       setSuccessMessage('Category updated successfully');
     } catch (e: any) {
       Alert.alert('Error', e.message);
@@ -57,7 +53,7 @@ export default function EditCategoryScreen() {
         </View>
       </View>
       <Text style={s.headerTitle}>Edit Category</Text>
-      <Text style={s.headerSubtitle}>Update category details & alert count</Text>
+      <Text style={s.headerSubtitle}>Update category name</Text>
     </View>
   );
 
@@ -74,17 +70,6 @@ export default function EditCategoryScreen() {
                  onChangeText={setNewName}
                  placeholder="e.g. Gold Rings"
                />
-            </View>
-
-            <View style={s.formGroup}>
-              <Text style={s.label}>Low-Stock Alert Threshold (Count)</Text>
-              <TextInput 
-                style={s.input}
-                value={lowStockThreshold}
-                onChangeText={setLowStockThreshold}
-                placeholder="e.g. 5 (Leave blank to remove alert)"
-                keyboardType="numeric"
-              />
             </View>
           </View>
         </ScrollView>

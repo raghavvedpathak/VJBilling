@@ -11,7 +11,6 @@ export const inventoryDrillDownRepository = {
       .select({
         id: categories.id,
         name: categories.name,
-        lowStockThreshold: categories.lowStockThreshold,
         availableCount: sql<number>`COUNT(${items.id})`,
         totalNetWeightMg: sql<number>`SUM(${items.netWeightMg})`,
       })
@@ -31,37 +30,36 @@ export const inventoryDrillDownRepository = {
     return results.map(r => ({
       id: r.id,
       name: r.name,
-      lowStockThreshold: r.lowStockThreshold,
       availableCount: Number(r.availableCount) || 0,
       totalNetWeightMg: Number(r.totalNetWeightMg) || 0,
     }));
   },
 
-  async getLowStockCategories(firmId: string) {
+  async getLowStockDesigns(firmId: string) {
     const results = await db
       .select({
-        id: categories.id,
-        name: categories.name,
-        lowStockThreshold: categories.lowStockThreshold,
+        id: designs.id,
+        name: designs.name,
+        lowStockThreshold: designs.lowStockThreshold,
         availableCount: sql<number>`COUNT(${items.id})`,
       })
-      .from(categories)
+      .from(designs)
       .leftJoin(
         items,
         and(
-          eq(items.categoryId, categories.id),
+          eq(items.designId, designs.id),
           eq(items.status, 'AVAILABLE'),
           eq(items.firmId, firmId)
         )
       )
       .where(
         and(
-          eq(categories.firmId, firmId),
-          isNotNull(categories.lowStockThreshold)
+          eq(designs.firmId, firmId),
+          isNotNull(designs.lowStockThreshold)
         )
       )
-      .groupBy(categories.id)
-      .having(({ availableCount }) => sql`${availableCount} <= ${categories.lowStockThreshold}`)
+      .groupBy(designs.id)
+      .having(({ availableCount }) => sql`${availableCount} <= ${designs.lowStockThreshold}`)
       .orderBy(({ availableCount }) => asc(availableCount));
 
     return results.map(r => ({

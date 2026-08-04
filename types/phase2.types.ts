@@ -127,7 +127,6 @@ export interface CreateGemstoneLotInput {
 export interface CreateCategoryInput {
   name: string;
   metal?: 'GOLD' | 'SILVER';
-  lowStockThreshold?: number | null;
 }
 
 export type StoneType = 'DIAMOND' | 'RUBY' | 'EMERALD' | 'SAPPHIRE';
@@ -142,6 +141,7 @@ export interface CreateDesignInput {
   metal: 'GOLD' | 'SILVER';
   defaultHsn?: string | null;
   categoryId?: string;
+  lowStockThreshold?: number | null; // FIX-LOWSTOCK-DESIGN-1 (v2.08): moved from categories to designs
 }
 
 export type DrizzleTransaction = Parameters<Parameters<typeof db.transaction>[0]>[0];

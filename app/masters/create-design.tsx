@@ -53,6 +53,7 @@ export default function CreateDesignScreen() {
   const [newMetal, setNewMetal] = useState<'GOLD' | 'SILVER'>('GOLD');
   const [selectedCategoryId, setSelectedCategoryId] = useState<string>('');
   const [categorySearchQuery, setCategorySearchQuery] = useState('');
+  const [lowStockThreshold, setLowStockThreshold] = useState('');
   const [showDropdown, setShowDropdown] = useState(false);
   
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -93,12 +94,15 @@ export default function CreateDesignScreen() {
       return;
     }
     
+    const thresholdNum = lowStockThreshold.trim() !== '' ? parseInt(lowStockThreshold, 10) : null;
+
     setIsSubmitting(true);
     try {
       await designService.createDesign({
         name: newName.trim(),
         metal: newMetal,
-        categoryId: selectedCategoryId
+        categoryId: selectedCategoryId,
+        lowStockThreshold: thresholdNum && !isNaN(thresholdNum) && thresholdNum > 0 ? thresholdNum : null
       }, activeFirmId);
       
       setSuccessMessage('Design added successfully');
@@ -201,6 +205,17 @@ export default function CreateDesignScreen() {
                     setCategorySearchQuery('');
                   }
                 }}
+              />
+            </View>
+
+            <View style={s.formGroup}>
+              <Text style={s.label}>Low-Stock Alert Threshold (Count)</Text>
+              <TextInput 
+                style={s.input}
+                value={lowStockThreshold}
+                onChangeText={setLowStockThreshold}
+                placeholder="e.g. 5 (Optional - alert when stock <= this)"
+                keyboardType="numeric"
               />
             </View>
 

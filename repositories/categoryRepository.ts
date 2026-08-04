@@ -40,7 +40,7 @@ export const categoryRepository = {
   },
 
   // FIX-V718-1: Synchronous execution using .run()
-  update(tx: DrizzleTransaction, firmId: string, id: string, data: Partial<Pick<Category, 'name' | 'lowStockThreshold'>>): void {
+  update(tx: DrizzleTransaction, firmId: string, id: string, data: Partial<Pick<Category, 'name'>>): void {
     tx.update(categories)
       .set({ ...data, updatedAt: now() })
       .where(and(eq(categories.id, id), eq(categories.firmId, firmId)))

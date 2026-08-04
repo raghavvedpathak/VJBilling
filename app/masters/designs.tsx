@@ -115,7 +115,14 @@ export default function DesignsScreen() {
   };
 
   const openEdit = (d: Design) => {
-    router.push({ pathname: '/masters/edit-design', params: { id: d.id, initialName: d.name } });
+    router.push({ 
+      pathname: '/masters/edit-design', 
+      params: { 
+        id: d.id, 
+        initialName: d.name,
+        initialThreshold: d.lowStockThreshold?.toString() || ''
+      } 
+    });
   };
 
   const headerContent = (

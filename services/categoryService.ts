@@ -88,7 +88,6 @@ export const categoryService = {
           // Restore soft-deleted category
           categoryRepository.update(tx, firmId, existing.id, { 
             name: sanitizedName, 
-            lowStockThreshold: input.lowStockThreshold ?? existing.lowStockThreshold 
           });
           
           // Reactivate it
@@ -120,7 +119,6 @@ export const categoryService = {
           name: sanitizedName,
           metal: input.metal ?? 'GOLD',
           code,
-          lowStockThreshold: input.lowStockThreshold ?? null,
           isActive: 1,
           createdAt: now(),
           updatedAt: now()
@@ -145,7 +143,7 @@ export const categoryService = {
   },
 
   // 🔴 FIX-UPDATE-CAT-1 (v1.44) — updateCategory() Service
-  async updateCategory(categoryId: string, firmId: string, name: string, lowStockThreshold?: number | null): Promise<void> {
+  async updateCategory(categoryId: string, firmId: string, name: string): Promise<void> {
     await leaseService.assertNoActiveLease();
     safeModeService.assertNotInSafeMode();
     
@@ -162,11 +160,7 @@ export const categoryService = {
       // UNIQUE INDEX uq_category_firm_name enforces name uniqueness at DB level.
       // Catch Drizzle unique constraint violation and re-throw as CATEGORY_NAME_DUPLICATE.
       try {
-        const updatePayload: Partial<Pick<Category, 'name' | 'lowStockThreshold'>> = { name: sanitizedName };
-        if (lowStockThreshold !== undefined) {
-          updatePayload.lowStockThreshold = lowStockThreshold;
-        }
-        categoryRepository.update(tx, firmId, categoryId, updatePayload);
+        categoryRepository.update(tx, firmId, categoryId, { name: sanitizedName });
       } catch (e: any) {
         if (e.message?.includes('UNIQUE constraint failed') || e.code === 'SQLITE_CONSTRAINT_UNIQUE') {
           throw new Error(ERR.CATEGORY_NAME_DUPLICATE);
@@ -180,30 +174,6 @@ export const categoryService = {
         entityId: categoryId,
         deviceId,
         payload: JSON.stringify({ categoryId, oldName: cat.name, newName: sanitizedName })
-      });
-    });
-  },
-
-  async updateCategoryLowStockThreshold(categoryId: string, firmId: string, threshold: number | null): Promise<void> {
-    await leaseService.assertNoActiveLease();
-    safeModeService.assertNotInSafeMode();
-    
-    // Hoisted async call outside transaction
-    const deviceId = await getDeviceId();
-
-    // FIX-V718-1: Synchronous transaction block
-    return db.transaction((tx) => {
-      const cat = categoryRepository.getById(tx, firmId, categoryId);
-      if (!cat || cat.firmId !== firmId) throw new Error(ERR.CATEGORY_NOT_FOUND_OR_WRONG_FIRM);
-
-      categoryRepository.update(tx, firmId, categoryId, { lowStockThreshold: threshold });
-
-      auditRepository.log(tx, {
-        eventType: 'CATEGORY_UPDATED',
-        firmId,
-        entityId: categoryId,
-        deviceId,
-        payload: JSON.stringify({ categoryId, oldThreshold: cat.lowStockThreshold, newThreshold: threshold })
       });
     });
   }

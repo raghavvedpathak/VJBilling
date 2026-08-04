@@ -7,20 +7,22 @@ import { ERR } from '../constants';
 
 export const inventoryDrillDownService = {
   
-  // FEAT-GAP3-LOWSTOCK-1 (v1.66): Native SQL threshold filter
-  async getLowStockCategories(firmId: string): Promise<{ id: string; name: string; lowStockThreshold: number; availableCount: number }[]> {
+  // FIX-LOWSTOCK-DESIGN-1 (v2.08): Low stock on designs
+  async getLowStockDesigns(firmId: string): Promise<{ id: string; name: string; lowStockThreshold: number; availableCount: number }[]> {
     const result = await db.all(sql`
       SELECT 
-        c.id, 
-        c.name, 
-        c.low_stock_threshold AS lowStockThreshold, 
+        d.id, 
+        d.name, 
+        d.low_stock_threshold AS lowStockThreshold, 
         COUNT(i.id) AS availableCount
-      FROM categories c 
-      LEFT JOIN items i ON i.category_id = c.id 
-      WHERE c.firm_id = ${firmId} 
-        AND c.is_active = 1
-      GROUP BY c.id, c.name, c.low_stock_threshold
-      HAVING availableCount <= c.low_stock_threshold
+      FROM designs d 
+      LEFT JOIN items i ON i.design_id = d.id AND i.status = 'AVAILABLE' AND i.firm_id = ${firmId}
+      WHERE d.firm_id = ${firmId} 
+        AND d.is_active = 1
+        AND d.low_stock_threshold IS NOT NULL
+      GROUP BY d.id, d.name, d.low_stock_threshold
+      HAVING availableCount <= d.low_stock_threshold
+      ORDER BY availableCount ASC
     `);
     return result as any;
   },
@@ -132,12 +134,11 @@ export const inventoryDrillDownService = {
     return { ...item, timeline };
   },
 
-  async getCategoriesWithStock(firmId: string): Promise<{ id: string; name: string; availableCount: number; totalNetWeightMg: number; lowStockThreshold: number | null }[]> {
+  async getCategoriesWithStock(firmId: string): Promise<{ id: string; name: string; availableCount: number; totalNetWeightMg: number }[]> {
     const result = await db.all(sql`
       SELECT 
         c.id, 
         c.name, 
-        c.low_stock_threshold AS lowStockThreshold,
         COUNT(i.id) AS availableCount, 
         COALESCE(SUM(i.net_weight_mg), 0) AS totalNetWeightMg
       FROM categories c
@@ -149,7 +150,7 @@ export const inventoryDrillDownService = {
       GROUP BY c.id
       ORDER BY c.name ASC
     `);
-    return (result as unknown) as { id: string; name: string; availableCount: number; totalNetWeightMg: number; lowStockThreshold: number | null }[];
+    return (result as unknown) as { id: string; name: string; availableCount: number; totalNetWeightMg: number }[];
   },
 
   async getStockByMetalSource(firmId: string): Promise<MetalSourceStockResult[]> {

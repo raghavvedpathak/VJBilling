@@ -16,9 +16,10 @@ export default function EditDesignScreen() {
   const insets = useSafeAreaInsets();
   
   // Get initial params from routing
-  const { id, initialName } = useLocalSearchParams<{ id: string; initialName: string }>();
+  const { id, initialName, initialThreshold } = useLocalSearchParams<{ id: string; initialName: string; initialThreshold?: string }>();
   
   const [newName, setNewName] = useState(initialName || '');
+  const [lowStockThreshold, setLowStockThreshold] = useState(initialThreshold || '');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
@@ -28,9 +29,12 @@ export default function EditDesignScreen() {
       Alert.alert('Validation Error', 'Design name is required');
       return;
     }
+    const thresholdNum = lowStockThreshold.trim() !== '' ? parseInt(lowStockThreshold, 10) : null;
+    const finalThreshold = thresholdNum && !isNaN(thresholdNum) && thresholdNum > 0 ? thresholdNum : null;
+
     setIsSubmitting(true);
     try {
-      await designService.updateDesign(id, activeFirmId, { name: newName.trim() });
+      await designService.updateDesign(id, activeFirmId, { name: newName.trim(), lowStockThreshold: finalThreshold });
       setSuccessMessage('Design updated successfully');
     } catch (e: any) {
       if (e.message === 'DESIGN_NAME_INVALID') {
@@ -56,7 +60,7 @@ export default function EditDesignScreen() {
         </View>
       </View>
       <Text style={s.headerTitle}>Edit Design</Text>
-      <Text style={s.headerSubtitle}>Update design name</Text>
+      <Text style={s.headerSubtitle}>Update design details & alert count</Text>
     </View>
   );
 
@@ -74,6 +78,17 @@ export default function EditDesignScreen() {
                 placeholder="e.g. Classic Band"
               />
               <Text style={s.helpText}>No special characters. Max 2 words.</Text>
+            </View>
+
+            <View style={s.formGroup}>
+              <Text style={s.label}>Low-Stock Alert Threshold (Count)</Text>
+              <TextInput 
+                style={s.input}
+                value={lowStockThreshold}
+                onChangeText={setLowStockThreshold}
+                placeholder="e.g. 5 (Leave blank to remove alert)"
+                keyboardType="numeric"
+              />
             </View>
           </View>
         </ScrollView>

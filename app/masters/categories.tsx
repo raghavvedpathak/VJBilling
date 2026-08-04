@@ -79,7 +79,6 @@ export default function CategoriesScreen() {
       params: { 
         id: cat.id, 
         initialName: cat.name,
-        initialThreshold: cat.lowStockThreshold?.toString() || ''
       } 
     });
   };

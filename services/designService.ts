@@ -40,14 +40,12 @@ export const designService = {
     await leaseService.assertNoActiveLease(); // GUARD 1
     safeModeService.assertNotInSafeMode(); // GUARD 2
 
-    validateDesignName(input.name); 
-
-    const sanitizedName = sanitizeText(input.name);
-
     // Hoisted async call outside transaction
     const deviceId = await getDeviceId();
 
     return db.transaction((tx) => {
+      validateDesignName(input.name); // throws DESIGN_NAME_INVALID — inside tx per createItem convention
+      const sanitizedName = sanitizeText(input.name);
       // Check if a design with the same name and metal already exists for this firm
       const existing = tx.select().from(designs)
         .where(and(
@@ -108,6 +106,7 @@ export const designService = {
           code,
           metal: input.metal,
           defaultHsn: input.defaultHsn ?? null,
+          lowStockThreshold: input.lowStockThreshold ?? null,
           isActive: 1,
           createdAt: now(),
           updatedAt: now(),
@@ -179,7 +178,7 @@ export const designService = {
   async updateDesign(
     designId: string,
     firmId: string,
-    input: { name?: string; defaultHsn?: string | null }
+    input: { name?: string; defaultHsn?: string | null; lowStockThreshold?: number | null }
   ): Promise<void> {
     await leaseService.assertNoActiveLease();
     safeModeService.assertNotInSafeMode();
@@ -192,7 +191,7 @@ export const designService = {
       const design = designRepository.getById(tx, firmId, designId);
       if (!design || design.firmId !== firmId) throw new Error(ERR.DESIGN_NOT_FOUND_OR_WRONG_FIRM);
 
-      const updateData: Partial<Pick<Design, 'name' | 'defaultHsn'>> = {};
+      const updateData: Partial<Pick<Design, 'name' | 'defaultHsn' | 'lowStockThreshold'>> = {};
 
       if (input.name !== undefined) {
         validateDesignName(input.name); // Validate raw input first
@@ -201,6 +200,10 @@ export const designService = {
       
       if (input.defaultHsn !== undefined) {
         updateData.defaultHsn = input.defaultHsn;
+      }
+
+      if (input.lowStockThreshold !== undefined) {
+        updateData.lowStockThreshold = input.lowStockThreshold;
       }
 
       try {
@@ -219,6 +222,32 @@ export const designService = {
         entityId: designId,
         deviceId,
         payload: JSON.stringify({ designId, changes: input })
+      });
+    });
+  },
+
+  async updateDesignLowStockThreshold(designId: string, firmId: string, threshold: number | null): Promise<void> {
+    await leaseService.assertNoActiveLease();
+    safeModeService.assertNotInSafeMode();
+    
+    if (threshold !== null && (!Number.isInteger(threshold) || threshold < 0)) {
+      throw new Error(ERR.DESIGN_LOW_STOCK_THRESHOLD_INVALID);
+    }
+
+    const deviceId = await getDeviceId();
+
+    return db.transaction((tx) => {
+      const design = designRepository.getById(tx, firmId, designId);
+      if (!design || design.firmId !== firmId) throw new Error(ERR.DESIGN_NOT_FOUND_OR_WRONG_FIRM);
+
+      designRepository.update(tx, firmId, designId, { lowStockThreshold: threshold });
+
+      auditRepository.log(tx, {
+        eventType: 'DESIGN_UPDATED',
+        firmId,
+        entityId: designId,
+        deviceId,
+        payload: JSON.stringify({ designId, oldThreshold: design.lowStockThreshold, newThreshold: threshold })
       });
     });
   }

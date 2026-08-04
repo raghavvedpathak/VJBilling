@@ -43,6 +43,7 @@ import {
   financialYears, firms, appSettings, safeModeState, bisLogos, auditDeleteGate
 } from '../db/schema';
 import { generateDesignPrefix } from '../services/skuEngine';
+import { ERR } from '../constants';
 import { formatSKUDisplay, isStandardPurityGrade, resolveFineWeightMg, computeEffectivePricePaisePerGram, computeEstTotalCostPaise } from '../utils/calculations';
 import { gemstoneLotService } from '../services/gemstoneLotService';
 import { oldGoldLotService } from '../services/oldGoldLotService';
@@ -89,10 +90,10 @@ beforeAll(async () => {
   
   // Phase 2 tables
   await _rawClient.execute(`CREATE TABLE IF NOT EXISTS categories (
-    id TEXT PRIMARY KEY, firm_id TEXT NOT NULL, name TEXT NOT NULL, code TEXT NOT NULL DEFAULT '', description TEXT, metal TEXT NOT NULL DEFAULT 'GOLD', low_stock_threshold INTEGER, is_active INTEGER NOT NULL DEFAULT 1, created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+    id TEXT PRIMARY KEY, firm_id TEXT NOT NULL, name TEXT NOT NULL, code TEXT NOT NULL DEFAULT '', description TEXT, metal TEXT NOT NULL DEFAULT 'GOLD', is_active INTEGER NOT NULL DEFAULT 1, created_at TEXT NOT NULL, updated_at TEXT NOT NULL
   )`);
   await _rawClient.execute(`CREATE TABLE IF NOT EXISTS designs (
-    id TEXT PRIMARY KEY, firm_id TEXT NOT NULL, name TEXT NOT NULL, code TEXT NOT NULL DEFAULT '', description TEXT, default_hsn TEXT, metal TEXT NOT NULL, is_active INTEGER NOT NULL DEFAULT 1, created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+    id TEXT PRIMARY KEY, firm_id TEXT NOT NULL, name TEXT NOT NULL, code TEXT NOT NULL DEFAULT '', description TEXT, default_hsn TEXT, metal TEXT NOT NULL, low_stock_threshold INTEGER, is_active INTEGER NOT NULL DEFAULT 1, created_at TEXT NOT NULL, updated_at TEXT NOT NULL
   )`);
   await _rawClient.execute(`CREATE TABLE IF NOT EXISTS items (
     id TEXT PRIMARY KEY, firm_id TEXT NOT NULL, fy_id TEXT NOT NULL, sku TEXT NOT NULL, barcode TEXT NOT NULL, huid TEXT, design_id TEXT NOT NULL, category_id TEXT NOT NULL DEFAULT '', hsn_code TEXT NOT NULL DEFAULT '',
@@ -1108,25 +1109,26 @@ describe('Purity Map and Utilities', () => {
     expect(summary.silverBalanceMg).toBe(50000);
   });
 
-  it('enforces low stock threshold configurations and alerts under FEAT-GAP3-LOWSTOCK-1 v1.66', async () => {
-    // 1. Update threshold for CAT_1
-    await categoryService.updateCategoryLowStockThreshold('CAT_1', FIRM_ID, 2);
+  it('enforces low stock threshold configurations and alerts on designs under FIX-LOWSTOCK-DESIGN-1 v2.08', async () => {
+    const d = await createTestDesign();
+    
+    // 1. Update threshold for Design
+    await designService.updateDesignLowStockThreshold(d.id, FIRM_ID, 2);
     
     // Verify threshold updated in DB
-    const [cat] = await db.select().from(categories).where(eq(categories.id, 'CAT_1'));
-    expect(cat.lowStockThreshold).toBe(2);
+    const [des] = await db.select().from(designs).where(eq(designs.id, d.id));
+    expect(des.lowStockThreshold).toBe(2);
 
     // Verify audit log
-    const audits = await db.select().from(auditLogs).where(eq(auditLogs.entityId, 'CAT_1'));
-    expect(audits.some(a => a.eventType === 'CATEGORY_UPDATED')).toBe(true);
+    const audits = await db.select().from(auditLogs).where(eq(auditLogs.entityId, d.id));
+    expect(audits.some(a => a.eventType === 'DESIGN_UPDATED')).toBe(true);
 
-    // 2. available count is 0 (<= threshold 2) -> should return as low stock category
-    let lowStock = await inventoryDrillDownService.getLowStockCategories(FIRM_ID);
-    expect(lowStock.some(c => c.id === 'CAT_1')).toBe(true);
-    expect(lowStock.find(c => c.id === 'CAT_1')?.availableCount).toBe(0);
+    // 2. available count is 0 (<= threshold 2) -> should return as low stock design
+    let lowStock = await inventoryDrillDownService.getLowStockDesigns(FIRM_ID);
+    expect(lowStock.some(c => c.id === d.id)).toBe(true);
+    expect(lowStock.find(c => c.id === d.id)?.availableCount).toBe(0);
 
     // 3. Create items to exceed threshold
-    const d = await createTestDesign();
     const i1 = await itemService.createItem({
       designId: d.id, categoryId: 'CAT_1', hsnCode: '7113', purityPercent: 91.6, purityKarat: 22, grossWeightMg: 5000
     }, FIRM_ID);
@@ -1138,8 +1140,8 @@ describe('Purity Map and Utilities', () => {
     await itemService.updateItemStatus(i2.id, FIRM_ID, 'AVAILABLE');
 
     // availableCount is 2 (<= threshold 2) -> still in low stock
-    lowStock = await inventoryDrillDownService.getLowStockCategories(FIRM_ID);
-    expect(lowStock.some(c => c.id === 'CAT_1')).toBe(true);
+    lowStock = await inventoryDrillDownService.getLowStockDesigns(FIRM_ID);
+    expect(lowStock.some(c => c.id === d.id)).toBe(true);
 
     // Create 3rd item
     const i3 = await itemService.createItem({
@@ -1148,13 +1150,30 @@ describe('Purity Map and Utilities', () => {
     await itemService.updateItemStatus(i3.id, FIRM_ID, 'AVAILABLE');
 
     // availableCount is 3 (> threshold 2) -> NOT in low stock anymore
-    lowStock = await inventoryDrillDownService.getLowStockCategories(FIRM_ID);
-    expect(lowStock.some(c => c.id === 'CAT_1')).toBe(false);
+    lowStock = await inventoryDrillDownService.getLowStockDesigns(FIRM_ID);
+    expect(lowStock.some(c => c.id === d.id)).toBe(false);
 
-    // 4. Reset threshold to null (disables threshold checks)
-    await categoryService.updateCategoryLowStockThreshold('CAT_1', FIRM_ID, null);
-    const [catCleared] = await db.select().from(categories).where(eq(categories.id, 'CAT_1'));
-    expect(catCleared.lowStockThreshold).toBeNull();
+    // 4. Test validation: negative or float thresholds must throw DESIGN_LOW_STOCK_THRESHOLD_INVALID
+    let err1: any;
+    try {
+      await designService.updateDesignLowStockThreshold(d.id, FIRM_ID, -1);
+    } catch (e: any) {
+      err1 = e;
+    }
+    expect(err1?.message).toBe(ERR.DESIGN_LOW_STOCK_THRESHOLD_INVALID);
+
+    let err2: any;
+    try {
+      await designService.updateDesignLowStockThreshold(d.id, FIRM_ID, 2.5);
+    } catch (e: any) {
+      err2 = e;
+    }
+    expect(err2?.message).toBe(ERR.DESIGN_LOW_STOCK_THRESHOLD_INVALID);
+
+    // 5. Reset threshold to null (disables threshold checks)
+    await designService.updateDesignLowStockThreshold(d.id, FIRM_ID, null);
+    const [desCleared] = await db.select().from(designs).where(eq(designs.id, d.id));
+    expect(desCleared.lowStockThreshold).toBeNull();
   });
 
   it('aggregates stock by metal source correctly under FEAT-GAP4-METALSOURCE-1 v1.66', async () => {

@@ -48,7 +48,7 @@ export const designRepository = {
   },
 
   // FIX-V718-1: Synchronous execution using .run()
-  update(tx: DrizzleTransaction, firmId: string, id: string, data: Partial<Pick<Design, 'name' | 'defaultHsn'>>): void {
+  update(tx: DrizzleTransaction, firmId: string, id: string, data: Partial<Pick<Design, 'name' | 'defaultHsn' | 'lowStockThreshold'>>): void {
     tx.update(designs)
       .set({ ...data, updatedAt: now() })
       .where(and(eq(designs.id, id), eq(designs.firmId, firmId)))
