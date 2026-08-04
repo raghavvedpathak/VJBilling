@@ -688,10 +688,11 @@ export const itemService = {
       // identical gate to createItem()'s FIX-GAP-P2-BACKDATE-1 (v1.76).
       
       const oldDate = item.createdAt.slice(0, 10);
-      const timeOfDay = item.createdAt.split('T')[1] || '00:00:00Z'; // fallback just in case
-      const newCreatedAt = `${newEntryDate}T${timeOfDay}`;
+      const timeOfDay = item.createdAt.includes('T') ? item.createdAt.split('T')[1] : '00:00:00.000Z';
+      const dateOnly = newEntryDate.includes('T') ? newEntryDate.split('T')[0] : newEntryDate.slice(0, 10);
+      const newCreatedAt = `${dateOnly}T${timeOfDay}`;
       const oldMmyy = format(parseISO(oldDate), 'MMyy');
-      const newMmyy = format(parseISO(newEntryDate), 'MMyy');
+      const newMmyy = format(parseISO(dateOnly), 'MMyy');
       
       if (oldMmyy === newMmyy) {
         // Same month — day-only correction. SKU/barcode untouched.

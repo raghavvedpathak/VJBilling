@@ -126,8 +126,6 @@ export const inventoryDrillDownService = {
   },
 
   async getItemDetail(firmId: string, itemId: string): Promise<any> {
-    const syncItem = this.getItemDetailSync(firmId, itemId);
-    if (syncItem) return syncItem;
     const item = await this.getItemWithNames(firmId, itemId);
     if (!item) throw new Error(ERR.ITEM_NOT_FOUND_OR_WRONG_FIRM);
     const timeline = await this.getItemTimeline(firmId, itemId);

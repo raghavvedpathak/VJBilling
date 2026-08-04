@@ -28,7 +28,7 @@ import {
   Package, Tag, Scale, Gem, FileText,
   Clock, AlertTriangle, Info, AlertCircle,
   Shield, MapPin, Calculator, Tag as TagIcon,
-  Trash2, Sparkles, Coins, Percent
+  Trash2, Sparkles, Coins, Percent, Crown, Award
 } from 'lucide-react-native';
 import type { ItemDetail, ItemTimelineEvent } from '../../types/phase2.types';
 import { TERMINAL_ITEM_STATUSES } from '../../types/phase2.types';
@@ -247,7 +247,10 @@ export default function ItemDetailScreen() {
       }
       
       const parsed = selectedCalendarDate;
-      const newIso = parsed.toISOString().split('T')[0] + 'T00:00:00.000Z';
+      const y = parsed.getFullYear();
+      const m = String(parsed.getMonth() + 1).padStart(2, '0');
+      const d = String(parsed.getDate()).padStart(2, '0');
+      const newIso = `${y}-${m}-${d}`;
       const oldDate = item.createdAt;
       const oldMonth = format(new Date(oldDate), 'MMyy');
       const newMonth = format(parsed, 'MMyy');
@@ -349,7 +352,10 @@ export default function ItemDetailScreen() {
   const dateToken = dateFormatToken || 'dd/MM/yyyy';
   let createdAtFormatted = item.createdAt;
   try {
-    createdAtFormatted = format(parseISO(item.createdAt), `${dateToken} hh:mm a`);
+    const parsedDate = parseISO(item.createdAt);
+    if (!isNaN(parsedDate.getTime())) {
+      createdAtFormatted = format(parsedDate, `${dateToken} hh:mm a`);
+    }
   } catch {
     try {
       createdAtFormatted = format(parseISO(item.createdAt), 'dd/MM/yyyy hh:mm a');
@@ -434,7 +440,7 @@ export default function ItemDetailScreen() {
         {/* === DETAILS CARD === */}
         <View style={s.section}>
           <View style={s.sectionCard}>
-            <DetailRow label="Design" value={item.designName} icon={<Sparkles size={14} color={COLORS.vjAccent} />} />
+            <DetailRow label="Design" value={item.designName} icon={<Crown size={14} color={COLORS.vjAccent} />} />
             <DetailRow label="Category" value={item.categoryName} icon={<Tag size={14} color={COLORS.vjAccent} />} />
             <DetailRow label="Metal" value={item.metal.charAt(0) + item.metal.slice(1).toLowerCase()} valueColor={metalColor} icon={<Coins size={14} color={metalColor} />} />
             
@@ -445,7 +451,7 @@ export default function ItemDetailScreen() {
             <DetailRow label="Beads Weight" value={formatWeight(item.beadsWeightMg)} icon={<Package size={14} color={COLORS.vjAccent} />} />
             <DetailRow label="Net Weight" value={formatWeight(item.netWeightMg)} icon={<Scale size={14} color={COLORS.vjAccent} />} />
             <DetailRow label="Purity" value={purityDisplay} icon={<Percent size={14} color={COLORS.vjAccent} />} />
-            <DetailRow label="Fine Weight" value={formatWeight(item.fineWeightMg)} icon={<Sparkles size={14} color={COLORS.vjAccent} />} />
+            <DetailRow label="Fine Weight" value={formatWeight(item.fineWeightMg)} icon={<Award size={14} color={COLORS.vjAccent} />} />
             <DetailRow label="Vault Truth (Fine)" subLabel={`= ${(item.netWeightMg / 1000).toFixed(3)} g × ${item.purityPercent.toFixed(2)}%`} value={vaultTruth.toFixed(3) + ' g'} valueColor="#047857" style={s.highlightGreenRow} icon={<Shield size={14} color="#047857" />} />
             <DetailRow label="Wastage %" value={item.wastagePercent ? item.wastagePercent.toFixed(2) + '%' : '0.00%'} icon={<Percent size={14} color={COLORS.vjAccent} />} />
             <DetailRow label={item.metal === 'GOLD' ? 'Wastage Gold' : 'Wastage Silver'} subLabel={`= ${(item.netWeightMg / 1000).toFixed(3)} g × ${(item.wastagePercent || 0).toFixed(2)}%`} value={wastageGold.toFixed(3) + ' g'} valueColor="#B91C1C" style={s.highlightRedRow} icon={<Coins size={14} color="#B91C1C" />} />
