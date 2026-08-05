@@ -31,9 +31,10 @@ import {
   Percent,
   MonitorSmartphone,
   FileBox,
-  KeyRound
+  KeyRound,
+  ShieldCheck
 } from 'lucide-react-native';
-import { COLORS, THEME_PRESETS } from '../../constants/theme';
+import { COLORS, THEME_PRESETS, getThemeColors } from '../../constants/theme';
 
 export default function SettingsScreen() {
   const router = useRouter();
@@ -95,7 +96,11 @@ export default function SettingsScreen() {
   };
 
   const getThemeLabel = (t: string) => {
-    return 'Royal Kesari Gold (Default)';
+    switch(t) {
+      case 'lotus_silk': return 'Kashmir Lotus Silk & Soft Rose Gold';
+      case 'sandstone_ochre': return 'Reth Sandstone Silk & Warm Ochre';
+      default: return 'Royal Kesari Gold (Default)';
+    }
   };
 
   const toggleUnsavedWarning = async (value: boolean) => {
@@ -180,11 +185,32 @@ export default function SettingsScreen() {
     );
   };
 
+  const colors = getThemeColors(theme);
+
+  const settingsHeader = (
+    <View className="flex-row items-center gap-2 flex-wrap mt-1">
+      <View className="bg-white/10 px-3 py-1.5 rounded-full border border-white/20 flex-row items-center gap-1.5">
+        <Building2 size={12} color={colors.vjBg} />
+        <Text className="text-vj-bg text-xs font-bold">{firm?.name || 'ACTIVE FIRM'}</Text>
+      </View>
+      <View className="bg-white/10 px-3 py-1.5 rounded-full border border-white/20 flex-row items-center gap-1.5">
+        <ShieldCheck size={12} color={hasPin ? "#4ADE80" : "#FDBA74"} />
+        <Text className={`text-xs font-bold ${hasPin ? 'text-green-300' : 'text-orange-200'}`}>
+          {hasPin ? 'PIN PROTECTED' : 'PIN NOT SET'}
+        </Text>
+      </View>
+      <View className="bg-white/10 px-3 py-1.5 rounded-full border border-white/20 flex-row items-center gap-1.5">
+        <Database size={12} color={colors.vjBg} />
+        <Text className="text-vj-bg/80 text-xs font-bold">SQLITE DB v7</Text>
+      </View>
+    </View>
+  );
+
   return (
-    <TwoToneWrapper title="Settings" showBack>
+    <TwoToneWrapper title="Settings" showBack headerContent={settingsHeader}>
       <ScrollView 
         showsVerticalScrollIndicator={false} 
-        contentContainerStyle={{paddingBottom: 120, paddingTop: 32}}
+        contentContainerStyle={{paddingBottom: 120, paddingTop: 20}}
         keyboardShouldPersistTaps="handled"
         scrollEventThrottle={16}
         overScrollMode="never"
@@ -397,6 +423,8 @@ export default function SettingsScreen() {
             <View className="mb-2">
               {[
                 { id: 'saffron', label: 'Royal Kesari Gold (Default)' },
+                { id: 'lotus_silk', label: 'Kashmir Lotus Silk & Rose Gold' },
+                { id: 'sandstone_ochre', label: 'Reth Sandstone Silk & Ochre' },
               ].map((t) => {
                 const preset = THEME_PRESETS[t.id as keyof typeof THEME_PRESETS] || THEME_PRESETS.saffron;
                 return (

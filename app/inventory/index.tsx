@@ -24,16 +24,15 @@ export default function InventoryHubScreen() {
   const router = useRouter();
   const { activeFirmId } = useFirmStore();
 
+  const headerContent = activeFirmId ? (
+    <View className="mt-1">
+      <InventoryStockSummary firmId={activeFirmId} />
+    </View>
+  ) : undefined;
+
   return (
-    <TwoToneWrapper title="Inventory Hub" showBack>
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingTop: 32, paddingBottom: 100 }}>
-        
-        {/* The Live Jewelry Stock Display now lives here natively */}
-        {activeFirmId && (
-          <View className="mb-6">
-            <InventoryStockSummary firmId={activeFirmId} />
-          </View>
-        )}
+    <TwoToneWrapper title="Inventory Hub" showBack headerContent={headerContent}>
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingTop: 20, paddingBottom: 100 }}>
 
         {/* Global Smart Search */}
         <TouchableOpacity

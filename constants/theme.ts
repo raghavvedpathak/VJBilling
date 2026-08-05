@@ -10,6 +10,28 @@ export const THEME_PRESETS = {
     glassBorderDark: 'rgba(230, 126, 34, 0.2)',
     border: 'rgba(230, 126, 34, 0.16)',
   },
+  lotus_silk: { // Kashmir Lotus Silk & Soft Rose Gold
+    id: 'lotus_silk',
+    label: 'Kashmir Lotus Silk & Soft Rose Gold',
+    vjText: '#36141D',
+    vjBg: '#FAF0F2',
+    vjAccent: '#C97A63',
+    vjAccentLight: '#FBECE9',
+    vjAccentDark: '#A1523E',
+    glassBorderDark: 'rgba(201, 122, 99, 0.2)',
+    border: 'rgba(201, 122, 99, 0.16)',
+  },
+  sandstone_ochre: { // Reth Sandstone Silk & Warm Ochre
+    id: 'sandstone_ochre',
+    label: 'Reth Sandstone Silk & Warm Ochre',
+    vjText: '#381A08',
+    vjBg: '#FAF4EC',
+    vjAccent: '#D98338',
+    vjAccentLight: '#FCECDD',
+    vjAccentDark: '#AC5A16',
+    glassBorderDark: 'rgba(217, 131, 56, 0.2)',
+    border: 'rgba(217, 131, 56, 0.16)',
+  },
 } as const;
 
 import { appSettingsStore } from '../store/appSettingsStore';
