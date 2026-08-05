@@ -87,6 +87,7 @@ export const urdPurchaseService = {
 
     const fineWeightMg = computeURDFineWeightMg(input.grossWeightMg, input.purityPercent);
     const totalValuePaise = computeURDTotalValuePaise(fineWeightMg, input.ratePerGramPaise);
+    if (totalValuePaise > 999999999) throw new Error(ERR.URD_AMOUNT_EXCEEDS_MAX);
 
     const fyId = await fyService.resolveTransactionFyId(firmId, input.purchaseDate);
     const deviceId = await getDeviceId();
@@ -177,6 +178,7 @@ export const urdPurchaseService = {
 
       const fineWeightMg = computeURDFineWeightMg(grossWeightMg, purityPercent);
       const totalValuePaise = computeURDTotalValuePaise(fineWeightMg, ratePerGramPaise);
+      if (totalValuePaise > 999999999) throw new Error(ERR.URD_AMOUNT_EXCEEDS_MAX);
 
       if (urd.oldGoldLotId) {
         oldGoldLotRepository.insert(tx, {

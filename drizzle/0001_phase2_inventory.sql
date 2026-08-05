@@ -28,6 +28,7 @@ CREATE TABLE `designs` (
 	`default_hsn` text,
 	`firm_id` text NOT NULL,
 	`is_active` integer DEFAULT 1 NOT NULL,
+	`low_stock_threshold` integer,
 	`created_at` text NOT NULL,
 	`updated_at` text NOT NULL,
 	FOREIGN KEY (`firm_id`) REFERENCES `firms`(`id`) ON UPDATE no action ON DELETE no action
@@ -324,3 +325,7 @@ CREATE INDEX IF NOT EXISTS idx_audit_logs_entity_event
 -- FIX-GAP-P2-SIZE-3 (v1.76): partial index for size filter
 CREATE INDEX IF NOT EXISTS idx_items_size 
  ON items(firm_id, size_unit, size_value) WHERE size_value IS NOT NULL;
+
+-- FIX-LOWSTOCK-DESIGN-1 (v2.08): designs low_stock_threshold column migration fallback
+ALTER TABLE designs ADD COLUMN low_stock_threshold integer;
+

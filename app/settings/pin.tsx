@@ -175,16 +175,9 @@ export default function PinSettingsScreen() {
 
      return (
        <TwoToneWrapper headerContent={flowHeader}>
-         <View className="flex-1 items-center justify-center px-8 pb-32">
+         <View className="flex-1 items-center pt-6 px-8">
 
-            <View className="items-center mb-8 mt-4">
-              <View className="bg-white/50 p-4 rounded-full mb-4 border border-vj-text/10">
-                {isConfirmStep ? (
-                  <CheckCircle2 size={48} color="#D4AF37" />
-                ) : (
-                  <Lock size={48} color="#5C1623" />
-                )}
-              </View>
+            <View className="items-center mb-6">
               <Text className="text-vj-text text-2xl font-black tracking-widest text-center uppercase">
                 {title}
               </Text>

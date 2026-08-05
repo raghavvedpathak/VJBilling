@@ -152,20 +152,11 @@ export function PinGate({ onSuccess }: { onSuccess: () => void }) {
   return (
     <TwoToneWrapper headerContent={headerContent}>
       <ScrollView 
-        contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 24 }}
+        contentContainerStyle={{ flexGrow: 1, justifyContent: 'flex-start', alignItems: 'center', paddingHorizontal: 20, paddingTop: 16, paddingBottom: 40 }}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
         <View style={{ alignItems: 'center', marginBottom: 24, width: '100%' }}>
-          <View style={{ backgroundColor: 'rgba(255,255,255,0.5)', padding: 14, borderRadius: 999, marginBottom: 12, borderWidth: 1, borderColor: 'rgba(92,22,35,0.1)' }}>
-            {mode === 'LOCKED' ? (
-              <ShieldAlert size={40} color="#ef4444" />
-            ) : mode === 'SETUP_STEP_2' ? (
-              <CheckCircle2 size={40} color="#D4AF37" />
-            ) : (
-              <Lock size={40} color="#5C1623" />
-            )}
-          </View>
           <Text style={{ color: '#5C1623', fontSize: 20, fontWeight: '900', letterSpacing: 1.5, textAlign: 'center', textTransform: 'uppercase' }}>
             {mode === 'LOCKED' ? 'System Locked' : 
              mode.startsWith('SETUP') ? 'Set Up Security PIN' : 

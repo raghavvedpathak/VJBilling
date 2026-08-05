@@ -162,8 +162,8 @@ export function caratsToCaratX100(carats: number): number {
 }
 
 export function formatCarats(caratX100: number | null | undefined): string {
-  if (caratX100 === null || caratX100 === undefined || isNaN(caratX100)) return '0.00 cts';
-  return (caratX100 / 100).toFixed(2) + ' cts';
+  if (caratX100 === null || caratX100 === undefined || isNaN(caratX100)) return '0.00 ct';
+  return (caratX100 / 100).toFixed(2) + ' ct';
 }
 
 export function computeGemstoneTotalPaise(weightCaratX100: number, purchaseRatePaisePerCarat: number | null | undefined): number | null {

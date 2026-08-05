@@ -3,7 +3,7 @@ import React, { useState, useEffect, useCallback, memo } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
 import { FlashList } from '@shopify/flash-list';
 import { useRouter } from 'expo-router';
-import { Search, ArrowLeft, PackageSearch, Ghost, Hash, Sparkles, Coins } from 'lucide-react-native';
+import { Search, ArrowLeft, PackageSearch, Ghost, Hash, Sparkles, Coins, ScanLine } from 'lucide-react-native';
 import { inventorySearchService } from '../../services/inventorySearchService';
 import { formatWeightMg as formatWeight } from '../../utils/calculations';
 import type { ItemSearchResult } from '../../types/phase2.types';
@@ -140,6 +140,19 @@ export default function InventorySearchScreen() {
     router.push(`/inventory/item-detail?itemId=${itemId}`);
   }, [router]);
 
+  const handleAutoSubmitBarcode = useCallback(async () => {
+    const trimmed = query.trim();
+    if (trimmed.length < 2 || !activeFirmId) return;
+    try {
+      const data = await inventorySearchService.searchItems(activeFirmId, trimmed);
+      if (data.length === 1) {
+        router.push(`/inventory/item-detail?itemId=${data[0].itemId}`);
+      }
+    } catch (e) {
+      console.error('[Search] Barcode submit failed:', e);
+    }
+  }, [query, activeFirmId, router]);
+
   return (
     <View style={s.container}>
       {/* Search Header */}
@@ -152,13 +165,15 @@ export default function InventorySearchScreen() {
           <Search size={18} color={COLORS.muted} style={s.searchIcon} />
           <TextInput
             style={s.input}
-            placeholder="Search SKU, HUID, Design..."
+            placeholder="Scan Barcode / Search SKU, HUID, Design..."
             placeholderTextColor={COLORS.muted}
             value={query}
             onChangeText={setQuery}
+            onSubmitEditing={handleAutoSubmitBarcode}
             autoFocus
             autoCapitalize="characters"
           />
+          <ScanLine size={18} color={COLORS.goldAccent} style={{ marginRight: 6 }} />
           {isSearching && <ActivityIndicator size="small" color={COLORS.vjText} style={s.spinner} />}
         </View>
       </View>

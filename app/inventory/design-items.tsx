@@ -13,12 +13,12 @@ import { TwoToneWrapper } from '../../components/TwoToneWrapper';
 import { useFirmStore } from '../../store/firmStore';
 import { inventoryDrillDownService } from '../../services/inventoryDrillDownService';
 import { getDisplayPurity, formatSKUDisplay, formatWeightMg as formatWeight } from '../../utils/calculations';
-import { MapPin, Tag, Package } from 'lucide-react-native';
+import { MapPin, Tag, Package, Printer } from 'lucide-react-native';
 import { getJewelryCategoryIcon } from '../../utils/jewelryIcons';
 import type { ItemSearchResult } from '../../types/phase2.types';
 import { COLORS } from '../../constants/theme';
 
-const ItemRow = memo(({ item, onPress }: { item: ItemSearchResult, onPress: (id: string) => void }) => {
+const ItemRow = memo(({ item, onPress, onPrint }: { item: ItemSearchResult, onPress: (id: string) => void, onPrint: (id: string) => void }) => {
   const purityDisplay = getDisplayPurity(item.purityPercent, item.purityKarat, item.metal as any);
   const metalColor = item.metal === 'GOLD' ? COLORS.gold : COLORS.silver;
 
@@ -36,8 +36,17 @@ const ItemRow = memo(({ item, onPress }: { item: ItemSearchResult, onPress: (id:
             <Text style={s.skuText}>{formatSKUDisplay(item.sku)}</Text>
             <Text style={s.barcodeText}>Barcode: {item.barcode}</Text>
           </View>
-          <View style={[s.purityBadge, { borderColor: metalColor }]}>
-            <Text style={[s.purityBadgeText, { color: metalColor }]}>{purityDisplay}</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+            <TouchableOpacity 
+              activeOpacity={0.7}
+              onPress={(e) => { e.stopPropagation(); onPrint(item.itemId); }}
+              style={s.printBtn}
+            >
+              <Printer size={16} color={COLORS.vjAccent} />
+            </TouchableOpacity>
+            <View style={[s.purityBadge, { borderColor: metalColor }]}>
+              <Text style={[s.purityBadgeText, { color: metalColor }]}>{purityDisplay}</Text>
+            </View>
           </View>
         </View>
 
@@ -103,6 +112,13 @@ export default function DesignItemsScreen() {
     });
   }, [router]);
 
+  const handlePrint = useCallback((itemId: string) => {
+    router.push({
+      pathname: '/inventory/barcode-print',
+      params: { itemId },
+    });
+  }, [router]);
+
   const totalNetWeightMg = sortedItems.reduce((sum, i) => sum + (i.netWeightMg ?? i.grossWeightMg), 0);
 
   const headerContent = (
@@ -132,7 +148,7 @@ export default function DesignItemsScreen() {
             data={sortedItems}
             keyExtractor={(item) => item.itemId}
             renderItem={({ item }) => (
-              <ItemRow item={item} onPress={handleItemPress} />
+              <ItemRow item={item} onPress={handleItemPress} onPrint={handlePrint} />
             )}
             // @ts-ignore: estimatedItemSize required by spec
             estimatedItemSize={120}
@@ -195,6 +211,16 @@ const s = StyleSheet.create({
     color: 'rgba(92,22,35,0.4)',
     fontWeight: '600',
     marginTop: 2,
+  },
+  printBtn: {
+    paddingHorizontal: 7,
+    paddingVertical: 4,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: 'rgba(212,175,55,0.3)',
+    backgroundColor: 'rgba(212,175,55,0.12)',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   purityBadge: {
     paddingHorizontal: 8,

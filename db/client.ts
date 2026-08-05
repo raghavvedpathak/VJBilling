@@ -44,6 +44,17 @@ export function useDatabase() {
         await migrate(db, migrations);
         console.log('[DB Client] Migrations complete.');
 
+        // Self-healing schema check for designs.low_stock_threshold (FIX-LOWSTOCK-DESIGN-1 v2.08)
+        try {
+          const designCols = expoDb.getAllSync<{ name: string }>('PRAGMA table_info(designs)');
+          if (!designCols.some(c => c.name === 'low_stock_threshold')) {
+            console.log('[DB Client] Self-healing: Adding low_stock_threshold column to designs table...');
+            expoDb.execSync('ALTER TABLE designs ADD COLUMN low_stock_threshold INTEGER;');
+          }
+        } catch (e) {
+          console.warn('[DB Client] Self-healing designs.low_stock_threshold check:', e);
+        }
+
         // -----------------------------------------------------------------------
         // HARDENING TRIGGERS REMOVED FROM CLIENT.TS
         // -----------------------------------------------------------------------

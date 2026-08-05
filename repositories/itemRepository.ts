@@ -217,6 +217,7 @@ export const itemRepository = {
       inArray(items.status, ['AVAILABLE', 'PHANTOM_AVAILABLE']),
       or(
         like(items.sku, safeQuery),
+        like(items.barcode, safeQuery),
         like(items.huid, safeQuery),
         like(designs.name, safeQuery),
         like(categories.name, safeQuery)
