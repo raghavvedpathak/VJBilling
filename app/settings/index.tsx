@@ -185,32 +185,11 @@ export default function SettingsScreen() {
     );
   };
 
-  const colors = getThemeColors(theme);
-
-  const settingsHeader = (
-    <View className="flex-row items-center gap-2 flex-wrap mt-1">
-      <View className="bg-white/10 px-3 py-1.5 rounded-full border border-white/20 flex-row items-center gap-1.5">
-        <Building2 size={12} color={colors.vjBg} />
-        <Text className="text-vj-bg text-xs font-bold">{firm?.name || 'ACTIVE FIRM'}</Text>
-      </View>
-      <View className="bg-white/10 px-3 py-1.5 rounded-full border border-white/20 flex-row items-center gap-1.5">
-        <ShieldCheck size={12} color={hasPin ? "#4ADE80" : "#FDBA74"} />
-        <Text className={`text-xs font-bold ${hasPin ? 'text-green-300' : 'text-orange-200'}`}>
-          {hasPin ? 'PIN PROTECTED' : 'PIN NOT SET'}
-        </Text>
-      </View>
-      <View className="bg-white/10 px-3 py-1.5 rounded-full border border-white/20 flex-row items-center gap-1.5">
-        <Database size={12} color={colors.vjBg} />
-        <Text className="text-vj-bg/80 text-xs font-bold">SQLITE DB v7</Text>
-      </View>
-    </View>
-  );
-
   return (
-    <TwoToneWrapper title="Settings" showBack headerContent={settingsHeader}>
+    <TwoToneWrapper title="Settings" showBack>
       <ScrollView 
         showsVerticalScrollIndicator={false} 
-        contentContainerStyle={{paddingBottom: 120, paddingTop: 20}}
+        contentContainerStyle={{paddingBottom: 120, paddingTop: 32}}
         keyboardShouldPersistTaps="handled"
         scrollEventThrottle={16}
         overScrollMode="never"
