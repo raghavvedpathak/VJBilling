@@ -6,14 +6,17 @@ module.exports = {
   theme: {
     extend: {
       colors: {
-        // The Pearl Ivory background (lower side)
-        'vj-bg': "#FCFBF8", 
+        // Warm Kesar Milk Silk background (anti-glare)
+        'vj-bg': "#FDF9F3", 
         
-        // The Royal Ruby text/header color (upper side)
-        'vj-text': "#5C1623", 
+        // Deep Burnt Saffron Velvet text/header color
+        'vj-text': "#2A1208", 
         
-        // The Rich Gold accent color
-        'vj-accent': "#D4AF37",
+        // Royal Auspicious Saffron Gold accent color
+        'vj-accent': "#E67E22",
+
+        // Auspicious Saffron accent color
+        'vj-saffron': "#E67E22",
         
         // Active/Success green
         'vj-success': "#15803d",

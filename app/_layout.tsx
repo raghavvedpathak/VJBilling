@@ -123,9 +123,9 @@ export default function RootLayout() {
   return (
     <SafeAreaProvider>
       <ThemeProvider value={vjTheme}>
-        <StatusBar barStyle="dark-content" backgroundColor="#FCFBF8" />
+        <StatusBar barStyle="dark-content" backgroundColor={COLORS.vjBg} />
         
-        <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: '#FCFBF8' }, animation: 'slide_from_right' }}>
+        <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: COLORS.vjBg }, animation: 'slide_from_right' }}>
           <Stack.Screen name="index" options={{ headerShown: false }} />
           <Stack.Screen name="dashboard" options={{ headerShown: false }} />
           <Stack.Screen name="welcome" options={{ headerShown: false }} />
@@ -133,25 +133,25 @@ export default function RootLayout() {
         </Stack>
 
         {showSnapshotLoading && (
-          <View style={[StyleSheet.absoluteFill, { zIndex: 9999, elevation: 9999, backgroundColor: '#FCFBF8' }]}>
+          <View style={[StyleSheet.absoluteFill, { zIndex: 9999, elevation: 9999, backgroundColor: COLORS.vjBg }]}>
             <LoadingScreen message="Securing Pre-Migration Snapshot..." />
           </View>
         )}
 
         {showPinGate && (
-          <View style={[StyleSheet.absoluteFill, { zIndex: 9999, elevation: 9999, backgroundColor: '#FCFBF8' }]}>
+          <View style={[StyleSheet.absoluteFill, { zIndex: 9999, elevation: 9999, backgroundColor: COLORS.vjBg }]}>
             <PinGate onSuccess={() => setPinVerified(true)} />
           </View>
         )}
 
         {showBootstrapLoading && !showError && (
-          <View style={[StyleSheet.absoluteFill, { zIndex: 9999, elevation: 9999, backgroundColor: '#FCFBF8' }]}>
+          <View style={[StyleSheet.absoluteFill, { zIndex: 9999, elevation: 9999, backgroundColor: COLORS.vjBg }]}>
             <LoadingScreen message={loadingMsg} />
           </View>
         )}
         
         {showError && (
-          <View style={[StyleSheet.absoluteFill, { zIndex: 9999, elevation: 9999, backgroundColor: '#FCFBF8' }]}>
+          <View style={[StyleSheet.absoluteFill, { zIndex: 9999, elevation: 9999, backgroundColor: COLORS.vjBg }]}>
             <DatabaseErrorScreen
               title="CRITICAL MIGRATION ERROR"
               message={dbMigrationError ?? "An unknown database error occurred."}

@@ -3,15 +3,17 @@
 
 export const COLORS = {
   // --- Core Brand Colors ---
-  vjText: '#5C1623',       // Royal Ruby / Deep Wine (Header & Primary Text)
-  vjBg: '#FCFBF8',         // Pearl Ivory / Warm White (App Main Background)
-  vjAccent: '#D4AF37',     // Rich Imperial Gold (Accents, Buttons & Highlights)
-  vjAccentLight: '#F3E5AB',// Champagne Gold Tint
-  vjAccentDark: '#B8860B', // Antique Gold
+  vjText: '#2A1208',       // Deep Burnt Saffron Velvet (Header & Primary Text)
+  vjBg: '#FDF9F3',         // Warm Kesar Milk Silk (Anti-Glare Main Background)
+  vjAccent: '#E67E22',     // Royal Auspicious Saffron Gold (Accents, Buttons & Highlights)
+  vjAccentLight: '#FBE3C5',// Soft Kesar Cream Tint
+  vjAccentDark: '#B85B0E', // Deep Burnt Saffron
+  saffron: '#E67E22',      // Auspicious Royal Saffron
+  saffronLight: '#FBE3C5', // Soft Saffron Tint
 
   // --- Metals ---
-  gold: '#C8860A',         // Royal Gold Badge / Stripe
-  goldAccent: '#D97706',   // Gold Highlight Accent
+  gold: '#E67E22',         // Royal Gold Badge / Stripe
+  goldAccent: '#E67E22',   // Gold Highlight Accent
   silver: '#6B7280',       // Sterling Silver Badge / Stripe
   silverAccent: '#9CA3AF', // Silver Highlight Accent
 
@@ -27,19 +29,19 @@ export const COLORS = {
   phantom: '#7C3AED',      // Phantom Violet
 
   // --- Glassmorphism Design Tokens ---
-  glassBg: 'rgba(255, 255, 255, 0.65)',
-  glassBorder: 'rgba(255, 255, 255, 0.5)',
-  glassBorderDark: 'rgba(92, 22, 35, 0.1)',
-  glassGoldBg: 'rgba(212, 175, 55, 0.12)',
-  glassGoldBorder: 'rgba(212, 175, 55, 0.3)',
+  glassBg: 'rgba(255, 255, 255, 0.75)',
+  glassBorder: 'rgba(255, 255, 255, 0.6)',
+  glassBorderDark: 'rgba(230, 126, 34, 0.2)',
+  glassGoldBg: 'rgba(230, 126, 34, 0.12)',
+  glassGoldBorder: 'rgba(230, 126, 34, 0.35)',
 
   // --- Neutral Tokens ---
   surface: '#FFFFFF',
-  border: 'rgba(92, 22, 35, 0.08)',
-  muted: 'rgba(92, 22, 35, 0.5)',
+  border: 'rgba(230, 126, 34, 0.16)',
+  muted: 'rgba(42, 18, 8, 0.5)',
   inputBg: '#F3F4F6',       // Form Input Background
   inputBorder: '#D1D5DB',   // Form Input Border
-  subtle: 'rgba(92, 22, 35, 0.25)',
+  subtle: 'rgba(42, 18, 8, 0.25)',
 } as const;
 
 export const SHADOWS = {
