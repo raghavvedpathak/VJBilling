@@ -310,3 +310,38 @@ export function GlassSmartSearch({
     </View>
   );
 }
+
+// ============================================================================
+// 6. MODERN GLASS HEADER PILL
+// Sleek, modern iOS 17 / Material 3 glassmorphic pill badge for screen headers
+// ============================================================================
+interface HeaderPillProps {
+  icon?: React.ReactNode;
+  label: string;
+  variant?: 'default' | 'success' | 'warning' | 'info';
+}
+
+export function HeaderPill({ icon, label, variant = 'default' }: HeaderPillProps) {
+  const containerStyles = {
+    default: 'bg-white/10 border-white/20',
+    success: 'bg-emerald-500/15 border-emerald-400/30',
+    warning: 'bg-amber-500/15 border-amber-400/30',
+    info: 'bg-sky-500/15 border-sky-400/30',
+  };
+
+  const textStyles = {
+    default: 'text-vj-bg/90',
+    success: 'text-emerald-300',
+    warning: 'text-amber-200',
+    info: 'text-sky-200',
+  };
+
+  return (
+    <View className={`px-3 py-1 rounded-full border flex-row items-center gap-1.5 ${containerStyles[variant]}`}>
+      {icon}
+      <Text className={`text-xs font-bold ${textStyles[variant]}`}>
+        {label}
+      </Text>
+    </View>
+  );
+}

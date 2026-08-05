@@ -182,7 +182,7 @@ export default function AddURDScreen() {
         <GlassCard style={{ marginBottom: 16 }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 16 }}>
             <User size={20} color="#D4AF37" />
-            <Text style={{ fontSize: 18, fontWeight: '700', color: '#5C1623' }}>Seller Details</Text>
+            <Text style={{ fontSize: 18, fontWeight: '700', color: COLORS.vjText }}>Seller Details</Text>
           </View>
           
           <GlassInput label="Full Name *" placeholder="Enter customer name" value={customerName} onChangeText={setCustomerName} />
@@ -208,7 +208,7 @@ export default function AddURDScreen() {
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14, borderBottomWidth: 1, borderBottomColor: 'rgba(92,22,35,0.08)', paddingBottom: 8 }}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                   <Scale size={18} color="#D4AF37" />
-                  <Text style={{ fontSize: 16, fontWeight: '700', color: '#5C1623' }}>Item #{index + 1}</Text>
+                  <Text style={{ fontSize: 16, fontWeight: '700', color: COLORS.vjText }}>Item #{index + 1}</Text>
                 </View>
 
                 {items.length > 1 && (
@@ -270,7 +270,7 @@ export default function AddURDScreen() {
                         borderRadius: 6
                       }}
                     >
-                      <Text style={{ fontSize: 11, fontWeight: '700', color: row.purityPercent === preset.val ? '#FFF' : '#5C1623' }}>
+                      <Text style={{ fontSize: 11, fontWeight: '700', color: row.purityPercent === preset.val ? '#FFF' : COLORS.vjText }}>
                         {preset.label}
                       </Text>
                     </TouchableOpacity>
@@ -292,7 +292,7 @@ export default function AddURDScreen() {
                         borderRadius: 6
                       }}
                     >
-                      <Text style={{ fontSize: 11, fontWeight: '700', color: row.purityPercent === preset.val ? '#FFF' : '#5C1623' }}>
+                      <Text style={{ fontSize: 11, fontWeight: '700', color: row.purityPercent === preset.val ? '#FFF' : COLORS.vjText }}>
                         {preset.label}
                       </Text>
                     </TouchableOpacity>
@@ -325,7 +325,7 @@ export default function AddURDScreen() {
                   </View>
                   <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
                     <Text style={{ fontSize: 11, color: 'rgba(92,22,35,0.6)', fontWeight: '600' }}>Item Net Valuation:</Text>
-                    <Text style={{ fontSize: 13, color: '#5C1623', fontWeight: '800', fontFamily: 'monospace' }}>{calc.formattedTotalValue}</Text>
+                    <Text style={{ fontSize: 13, color: COLORS.vjText, fontWeight: '800', fontFamily: 'monospace' }}>{calc.formattedTotalValue}</Text>
                   </View>
                 </View>
               )}
@@ -351,14 +351,14 @@ export default function AddURDScreen() {
           }}
         >
           <Plus size={18} color="#D4AF37" />
-          <Text style={{ fontSize: 14, fontWeight: '700', color: '#5C1623' }}>Add Another Item (Gold / Silver)</Text>
+          <Text style={{ fontSize: 14, fontWeight: '700', color: COLORS.vjText }}>Add Another Item (Gold / Silver)</Text>
         </TouchableOpacity>
 
         {/* Valuation & Payout Summary */}
         <GlassCard style={{ marginBottom: 24 }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 16 }}>
             <Banknote size={20} color="#D4AF37" />
-            <Text style={{ fontSize: 18, fontWeight: '700', color: '#5C1623' }}>Payout & Batch Summary</Text>
+            <Text style={{ fontSize: 18, fontWeight: '700', color: COLORS.vjText }}>Payout & Batch Summary</Text>
           </View>
 
           <Text style={{ fontSize: 12, fontWeight: '700', color: 'rgba(92,22,35,0.6)', textTransform: 'uppercase', marginBottom: 8 }}>Payout Mode *</Text>
@@ -374,7 +374,7 @@ export default function AddURDScreen() {
             ))}
           </View>
 
-          <View style={{ backgroundColor: '#5C1623', padding: 16, borderRadius: 14, marginTop: 4 }}>
+          <View style={{ backgroundColor: COLORS.vjText, padding: 16, borderRadius: 14, marginTop: 4 }}>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
               <Text style={{ fontSize: 12, color: 'rgba(255,255,255,0.7)', fontWeight: '600' }}>Total Items</Text>
               <Text style={{ fontSize: 12, color: '#FCFBF8', fontWeight: 'bold' }}>{items.length} Item{items.length > 1 ? 's' : ''}</Text>
@@ -457,7 +457,7 @@ const s = StyleSheet.create({
   successTitle: {
     fontSize: 24,
     fontWeight: '800',
-    color: '#5C1623',
+    color: COLORS.vjText,
     marginBottom: 8,
   },
   successSubtitle: {

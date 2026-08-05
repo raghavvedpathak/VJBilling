@@ -6,14 +6,16 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 import { TwoToneWrapper } from '../../components/TwoToneWrapper';
-import { GlassCard, GlassButton } from '../../components/ui/Glass';
+import { HeaderPill, GlassCard, GlassButton } from '../../components/ui/Glass';
+import { useStore } from 'zustand';
+import { appSettingsStore } from '../../store/appSettingsStore';
 import { useFirmStore } from '../../store/firmStore';
 import { barcodeLabelService } from '../../services/barcodeLabelService';
-import { Printer, Share, CheckCircle, RefreshCcw } from 'lucide-react-native';
+import { Printer, Share, CheckCircle, RefreshCcw, Tag, Scale } from 'lucide-react-native';
 import QRCode from 'react-native-qrcode-svg';
 import type { BarcodeLabel } from '../../types/phase2.types';
 
-import { COLORS } from '../../constants/theme';
+import { COLORS, getThemeColors } from '../../constants/theme';
 
 export default function BarcodePrintScreen() {
   const router = useRouter();
@@ -156,20 +158,19 @@ export default function BarcodePrintScreen() {
     }
   };
 
-  const headerContent = (
-    <View>
-      <View style={{ marginBottom: 12 }}>
-        <View style={{ width: 52, height: 52, borderRadius: 16, backgroundColor: 'rgba(255,255,255,0.12)', justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: 'rgba(255,255,255,0.15)' }}>
-          <Printer size={28} color={COLORS.vjBg} />
-        </View>
-      </View>
-      <Text style={{ color: COLORS.vjBg, fontSize: 28, fontWeight: '800', letterSpacing: -0.5, marginBottom: 4 }}>Print Tag</Text>
+  const activeTheme = useStore(appSettingsStore, (s) => s.theme);
+  const colors = getThemeColors(activeTheme);
+
+  const barcodeHeaderPills = label ? (
+    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginTop: 4 }}>
+      <HeaderPill icon={<Tag size={12} color={colors.vjBg} />} label={label.frontSide.designName.toUpperCase()} />
+      <HeaderPill icon={<Scale size={12} color="#4ADE80" />} label={`Nt: ${label.frontSide.netWeightDisplay}`} variant="success" />
     </View>
-  );
+  ) : null;
 
   if (loading) {
     return (
-      <TwoToneWrapper title="" showBack headerContent={headerContent}>
+      <TwoToneWrapper title="Print Barcode Tag" showBack headerContent={null}>
         <ActivityIndicator size="large" color={COLORS.vjAccent} style={{ marginTop: 40 }} />
       </TwoToneWrapper>
     );
@@ -178,10 +179,10 @@ export default function BarcodePrintScreen() {
   if (!label) return null;
 
   return (
-    <TwoToneWrapper title="" showBack headerContent={headerContent}>
+    <TwoToneWrapper title="Print Barcode Tag" showBack headerContent={barcodeHeaderPills}>
       <View style={{ flex: 1, paddingTop: 16 }}>
         
-        <Text style={{ fontSize: 13, fontWeight: '700', color: 'rgba(92,22,35,0.5)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 12, marginLeft: 4 }}>Live Tag Preview</Text>
+        <Text style={{ fontSize: 13, fontWeight: '700', color: COLORS.vjText, opacity: 0.7, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 12, marginLeft: 4 }}>Live Tag Preview</Text>
         
         <GlassCard style={{ padding: 24, marginBottom: 24 }}>
           {/* Virtual "Dumbbell Tag" representation */}

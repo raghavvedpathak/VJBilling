@@ -2,17 +2,19 @@
 import React, { useState, useCallback, useMemo } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
 import { FlashList } from '@shopify/flash-list';
-import { useRouter, useLocalSearchParams } from 'expo-router';
-import { useFocusEffect } from 'expo-router';
+import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { TwoToneWrapper } from '../../components/TwoToneWrapper';
+import { HeaderPill } from '../../components/ui/Glass';
+import { useStore } from 'zustand';
+import { appSettingsStore } from '../../store/appSettingsStore';
 import { useFirmStore } from '../../store/firmStore';
 import { inventoryDrillDownService } from '../../services/inventoryDrillDownService';
 import { getDisplayPurity, formatSKUDisplay, formatWeightMg as formatWeight } from '../../utils/calculations';
-import { ChevronRight, Tag, Gem, MapPin, Printer, Sparkles, Coins } from 'lucide-react-native';
+import { ChevronRight, Tag, Gem, MapPin, Printer, Sparkles, Coins, Package } from 'lucide-react-native';
 import { getJewelryCategoryIcon } from '../../utils/jewelryIcons';
 import type { ItemSearchResult } from '../../types/phase2.types';
 
-import { COLORS } from '../../constants/theme';
+import { COLORS, getThemeColors } from '../../constants/theme';
 
 const SkuRow = React.memo(({
   item,
@@ -141,7 +143,10 @@ export default function PurityItemsScreen() {
     router.push({ pathname: '/inventory/barcode-print', params: { itemId } });
   }, [router]);
 
-  const headerContent = useMemo(() => {
+  const activeTheme = useStore(appSettingsStore, (s) => s.theme);
+  const colors = getThemeColors(activeTheme);
+
+  const purityHeaderPills = useMemo(() => {
     const firstItem = items[0];
     const metal = firstItem?.metal || 'GOLD';
     const karat = firstItem?.purityKarat ?? null;
@@ -149,22 +154,15 @@ export default function PurityItemsScreen() {
     const purityDisplay = getDisplayPurity(targetPurity, karat, metal);
 
     return (
-      <View>
-        <View style={s.headerIconRow}>
-          <View style={s.headerIconCircle}>
-            {getJewelryCategoryIcon(firstItem?.categoryName, designName, metal, 28, COLORS.vjBg)}
-          </View>
-        </View>
-        <Text style={s.headerTitle} numberOfLines={1}>{designName || 'Items'}</Text>
-        <Text style={s.headerSubtitle}>
-          {purityDisplay} • {items.length} Items
-        </Text>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginTop: 4 }}>
+        <HeaderPill icon={<Sparkles size={12} color={colors.vjBg} />} label={purityDisplay} />
+        <HeaderPill icon={<Package size={12} color="#4ADE80" />} label={`${items.length} Items`} variant="success" />
       </View>
     );
-  }, [designName, purityPercent, items]);
+  }, [items, purityPercent, colors.vjBg]);
 
   return (
-    <TwoToneWrapper title="" showBack headerContent={headerContent}>
+    <TwoToneWrapper title={designName || 'Purity Items'} showBack headerContent={purityHeaderPills}>
       <View style={s.listContainer}>
         {loading ? (
           <View style={s.loadingContainer}>

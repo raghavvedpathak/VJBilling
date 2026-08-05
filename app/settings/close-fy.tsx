@@ -90,7 +90,7 @@ export default function CloseFYWizard() {
     return (
       <TwoToneWrapper title="Close Financial Year" showBack>
         <View style={s.centerBox}>
-          <Lock size={48} color="rgba(92,22,35,0.2)" />
+          <Lock size={48} color={COLORS.vjText} style={{ opacity: 0.3 }} />
           <Text style={s.emptyTitle}>No Active FY</Text>
           <Text style={s.emptySub}>You do not have an active financial year to close.</Text>
         </View>

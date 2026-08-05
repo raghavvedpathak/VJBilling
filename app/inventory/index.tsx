@@ -3,9 +3,11 @@ import React from 'react';
 import { View, Text, ScrollView, TouchableOpacity } from 'react-native';
 import { useRouter } from 'expo-router';
 import { TwoToneWrapper } from '../../components/TwoToneWrapper';
-import { GlassCard } from '../../components/ui/Glass';
+import { GlassCard, HeaderPill } from '../../components/ui/Glass';
 import { InventoryStockSummary } from '../../components/InventoryStockSummary';
 import { useFirmStore } from '../../store/firmStore';
+import { useStore } from 'zustand';
+import { appSettingsStore } from '../../store/appSettingsStore';
 import { 
   PackageSearch, 
   Layers, 
@@ -16,17 +18,28 @@ import {
   Coins,
   Database,
   ChevronRight,
-  Search
+  Search,
+  Package,
+  TrendingUp
 } from 'lucide-react-native';
-import { COLORS } from '../../constants/theme';
+import { COLORS, getThemeColors } from '../../constants/theme';
 
 export default function InventoryHubScreen() {
   const router = useRouter();
   const { activeFirmId } = useFirmStore();
+  const activeTheme = useStore(appSettingsStore, (s) => s.theme);
+  const colors = getThemeColors(activeTheme);
+
+  const inventoryHeaderPills = (
+    <View className="flex-row items-center gap-2 flex-wrap mt-1">
+      <HeaderPill icon={<Package size={12} color={colors.vjBg} />} label="Stock Operations" />
+      <HeaderPill icon={<TrendingUp size={12} color="#4ADE80" />} label="Live Valuation" variant="success" />
+    </View>
+  );
 
   return (
-    <TwoToneWrapper title="Inventory Hub" showBack>
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingTop: 32, paddingBottom: 100 }}>
+    <TwoToneWrapper title="Inventory Hub" showBack headerContent={inventoryHeaderPills}>
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingTop: 20, paddingBottom: 100 }}>
         
         {/* The Live Jewelry Stock Display lives here natively */}
         {activeFirmId && (

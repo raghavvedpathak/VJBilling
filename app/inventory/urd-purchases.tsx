@@ -205,7 +205,7 @@ export default function URDPurchasesScreen() {
           <View style={s.actionRowMain}>
             {isConfirmed ? (
               <TouchableOpacity style={s.printBillBtn} onPress={() => handlePreviewBill(item)}>
-                <Eye size={15} color="#5C1623" />
+                <Eye size={15} color={COLORS.vjText} />
                 <Text style={s.printBillBtnText}>Preview & Print Bill</Text>
               </TouchableOpacity>
             ) : (
@@ -396,7 +396,7 @@ const s = StyleSheet.create({
   previewContent: { paddingBottom: 40 },
   previewFooter: { flexDirection: 'row', gap: 12, backgroundColor: '#FCFBF8', padding: 16, borderTopWidth: 1, borderTopColor: 'rgba(0,0,0,0.1)' },
   previewShareBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 12, borderRadius: 12, backgroundColor: 'rgba(92,22,35,0.08)' },
-  previewShareBtnText: { color: '#5C1623', fontWeight: '700', fontSize: 14 },
+  previewShareBtnText: { color: COLORS.vjText, fontWeight: '700', fontSize: 14 },
   previewPrintBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 12, borderRadius: 12, backgroundColor: '#D4AF37' },
   previewPrintBtnText: { color: '#ffffff', fontWeight: '800', fontSize: 14 },
 

@@ -2,8 +2,10 @@ import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, TouchableOpacity, ScrollView, TextInput, Keyboard, Alert } from 'react-native';
 import { useRouter } from 'expo-router';
 import { TwoToneWrapper } from '../../components/TwoToneWrapper';
-import { GlassCard } from '../../components/ui/Glass';
-import { KeyRound, ShieldAlert, CheckCircle2, Lock, X } from 'lucide-react-native';
+import { HeaderPill, GlassCard } from '../../components/ui/Glass';
+import { useStore } from 'zustand';
+import { appSettingsStore } from '../../store/appSettingsStore';
+import { KeyRound, ShieldAlert, CheckCircle2, Lock, X, ShieldCheck } from 'lucide-react-native';
 import {
   isPinSet,
   setPin,
@@ -12,7 +14,7 @@ import {
   verifyPin,
   getPinLength
 } from '../../services/pinService';
-import { COLORS } from '../../constants/theme';
+import { COLORS, getThemeColors } from '../../constants/theme';
 
 type FlowState = 'MENU' | 'TURN_ON_NEW' | 'TURN_ON_CONFIRM' | 'TURN_OFF_CURRENT' | 'CHANGE_CURRENT' | 'CHANGE_NEW' | 'CHANGE_CONFIRM';
 
@@ -237,20 +239,18 @@ export default function PinSettingsScreen() {
      );
   }
 
-  const menuHeader = (
-    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-      <View style={{ width: 44, height: 44, borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.15)', justifyContent: 'center', alignItems: 'center', borderWidth: 1.5, borderColor: 'rgba(212,175,55,0.4)' }}>
-        <KeyRound size={22} color="#D4AF37" />
-      </View>
-      <View style={{ flex: 1 }}>
-        <Text style={{ color: '#FCFBF8', fontSize: 22, fontWeight: '800' }}>Security PIN</Text>
-        <Text style={{ color: 'rgba(250,243,224,0.6)', fontSize: 12, fontWeight: '600' }}>App Lock & Authentication</Text>
-      </View>
+  const activeTheme = useStore(appSettingsStore, (s) => s.theme);
+  const colors = getThemeColors(activeTheme);
+
+  const pinHeaderPills = (
+    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginTop: 4 }}>
+      <HeaderPill icon={<ShieldCheck size={12} color={hasPin ? "#4ADE80" : "#FDBA74"} />} label={hasPin ? 'PIN Enabled' : 'PIN Disabled'} variant={hasPin ? 'success' : 'warning'} />
+      <HeaderPill icon={<Lock size={12} color={colors.vjBg} />} label={`${hasPin ? getPinLength() : 6}-Digit Hash Lock`} />
     </View>
   );
 
   return (
-    <TwoToneWrapper showBack headerContent={menuHeader}>
+    <TwoToneWrapper title="Security PIN" showBack headerContent={pinHeaderPills}>
       <ScrollView 
         showsVerticalScrollIndicator={false} 
         contentContainerStyle={{paddingBottom: 120, paddingTop: 32}}

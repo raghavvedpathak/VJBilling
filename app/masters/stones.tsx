@@ -5,13 +5,15 @@ import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Modal, TextInput,
 import { useRouter } from 'expo-router';
 import { useFocusEffect } from 'expo-router';
 import { TwoToneWrapper } from '../../components/TwoToneWrapper';
-import { GlassCard, GlassButton } from '../../components/ui/Glass';
-import { Gem, Plus, X, Trash2, LayoutGrid, List as ListIcon, CheckCircle } from 'lucide-react-native';
+import { HeaderPill, GlassCard, GlassButton } from '../../components/ui/Glass';
+import { useStore } from 'zustand';
+import { appSettingsStore } from '../../store/appSettingsStore';
+import { Gem, Plus, X, Trash2, LayoutGrid, List as ListIcon, CheckCircle, ShieldCheck } from 'lucide-react-native';
 import { useFirmStore } from '../../store/firmStore';
 import { stoneService } from '../../services/stoneService';
 import type { Stone } from '../../types/phase2.types';
 
-import { COLORS } from '../../constants/theme';
+import { COLORS, getThemeColors } from '../../constants/theme';
 
 type StoneType = 'DIAMOND' | 'RUBY' | 'EMERALD' | 'SAPPHIRE';
 const STONE_TYPES: StoneType[] = ['DIAMOND', 'RUBY', 'EMERALD', 'SAPPHIRE'];
@@ -95,20 +97,18 @@ export default function StonesScreen() {
     ]);
   };
 
-  const headerContent = (
-    <View>
-      <View style={s.headerIconRow}>
-        <View style={s.headerIconCircle}>
-          <Gem size={28} color={COLORS.vjBg} />
-        </View>
-      </View>
-      <Text style={s.headerTitle}>Stone Master</Text>
-      <Text style={s.headerSubtitle}>{stones.length} Active Materials</Text>
+  const activeTheme = useStore(appSettingsStore, (s) => s.theme);
+  const colors = getThemeColors(activeTheme);
+
+  const stoneHeaderPills = (
+    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginTop: 4 }}>
+      <HeaderPill icon={<Gem size={12} color={colors.vjBg} />} label={`${stones.length} Active Materials`} />
+      <HeaderPill icon={<ShieldCheck size={12} color="#4ADE80" />} label="Precious Stones Scoped" variant="success" />
     </View>
   );
 
   return (
-    <TwoToneWrapper title="" showBack headerContent={headerContent}>
+    <TwoToneWrapper title="Stone Master" showBack headerContent={stoneHeaderPills}>
       <View style={s.container}>
         <View style={s.controlsRow}>
           <View style={{ flex: 1, marginRight: 12 }}>
@@ -116,10 +116,10 @@ export default function StonesScreen() {
           </View>
           <View style={s.toggleContainer}>
             <TouchableOpacity onPress={() => setViewMode('list')} style={[s.toggleIconBtn, viewMode === 'list' && s.toggleIconActive]}>
-              <ListIcon size={20} color={viewMode === 'list' ? '#D4AF37' : 'rgba(92,22,35,0.4)'} />
+              <ListIcon size={20} color={viewMode === 'list' ? '#D4AF37' : COLORS.vjText} style={{ opacity: viewMode === 'list' ? 1 : 0.6 }} />
             </TouchableOpacity>
             <TouchableOpacity onPress={() => setViewMode('grid')} style={[s.toggleIconBtn, viewMode === 'grid' && s.toggleIconActive]}>
-              <LayoutGrid size={20} color={viewMode === 'grid' ? '#D4AF37' : 'rgba(92,22,35,0.4)'} />
+              <LayoutGrid size={20} color={viewMode === 'grid' ? '#D4AF37' : COLORS.vjText} style={{ opacity: viewMode === 'grid' ? 1 : 0.6 }} />
             </TouchableOpacity>
           </View>
         </View>
@@ -162,7 +162,7 @@ export default function StonesScreen() {
             <View className="flex-row justify-between items-center mb-6 border-b border-black/10 pb-4">
               <Text className="text-xl font-bold text-vj-text">New Stone Type</Text>
               <TouchableOpacity onPress={() => setShowAddModal(false)} className="p-1 bg-black/5 rounded-full">
-                <X size={20} color="#5C1623" />
+                <X size={20} color={COLORS.vjText} />
               </TouchableOpacity>
             </View>
             
@@ -249,15 +249,15 @@ const s = StyleSheet.create({
   stoneTypeText: { color: COLORS.vjAccent, fontSize: 10, fontWeight: '800', letterSpacing: 0.5 },
   
   actionRow: { flexDirection: 'row', gap: 8 },
-  actionBtn: { padding: 8, backgroundColor: 'rgba(92,22,35,0.05)', borderRadius: 8 },
+  actionBtn: { padding: 8, backgroundColor: 'rgba(255,255,255,0.4)', borderRadius: 8 },
   
   formGroup: { marginBottom: 16 },
-  label: { fontSize: 12, fontWeight: '700', color: 'rgba(92,22,35,0.6)', textTransform: 'uppercase', marginBottom: 8 },
-  input: { backgroundColor: '#fff', borderRadius: 12, padding: 16, fontSize: 16, color: COLORS.vjText, borderWidth: 1, borderColor: 'rgba(92,22,35,0.3)' },
+  label: { fontSize: 12, fontWeight: '700', color: COLORS.vjText, opacity: 0.7, textTransform: 'uppercase', marginBottom: 8 },
+  input: { backgroundColor: '#fff', borderRadius: 12, padding: 16, fontSize: 16, color: COLORS.vjText, borderWidth: 1, borderColor: COLORS.border },
   typeGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  typeBtn: { width: '48%', padding: 14, borderRadius: 12, borderWidth: 1, borderColor: 'rgba(92,22,35,0.3)', alignItems: 'center', backgroundColor: '#fff' },
+  typeBtn: { width: '48%', padding: 14, borderRadius: 12, borderWidth: 1, borderColor: COLORS.border, alignItems: 'center', backgroundColor: '#fff' },
   typeBtnActive: { backgroundColor: COLORS.vjAccent, borderColor: COLORS.vjAccent },
-  typeText: { fontSize: 13, fontWeight: '700', color: 'rgba(92,22,35,0.6)' },
+  typeText: { fontSize: 13, fontWeight: '700', color: COLORS.vjText, opacity: 0.7 },
   typeTextActive: { color: '#fff' },
 
   // Success Modal Styles
@@ -297,7 +297,8 @@ const s = StyleSheet.create({
   },
   successSubtitle: {
     fontSize: 14,
-    color: 'rgba(92,22,35,0.6)',
+    color: COLORS.vjText,
+    opacity: 0.7,
     textAlign: 'center',
     marginBottom: 24,
   },

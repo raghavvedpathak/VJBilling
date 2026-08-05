@@ -363,7 +363,7 @@ export default function EditFirmScreen() {
             <View className="flex-row justify-between items-center mb-4 border-b border-black/10 pb-4">
               <Text className="text-xl font-bold text-vj-text">Select Jurisdiction</Text>
               <TouchableOpacity onPress={() => setShowStatePicker(false)} className="p-1 bg-black/5 rounded-full">
-                <X size={20} color="#5C1623" />
+                <X size={20} color={COLORS.vjText} />
               </TouchableOpacity>
             </View>
             <ScrollView showsVerticalScrollIndicator={false}>

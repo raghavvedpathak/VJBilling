@@ -6,12 +6,14 @@ import React, { useState, useCallback, memo, useMemo } from 'react';
 import { View, Text, ScrollView, StyleSheet, ActivityIndicator, TouchableOpacity, Modal, TextInput, Alert } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useFocusEffect } from 'expo-router';
+import { useStore } from 'zustand';
 import { TwoToneWrapper } from '../../components/TwoToneWrapper';
 import { useFirmStore } from '../../store/firmStore';
 import { appSettingsStore } from '../../store/appSettingsStore';
-import { GlassCard } from '../../components/ui/Glass';
+import { HeaderPill, GlassCard } from '../../components/ui/Glass';
 import { inventoryDrillDownService } from '../../services/inventoryDrillDownService';
 import { itemService } from '../../services/itemService';
+import { COLORS, getThemeColors } from '../../constants/theme';
 import {
   getDisplayPurity,
   computeEffectivePricePerGram,
@@ -37,8 +39,6 @@ const formatCurrency = (paise: number | null): string => {
   if (paise === null || paise === undefined) return '—';
   return getCurrencySymbol() + (Math.round(paise) / 100).toFixed(2);
 };
-
-import { COLORS } from '../../constants/theme';
 
 // EVENT LABEL MAPPING (mandatory)
 const getEventLabel = (event: ItemTimelineEvent): string => {
@@ -405,36 +405,18 @@ export default function ItemDetailScreen() {
   const totalAmount = computeAbsoluteTotalCostRupees(costTruth, rate, making, stoneC);
 
   const canDelete = !TERMINAL_ITEM_STATUSES.includes(item.status);
+  const activeTheme = useStore(appSettingsStore, (s) => s.theme);
+  const colors = getThemeColors(activeTheme);
 
-  const headerContent = (
-    <View style={s.headerContainer}>
-      <View style={s.headerTopRow}>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-          <View style={[s.headerMetalBadge, { borderColor: metalColor }]}>
-            {getJewelryCategoryIcon(item.categoryName, item.designName, item.metal, 22, metalColor)}
-          </View>
-          {isPhantom && (
-            <View style={s.headerPhantomBadge}>
-              <Text style={s.headerPhantomText}>PHANTOM</Text>
-            </View>
-          )}
-        </View>
-        {canDelete && (
-          <TouchableOpacity 
-            activeOpacity={0.7} 
-            onPress={handleOpenDeleteModal}
-            style={s.deleteHeaderBtn}
-          >
-            <Trash2 size={20} color="#EF4444" />
-          </TouchableOpacity>
-        )}
-      </View>
-      <Text style={s.headerSku} selectable>{formatSKUDisplay(item.sku)}</Text>
+  const detailHeaderPills = (
+    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginTop: 4 }}>
+      <HeaderPill icon={<Tag size={12} color={colors.vjBg} />} label={formatSKUDisplay(item.sku)} />
+      <HeaderPill icon={<Shield size={12} color="#4ADE80" />} label={item.status} variant="success" />
     </View>
   );
 
   return (
-    <TwoToneWrapper title="" showBack headerContent={headerContent}>
+    <TwoToneWrapper title="Item Detail" showBack headerContent={detailHeaderPills}>
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingTop: 32, paddingBottom: 350 }}>
 
         {/* === DETAILS CARD === */}

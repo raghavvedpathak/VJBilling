@@ -7,14 +7,16 @@ import { View, Text, StyleSheet, TextInput, Alert, Modal, KeyboardAvoidingView, 
 import { useRouter } from 'expo-router';
 import { useFocusEffect } from 'expo-router';
 import { TwoToneWrapper } from '../../components/TwoToneWrapper';
-import { GlassButton, GlassSmartSearch } from '../../components/ui/Glass';
-import { Tag, CheckCircle } from 'lucide-react-native';
+import { HeaderPill, GlassButton, GlassSmartSearch } from '../../components/ui/Glass';
+import { useStore } from 'zustand';
+import { appSettingsStore } from '../../store/appSettingsStore';
+import { Tag, CheckCircle, ShieldCheck } from 'lucide-react-native';
 import { useFirmStore } from '../../store/firmStore';
 import { now } from '../../utils/now';
 import * as Crypto from 'expo-crypto';
 import { designService } from '../../services/designService';
 
-import { COLORS as CENTRAL_COLORS } from '../../constants/theme';
+import { COLORS as CENTRAL_COLORS, getThemeColors } from '../../constants/theme';
 
 const COLORS = {
   ...CENTRAL_COLORS,
@@ -129,20 +131,18 @@ export default function CreateDesignScreen() {
     router.back();
   };
 
-  const headerContent = (
-    <View>
-      <View style={s.headerIconRow}>
-        <View style={s.headerIconCircle}>
-          <Tag size={28} color={COLORS.vjBg} />
-        </View>
-      </View>
-      <Text style={s.headerTitle}>New Design</Text>
-      <Text style={s.headerSubtitle}>Create a new master design</Text>
+  const activeTheme = useStore(appSettingsStore, (s) => s.theme);
+  const colors = getThemeColors(activeTheme);
+
+  const createDesignHeaderPills = (
+    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginTop: 4 }}>
+      <HeaderPill icon={<Tag size={12} color={colors.vjBg} />} label="Design Pattern" />
+      <HeaderPill icon={<ShieldCheck size={12} color="#4ADE80" />} label="Category Linked" variant="success" />
     </View>
   );
 
   return (
-    <TwoToneWrapper title="" showBack headerContent={headerContent}>
+    <TwoToneWrapper title="New Design" showBack headerContent={createDesignHeaderPills}>
       <View style={{ flex: 1 }}>
         <ScrollView style={s.container} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingTop: 32, paddingBottom: 350 }} keyboardShouldPersistTaps="handled">
           <View style={s.card}>

@@ -14,9 +14,12 @@ import { TwoToneWrapper } from '../../components/TwoToneWrapper';
 import { useFirmStore } from '../../store/firmStore';
 import { inventoryDrillDownService } from '../../services/inventoryDrillDownService';
 import { formatWeightMg as formatWeight } from '../../utils/calculations';
-import { ChevronRight, Package, Layers, Plus, Tag } from 'lucide-react-native';
+import { HeaderPill } from '../../components/ui/Glass';
+import { useStore } from 'zustand';
+import { appSettingsStore } from '../../store/appSettingsStore';
+import { COLORS, getThemeColors } from '../../constants/theme';
+import { ChevronRight, Package, Plus, Scale } from 'lucide-react-native';
 import { getJewelryCategoryIcon } from '../../utils/jewelryIcons';
-import { COLORS } from '../../constants/theme';
 
 type CategoryRowProps = {
   item: { id: string; name: string; availableCount: number; totalNetWeightMg: number };
@@ -59,6 +62,8 @@ export default function DrillDownScreen() {
   const { activeFirmId } = useFirmStore();
   const [data, setData] = useState<{ id: string; name: string; availableCount: number; totalNetWeightMg: number }[]>([]);
   const [loading, setLoading] = useState(true);
+  const activeTheme = useStore(appSettingsStore, (s) => s.theme);
+  const colors = getThemeColors(activeTheme);
 
   useFocusEffect(
     useCallback(() => {
@@ -90,22 +95,15 @@ export default function DrillDownScreen() {
   const totalItems = data.reduce((sum, c) => sum + c.availableCount, 0);
   const totalWeightMg = data.reduce((sum, c) => sum + c.totalNetWeightMg, 0);
 
-  const headerContent = (
-    <View>
-      <View style={s.headerIconRow}>
-        <View style={s.headerIconCircle}>
-          <Package size={28} color={COLORS.vjBg} />
-        </View>
-      </View>
-      <Text style={s.headerTitle}>Inventory</Text>
-      <Text style={s.headerSubtitle}>
-        {data.length} Categories • {totalItems} Items • {formatWeight(totalWeightMg)}
-      </Text>
+  const ledgerHeaderPills = (
+    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginTop: 4 }}>
+      <HeaderPill icon={<Package size={12} color={colors.vjBg} />} label={`${totalItems} Active Items`} />
+      <HeaderPill icon={<Scale size={12} color="#4ADE80" />} label={`Net: ${formatWeight(totalWeightMg)}`} variant="success" />
     </View>
   );
 
   return (
-    <TwoToneWrapper title="" showBack headerContent={headerContent}>
+    <TwoToneWrapper title="Stock Ledger" showBack headerContent={ledgerHeaderPills}>
       <View style={s.listContainer}>
         {loading ? (
           <View style={s.loadingContainer}>

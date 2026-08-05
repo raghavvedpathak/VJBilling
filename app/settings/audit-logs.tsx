@@ -8,9 +8,10 @@ import { useFirmStore } from '../../store/firmStore';
 import { useStore } from 'zustand';
 import { appSettingsStore } from '../../store/appSettingsStore';
 import { getDeviceId } from '../../utils/deviceId';
-import { FileText, Smartphone, Calendar, ChevronDown, ChevronUp, Share2, Filter } from 'lucide-react-native';
+import { FileText, Smartphone, Calendar, ChevronDown, ChevronUp, Share2, Filter, CalendarClock, ShieldCheck } from 'lucide-react-native';
 import { format, parseISO } from 'date-fns';
 import { COLORS } from '../../constants/theme';
+import { HeaderPill } from '../../components/ui/Glass';
 
 const ToggleHandlerRef = React.createContext<React.MutableRefObject<(id: string) => void> | null>(null);
 
@@ -390,30 +391,16 @@ export default function AuditLogScreen() {
     }
   };
 
-  const headerContent = (
-    <View>
-      <View className="flex-row justify-between items-center mb-6">
-        <View className="bg-white/10 p-4 rounded-full border border-white/20">
-          <FileText size={32} color="#FCFBF8" />
-        </View>
-        <TouchableOpacity
-          onPress={handleExport}
-          className="flex-row items-center gap-2 bg-vj-accent px-4 py-2 rounded-full border border-vj-accent/50 shadow-sm"
-        >
-          <Share2 size={16} color="#FCFBF8" />
-          <Text className="text-vj-bg text-sm font-bold">Export Logs</Text>
-        </TouchableOpacity>
-      </View>
-      <Text className="text-vj-bg font-bold text-3xl mb-1 tracking-tight">Audit Trail</Text>
-      <Text className="text-vj-bg/60 font-medium tracking-widest text-xs uppercase">
-        {filteredLogs.length} Immutable System Events
-      </Text>
+  const auditHeaderPills = (
+    <View className="flex-row items-center gap-2 flex-wrap mt-1">
+      <HeaderPill icon={<FileText size={12} color={colors.vjBg} />} label={`${filteredLogs.length} System Events`} />
+      <HeaderPill icon={<CalendarClock size={12} color="#4ADE80" />} label="30-Day Auto Retention" variant="success" />
     </View>
   );
 
   return (
     <ToggleHandlerRef.Provider value={toggleHandlerRef}>
-      <TwoToneWrapper title="" showBack headerContent={headerContent}>
+      <TwoToneWrapper title="Audit Trail" showBack actionIcon={<Share2 size={20} color={colors.vjBg} />} onAction={handleExport} headerContent={auditHeaderPills}>
         <View className="flex-1 mt-2">
           <View className="px-2 py-2 border-b border-black/5 mb-2">
             <ScrollView horizontal showsHorizontalScrollIndicator={false} className="mb-3">
@@ -483,13 +470,13 @@ function FilterChip({ label, active, onPress }: { label: string; active: boolean
       style={[
         { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 999, borderWidth: 1 },
         active 
-          ? { backgroundColor: '#5C1623', borderColor: '#5C1623' } 
-          : { backgroundColor: '#ffffff', borderColor: 'rgba(92,22,35,0.1)' }
+          ? { backgroundColor: COLORS.vjText, borderColor: COLORS.vjText } 
+          : { backgroundColor: '#ffffff', borderColor: COLORS.border }
       ]}
     >
       <Text style={[
         { fontSize: 12, fontWeight: 'bold' },
-        active ? { color: '#FCFBF8' } : { color: 'rgba(92,22,35,0.6)' }
+        active ? { color: COLORS.vjBg } : { color: COLORS.vjText }
       ]}>
         {label}
       </Text>

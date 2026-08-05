@@ -10,7 +10,7 @@ import { restoreService } from '../../services/restoreService';
 import { auditService } from '../../services/auditService';
 import { storage } from '../../utils/storage';
 import { settingsService } from '../../services/settingsService'; 
-import { GlassCard } from '../../components/ui/Glass';
+import { GlassCard, HeaderPill } from '../../components/ui/Glass';
 import { isPinSet, isPinSkipped } from '../../services/pinService'; // G71 v7.29 Implementation
 import {
   Building2,
@@ -185,11 +185,36 @@ export default function SettingsScreen() {
     );
   };
 
+  const colors = getThemeColors(theme);
+
+  const settingsHeader = (
+    <View className="mt-1">
+      <View className="flex-row items-center gap-3 mb-2">
+        <View className="h-10 w-10 rounded-full bg-white/10 justify-center items-center border border-white/20">
+          <Building2 size={20} color={colors.vjBg} />
+        </View>
+        <View className="flex-1">
+          <Text className="text-vj-bg text-xl font-bold tracking-tight" numberOfLines={2}>
+            {firm?.name || 'ACTIVE FIRM'}
+          </Text>
+          {firm?.proprietor ? (
+            <Text className="text-vj-bg/60 text-xs font-medium">{firm.proprietor}</Text>
+          ) : null}
+        </View>
+      </View>
+
+      <View className="flex-row items-center gap-2 flex-wrap">
+        <HeaderPill icon={<ShieldCheck size={12} color={hasPin ? "#4ADE80" : "#FDBA74"} />} label={hasPin ? 'PIN PROTECTED' : 'PIN NOT SET'} variant={hasPin ? 'success' : 'warning'} />
+        <HeaderPill icon={<Database size={12} color={colors.vjBg} />} label="SQLITE v7" />
+      </View>
+    </View>
+  );
+
   return (
-    <TwoToneWrapper title="Settings" showBack>
+    <TwoToneWrapper title="Settings" showBack headerContent={settingsHeader}>
       <ScrollView 
         showsVerticalScrollIndicator={false} 
-        contentContainerStyle={{paddingBottom: 120, paddingTop: 32}}
+        contentContainerStyle={{paddingBottom: 120, paddingTop: 20}}
         keyboardShouldPersistTaps="handled"
         scrollEventThrottle={16}
         overScrollMode="never"

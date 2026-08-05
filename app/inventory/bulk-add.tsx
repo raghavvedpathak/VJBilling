@@ -152,7 +152,7 @@ const BulkItemRow = ({ index, row, updateRow, removeRow, stones, metal }: any) =
               <Text style={{
                 fontSize: 11,
                 fontWeight: '700',
-                color: row.purityPercent === preset.val || row.purityPercent === preset.label.split('K')[0] ? '#FFF' : '#5C1623'
+                color: row.purityPercent === preset.val || row.purityPercent === preset.label.split('K')[0] ? '#FFF' : COLORS.vjText
               }}>
                 {preset.label}
               </Text>
@@ -178,7 +178,7 @@ const BulkItemRow = ({ index, row, updateRow, removeRow, stones, metal }: any) =
               <Text style={{
                 fontSize: 11,
                 fontWeight: '700',
-                color: row.purityPercent === preset.val ? '#FFF' : '#5C1623'
+                color: row.purityPercent === preset.val ? '#FFF' : COLORS.vjText
               }}>
                 {preset.label}
               </Text>
@@ -578,7 +578,7 @@ export default function BulkAddScreen() {
         </View>
 
         <View style={s.itemsHeader}>
-          <Package size={20} color="#5C1623" />
+          <Package size={20} color={COLORS.vjText} />
           <Text style={s.itemsTitle}>Items ({rows.length} / {BULK_ITEM_MAX})</Text>
         </View>
 
@@ -634,7 +634,7 @@ export default function BulkAddScreen() {
 
 const s = StyleSheet.create({
   itemsHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12, marginTop: 8, marginLeft: 4 },
-  itemsTitle: { fontSize: 18, fontWeight: '800', color: '#5C1623' },
+  itemsTitle: { fontSize: 18, fontWeight: '800', color: COLORS.vjText },
   
 
   rowHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
@@ -655,7 +655,7 @@ const s = StyleSheet.create({
   mathTitle: { fontSize: 11, fontWeight: '800', color: '#D4AF37', textTransform: 'uppercase' },
   mathRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 },
   mathLabel: { fontSize: 12, color: 'rgba(92,22,35,0.6)', fontWeight: '600', flex: 1, paddingRight: 8 },
-  mathValue: { fontSize: 12, fontWeight: '700', color: '#5C1623', fontFamily: 'monospace' },
+  mathValue: { fontSize: 12, fontWeight: '700', color: COLORS.vjText, fontFamily: 'monospace' },
   mathHighlight: { fontSize: 13, fontWeight: '800', color: '#92400E', fontFamily: 'monospace' },
 
   addBtn: { 

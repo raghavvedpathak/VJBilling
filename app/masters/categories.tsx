@@ -8,14 +8,16 @@ import { useRouter } from 'expo-router';
 import { useFocusEffect } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { TwoToneWrapper } from '../../components/TwoToneWrapper';
-import { GlassCard, GlassButton } from '../../components/ui/Glass';
-import { Layers, Plus, X, Edit2, Trash2, LayoutGrid, List as ListIcon, CheckCircle } from 'lucide-react-native';
+import { HeaderPill, GlassCard, GlassButton } from '../../components/ui/Glass';
+import { useStore } from 'zustand';
+import { appSettingsStore } from '../../store/appSettingsStore';
+import { Layers, Plus, X, Edit2, Trash2, LayoutGrid, List as ListIcon, CheckCircle, ShieldCheck } from 'lucide-react-native';
 import { useFirmStore } from '../../store/firmStore';
 import { categoryService } from '../../services/categoryService';
 import { now } from '../../utils/now';
 import * as Crypto from 'expo-crypto';
 
-import { COLORS } from '../../constants/theme';
+import { COLORS, getThemeColors } from '../../constants/theme';
 
 type Category = typeof categoriesTable.$inferSelect;
 
@@ -83,20 +85,18 @@ export default function CategoriesScreen() {
     });
   };
 
-  const headerContent = (
-    <View>
-      <View style={s.headerIconRow}>
-        <View style={s.headerIconCircle}>
-          <Layers size={28} color={COLORS.vjBg} />
-        </View>
-      </View>
-      <Text style={s.headerTitle}>Categories</Text>
-      <Text style={s.headerSubtitle}>{categories.length} Total active categories</Text>
+  const activeTheme = useStore(appSettingsStore, (s) => s.theme);
+  const colors = getThemeColors(activeTheme);
+
+  const categoryHeaderPills = (
+    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginTop: 4 }}>
+      <HeaderPill icon={<Layers size={12} color={colors.vjBg} />} label={`${categories.length} Product Categories`} />
+      <HeaderPill icon={<ShieldCheck size={12} color="#4ADE80" />} label="Gold & Silver Scoped" variant="success" />
     </View>
   );
 
   return (
-    <TwoToneWrapper title="" showBack headerContent={headerContent}>
+    <TwoToneWrapper title="Category Master" showBack headerContent={categoryHeaderPills}>
       <View style={s.container}>
         <View style={s.controlsRow}>
           <View style={{ flex: 1, marginRight: 12 }}>
@@ -104,10 +104,10 @@ export default function CategoriesScreen() {
           </View>
           <View style={s.toggleContainer}>
             <TouchableOpacity onPress={() => setViewMode('list')} style={[s.toggleIconBtn, viewMode === 'list' && s.toggleIconActive]}>
-              <ListIcon size={20} color={viewMode === 'list' ? '#D4AF37' : 'rgba(92,22,35,0.4)'} />
+              <ListIcon size={20} color={viewMode === 'list' ? '#D4AF37' : COLORS.vjText} style={{ opacity: viewMode === 'list' ? 1 : 0.6 }} />
             </TouchableOpacity>
             <TouchableOpacity onPress={() => setViewMode('grid')} style={[s.toggleIconBtn, viewMode === 'grid' && s.toggleIconActive]}>
-              <LayoutGrid size={20} color={viewMode === 'grid' ? '#D4AF37' : 'rgba(92,22,35,0.4)'} />
+              <LayoutGrid size={20} color={viewMode === 'grid' ? '#D4AF37' : COLORS.vjText} style={{ opacity: viewMode === 'grid' ? 1 : 0.6 }} />
             </TouchableOpacity>
           </View>
         </View>

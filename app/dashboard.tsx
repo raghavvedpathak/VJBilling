@@ -112,7 +112,7 @@ export default function Dashboard() {
           <MenuTile 
             title="Inventory & Stock" 
             subtitle="Phase 2 Layer" 
-            icon={<Package size={24} color="#5C1623" />} 
+            icon={<Package size={24} color={COLORS.vjText} />} 
             onPress={() => router.push('/inventory')} 
           />
 
@@ -129,7 +129,7 @@ export default function Dashboard() {
           <GlassCard style={{ padding: 0 }}>
             <View className="flex-row items-center gap-4 p-4">
               <View className="bg-vj-glass p-3 rounded-full border border-white/20">
-                <Settings size={24} color="#5C1623" />
+                <Settings size={24} color={COLORS.vjText} />
               </View>
               <View className="flex-1">
                 <Text className="text-vj-text font-bold text-lg">Firm Settings</Text>
@@ -141,7 +141,7 @@ export default function Dashboard() {
         </TouchableOpacity>
 
         <View className="mt-8 items-center opacity-30 mb-8">
-          <Gem size={20} color="#5C1623" />
+          <Gem size={20} color={COLORS.vjText} />
           <Text className="text-[10px] font-bold text-vj-text mt-2">
             VJ BILLING • HUB ARCHITECTURE
           </Text>

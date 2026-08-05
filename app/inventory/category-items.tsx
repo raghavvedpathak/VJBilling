@@ -4,18 +4,20 @@ import { FlashList } from '@shopify/flash-list';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useFocusEffect } from 'expo-router';
 import { TwoToneWrapper } from '../../components/TwoToneWrapper';
-import { GlassButton } from '../../components/ui/Glass';
-import { useFirmStore } from '../../store/firmStore';
-import { inventoryDrillDownService } from '../../services/inventoryDrillDownService';
-import { designService } from '../../services/designService';
 import { db } from '../../db/client';
 import { designs as designsTable } from '../../db/schema';
 import { eq, and } from 'drizzle-orm';
+import { HeaderPill, GlassButton } from '../../components/ui/Glass';
+import { useFirmStore } from '../../store/firmStore';
+import { inventoryDrillDownService } from '../../services/inventoryDrillDownService';
+import { designService } from '../../services/designService';
 import type { DesignCategoryStockResult } from '../../types/phase2.types';
 import { getDisplayPurity, formatWeightMg as formatWeight } from '../../utils/calculations';
-import { ChevronRight, Layers, Bell, X, AlertTriangle } from 'lucide-react-native';
 import { getJewelryCategoryIcon } from '../../utils/jewelryIcons';
-import { COLORS } from '../../constants/theme';
+import { useStore } from 'zustand';
+import { appSettingsStore } from '../../store/appSettingsStore';
+import { COLORS, getThemeColors } from '../../constants/theme';
+import { ChevronRight, Layers, Bell, X, AlertTriangle, Scale, Package } from 'lucide-react-native';
 
 type DesignRowProps = {
   item: DesignCategoryStockResult;
@@ -190,22 +192,18 @@ export default function CategoryItemsScreen() {
   const totalItems = data.reduce((sum, i) => sum + i.availableCount, 0);
   const totalWeightMg = data.reduce((sum, i) => sum + i.totalNetWeightMg, 0);
 
-  const headerContent = (
-    <View>
-      <View style={s.headerIconRow}>
-        <View style={s.headerIconCircle}>
-          {getJewelryCategoryIcon(categoryName, undefined, undefined, 28, COLORS.vjBg)}
-        </View>
-      </View>
-      <Text style={s.headerTitle} numberOfLines={1}>{categoryName || 'Category'}</Text>
-      <Text style={s.headerSubtitle}>
-        {data.length} Designs • {totalItems} Items • {formatWeight(totalWeightMg)}
-      </Text>
+  const activeTheme = useStore(appSettingsStore, (s) => s.theme);
+  const colors = getThemeColors(activeTheme);
+
+  const categoryHeaderPills = (
+    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginTop: 4 }}>
+      <HeaderPill icon={<Package size={12} color={colors.vjBg} />} label={`${totalItems} Items`} />
+      <HeaderPill icon={<Scale size={12} color="#4ADE80" />} label={`Net: ${formatWeight(totalWeightMg)}`} variant="success" />
     </View>
   );
 
   return (
-    <TwoToneWrapper title="" showBack headerContent={headerContent}>
+    <TwoToneWrapper title={categoryName || 'Category Items'} showBack headerContent={categoryHeaderPills}>
       <View style={s.listContainer}>
         {loading ? (
           <View style={s.loadingContainer}>

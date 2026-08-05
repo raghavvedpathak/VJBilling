@@ -4,9 +4,11 @@ import { FlashList } from '@shopify/flash-list';
 import { TwoToneWrapper } from '../../components/TwoToneWrapper';
 import { verifyService, VerifyFinding } from '../../services/verifyService';
 import { verifyStore } from '../../store/verifyStore';
-import { GlassCard, GlassButton } from '../../components/ui/Glass'; 
-import { ShieldCheck, AlertTriangle, CheckCircle, XCircle, Activity } from 'lucide-react-native';
-import { COLORS } from '../../constants/theme';
+import { HeaderPill, GlassCard, GlassButton } from '../../components/ui/Glass'; 
+import { useStore } from 'zustand';
+import { appSettingsStore } from '../../store/appSettingsStore';
+import { ShieldCheck, AlertTriangle, CheckCircle, XCircle, Activity, Database } from 'lucide-react-native';
+import { COLORS, getThemeColors } from '../../constants/theme';
 
 const VerifyFindingRow = memo(({ item }: { item: VerifyFinding }) => {
   return (
@@ -78,17 +80,13 @@ export default function VerifyDataScreen() {
     }
   };
 
-  const headerContent = (
-    <View className="items-center pb-6">
-      <View className="bg-white/10 p-6 rounded-full mb-4 border border-white/20 shadow-sm">
-        <ShieldCheck size={48} color="#FCFBF8" />
-      </View>
-      <Text className="text-vj-bg font-bold text-2xl text-center">
-        System Integrity
-      </Text>
-      <Text className="text-vj-bg/60 text-center mt-2 px-4 leading-5 font-medium">
-        Scan your database for corruption, orphan records, and time boundary violations.
-      </Text>
+  const activeTheme = useStore(appSettingsStore, (s) => s.theme);
+  const colors = getThemeColors(activeTheme);
+
+  const verifyHeaderPills = (
+    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginTop: 4 }}>
+      <HeaderPill icon={<Database size={12} color={colors.vjBg} />} label="Constitutional Scan" />
+      <HeaderPill icon={<ShieldCheck size={12} color="#4ADE80" />} label="Safe Mode Guard" variant="success" />
     </View>
   );
 
@@ -124,7 +122,7 @@ export default function VerifyDataScreen() {
   );
 
   return (
-    <TwoToneWrapper title="" showBack headerContent={headerContent}>
+    <TwoToneWrapper title="System Integrity" showBack headerContent={verifyHeaderPills}>
       <View className="flex-1 px-4">
         <FlashList
           data={status === 'ISSUES' && results ? results : []}

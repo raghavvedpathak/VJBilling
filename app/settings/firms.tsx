@@ -4,9 +4,11 @@ import { useRouter } from 'expo-router';
 import { TwoToneWrapper } from '../../components/TwoToneWrapper';
 import { useFirmStore } from '../../store/firmStore';
 import { firmService } from '../../services/firmService';
-import { GlassCard, GlassButton } from '../../components/ui/Glass'; 
-import { Building2, Plus, Pencil, Archive, ArchiveRestore, AlertTriangle } from 'lucide-react-native';
-import { COLORS } from '../../constants/theme';
+import { GlassCard, GlassButton, HeaderPill } from '../../components/ui/Glass'; 
+import { Building2, Plus, Pencil, Archive, ArchiveRestore, AlertTriangle, ShieldCheck } from 'lucide-react-native';
+import { useStore } from 'zustand';
+import { appSettingsStore } from '../../store/appSettingsStore';
+import { COLORS, getThemeColors } from '../../constants/theme';
 
 type DialogState = {
   visible: boolean;
@@ -21,6 +23,8 @@ export default function FirmManagerScreen() {
   const router = useRouter();
   const { firms, activeFirmId, switchFirm } = useFirmStore();
   const [loadingId, setLoadingId] = useState<string | null>(null);
+  const activeTheme = useStore(appSettingsStore, (s) => s.theme);
+  const colors = getThemeColors(activeTheme);
   
   // MODERN MODAL STATE
   const [dialog, setDialog] = useState<DialogState | null>(null);
@@ -37,6 +41,25 @@ export default function FirmManagerScreen() {
       message: "The dashboard will reload with the selected firm's data.",
       targetId: targetFirmId
     });
+  };
+
+  const confirmSwitch = async () => {
+    if (!dialog?.targetId) return;
+    setLoadingId(dialog.targetId);
+    setDialog(null);
+    try {
+      await switchFirm(dialog.targetId);
+      router.replace('/dashboard');
+    } catch (err: any) {
+      setDialog({
+        visible: true,
+        type: 'INFO',
+        title: 'Error',
+        message: err.message || 'Failed to switch firm'
+      });
+    } finally {
+      setLoadingId(null);
+    }
   };
 
   const handleAddFirm = () => {
@@ -56,71 +79,67 @@ export default function FirmManagerScreen() {
     router.push({ pathname: '/settings/firm-edit', params: { id: firmId } });
   };
 
-  const handleArchive = (firmId: string, firmName: string, currentlyArchived: boolean) => {
-    if (!currentlyArchived) {
-      if (firmId === activeFirmId) {
-        setDialog({ visible: true, type: 'INFO', title: 'Action Blocked', message: 'You cannot archive the currently active firm. Switch to another firm first.' });
-        return;
-      }
-      if (activeFirmCount <= 1) {
-        setDialog({ visible: true, type: 'INFO', title: 'Action Blocked', message: 'You must have at least one active firm in the system.' });
-        return;
-      }
+  const handleToggleArchive = (firmId: string, isArchived: boolean) => {
+    if (firmId === activeFirmId) {
+      setDialog({
+        visible: true,
+        type: 'INFO',
+        title: 'Action Prohibited',
+        message: 'Cannot archive the currently active firm. Please switch to another firm first.'
+      });
+      return;
     }
 
     setDialog({
       visible: true,
       type: 'ARCHIVE',
-      title: currentlyArchived ? 'Unarchive Firm?' : 'Archive Firm?',
-      message: currentlyArchived 
-        ? `Are you sure you want to restore ${firmName}?` 
-        : `Are you sure you want to archive ${firmName}? Its data will be hidden but preserved.`,
+      title: isArchived ? 'Reactivate Firm' : 'Archive Firm',
+      message: isArchived ? 'This firm will be reactivated.' : 'Archived firms cannot be selected for daily billing.',
       targetId: firmId,
-      isArchived: currentlyArchived
+      isArchived
     });
   };
 
-  const confirmDialog = async () => {
-    if (!dialog || !dialog.targetId) return;
-    
+  const confirmToggleArchive = async () => {
+    if (!dialog?.targetId) return;
+    const { targetId, isArchived } = dialog;
+    setLoadingId(targetId);
+    setDialog(null);
+
     try {
-      setLoadingId(dialog.targetId);
-      
-      if (dialog.type === 'SWITCH') {
-        await firmService.switchFirm(dialog.targetId);
-        setDialog(null);
-        router.dismissAll();
-        router.replace('/dashboard');
-      } 
-      else if (dialog.type === 'ARCHIVE') {
-        if (dialog.isArchived) {
-          await firmService.unarchiveFirm(dialog.targetId);
-        } else {
-          await firmService.archiveFirm(dialog.targetId);
-        }
-        setDialog(null);
+      if (isArchived) {
+        await firmService.unarchiveFirm(targetId);
+      } else {
+        await firmService.archiveFirm(targetId);
       }
-    } catch (error: any) {
-      setDialog({ visible: true, type: 'INFO', title: 'Action Failed', message: error.message });
+    } catch (err: any) {
+      setDialog({
+        visible: true,
+        type: 'INFO',
+        title: 'Error',
+        message: err.message || 'Action failed'
+      });
     } finally {
       setLoadingId(null);
     }
   };
 
-  const capacityHeader = (
-    <View className="mb-4">
-      <Text className="text-vj-bg/60 font-bold text-xs uppercase tracking-widest mb-1">
-        Firm Capacity
-      </Text>
-      <Text className="text-3xl font-bold text-vj-bg">
-        {firms.length} <Text className="text-vj-bg/40 text-lg">/ 3 Used</Text>
-      </Text>
+  const confirmDialog = async () => {
+    if (!dialog) return;
+    if (dialog.type === 'SWITCH') await confirmSwitch();
+    else if (dialog.type === 'ARCHIVE') await confirmToggleArchive();
+  };
+
+  const capacityHeaderPills = (
+    <View className="flex-row items-center gap-2 flex-wrap mt-1">
+      <HeaderPill icon={<Building2 size={12} color={colors.vjBg} />} label={`${activeFirmCount} Active Firms`} />
+      <HeaderPill icon={<ShieldCheck size={12} color="#4ADE80" />} label={`Capacity: ${firms.length}/3`} variant="success" />
     </View>
   );
 
   return (
-    <TwoToneWrapper title="My Firms" showBack headerContent={capacityHeader}>
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{paddingBottom: 100, paddingTop: 32}}>
+    <TwoToneWrapper title="My Firms" showBack headerContent={capacityHeaderPills}>
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{paddingBottom: 100, paddingTop: 20}}>
 
         {firms.map((firm) => {
           const isActive = firm.id === activeFirmId;
@@ -140,11 +159,11 @@ export default function FirmManagerScreen() {
                 >
                   <View className={`h-12 w-12 rounded-full justify-center items-center overflow-hidden border border-white/50 ${isActive ? 'bg-vj-success/20' : isArchived ? 'bg-gray-200' : 'bg-vj-glass'}`}>
                     {isLoading ? (
-                       <ActivityIndicator color={isActive ? '#15803d' : '#5C1623'} />
+                       <ActivityIndicator color={isActive ? '#15803d' : colors.vjText} />
                     ) : displayLogo ? (
                        <Image source={{ uri: displayLogo }} className="w-full h-full resize-mode-contain" />
                     ) : (
-                       <Building2 size={24} color={isActive ? '#15803d' : isArchived ? '#999' : '#5C1623'} />
+                       <Building2 size={24} color={isActive ? '#15803d' : isArchived ? '#999' : colors.vjText} />
                     )}
                   </View>
 
@@ -183,7 +202,7 @@ export default function FirmManagerScreen() {
 
                   {!isActive && (
                     <TouchableOpacity 
-                      onPress={() => handleArchive(firm.id, firm.name, isArchived)}
+                      onPress={() => handleToggleArchive(firm.id, isArchived)}
                       disabled={isLoading}
                       className="p-3 rounded-full active:bg-white/40"
                     >
@@ -208,7 +227,7 @@ export default function FirmManagerScreen() {
           }`}
           disabled={!canAddFirm}
         >
-          <Plus size={20} color={canAddFirm ? "#5C1623" : "#999"} />
+          <Plus size={20} color={canAddFirm ? colors.vjText : "#999"} />
           <Text className={`text-center font-bold ${canAddFirm ? 'text-vj-text' : 'text-gray-400'}`}>
             {canAddFirm ? "Establish New Firm" : "Maximum Limit Reached"}
           </Text>

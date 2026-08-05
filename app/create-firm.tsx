@@ -447,7 +447,7 @@ export default function CreateFirmScreen() {
                 onPress={() => setShowStatePicker(false)}
                 className="p-1 bg-black/5 rounded-full"
               >
-                <X size={20} color="#5C1623" />
+                <X size={20} color={COLORS.vjText} />
               </TouchableOpacity>
             </View>
             <ScrollView showsVerticalScrollIndicator={false}>

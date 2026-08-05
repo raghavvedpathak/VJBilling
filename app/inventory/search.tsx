@@ -10,7 +10,11 @@ import type { ItemSearchResult } from '../../types/phase2.types';
 
 import { useFirmStore } from '../../store/firmStore';
 
-import { COLORS as CENTRAL_COLORS } from '../../constants/theme';
+import { TwoToneWrapper } from '../../components/TwoToneWrapper';
+import { HeaderPill } from '../../components/ui/Glass';
+import { useStore } from 'zustand';
+import { appSettingsStore } from '../../store/appSettingsStore';
+import { COLORS as CENTRAL_COLORS, getThemeColors } from '../../constants/theme';
 
 const COLORS = {
   ...CENTRAL_COLORS,
@@ -153,14 +157,19 @@ export default function InventorySearchScreen() {
     }
   }, [query, activeFirmId, router]);
 
+  const activeTheme = useStore(appSettingsStore, (s) => s.theme);
+  const colors = getThemeColors(activeTheme);
+
+  const searchHeaderPills = (
+    <View className="flex-row items-center gap-2 flex-wrap mt-1">
+      <HeaderPill icon={<Search size={12} color={colors.vjBg} />} label="Instant SKU & HUID Lookup" />
+      <HeaderPill icon={<ScanLine size={12} color="#4ADE80" />} label="Barcode Auto-Scan" variant="success" />
+    </View>
+  );
+
   return (
-    <View style={s.container}>
-      {/* Search Header */}
-      <View style={s.header}>
-        <TouchableOpacity style={s.backBtn} onPress={() => router.back()}>
-          <ArrowLeft size={24} color={COLORS.vjText} />
-        </TouchableOpacity>
-        
+    <TwoToneWrapper title="Stock Search" showBack headerContent={searchHeaderPills}>
+      <View style={[s.container, { backgroundColor: 'transparent' }]}>
         <View style={s.searchBox}>
           <Search size={18} color={COLORS.muted} style={s.searchIcon} />
           <TextInput
@@ -206,7 +215,7 @@ export default function InventorySearchScreen() {
           />
         )}
       </View>
-    </View>
+    </TwoToneWrapper>
   );
 }
 

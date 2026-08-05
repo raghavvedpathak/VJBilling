@@ -2,13 +2,15 @@ import React, { useState } from 'react';
 import { View, Text, StyleSheet, TextInput, Alert, Modal, KeyboardAvoidingView, ScrollView, Platform } from 'react-native';
 import { useRouter } from 'expo-router';
 import { TwoToneWrapper } from '../../components/TwoToneWrapper';
-import { GlassButton } from '../../components/ui/Glass';
-import { Layers, CheckCircle } from 'lucide-react-native';
+import { HeaderPill, GlassButton } from '../../components/ui/Glass';
+import { useStore } from 'zustand';
+import { appSettingsStore } from '../../store/appSettingsStore';
+import { Layers, CheckCircle, ShieldCheck } from 'lucide-react-native';
 import { useFirmStore } from '../../store/firmStore';
 import { categoryService } from '../../services/categoryService';
 import { TouchableOpacity } from 'react-native';
 
-import { COLORS } from '../../constants/theme';
+import { COLORS, getThemeColors } from '../../constants/theme';
 
 export default function CreateCategoryScreen() {
   const router = useRouter();
@@ -50,20 +52,18 @@ export default function CreateCategoryScreen() {
     router.back();
   };
 
-  const headerContent = (
-    <View>
-      <View style={s.headerIconRow}>
-        <View style={s.headerIconCircle}>
-          <Layers size={28} color={COLORS.vjBg} />
-        </View>
-      </View>
-      <Text style={s.headerTitle}>New Category</Text>
-      <Text style={s.headerSubtitle}>Create a new master category</Text>
+  const activeTheme = useStore(appSettingsStore, (s) => s.theme);
+  const colors = getThemeColors(activeTheme);
+
+  const createCategoryHeaderPills = (
+    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginTop: 4 }}>
+      <HeaderPill icon={<Layers size={12} color={colors.vjBg} />} label="Category Definition" />
+      <HeaderPill icon={<ShieldCheck size={12} color="#4ADE80" />} label="Firm Scoped" variant="success" />
     </View>
   );
 
   return (
-    <TwoToneWrapper title="" showBack headerContent={headerContent}>
+    <TwoToneWrapper title="New Category" showBack headerContent={createCategoryHeaderPills}>
       <View style={{ flex: 1 }}>
         <ScrollView style={s.container} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingTop: 32, paddingBottom: 350 }} keyboardShouldPersistTaps="handled">
           <View style={s.card}>

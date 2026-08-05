@@ -10,13 +10,16 @@ import { FlashList } from '@shopify/flash-list';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useFocusEffect } from 'expo-router';
 import { TwoToneWrapper } from '../../components/TwoToneWrapper';
+import { HeaderPill } from '../../components/ui/Glass';
+import { useStore } from 'zustand';
+import { appSettingsStore } from '../../store/appSettingsStore';
 import { useFirmStore } from '../../store/firmStore';
 import { inventoryDrillDownService } from '../../services/inventoryDrillDownService';
 import { getDisplayPurity, formatSKUDisplay, formatWeightMg as formatWeight } from '../../utils/calculations';
-import { MapPin, Tag, Package, Printer } from 'lucide-react-native';
+import { MapPin, Tag, Package, Printer, Scale } from 'lucide-react-native';
 import { getJewelryCategoryIcon } from '../../utils/jewelryIcons';
 import type { ItemSearchResult } from '../../types/phase2.types';
-import { COLORS } from '../../constants/theme';
+import { COLORS, getThemeColors } from '../../constants/theme';
 
 const ItemRow = memo(({ item, onPress, onPrint }: { item: ItemSearchResult, onPress: (id: string) => void, onPrint: (id: string) => void }) => {
   const purityDisplay = getDisplayPurity(item.purityPercent, item.purityKarat, item.metal as any);
@@ -121,22 +124,18 @@ export default function DesignItemsScreen() {
 
   const totalNetWeightMg = sortedItems.reduce((sum, i) => sum + (i.netWeightMg ?? i.grossWeightMg), 0);
 
-  const headerContent = (
-    <View>
-      <View style={s.headerIconRow}>
-        <View style={s.headerIconCircle}>
-          <Tag size={28} color={COLORS.vjBg} />
-        </View>
-      </View>
-      <Text style={s.headerTitle} numberOfLines={1}>{designName || 'Design Stock'}</Text>
-      <Text style={s.headerSubtitle}>
-        {sortedItems.length} Items • {formatWeight(totalNetWeightMg)} Total Net
-      </Text>
+  const activeTheme = useStore(appSettingsStore, (s) => s.theme);
+  const colors = getThemeColors(activeTheme);
+
+  const designHeaderPills = (
+    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginTop: 4 }}>
+      <HeaderPill icon={<Package size={12} color={colors.vjBg} />} label={`${sortedItems.length} Tagged Items`} />
+      <HeaderPill icon={<Scale size={12} color="#4ADE80" />} label={`Net: ${formatWeight(totalNetWeightMg)}`} variant="success" />
     </View>
   );
 
   return (
-    <TwoToneWrapper title="" showBack headerContent={headerContent}>
+    <TwoToneWrapper title={designName || 'Design Items'} showBack headerContent={designHeaderPills}>
       <View style={s.listContainer}>
         {loading ? (
           <View style={s.loadingContainer}>

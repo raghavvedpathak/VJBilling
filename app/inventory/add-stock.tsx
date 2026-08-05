@@ -398,7 +398,7 @@ export default function AddStockScreen() {
                   <Text style={{
                     fontSize: 11,
                     fontWeight: '700',
-                    color: purityPercent === preset.val || purityPercent === preset.label.split('K')[0] ? '#FFF' : '#5C1623'
+                    color: purityPercent === preset.val || purityPercent === preset.label.split('K')[0] ? '#FFF' : COLORS.vjText
                   }}>
                     {preset.label}
                   </Text>
@@ -424,7 +424,7 @@ export default function AddStockScreen() {
                   <Text style={{
                     fontSize: 11,
                     fontWeight: '700',
-                    color: purityPercent === preset.val ? '#FFF' : '#5C1623'
+                    color: purityPercent === preset.val ? '#FFF' : COLORS.vjText
                   }}>
                     {preset.label}
                   </Text>

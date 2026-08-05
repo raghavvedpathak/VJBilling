@@ -5,14 +5,16 @@ import { FlashList } from '@shopify/flash-list';
 import { useRouter } from 'expo-router';
 import { useFocusEffect } from 'expo-router';
 import { TwoToneWrapper } from '../../components/TwoToneWrapper';
-import { GlassCard } from '../../components/ui/Glass';
+import { HeaderPill, GlassCard } from '../../components/ui/Glass';
+import { useStore } from 'zustand';
+import { appSettingsStore } from '../../store/appSettingsStore';
 import { useFirmStore } from '../../store/firmStore';
 import { gemstoneLotRepository } from '../../repositories/gemstoneLotRepository';
 import { getCurrencySymbol } from '../../utils/calculations';
-import { Gem, Plus, Diamond, Banknote, ShieldAlert, CheckCircle } from 'lucide-react-native';
+import { Gem, Plus, Diamond, Banknote, ShieldAlert, CheckCircle, Sparkles } from 'lucide-react-native';
 import type { GemstoneLot } from '../../types/phase2.types';
 
-import { COLORS } from '../../constants/theme';
+import { COLORS, getThemeColors } from '../../constants/theme';
 
 const formatCarats = (caratsX100: number) => (caratsX100 / 100).toFixed(2) + ' ct';
 const formatCurrency = (paise: number | null) => paise === null ? '—' : getCurrencySymbol() + (paise / 100).toFixed(2);
@@ -89,18 +91,18 @@ export default function GemstonesInventoryScreen() {
     }, [activeFirmId])
   );
 
-  const headerContent = (
-    <View>
-      <View style={s.headerIconRow}>
-        <View style={s.headerIconCircle}><Gem size={28} color={COLORS.vjBg} /></View>
-      </View>
-      <Text style={s.headerTitle}>Gemstone Inventory</Text>
-      <Text style={s.headerSubtitle}>Loose Diamonds & Precious Stones</Text>
+  const activeTheme = useStore(appSettingsStore, (s) => s.theme);
+  const colors = getThemeColors(activeTheme);
+
+  const gemstoneHeaderPills = (
+    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginTop: 4 }}>
+      <HeaderPill icon={<Gem size={12} color={colors.vjBg} />} label={`${data.length} Gemstone Lots`} />
+      <HeaderPill icon={<Sparkles size={12} color="#4ADE80" />} label="Diamonds & Precious Stones" variant="success" />
     </View>
   );
 
   return (
-    <TwoToneWrapper title="" showBack headerContent={headerContent}>
+    <TwoToneWrapper title="Gemstone Lots" showBack headerContent={gemstoneHeaderPills}>
       <View style={s.listContainer}>
         {loading ? (
           <ActivityIndicator size="large" color={COLORS.vjAccent} style={{ marginTop: 40 }} />

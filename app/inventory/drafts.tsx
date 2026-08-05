@@ -5,15 +5,17 @@ import { FlashList } from '@shopify/flash-list';
 import { useRouter } from 'expo-router';
 import { useFocusEffect } from 'expo-router';
 import { TwoToneWrapper } from '../../components/TwoToneWrapper';
-import { GlassButton } from '../../components/ui/Glass';
+import { HeaderPill, GlassButton } from '../../components/ui/Glass';
+import { useStore } from 'zustand';
+import { appSettingsStore } from '../../store/appSettingsStore';
 import { useFirmStore } from '../../store/firmStore';
 import { inventoryDrillDownService } from '../../services/inventoryDrillDownService';
 import { itemService } from '../../services/itemService';
 import type { ItemSearchResult } from '../../types/phase2.types';
 import { getDisplayPurity, formatSKUDisplay, formatWeightMg as formatWeight } from '../../utils/calculations';
-import { Check, ClipboardList, PackageSearch, Edit3, CheckCircle } from 'lucide-react-native';
+import { Check, ClipboardList, PackageSearch, Edit3, CheckCircle, Package, Scale } from 'lucide-react-native';
 
-import { COLORS } from '../../constants/theme';
+import { COLORS, getThemeColors } from '../../constants/theme';
 
 type DraftRowProps = {
   item: ItemSearchResult;
@@ -98,7 +100,6 @@ export default function DraftsScreen() {
     }, [loadDrafts])
   );
 
-  // <-- New navigation handler for Edit Screen
   const handleEdit = useCallback((itemId: string) => {
     router.push({ pathname: '/inventory/edit-draft', params: { itemId } });
   }, [router]);
@@ -107,22 +108,20 @@ export default function DraftsScreen() {
     setConfirmActivate({ itemId, displaySku });
   }, []);
 
-  const headerContent = (
-    <View>
-      <View style={s.headerIconRow}>
-        <View style={s.headerIconCircle}>
-          <ClipboardList size={28} color={COLORS.vjBg} />
-        </View>
-      </View>
-      <Text style={s.headerTitle} numberOfLines={1}>Draft Items</Text>
-      <Text style={s.headerSubtitle}>
-        {data.length} Pending Verifications
-      </Text>
+  const totalItems = data.length;
+  const totalWeightMg = data.reduce((acc, curr) => acc + (curr.netWeightMg ?? curr.grossWeightMg ?? 0), 0);
+  const activeTheme = useStore(appSettingsStore, (s) => s.theme);
+  const colors = getThemeColors(activeTheme);
+
+  const draftsHeaderPills = (
+    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginTop: 4 }}>
+      <HeaderPill icon={<Package size={12} color={colors.vjBg} />} label={`${totalItems} Pending Drafts`} />
+      <HeaderPill icon={<Scale size={12} color="#4ADE80" />} label={`Net: ${formatWeight(totalWeightMg)}`} variant="success" />
     </View>
   );
 
   return (
-    <TwoToneWrapper title="" showBack headerContent={headerContent}>
+    <TwoToneWrapper title="Pending Drafts" showBack headerContent={draftsHeaderPills}>
       <View style={s.listContainer}>
         {loading ? (
           <View style={s.loadingContainer}>

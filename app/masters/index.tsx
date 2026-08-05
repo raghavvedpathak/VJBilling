@@ -3,29 +3,27 @@ import React from 'react';
 import { View, Text, ScrollView, TouchableOpacity, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
 import { TwoToneWrapper } from '../../components/TwoToneWrapper';
-import { GlassCard } from '../../components/ui/Glass';
-import { Settings2, Layers, Tag, ChevronRight, Gem } from 'lucide-react-native';
-
-import { COLORS } from '../../constants/theme';
+import { GlassCard, HeaderPill } from '../../components/ui/Glass';
+import { Settings2, Layers, Tag, ChevronRight, Gem, ShieldCheck, LayoutGrid } from 'lucide-react-native';
+import { useStore } from 'zustand';
+import { appSettingsStore } from '../../store/appSettingsStore';
+import { COLORS, getThemeColors } from '../../constants/theme';
 
 export default function MastersIndexScreen() {
   const router = useRouter();
+  const activeTheme = useStore(appSettingsStore, (s) => s.theme);
+  const colors = getThemeColors(activeTheme);
 
-  const headerContent = (
-    <View>
-      <View style={s.headerIconRow}>
-        <View style={s.headerIconCircle}>
-          <Settings2 size={28} color={COLORS.vjBg} />
-        </View>
-      </View>
-      <Text style={s.headerTitle}>Metal Master</Text>
-      <Text style={s.headerSubtitle}>Manage Core Entities</Text>
+  const mastersHeaderPills = (
+    <View className="flex-row items-center gap-2 flex-wrap mt-1">
+      <HeaderPill icon={<LayoutGrid size={12} color={colors.vjBg} />} label="Catalog Masters" />
+      <HeaderPill icon={<ShieldCheck size={12} color="#4ADE80" />} label="GST HSN Scoped" variant="success" />
     </View>
   );
 
   return (
-    <TwoToneWrapper title="" showBack headerContent={headerContent}>
-      <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingTop: 32, paddingBottom: 100 }}>
+    <TwoToneWrapper title="Master Catalog" showBack headerContent={mastersHeaderPills}>
+      <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingTop: 20, paddingBottom: 100 }}>
         <Text style={s.sectionTitle}>Inventory Structure</Text>
 
         <TouchableOpacity activeOpacity={0.8} onPress={() => router.push('/masters/categories')}>
