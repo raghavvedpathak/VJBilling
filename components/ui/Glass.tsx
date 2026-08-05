@@ -130,8 +130,8 @@ export function GlassButton({
   };
 
   const spinnerColors = {
-    primary: '#FCFBF8',   // Light on dark button
-    secondary: '#5C1623', // Dark on light button
+    primary: COLORS.vjBg,   // Light on dark button
+    secondary: COLORS.vjText, // Dark on light button
     danger: '#ffffff',    // white on red
   };
 
@@ -300,7 +300,7 @@ export function GlassSmartSearch({
                   borderBottomColor: 'rgba(92,22,35,0.05)',
                 }}
               >
-                <Text style={{ fontSize: 16, fontWeight: '600', color: '#5C1623' }}>{opt.label}</Text>
+                <Text style={{ fontSize: 16, fontWeight: '600', color: COLORS.vjText }}>{opt.label}</Text>
                 {opt.sublabel ? <Text style={{ fontSize: 12, color: 'rgba(92,22,35,0.6)', marginTop: 2 }}>{opt.sublabel}</Text> : null}
               </TouchableOpacity>
             ))

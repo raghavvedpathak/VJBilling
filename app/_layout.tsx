@@ -31,28 +31,37 @@ import { ThemeProvider, DefaultTheme } from "@react-navigation/native";
 import { PinGate } from "../components/PinGate";
 import { isPinSet, isPinSkipped } from "../services/pinService"; // v7.29 evaluation helpers
 
+import { useStore } from "zustand";
+import { appSettingsStore } from "../store/appSettingsStore";
+import { getThemeColors } from "../constants/theme";
+
 LogBox.ignoreLogs(["SafeAreaView has been deprecated", "SafeAreaView"]);
 
 type BootstrapResult =
   | "DASHBOARD"
   | "SETUP"
   | "SAFE_MODE"
+  | "SUCCESS"
+  | "SUCCESS_WITH_WARNING"
   | "DATABASE_ERROR"
   | "DASHBOARD_WARNING"
   | null;
-
-const vjTheme = {
-  ...DefaultTheme,
-  colors: {
-    ...DefaultTheme.colors,
-    background: COLORS.vjBg,
-  },
-};
 
 export default function RootLayout() {
   const rootNavigationState = useRootNavigationState();
   const [snapshotStatus, setSnapshotStatus] = useState<"PENDING" | "DONE">("PENDING");
   const [pinVerified, setPinVerified] = useState(false); 
+  
+  const activeTheme = useStore(appSettingsStore, (s) => s.theme);
+  const colors = getThemeColors(activeTheme);
+
+  const vjTheme = {
+    ...DefaultTheme,
+    colors: {
+      ...DefaultTheme.colors,
+      background: colors.vjBg,
+    },
+  };
   
   const { isLoaded, error: dbError } = useDatabase();
   const [bootstrapResult, setBootstrapResult] = useState<BootstrapResult>(null);
@@ -123,9 +132,9 @@ export default function RootLayout() {
   return (
     <SafeAreaProvider>
       <ThemeProvider value={vjTheme}>
-        <StatusBar barStyle="dark-content" backgroundColor={COLORS.vjBg} />
+        <StatusBar barStyle="dark-content" backgroundColor={colors.vjBg} />
         
-        <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: COLORS.vjBg }, animation: 'slide_from_right' }}>
+        <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.vjBg }, animation: 'slide_from_right' }}>
           <Stack.Screen name="index" options={{ headerShown: false }} />
           <Stack.Screen name="dashboard" options={{ headerShown: false }} />
           <Stack.Screen name="welcome" options={{ headerShown: false }} />
@@ -133,25 +142,25 @@ export default function RootLayout() {
         </Stack>
 
         {showSnapshotLoading && (
-          <View style={[StyleSheet.absoluteFill, { zIndex: 9999, elevation: 9999, backgroundColor: COLORS.vjBg }]}>
+          <View style={[StyleSheet.absoluteFill, { zIndex: 9999, elevation: 9999, backgroundColor: colors.vjBg }]}>
             <LoadingScreen message="Securing Pre-Migration Snapshot..." />
           </View>
         )}
 
         {showPinGate && (
-          <View style={[StyleSheet.absoluteFill, { zIndex: 9999, elevation: 9999, backgroundColor: COLORS.vjBg }]}>
+          <View style={[StyleSheet.absoluteFill, { zIndex: 9999, elevation: 9999, backgroundColor: colors.vjBg }]}>
             <PinGate onSuccess={() => setPinVerified(true)} />
           </View>
         )}
 
         {showBootstrapLoading && !showError && (
-          <View style={[StyleSheet.absoluteFill, { zIndex: 9999, elevation: 9999, backgroundColor: COLORS.vjBg }]}>
+          <View style={[StyleSheet.absoluteFill, { zIndex: 9999, elevation: 9999, backgroundColor: colors.vjBg }]}>
             <LoadingScreen message={loadingMsg} />
           </View>
         )}
         
         {showError && (
-          <View style={[StyleSheet.absoluteFill, { zIndex: 9999, elevation: 9999, backgroundColor: COLORS.vjBg }]}>
+          <View style={[StyleSheet.absoluteFill, { zIndex: 9999, elevation: 9999, backgroundColor: colors.vjBg }]}>
             <DatabaseErrorScreen
               title="CRITICAL MIGRATION ERROR"
               message={dbMigrationError ?? "An unknown database error occurred."}

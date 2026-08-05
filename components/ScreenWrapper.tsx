@@ -6,7 +6,9 @@ import { ChevronLeft } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
 import { DynamicBackground } from './ui/DynamicBackground';
-import { COLORS } from '../constants/theme';
+import { getThemeColors } from '../constants/theme';
+import { useStore } from 'zustand';
+import { appSettingsStore } from '../store/appSettingsStore';
 
 interface ScreenWrapperProps {
   title?: string;
@@ -26,6 +28,9 @@ export function ScreenWrapper({
   headerContent,
 }: ScreenWrapperProps) {
   const router = useRouter();
+  // Reactive subscription ensures component re-renders instantly on theme change from Settings
+  const activeTheme = useStore(appSettingsStore, (s) => s.theme);
+  const colors = getThemeColors(activeTheme);
 
   const handleBack = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -33,7 +38,7 @@ export function ScreenWrapper({
   };
 
   return (
-    <View className="flex-1 bg-vj-bg">
+    <View style={{ flex: 1, backgroundColor: colors.vjBg }}>
       <StatusBar barStyle="dark-content" backgroundColor="transparent" translucent />
 
       <DynamicBackground />
@@ -51,11 +56,11 @@ export function ScreenWrapper({
                     onPress={handleBack}
                     className="h-10 w-10 rounded-full bg-vj-glass justify-center items-center border border-white/60 shadow-sm"
                   >
-                    <ChevronLeft size={24} color="#2E1D00" />
+                    <ChevronLeft size={24} color={colors.vjText} />
                   </TouchableOpacity>
                 )}
                 {title && (
-                  <Text className="text-2xl font-bold text-vj-text tracking-tight shadow-sm">
+                  <Text className="text-2xl font-bold tracking-tight shadow-sm" style={{ color: colors.vjText }}>
                     {title}
                   </Text>
                 )}

@@ -43,7 +43,7 @@ export default function InventoryHubScreen() {
         >
           <GlassCard style={{ padding: 0 }}>
             <View className="flex-row items-center p-4 bg-white/40">
-              <Search size={20} color="#5C1623" />
+              <Search size={20} color={COLORS.vjText} />
               <Text className="flex-1 ml-3 text-vj-text/60 font-semibold text-base">
                 Search SKU, HUID, or Design...
               </Text>
@@ -62,14 +62,14 @@ export default function InventoryHubScreen() {
           <MenuTile 
             title="Stock Ledger" 
             subtitle="Drill-Down View" 
-            icon={<PackageSearch size={24} color="#5C1623" />} 
+            icon={<PackageSearch size={24} color={COLORS.vjText} />} 
             onPress={() => router.push('/inventory/drill-down')} 
           />
 
           <MenuTile 
             title="Draft Items" 
             subtitle="Pending Verification" 
-            icon={<ClipboardList size={24} color="#5C1623" />} 
+            icon={<ClipboardList size={24} color={COLORS.vjText} />} 
             onPress={() => router.push('/inventory/drafts')} 
           />
         </View>
@@ -82,14 +82,14 @@ export default function InventoryHubScreen() {
           <MenuTile 
             title="Single Item Add" 
             subtitle="Detailed Entry" 
-            icon={<PackagePlus size={24} color="#5C1623" />} 
+            icon={<PackagePlus size={24} color={COLORS.vjText} />} 
             onPress={() => router.push('/inventory/add-stock')} 
           />
 
           <MenuTile 
             title="Bulk Add Matrix" 
             subtitle="Rapid Batch Entry" 
-            icon={<Layers size={24} color="#5C1623" />} 
+            icon={<Layers size={24} color={COLORS.vjText} />} 
             onPress={() => router.push('/inventory/bulk-add')} 
           />
         </View>
@@ -102,14 +102,14 @@ export default function InventoryHubScreen() {
           <MenuTile 
             title="URD Purchases" 
             subtitle="Scrap & Old Gold" 
-            icon={<Coins size={24} color="#5C1623" />} 
+            icon={<Coins size={24} color={COLORS.vjText} />} 
             onPress={() => router.push('/inventory/urd-purchases')} 
           />
 
           <MenuTile 
             title="Gemstone Lots" 
             subtitle="Physical Intake" 
-            icon={<Gem size={24} color="#5C1623" />} 
+            icon={<Gem size={24} color={COLORS.vjText} />} 
             onPress={() => router.push('/inventory/gemstones')} 
           />
         </View>
@@ -123,7 +123,7 @@ export default function InventoryHubScreen() {
           <GlassCard style={{ padding: 0 }}>
             <View className="flex-row items-center gap-4 p-4">
               <View className="bg-vj-glass p-3 rounded-full border border-white/20">
-                <Database size={24} color="#5C1623" />
+                <Database size={24} color={COLORS.vjText} />
               </View>
               <View className="flex-1">
                 <Text className="text-vj-text font-bold text-lg">Metal Master</Text>

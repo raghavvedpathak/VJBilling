@@ -5,7 +5,9 @@ import { router } from 'expo-router';
 import { ChevronLeft } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import { DynamicBackground } from './ui/DynamicBackground';
-import { COLORS } from '../constants/theme';
+import { getThemeColors } from '../constants/theme';
+import { useStore } from 'zustand';
+import { appSettingsStore } from '../store/appSettingsStore';
 
 interface TwoToneWrapperProps {
   title?: string;
@@ -18,6 +20,9 @@ interface TwoToneWrapperProps {
 
 export function TwoToneWrapper({ title, children, showBack, actionIcon, onAction, headerContent }: TwoToneWrapperProps) {
   const insets = useSafeAreaInsets();
+  // Reactive subscription ensures component re-renders instantly on theme change from Settings
+  const activeTheme = useStore(appSettingsStore, (s) => s.theme);
+  const colors = getThemeColors(activeTheme);
 
   const handleBack = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -26,7 +31,7 @@ export function TwoToneWrapper({ title, children, showBack, actionIcon, onAction
 
   return (
     // DARK UPPER BACKGROUND
-    <View className="flex-1 bg-vj-text">
+    <View style={{ flex: 1, backgroundColor: colors.vjText }}>
       <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
 
       <SafeAreaView className="flex-1" edges={['top', 'left', 'right']}>
@@ -43,11 +48,11 @@ export function TwoToneWrapper({ title, children, showBack, actionIcon, onAction
                     onPress={handleBack}
                     className="h-10 w-10 rounded-full bg-white/10 justify-center items-center border border-white/20"
                   >
-                    <ChevronLeft size={24} color="#FAF3E0" />
+                    <ChevronLeft size={24} color={colors.vjBg} />
                   </TouchableOpacity>
                 )}
                 {title && (
-                  <Text className="text-3xl font-bold text-vj-bg tracking-tight flex-shrink" numberOfLines={1}>
+                  <Text className="text-3xl font-bold tracking-tight flex-shrink" style={{ color: colors.vjBg }} numberOfLines={1}>
                     {title}
                   </Text>
                 )}
@@ -70,7 +75,7 @@ export function TwoToneWrapper({ title, children, showBack, actionIcon, onAction
 
         {/* === LOWER ZONE (LIGHT WITH ROUNDED CORNERS) === */}
         {/* ARCHITECT FIX: Added overflow-hidden to stop ScrollView height snapping */}
-        <View className="flex-1 bg-vj-bg rounded-t-[32px] shadow-2xl overflow-hidden">
+        <View className="flex-1 rounded-t-[32px] shadow-2xl overflow-hidden" style={{ backgroundColor: colors.vjBg }}>
           <DynamicBackground />
           <KeyboardAvoidingView
             behavior={Platform.OS === 'ios' ? 'padding' : undefined}

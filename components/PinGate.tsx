@@ -157,7 +157,7 @@ export function PinGate({ onSuccess }: { onSuccess: () => void }) {
         showsVerticalScrollIndicator={false}
       >
         <View style={{ alignItems: 'center', marginBottom: 24, width: '100%' }}>
-          <Text style={{ color: '#5C1623', fontSize: 20, fontWeight: '900', letterSpacing: 1.5, textAlign: 'center', textTransform: 'uppercase' }}>
+          <Text style={{ color: COLORS.vjText, fontSize: 20, fontWeight: '900', letterSpacing: 1.5, textAlign: 'center', textTransform: 'uppercase' }}>
             {mode === 'LOCKED' ? 'System Locked' : 
              mode.startsWith('SETUP') ? 'Set Up Security PIN' : 
              'Enter Security PIN'}
@@ -174,13 +174,13 @@ export function PinGate({ onSuccess }: { onSuccess: () => void }) {
             <View style={{ flexDirection: 'row', marginTop: 16, backgroundColor: 'rgba(255,255,255,0.4)', borderWidth: 1, borderColor: 'rgba(92,22,35,0.1)', borderRadius: 12, padding: 4 }}>
               <TouchableOpacity 
                 onPress={() => { setTargetLength(4); setPinInput(''); }}
-                style={{ paddingHorizontal: 16, paddingVertical: 6, borderRadius: 8, backgroundColor: targetLength === 4 ? '#5C1623' : 'transparent' }}
+                style={{ paddingHorizontal: 16, paddingVertical: 6, borderRadius: 8, backgroundColor: targetLength === 4 ? COLORS.vjText : 'transparent' }}
               >
                 <Text style={{ fontWeight: '700', fontSize: 12, color: targetLength === 4 ? '#ffffff' : 'rgba(92,22,35,0.6)' }}>4 Digits</Text>
               </TouchableOpacity>
               <TouchableOpacity 
                 onPress={() => { setTargetLength(6); setPinInput(''); }}
-                style={{ paddingHorizontal: 16, paddingVertical: 6, borderRadius: 8, backgroundColor: targetLength === 6 ? '#5C1623' : 'transparent' }}
+                style={{ paddingHorizontal: 16, paddingVertical: 6, borderRadius: 8, backgroundColor: targetLength === 6 ? COLORS.vjText : 'transparent' }}
               >
                 <Text style={{ fontWeight: '700', fontSize: 12, color: targetLength === 6 ? '#ffffff' : 'rgba(92,22,35,0.6)' }}>6 Digits</Text>
               </TouchableOpacity>
@@ -203,8 +203,8 @@ export function PinGate({ onSuccess }: { onSuccess: () => void }) {
                     key={i} 
                     style={{
                       width: 40, height: 48, borderRadius: 12, justifyContent: 'center', alignItems: 'center',
-                      backgroundColor: hasDigit ? '#5C1623' : 'rgba(255,255,255,0.5)',
-                      borderColor: hasDigit ? '#5C1623' : 'rgba(92,22,35,0.2)',
+                      backgroundColor: hasDigit ? COLORS.vjText : 'rgba(255,255,255,0.5)',
+                      borderColor: hasDigit ? COLORS.vjText : 'rgba(92,22,35,0.2)',
                       borderWidth: 1
                     }}
                   >
@@ -223,8 +223,8 @@ export function PinGate({ onSuccess }: { onSuccess: () => void }) {
               style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 24, backgroundColor: 'rgba(255,255,255,0.5)', paddingHorizontal: 16, paddingVertical: 8, borderRadius: 999, borderWidth: 1, borderColor: 'rgba(92,22,35,0.1)', zIndex: 10 }}
               activeOpacity={0.7}
             >
-              {isPinVisible ? <EyeOff size={16} color="#5C1623" /> : <Eye size={16} color="#5C1623" />}
-              <Text style={{ color: '#5C1623', fontWeight: '700', fontSize: 12 }}>{isPinVisible ? 'Hide PIN' : 'Show PIN'}</Text>
+              {isPinVisible ? <EyeOff size={16} color={COLORS.vjText} /> : <Eye size={16} color={COLORS.vjText} />}
+              <Text style={{ color: COLORS.vjText, fontWeight: '700', fontSize: 12 }}>{isPinVisible ? 'Hide PIN' : 'Show PIN'}</Text>
             </TouchableOpacity>
             
             <TextInput
@@ -250,7 +250,7 @@ export function PinGate({ onSuccess }: { onSuccess: () => void }) {
                 onPress={handleSkip}
                 style={{ marginTop: 24, paddingVertical: 12, paddingHorizontal: 24, backgroundColor: 'rgba(255,255,255,0.6)', borderWidth: 1, borderColor: 'rgba(92,22,35,0.1)', borderRadius: 999 }}
               >
-                <Text style={{ color: '#5C1623', fontWeight: '900', fontSize: 13, letterSpacing: 1.5, textTransform: 'uppercase' }}>Skip Setup for now</Text>
+                <Text style={{ color: COLORS.vjText, fontWeight: '900', fontSize: 13, letterSpacing: 1.5, textTransform: 'uppercase' }}>Skip Setup for now</Text>
               </TouchableOpacity>
             )}
           </View>

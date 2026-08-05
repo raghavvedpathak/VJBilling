@@ -46,7 +46,7 @@ export const appSettingsStore = create<AppSettingsSlice>()(
   persist(
     (set) => ({
       // Defaults match the seed row inserted by db/client.ts Migration Zero fallback.
-      theme: 'system',
+      theme: 'saffron',
       auditRetentionDays: 30, // matches schema v7.10 default
       auditRetentionLastRunAt: null,
       currency: 'INR',

@@ -33,7 +33,7 @@ import {
   FileBox,
   KeyRound
 } from 'lucide-react-native';
-import { COLORS } from '../../constants/theme';
+import { COLORS, THEME_PRESETS } from '../../constants/theme';
 
 export default function SettingsScreen() {
   const router = useRouter();
@@ -95,11 +95,7 @@ export default function SettingsScreen() {
   };
 
   const getThemeLabel = (t: string) => {
-    switch(t) {
-      case 'light': return 'Light';
-      case 'dark': return 'Dark';
-      default: return 'System Default';
-    }
+    return 'Royal Kesari Gold (Default)';
   };
 
   const toggleUnsavedWarning = async (value: boolean) => {
@@ -200,10 +196,10 @@ export default function SettingsScreen() {
         
         {/* FIX: pointerEvents="none" and dynamic INR text to dodge G67-LINT */}
         <View className="px-1 mb-2" pointerEvents="none">
-          <GlassCard style={{ opacity: 0.5, borderWidth: 1, borderColor: 'rgba(92,22,35,0.2)' }}>
+          <GlassCard style={{ opacity: 0.5, borderWidth: 1, borderColor: COLORS.border }}>
             <View className="flex-row items-center gap-4" accessibilityRole="text" accessibilityLabel="Currency: Indian Rupee, fixed">
               <View className="bg-vj-glass p-3 rounded-full border border-white/20">
-                <IndianRupee size={24} color="#5C1623" />
+                <IndianRupee size={24} color={COLORS.vjText} />
               </View>
               <View className="flex-1">
                 <Text className="text-vj-text font-bold text-base">Currency</Text>
@@ -232,12 +228,12 @@ export default function SettingsScreen() {
         <GlassSettingsTile
           title="Date Format"
           subtitle={getTodayPreview(dateFormat)}
-          icon={<CalendarClock size={24} color="#5C1623" />}
+          icon={<CalendarClock size={24} color={COLORS.vjText} />}
           onPress={() => setShowDateModal(true)}
         />
 
         <View className="px-1 mb-2">
-          <GlassCard style={{ borderWidth: 1, borderColor: 'rgba(92,22,35,0.2)' }}>
+          <GlassCard style={{ borderWidth: 1, borderColor: COLORS.border }}>
             <View className="flex-row items-center justify-between">
               <View className="flex-row items-center gap-4 flex-1">
                 <View className="bg-vj-glass p-3 rounded-full border border-white/20">
@@ -261,14 +257,14 @@ export default function SettingsScreen() {
         <GlassSettingsTile
           title="App Theme"
           subtitle={getThemeLabel(theme)}
-          icon={<Palette size={24} color="#5C1623" />}
+          icon={<Palette size={24} color={COLORS.vjText} />}
           onPress={() => setShowThemeModal(true)}
         />
 
         <GlassSettingsTile
           title="Invoice Settings"
           subtitle="Prefixes, Terms & Conditions"
-          icon={<FileBox size={24} color="#5C1623" />}
+          icon={<FileBox size={24} color={COLORS.vjText} />}
           onPress={() => Alert.alert("Coming Soon", "Invoice customization unlocks in Phase 4.")}
         />
 
@@ -291,13 +287,13 @@ export default function SettingsScreen() {
         <GlassSettingsTile
           title="GST Tax Rates"
           subtitle="Manage CGST/SGST groups"
-          icon={<Percent size={24} color="#5C1623" />}
+          icon={<Percent size={24} color={COLORS.vjText} />}
           onPress={() => Alert.alert("Phase 3 Feature", "GST settings are configured in the full setup. Available after Phase 3.")}
         />
         <GlassSettingsTile
           title="Paired Devices"
           subtitle="Primary/Secondary Sync setup"
-          icon={<MonitorSmartphone size={24} color="#5C1623" />}
+          icon={<MonitorSmartphone size={24} color={COLORS.vjText} />}
           onPress={() => Alert.alert("Future Feature", "Device sync is available in a future update.")}
         />
 
@@ -305,14 +301,14 @@ export default function SettingsScreen() {
         <GlassSettingsTile
           title="Data Utilities"
           subtitle="Export Ledgers & Inventory"
-          icon={<Wrench size={24} color="#5C1623" />}
+          icon={<Wrench size={24} color={COLORS.vjText} />}
           onPress={() => Alert.alert("Phase 6 Feature", "Data Utilities unlock in Phase 6.")}
         />
         
         <GlassSettingsTile
           title="Audit Logs"
           subtitle="View immutable system events"
-          icon={<FileText size={24} color="#5C1623" />}
+          icon={<FileText size={24} color={COLORS.vjText} />}
           onPress={() => router.push('/settings/audit-logs')}
           disabled={restoring}
         />
@@ -320,27 +316,27 @@ export default function SettingsScreen() {
         <GlassSettingsTile
           title={backingUp ? "Generating Backup..." : "Backup Data"}
           subtitle="Export secure .vjb file"
-          icon={backingUp ? <ActivityIndicator size="small" color="#D4AF37" /> : <HardDriveDownload size={24} color="#5C1623" />}
+          icon={backingUp ? <ActivityIndicator size="small" color="#D4AF37" /> : <HardDriveDownload size={24} color={COLORS.vjText} />}
           onPress={handleBackup}
           disabled={backingUp || restoring}
         />
         <GlassSettingsTile
           title={restoring ? "Restoring..." : "Restore Data"}
           subtitle="Import from .vjb file"
-          icon={restoring ? <ActivityIndicator size="small" color="#D4AF37" /> : <HardDriveUpload size={24} color="#5C1623" />}
+          icon={restoring ? <ActivityIndicator size="small" color="#D4AF37" /> : <HardDriveUpload size={24} color={COLORS.vjText} />}
           onPress={handleRestore}
           disabled={backingUp || restoring}
         />
         <GlassSettingsTile
           title="Verify My Data"
           subtitle="Run deep integrity scan"
-          icon={<ShieldAlert size={24} color="#5C1623" />}
+          icon={<ShieldAlert size={24} color={COLORS.vjText} />}
           onPress={() => router.push('/settings/verify')}
           disabled={restoring}
         />
 
         <View className="mt-8 items-center opacity-40 mb-10">
-          <Database size={20} color="#5C1623" />
+          <Database size={20} color={COLORS.vjText} />
           <Text className="text-[10px] font-bold text-vj-text mt-2">
             VJ BILLING • PHASE 2 • INVENTORY
           </Text>
@@ -361,7 +357,7 @@ export default function SettingsScreen() {
             <View className="flex-row justify-between items-center mb-6">
               <Text className="text-vj-text font-bold text-xl">Date Format</Text>
               <TouchableOpacity onPress={() => setShowDateModal(false)} className="p-1 bg-black/5 rounded-full">
-                <X size={20} color="#5C1623" />
+                <X size={20} color={COLORS.vjText} />
               </TouchableOpacity>
             </View>
 
@@ -394,24 +390,39 @@ export default function SettingsScreen() {
             <View className="flex-row justify-between items-center mb-6">
               <Text className="text-vj-text font-bold text-xl">App Theme</Text>
               <TouchableOpacity onPress={() => setShowThemeModal(false)} className="p-1 bg-black/5 rounded-full">
-                <X size={20} color="#5C1623" />
+                <X size={20} color={COLORS.vjText} />
               </TouchableOpacity>
             </View>
 
-            {[
-              { id: 'system', label: 'System Default' },
-              { id: 'light', label: 'Light' },
-              { id: 'dark', label: 'Dark' }
-            ].map((t) => (
-              <TouchableOpacity
-                key={t.id}
-                onPress={() => updateTheme(t.id)}
-                className={`p-4 rounded-xl border mb-3 flex-row justify-between items-center ${theme === t.id ? 'bg-vj-text border-vj-text' : 'bg-white/60 border-black/10'}`}
-              >
-                <Text className={`font-bold text-base ${theme === t.id ? 'text-vj-bg' : 'text-vj-text'}`}>{t.label}</Text>
-                {theme === t.id && <CheckCircle2 size={24} color="#FCFBF8" />}
-              </TouchableOpacity>
-            ))}
+            <View className="mb-2">
+              {[
+                { id: 'saffron', label: 'Royal Kesari Gold (Default)' },
+              ].map((t) => {
+                const preset = THEME_PRESETS[t.id as keyof typeof THEME_PRESETS] || THEME_PRESETS.saffron;
+                return (
+                  <TouchableOpacity
+                    key={t.id}
+                    onPress={() => updateTheme(t.id)}
+                    className={`p-3.5 rounded-2xl border mb-3 flex-row justify-between items-center ${theme === t.id ? 'bg-vj-text border-vj-text' : 'bg-white/70 border-black/10'}`}
+                  >
+                    <View className="flex-row items-center gap-3 flex-1 mr-2">
+                      {/* Color Combo Swatch Preview Badge */}
+                      <View className="flex-row items-center p-1 rounded-full bg-black/10 border border-black/10 gap-1">
+                        <View className="w-4 h-4 rounded-full border border-white/40 shadow-sm" style={{ backgroundColor: preset.vjText }} />
+                        <View className="w-4 h-4 rounded-full border border-black/20 shadow-sm" style={{ backgroundColor: preset.vjBg }} />
+                        <View className="w-4 h-4 rounded-full border border-white/40 shadow-sm" style={{ backgroundColor: preset.vjAccent }} />
+                      </View>
+
+                      <Text className={`font-bold text-sm flex-1 ${theme === t.id ? 'text-vj-bg' : 'text-vj-text'}`} numberOfLines={1}>
+                        {t.label}
+                      </Text>
+                    </View>
+
+                    {theme === t.id && <CheckCircle2 size={22} color={COLORS.vjBg} />}
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
           </View>
         </View>
       </Modal>

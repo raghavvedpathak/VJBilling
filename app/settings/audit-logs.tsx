@@ -73,15 +73,7 @@ const EVENT_MAPPING: Record<string, string> = {
   'ITEM_RETURNED_FROM_KARIGAR': 'Item Received from Karigar'
 };
 
-const colors = {
-  vjText: '#5C1623',
-  vjBg: '#FCFBF8',
-  vjAccent: '#C8860A',
-  success: '#16a34a',
-  danger: '#dc2626',
-  blue: '#3b82f6',
-  orange: '#f97316',
-};
+const colors = COLORS;
 
 function getEventBgColor(type: string): string {
   if (type.includes('CREATED') || type.includes('PIN_SET')) return 'rgba(22,163,74,0.12)';

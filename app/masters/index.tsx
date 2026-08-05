@@ -32,7 +32,7 @@ export default function MastersIndexScreen() {
           <GlassCard style={s.tile}>
             <View style={s.tileContent}>
               <View style={s.iconWrapper}>
-                <Layers size={24} color="#5C1623" />
+                <Layers size={24} color={COLORS.vjText} />
               </View>
               <View style={s.textWrapper}>
                 <Text style={s.tileTitle}>Categories</Text>
@@ -47,7 +47,7 @@ export default function MastersIndexScreen() {
           <GlassCard style={s.tile}>
             <View style={s.tileContent}>
               <View style={s.iconWrapper}>
-                <Tag size={24} color="#5C1623" />
+                <Tag size={24} color={COLORS.vjText} />
               </View>
               <View style={s.textWrapper}>
                 <Text style={s.tileTitle}>Designs</Text>
@@ -64,7 +64,7 @@ export default function MastersIndexScreen() {
           <GlassCard style={s.tile}>
             <View style={s.tileContent}>
               <View style={s.iconWrapper}>
-                <Gem size={24} color="#5C1623" />
+                <Gem size={24} color={COLORS.vjText} />
               </View>
               <View style={s.textWrapper}>
                 <Text style={s.tileTitle}>Stone Master</Text>

@@ -1,48 +1,66 @@
-// constants/theme.ts
-// Single Source of Truth (SSOT) for VJBilling Design Tokens, Colors, and Glassmorphism System
+export const THEME_PRESETS = {
+  saffron: { // DEFAULT
+    id: 'saffron',
+    label: 'Royal Kesari Gold (Default)',
+    vjText: '#2A1208',
+    vjBg: '#FDF9F3',
+    vjAccent: '#E67E22',
+    vjAccentLight: '#FBE3C5',
+    vjAccentDark: '#B85B0E',
+    glassBorderDark: 'rgba(230, 126, 34, 0.2)',
+    border: 'rgba(230, 126, 34, 0.16)',
+  },
+} as const;
+
+import { appSettingsStore } from '../store/appSettingsStore';
+
+export function getThemeColors(themeKey?: string) {
+  const currentStoreTheme = appSettingsStore ? appSettingsStore.getState()?.theme : null;
+  const key = themeKey || currentStoreTheme || 'saffron';
+  return THEME_PRESETS[key as keyof typeof THEME_PRESETS] || THEME_PRESETS.saffron;
+}
 
 export const COLORS = {
-  // --- Core Brand Colors ---
-  vjText: '#2A1208',       // Deep Burnt Saffron Velvet (Header & Primary Text)
-  vjBg: '#FDF9F3',         // Warm Kesar Milk Silk (Anti-Glare Main Background)
-  vjAccent: '#E67E22',     // Royal Auspicious Saffron Gold (Accents, Buttons & Highlights)
-  vjAccentLight: '#FBE3C5',// Soft Kesar Cream Tint
-  vjAccentDark: '#B85B0E', // Deep Burnt Saffron
-  saffron: '#E67E22',      // Auspicious Royal Saffron
-  saffronLight: '#FBE3C5', // Soft Saffron Tint
+  // --- Dynamic Brand Colors (Resolved Live) ---
+  get vjText() { return getThemeColors().vjText; },
+  get vjBg() { return getThemeColors().vjBg; },
+  get vjAccent() { return getThemeColors().vjAccent; },
+  get vjAccentLight() { return getThemeColors().vjAccentLight; },
+  get vjAccentDark() { return getThemeColors().vjAccentDark; },
+  get glassBorderDark() { return getThemeColors().glassBorderDark; },
+  get border() { return getThemeColors().border; },
+  get gold() { return getThemeColors().vjAccent; },
+  get goldAccent() { return getThemeColors().vjAccent; },
 
-  // --- Metals ---
-  gold: '#E67E22',         // Royal Gold Badge / Stripe
-  goldAccent: '#E67E22',   // Gold Highlight Accent
-  silver: '#6B7280',       // Sterling Silver Badge / Stripe
-  silverAccent: '#9CA3AF', // Silver Highlight Accent
+  saffron: '#E67E22',
+  saffronLight: '#FBE3C5',
+  silver: '#6B7280',
+  silverAccent: '#9CA3AF',
 
   // --- System & Status Colors ---
-  success: '#15803D',      // Active Green
-  successGreen: '#047857', // Vault Green
-  danger: '#EF4444',       // Error / Delete Red
-  error: '#EF4444',        // Alias for error
-  dangerDark: '#B91C1C',   // Deep Red Highlight
-  warning: '#F59E0B',      // Alert / Low Stock Amber
-  warningOrange: '#B45309',// Orange Truth Highlight
-  info: '#3B82F6',         // Information Blue
-  phantom: '#7C3AED',      // Phantom Violet
+  success: '#15803D',
+  successGreen: '#047857',
+  danger: '#EF4444',
+  error: '#EF4444',
+  dangerDark: '#B91C1C',
+  warning: '#F59E0B',
+  warningOrange: '#B45309',
+  info: '#3B82F6',
+  phantom: '#7C3AED',
 
   // --- Glassmorphism Design Tokens ---
   glassBg: 'rgba(255, 255, 255, 0.75)',
   glassBorder: 'rgba(255, 255, 255, 0.6)',
-  glassBorderDark: 'rgba(230, 126, 34, 0.2)',
   glassGoldBg: 'rgba(230, 126, 34, 0.12)',
   glassGoldBorder: 'rgba(230, 126, 34, 0.35)',
 
   // --- Neutral Tokens ---
   surface: '#FFFFFF',
-  border: 'rgba(230, 126, 34, 0.16)',
   muted: 'rgba(42, 18, 8, 0.5)',
-  inputBg: '#F3F4F6',       // Form Input Background
-  inputBorder: '#D1D5DB',   // Form Input Border
+  inputBg: '#F3F4F6',
+  inputBorder: '#D1D5DB',
   subtle: 'rgba(42, 18, 8, 0.25)',
-} as const;
+};
 
 export const SHADOWS = {
   glass: {
@@ -67,3 +85,4 @@ export const THEME = {
 } as const;
 
 export type ThemeColors = typeof COLORS;
+

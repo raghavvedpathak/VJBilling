@@ -29,7 +29,7 @@ export const settingsService = {
       id: 1,
       dateFormatToken: 'dd/MM/yyyy',
       warnUnsavedChanges: 1,
-      theme: 'system',
+      theme: 'saffron',
       auditRetentionDays: 30, // FIX: Updated from 365 to 30 per v7.10 spec
       currency: ['I', 'N', 'R'].join(''), 
       currencySymbol: String.fromCharCode(8377), // ₹ evasion
