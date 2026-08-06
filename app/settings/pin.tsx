@@ -32,6 +32,9 @@ export default function PinSettingsScreen() {
 
   const inputRef = useRef<TextInput>(null);
 
+  const activeTheme = useStore(appSettingsStore, (s) => s.theme);
+  const colors = getThemeColors(activeTheme);
+
   useEffect(() => {
     setHasPin(isPinSet());
   }, []);
@@ -238,10 +241,6 @@ export default function PinSettingsScreen() {
        </TwoToneWrapper>
      );
   }
-
-  const activeTheme = useStore(appSettingsStore, (s) => s.theme);
-  const colors = getThemeColors(activeTheme);
-
   const pinHeaderPills = (
     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginTop: 4 }}>
       <HeaderPill icon={<ShieldCheck size={12} color={hasPin ? "#4ADE80" : "#FDBA74"} />} label={hasPin ? 'PIN Enabled' : 'PIN Disabled'} variant={hasPin ? 'success' : 'warning'} />

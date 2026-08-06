@@ -30,8 +30,8 @@ export function TwoToneWrapper({ title, children, showBack, actionIcon, onAction
   };
 
   return (
-    // DARK UPPER BACKGROUND
-    <View style={{ flex: 1, backgroundColor: colors.vjText }}>
+    // UPPER BRAND HEADER BACKGROUND (Vibrant Royal Maroon/Crimson Theme Color)
+    <View style={{ flex: 1, backgroundColor: colors.vjHeaderBg || '#5C1623' }}>
       <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
 
       <SafeAreaView className="flex-1" edges={['top', 'left', 'right']}>

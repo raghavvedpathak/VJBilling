@@ -54,6 +54,9 @@ export default function VerifyDataScreen() {
 
   const { lastScanIssues, markWarningsViewed } = verifyStore();
 
+  const activeTheme = useStore(appSettingsStore, (s) => s.theme);
+  const colors = getThemeColors(activeTheme);
+
   useEffect(() => {
     if (lastScanIssues && lastScanIssues.length > 0) {
       setResults(lastScanIssues);
@@ -80,8 +83,6 @@ export default function VerifyDataScreen() {
     }
   };
 
-  const activeTheme = useStore(appSettingsStore, (s) => s.theme);
-  const colors = getThemeColors(activeTheme);
 
   const verifyHeaderPills = (
     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginTop: 4 }}>

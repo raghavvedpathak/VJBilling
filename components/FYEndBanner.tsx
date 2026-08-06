@@ -7,10 +7,13 @@ import { useFyBannerStore } from '../store/fyBannerStore';
 import { AlertTriangle, X, ChevronRight } from 'lucide-react-native';
 import { COLORS } from '../constants/theme';
 
-export function FYEndBanner() {
+interface FYEndBannerProps {
+  activeFY?: any;
+}
+
+export function FYEndBanner({ activeFY }: FYEndBannerProps = {}) {
   const router = useRouter();
-  const { activeFY } = useSession();
-  const { bannerVisible } = useFyBannerStore();
+  const bannerVisible = useFyBannerStore((s) => s.bannerVisible);
 
   if (!bannerVisible) {
     return null;

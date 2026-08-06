@@ -1,7 +1,7 @@
 /* eslint-disable no-restricted-imports */
 // app/_layout.tsx
 import { useEffect, useState } from "react";
-import { Stack, router, useRootNavigationState } from "expo-router";
+import { Stack, router } from "expo-router";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import {
   View,
@@ -48,10 +48,6 @@ type BootstrapResult =
   | null;
 
 export default function RootLayout() {
-  const rootNavigationState = useRootNavigationState();
-  const [snapshotStatus, setSnapshotStatus] = useState<"PENDING" | "DONE">("PENDING");
-  const [pinVerified, setPinVerified] = useState(false); 
-  
   const activeTheme = useStore(appSettingsStore, (s) => s.theme);
   const colors = getThemeColors(activeTheme);
 
@@ -62,6 +58,19 @@ export default function RootLayout() {
       background: colors.vjBg,
     },
   };
+
+  return (
+    <SafeAreaProvider>
+      <ThemeProvider value={vjTheme}>
+        <RootBootloader colors={colors} />
+      </ThemeProvider>
+    </SafeAreaProvider>
+  );
+}
+
+function RootBootloader({ colors }: { colors: any }) {
+  const [snapshotStatus, setSnapshotStatus] = useState<"PENDING" | "DONE">("PENDING");
+  const [pinVerified, setPinVerified] = useState(false); 
   
   const { isLoaded, error: dbError } = useDatabase();
   const [bootstrapResult, setBootstrapResult] = useState<BootstrapResult>(null);
@@ -88,7 +97,6 @@ export default function RootLayout() {
   }, []);
 
   useEffect(() => {
-    if (!rootNavigationState?.key) return; // Wait for React Navigation Container to mount
     if (!hasMounted) return; // Wait for layout Stack / NavigationContainer to mount
     if (!pinVerified) return; // Hard Halt: Wait for explicit validation or skip authorization
 
@@ -103,16 +111,6 @@ export default function RootLayout() {
       try {
         const result = await bootstrapService.initApp();
         setBootstrapResult(result);
-
-        requestAnimationFrame(() => {
-          if (result === "DASHBOARD" || result === "DASHBOARD_WARNING") {
-            router.replace("/dashboard");
-          } else if (result === "SETUP") {
-            router.replace("/welcome");
-          } else if (result === "SAFE_MODE") {
-            router.replace("/safe-mode");
-          }
-        });
       } catch (e: any) {
         console.error("[Layout] Bootstrap threw unexpectedly:", e);
         setDbMigrationError(e?.message ?? "Unknown bootstrap error");
@@ -121,7 +119,24 @@ export default function RootLayout() {
     };
 
     runBootstrap();
-  }, [rootNavigationState?.key, isLoaded, dbError, pinVerified, hasMounted]);
+  }, [isLoaded, dbError, pinVerified, hasMounted]);
+
+  // Navigate after bootstrap result is committed
+  useEffect(() => {
+    if (!hasMounted || !bootstrapResult) return;
+
+    const timer = setTimeout(() => {
+      if (bootstrapResult === "DASHBOARD" || bootstrapResult === "DASHBOARD_WARNING") {
+        router.replace("/dashboard");
+      } else if (bootstrapResult === "SETUP") {
+        router.replace("/welcome");
+      } else if (bootstrapResult === "SAFE_MODE") {
+        router.replace("/safe-mode");
+      }
+    }, 0);
+
+    return () => clearTimeout(timer);
+  }, [bootstrapResult, hasMounted]);
 
   const showSnapshotLoading = snapshotStatus === "PENDING";
   const showPinGate = snapshotStatus === "DONE" && !pinVerified; 
@@ -129,47 +144,96 @@ export default function RootLayout() {
   const showError = bootstrapResult === "DATABASE_ERROR";
   const loadingMsg = !isLoaded ? "Updating Database Schema..." : "Verifying Data Integrity...";
 
+  const showOverlay = showSnapshotLoading || showPinGate || showBootstrapLoading || showError;
+
   return (
-    <SafeAreaProvider>
-      <ThemeProvider value={vjTheme}>
-        <StatusBar barStyle="dark-content" backgroundColor={colors.vjBg} />
-        
+    <>
+      <StatusBar barStyle="dark-content" backgroundColor={colors.vjBg} />
+      
+      {/* 1. ALWAYS mount Stack so React 19 Fiber hooks are never interrupted or reordered */}
+      <View style={StyleSheet.absoluteFill}>
         <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.vjBg }, animation: 'slide_from_right' }}>
           <Stack.Screen name="index" options={{ headerShown: false }} />
           <Stack.Screen name="dashboard" options={{ headerShown: false }} />
           <Stack.Screen name="welcome" options={{ headerShown: false }} />
           <Stack.Screen name="safe-mode" options={{ headerShown: false }} />
         </Stack>
+      </View>
 
-        {showSnapshotLoading && (
-          <View style={[StyleSheet.absoluteFill, { zIndex: 9999, elevation: 9999, backgroundColor: colors.vjBg }]}>
-            <LoadingScreen message="Securing Pre-Migration Snapshot..." />
-          </View>
-        )}
-
-        {showPinGate && (
-          <View style={[StyleSheet.absoluteFill, { zIndex: 9999, elevation: 9999, backgroundColor: colors.vjBg }]}>
-            <PinGate onSuccess={() => setPinVerified(true)} />
-          </View>
-        )}
-
-        {showBootstrapLoading && !showError && (
-          <View style={[StyleSheet.absoluteFill, { zIndex: 9999, elevation: 9999, backgroundColor: colors.vjBg }]}>
-            <LoadingScreen message={loadingMsg} />
-          </View>
-        )}
-        
-        {showError && (
-          <View style={[StyleSheet.absoluteFill, { zIndex: 9999, elevation: 9999, backgroundColor: colors.vjBg }]}>
-            <DatabaseErrorScreen
-              title="CRITICAL MIGRATION ERROR"
-              message={dbMigrationError ?? "An unknown database error occurred."}
-            />
-          </View>
-        )}
-      </ThemeProvider>
-    </SafeAreaProvider>
+      {/* 2. OVERLAY our Bootstrap / PinGate / Error screens ON TOP of the Stack */}
+      {showOverlay && (
+        <View style={[StyleSheet.absoluteFill, { backgroundColor: colors.vjBg, zIndex: 99999, elevation: 99999 }]}>
+          <OverlayContainer
+            showSnapshotLoading={showSnapshotLoading}
+            showPinGate={showPinGate}
+            showBootstrapLoading={showBootstrapLoading}
+            showError={showError}
+            loadingMsg={loadingMsg}
+            dbMigrationError={dbMigrationError}
+            colors={colors}
+            onPinSuccess={() => setPinVerified(true)}
+          />
+        </View>
+      )}
+    </>
   );
+}
+
+function OverlayContainer({
+  showSnapshotLoading,
+  showPinGate,
+  showBootstrapLoading,
+  showError,
+  loadingMsg,
+  dbMigrationError,
+  colors,
+  onPinSuccess,
+}: {
+  showSnapshotLoading: boolean;
+  showPinGate: boolean;
+  showBootstrapLoading: boolean;
+  showError: boolean;
+  loadingMsg: string;
+  dbMigrationError: string | null;
+  colors: any;
+  onPinSuccess: () => void;
+}) {
+  if (showSnapshotLoading) {
+    return (
+      <View style={[StyleSheet.absoluteFill, { zIndex: 9999, elevation: 9999, backgroundColor: colors.vjBg }]}>
+        <LoadingScreen message="Securing Pre-Migration Snapshot..." />
+      </View>
+    );
+  }
+
+  if (showPinGate) {
+    return (
+      <View style={[StyleSheet.absoluteFill, { zIndex: 9999, elevation: 9999, backgroundColor: colors.vjBg }]}>
+        <PinGate onSuccess={onPinSuccess} />
+      </View>
+    );
+  }
+
+  if (showBootstrapLoading && !showError) {
+    return (
+      <View style={[StyleSheet.absoluteFill, { zIndex: 9999, elevation: 9999, backgroundColor: colors.vjBg }]}>
+        <LoadingScreen message={loadingMsg} />
+      </View>
+    );
+  }
+
+  if (showError) {
+    return (
+      <View style={[StyleSheet.absoluteFill, { zIndex: 9999, elevation: 9999, backgroundColor: colors.vjBg }]}>
+        <DatabaseErrorScreen
+          title="CRITICAL MIGRATION ERROR"
+          message={dbMigrationError ?? "An unknown database error occurred."}
+        />
+      </View>
+    );
+  }
+
+  return null;
 }
 
 function LoadingScreen({ message }: { message: string }) {
