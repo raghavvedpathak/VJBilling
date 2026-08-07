@@ -25,7 +25,7 @@ import { auditRepository } from '../repositories/auditRepository';
 import { getDeviceId, getDeviceDerivedKeyMaterial, getCanonicalBackupKeyMaterial } from '../utils/deviceId';
 import { SCHEMA_VERSION, APP_VERSION } from '../constants';
 
-export const BACKUP_DIR = FileSystem.documentDirectory + 'backups/';
+export const BACKUP_DIR = FileSystem.documentDirectory + 'VJBilling/backups/';
 
 // v7.25 FIX-V725-10: checksum field removed (AES-GCM auth tag provides integrity)
 export interface BackupResult { 

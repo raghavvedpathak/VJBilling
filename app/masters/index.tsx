@@ -18,7 +18,7 @@ export default function MastersIndexScreen() {
   const mastersHeaderPills = (
     <View className="flex-row items-center gap-2 flex-wrap mt-1">
       <HeaderPill icon={<LayoutGrid size={12} color={colors.vjBg} />} label="Catalog Masters" />
-      <HeaderPill icon={<ShieldCheck size={12} color="#4ADE80" />} label="GST HSN Scoped" variant="success" />
+      <HeaderPill icon={<ShieldCheck size={12} color="#4ADE80" />} label="HSN Scoped" variant="success" />
     </View>
   );
 

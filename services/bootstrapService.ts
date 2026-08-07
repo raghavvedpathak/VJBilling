@@ -39,7 +39,7 @@ import { purgeExpiredAuditLogs } from './auditRetentionService';
 import { appSettingsStore } from '../store/appSettingsStore';
 
 // v7.24: Centralized path for the encrypted pre-migration snapshot
-export const BACKUP_DIR = FileSystem.documentDirectory + 'backups/';
+export const BACKUP_DIR = FileSystem.documentDirectory + 'VJBilling/backups/';
 export const PRE_MIGRATION_SNAPSHOT_PATH = BACKUP_DIR + 'vjbilling_premigration_snapshot.enc';
 
 // In-memory flag: defers audit for Step 0 failure until DB is ready (v2.7)
