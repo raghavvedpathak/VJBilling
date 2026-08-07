@@ -31,7 +31,7 @@ export function TwoToneWrapper({ title, children, showBack, actionIcon, onAction
 
   return (
     // UPPER BRAND HEADER BACKGROUND (Vibrant Royal Maroon/Crimson Theme Color)
-    <View style={{ flex: 1, backgroundColor: colors.vjHeaderBg || '#5C1623' }}>
+    <View style={{ flex: 1, backgroundColor: colors.vjHeaderBg || '#420D19' }}>
       <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
 
       <SafeAreaView className="flex-1" edges={['top', 'left', 'right']}>

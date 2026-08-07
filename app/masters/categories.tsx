@@ -7,6 +7,7 @@ import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Modal, Alert, Act
 import { useRouter } from 'expo-router';
 import { useFocusEffect } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as Haptics from 'expo-haptics';
 import { TwoToneWrapper } from '../../components/TwoToneWrapper';
 import { HeaderPill, GlassCard, GlassButton } from '../../components/ui/Glass';
 import { useStore } from 'zustand';
@@ -40,6 +41,7 @@ export default function CategoriesScreen() {
   }, []);
 
   const setViewMode = (mode: 'list' | 'grid') => {
+    try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch (e) {}
     setViewModeState(mode);
     AsyncStorage.setItem('categoryViewMode', mode);
   };
@@ -72,10 +74,12 @@ export default function CategoriesScreen() {
   
   const handleDelete = (cat: Category) => {
     if (!activeFirmId) return;
+    try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch (e) {}
     setConfirmDelete(cat);
   };
 
   const openEdit = (cat: Category) => {
+    try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch (e) {}
     router.push({ 
       pathname: '/masters/edit-category', 
       params: { 
@@ -130,8 +134,16 @@ export default function CategoriesScreen() {
                   <Text style={s.rowCode}>{c.code}</Text>
                 </View>
                 <View style={viewMode === 'grid' ? s.cardBottomGrid : s.cardBottomList}>
-                  <View style={[s.metalPill, { borderColor: c.metal === 'GOLD' ? '#C8860A' : '#6B7280' }]}>
-                    <Text style={[s.metalPillText, { color: c.metal === 'GOLD' ? '#C8860A' : '#6B7280' }]}>{c.metal}</Text>
+                  <View 
+                    style={[
+                      s.metalPill, 
+                      { 
+                        backgroundColor: c.metal === 'GOLD' ? 'rgba(212,175,55,0.15)' : 'rgba(148,163,184,0.15)',
+                        borderColor: c.metal === 'GOLD' ? 'rgba(212,175,55,0.35)' : 'rgba(148,163,184,0.35)' 
+                      }
+                    ]}
+                  >
+                    <Text style={[s.metalPillText, { color: c.metal === 'GOLD' ? '#B45309' : '#475569' }]}>{c.metal}</Text>
                   </View>
                   <View style={s.actionRow}>
                     <TouchableOpacity onPress={() => openEdit(c)} style={s.actionBtn}><Edit2 size={16} color="#D4AF37" /></TouchableOpacity>

@@ -4,6 +4,7 @@ import React, { useState, useCallback } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Modal, TextInput, Alert, ActivityIndicator, KeyboardAvoidingView, Platform } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useFocusEffect } from 'expo-router';
+import * as Haptics from 'expo-haptics';
 import { TwoToneWrapper } from '../../components/TwoToneWrapper';
 import { HeaderPill, GlassCard, GlassButton } from '../../components/ui/Glass';
 import { useStore } from 'zustand';
@@ -57,6 +58,7 @@ export default function StonesScreen() {
       Alert.alert('Validation Error', 'Stone name is required');
       return;
     }
+    try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); } catch (e) {}
     
     setIsSubmitting(true);
     try {
@@ -135,23 +137,32 @@ export default function StonesScreen() {
               viewMode === 'grid' && { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' }
             ]}
           >
-            {stones.map((stone) => (
-              <GlassCard key={stone.id} style={[s.card, viewMode === 'grid' ? s.cardGrid : s.cardList]}>
-                <View style={viewMode === 'grid' ? s.cardTopGrid : s.cardTopList}>
-                  <Text style={s.rowTitle} numberOfLines={1}>{stone.name}</Text>
-                  <View style={s.stoneTypeBadge}>
-                    <Text style={s.stoneTypeText}>{stone.type}</Text>
+            {stones.map((stone) => {
+              const stoneColors = {
+                DIAMOND: { bg: 'rgba(6,182,212,0.15)', border: 'rgba(6,182,212,0.35)', text: '#0891B2' },
+                RUBY: { bg: 'rgba(225,29,72,0.15)', border: 'rgba(225,29,72,0.35)', text: '#E11D48' },
+                EMERALD: { bg: 'rgba(5,150,105,0.15)', border: 'rgba(5,150,105,0.35)', text: '#059669' },
+                SAPPHIRE: { bg: 'rgba(37,99,235,0.15)', border: 'rgba(37,99,235,0.35)', text: '#2563EB' },
+              }[stone.type as StoneType] || { bg: 'rgba(92,22,35,0.1)', border: 'rgba(92,22,35,0.2)', text: COLORS.vjText };
+
+              return (
+                <GlassCard key={stone.id} style={[s.card, viewMode === 'grid' ? s.cardGrid : s.cardList]}>
+                  <View style={viewMode === 'grid' ? s.cardTopGrid : s.cardTopList}>
+                    <Text style={s.rowTitle} numberOfLines={1}>{stone.name}</Text>
+                    <View style={[s.stoneTypeBadge, { backgroundColor: stoneColors.bg, borderColor: stoneColors.border }]}>
+                      <Text style={[s.stoneTypeText, { color: stoneColors.text }]}>{stone.type}</Text>
+                    </View>
                   </View>
-                </View>
-                <View style={viewMode === 'grid' ? s.cardBottomGrid : s.cardBottomList}>
-                  <View style={s.actionRow}>
-                    <TouchableOpacity onPress={() => handleDelete(stone)} style={s.actionBtn}>
-                      <Trash2 size={16} color="#ef4444" />
-                    </TouchableOpacity>
+                  <View style={viewMode === 'grid' ? s.cardBottomGrid : s.cardBottomList}>
+                    <View style={s.actionRow}>
+                      <TouchableOpacity onPress={() => handleDelete(stone)} style={s.actionBtn}>
+                        <Trash2 size={16} color="#ef4444" />
+                      </TouchableOpacity>
+                    </View>
                   </View>
-                </View>
-              </GlassCard>
-            ))}
+                </GlassCard>
+              );
+            })}
           </ScrollView>
         )}
       </View>

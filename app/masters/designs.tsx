@@ -7,6 +7,7 @@ import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Modal, Alert, Act
 import { useRouter } from 'expo-router';
 import { useFocusEffect } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as Haptics from 'expo-haptics';
 import { TwoToneWrapper } from '../../components/TwoToneWrapper';
 import { HeaderPill, GlassCard, GlassButton } from '../../components/ui/Glass';
 import { useStore } from 'zustand';
@@ -68,6 +69,7 @@ export default function DesignsScreen() {
   }, []);
 
   const setViewMode = (mode: 'list' | 'grid') => {
+    try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch (e) {}
     setViewModeState(mode);
     AsyncStorage.setItem('designViewMode', mode);
   };
@@ -172,8 +174,16 @@ export default function DesignsScreen() {
                   <Text style={s.rowCode} numberOfLines={1}>{d.code} • {d.categoryName || 'Unlinked'}</Text>
                 </View>
                 <View style={viewMode === 'grid' ? s.cardBottomGrid : s.cardBottomList}>
-                  <View style={[s.metalPill, { borderColor: d.metal === 'GOLD' ? '#C8860A' : '#6B7280' }]}>
-                    <Text style={[s.metalPillText, { color: d.metal === 'GOLD' ? '#C8860A' : '#6B7280' }]}>{d.metal}</Text>
+                  <View 
+                    style={[
+                      s.metalPill, 
+                      { 
+                        backgroundColor: d.metal === 'GOLD' ? 'rgba(212,175,55,0.15)' : 'rgba(148,163,184,0.15)',
+                        borderColor: d.metal === 'GOLD' ? 'rgba(212,175,55,0.35)' : 'rgba(148,163,184,0.35)' 
+                      }
+                    ]}
+                  >
+                    <Text style={[s.metalPillText, { color: d.metal === 'GOLD' ? '#B45309' : '#475569' }]}>{d.metal}</Text>
                   </View>
                   <View style={s.actionRow}>
                     <TouchableOpacity onPress={() => openEdit(d)} style={s.actionBtn}><Edit2 size={16} color="#D4AF37" /></TouchableOpacity>

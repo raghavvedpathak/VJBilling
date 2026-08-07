@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { View, Text, TouchableOpacity, ScrollView, Alert, Image, KeyboardAvoidingView, Platform, ActivityIndicator, Modal } from 'react-native';
+import { View, Text, TouchableOpacity, ScrollView, Alert, Image, ActivityIndicator, Modal } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import { BlurView } from 'expo-blur';
 import * as ImagePicker from 'expo-image-picker';
 import { manipulateAsync, SaveFormat } from 'expo-image-manipulator';
 import * as FileSystem from 'expo-file-system/legacy';
@@ -9,8 +10,7 @@ import { firmService } from '../../services/firmService';
 import { useFirmStore } from '../../store/firmStore';
 import { INDIAN_STATES } from '../../utils/indianStates'; 
 import { GlassCard, GlassInput, GlassButton } from '../../components/ui/Glass';
-import { Save, Building2, User, MapPin, Hash, Phone, ShieldCheck, ImagePlus, Tag, CheckCircle2, ArrowLeft, ChevronDown, X } from 'lucide-react-native';
-// ARCHITECT FIX: Import the mandatory G69 guard
+import { Save, Building2, User, MapPin, Hash, Phone, ShieldCheck, ImagePlus, Tag, CheckCircle2, ArrowLeft, ChevronDown, X, Lock } from 'lucide-react-native';
 import { useUnsavedChangesGuard } from '../../hooks/useUnsavedChangesGuard';
 import { COLORS } from '../../constants/theme';
 
@@ -105,7 +105,7 @@ export default function EditFirmScreen() {
     let result;
     const options: ImagePicker.ImagePickerOptions = {
       mediaTypes: ['images'], 
-      allowsEditing: true, // G58: FREE crop, no aspect ratio locked
+      allowsEditing: true,
       quality: 0.8,
     };
 
@@ -124,7 +124,6 @@ export default function EditFirmScreen() {
       const asset = result.assets[0];
       const mimeType = asset.mimeType || '';
       
-      // G58: Strict MIME type check
       if (!mimeType.includes('jpeg') && !mimeType.includes('png') && !asset.uri.toLowerCase().endsWith('.jpg') && !asset.uri.toLowerCase().endsWith('.png') && !asset.uri.toLowerCase().endsWith('.jpeg')) {
         Alert.alert("Invalid Type", "Only PNG or JPEG images are accepted.");
         return;
@@ -132,9 +131,7 @@ export default function EditFirmScreen() {
 
       let finalUri = asset.uri;
       
-      // G58: Downscale if > 1024x1024 preserving aspect ratio
       if (asset.width > 1024 || asset.height > 1024) {
-        // FIX: Ensure perfectly square massive images don't evaluate to undefined
         const resizeAction = asset.width > asset.height 
           ? { width: 1024 } 
           : { height: 1024 }; 
@@ -147,7 +144,6 @@ export default function EditFirmScreen() {
         finalUri = manipResult.uri;
       }
 
-      // G58: Max 2MB check AFTER manipulation
       const fileInfo = await FileSystem.getInfoAsync(finalUri);
       if (!fileInfo.exists) return;
       if (fileInfo.size && fileInfo.size > 2 * 1024 * 1024) {
@@ -155,7 +151,6 @@ export default function EditFirmScreen() {
         return;
       }
 
-      // G58: Storage with timestamp cache-busting to ensure immediate updates across all components
       const logosDir = FileSystem.documentDirectory + 'logos/';
       await FileSystem.makeDirectoryAsync(logosDir, { intermediates: true });
       
@@ -163,7 +158,6 @@ export default function EditFirmScreen() {
       const fileName = field === 'logoUri' ? `firm_${id}_${timeStamp}.jpg` : `bis_firm_${id}_${timeStamp}.jpg`;
       const destPath = logosDir + fileName;
       
-      // Clean up previous image file if replacing an existing image
       const currentUri = form[field];
       if (currentUri && currentUri !== destPath) {
         try {
@@ -224,7 +218,6 @@ export default function EditFirmScreen() {
       }
     };
 
-    // G47: BIS Logo State Transition Check
     if (originalFirm?.bisLogoRef && !form.bisLicence) {
       Alert.alert(
         "Archive BIS Logo?",
@@ -239,31 +232,36 @@ export default function EditFirmScreen() {
 
   if (initialLoad) return <ActivityIndicator size="large" className="mt-10" color="#D4AF37" />;
 
+  // Transparent Glass Logo Picker
   const headerLogoPicker = (
-    <View className="items-center pb-4">
-      <TouchableOpacity onPress={() => pickImage('logoUri')} className="h-[120px] w-[120px] rounded-full justify-center items-center overflow-hidden border-4 border-vj-bg/20 shadow-lg bg-white/10">
-        {form.logoUri ? (
-          <Image 
-            source={{ uri: form.logoUri }} 
-            className="w-full h-full resize-mode-contain"
-            // G59: Fallback on load error
-            onError={() => {
-              console.warn('[FirmEdit] Failed to load firm logo thumbnail. Dead URI.');
-              setForm(prev => ({...prev, logoUri: null}));
-            }} 
-          />
-        ) : (
-          <View className="items-center">
-            <ImagePlus size={24} color="#FCFBF8" />
-            <Text className="text-[10px] text-vj-bg/80 font-bold mt-2 tracking-widest text-center px-2">
-              NO LOGO UPLOADED
-            </Text>
-          </View>
-        )}
+    <View className="items-center pb-3 pt-1">
+      <TouchableOpacity
+        onPress={() => pickImage('logoUri')}
+        activeOpacity={0.8}
+        className="h-28 w-28 rounded-3xl justify-center items-center overflow-hidden border-2 border-white/40 shadow-sm mb-2"
+      >
+        <BlurView intensity={20} tint="light" className="w-full h-full justify-center items-center">
+          {form.logoUri ? (
+            <Image 
+              source={{ uri: form.logoUri }} 
+              style={{ width: '100%', height: '100%', resizeMode: 'cover' }}
+              onError={() => {
+                console.warn('[FirmEdit] Failed to load firm logo thumbnail. Dead URI.');
+                setForm(prev => ({...prev, logoUri: null}));
+              }} 
+            />
+          ) : (
+            <View className="items-center justify-center">
+              <ImagePlus size={26} color="#FCFBF8" />
+              <Text className="text-[9px] text-vj-bg font-black tracking-widest uppercase mt-1 text-center px-1">
+                NO LOGO
+              </Text>
+            </View>
+          )}
+        </BlurView>
       </TouchableOpacity>
       
-      {/* G59: Label matches spec exactly */}
-      <TouchableOpacity onPress={() => pickImage('logoUri')} className="mt-3 bg-white/20 px-4 py-1.5 rounded-full border border-white/30">
+      <TouchableOpacity onPress={() => pickImage('logoUri')} className="px-4 py-1.5 rounded-full border border-white/30">
         <Text className="text-[11px] text-white font-bold tracking-widest uppercase">
           {form.logoUri ? "CHANGE LOGO" : "UPLOAD LOGO"}
         </Text>
@@ -273,90 +271,165 @@ export default function EditFirmScreen() {
 
   return (
     <TwoToneWrapper title="Edit Firm" showBack headerContent={headerLogoPicker}>
-        <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={{paddingBottom: 350, paddingTop: 32, paddingHorizontal: 16}}>
-          
-          <GlassCard>
-            <GlassInput label="Firm Name" value={form.name} onChangeText={(t) => setForm({...form, name: t})} icon={<Building2 size={18} color="#D4AF37" />} />
-            <View className="mb-4">
-              <Text className="text-vj-text/70 font-bold text-xs uppercase tracking-wider mb-2 ml-1">Firm Code (Locked)</Text>
-              <View className="flex-row items-center bg-white/20 rounded-2xl px-5 py-3 border border-white/30">
-                <View className="mr-3 opacity-50"><Tag size={18} color="#999" /></View>
-                <Text className="text-vj-text/60 font-bold text-base" style={{ includeFontPadding: false }}>{form.firmCode}</Text>
-              </View>
+      <ScrollView 
+        showsVerticalScrollIndicator={false} 
+        keyboardShouldPersistTaps="handled" 
+        keyboardDismissMode="on-drag"
+        contentContainerStyle={{ paddingBottom: 350, paddingTop: 24, paddingHorizontal: 14 }}
+      >
+        
+        {/* CARD 1: STORE PROFILE */}
+        <GlassCard>
+          <View className="flex-row items-center gap-2 mb-4 pb-2.5 border-b border-vj-text/10">
+            <View className="bg-amber-500/15 p-2 rounded-xl border border-amber-500/25">
+              <Building2 size={18} color="#D4AF37" />
             </View>
-            <GlassInput label="Proprietor" value={form.proprietor} onChangeText={(t) => setForm({...form, proprietor: t})} icon={<User size={18} color="#D4AF37" />} />
-          </GlassCard>
-
-          <GlassCard>
-            <View className="mb-4">
-              <Text className="text-vj-text/70 font-bold text-xs uppercase tracking-wider mb-2 ml-1">GSTIN (Statutory Lock)</Text>
-              <View className="flex-row items-center bg-white/20 rounded-2xl px-5 py-3 border border-white/30">
-                <View className="mr-3 opacity-50"><Hash size={18} color="#999" /></View>
-                <Text className="text-vj-text/60 font-bold text-base" style={{ includeFontPadding: false }}>{form.gstin || "Unregistered (Bill of Supply)"}</Text>
-              </View>
-            </View>
-
-            <GlassInput label="BIS Licence" value={form.bisLicence} onChangeText={(t) => setForm({...form, bisLicence: t})} icon={<ShieldCheck size={18} color="#D4AF37" />} />
-            
-            {!form.bisLicence ? (
-              <View className="mt-4 p-4 bg-white/40 rounded-2xl border border-white/50">
-                <Text className="text-vj-text font-bold text-xs mb-1">BIS Hallmark Logo</Text>
-                <Text className="text-vj-text/60 text-[10px]">Add BIS licence number first to enable BIS logo upload.</Text>
-              </View>
-            ) : (
-              <View className="mt-4 p-3 bg-white/60 rounded-2xl border border-white/50 flex-row items-center justify-between">
-                <Text className="text-vj-text font-bold text-xs ml-2">BIS Hallmark Logo</Text>
-                <TouchableOpacity onPress={() => pickImage('bisLogoUri')} className="bg-white/80 px-4 py-2 rounded-full shadow-sm border border-white">
-                  {/* G59: Label matches spec exactly */}
-                  <Text className="text-xs font-bold text-vj-accent">{form.bisLogoUri ? "Change Logo" : "Upload Logo"}</Text>
-                </TouchableOpacity>
-              </View>
-            )}
-            
-            {form.bisLogoUri && (
-              <Image 
-                source={{ uri: form.bisLogoUri }} 
-                className="h-[120px] w-[120px] resize-mode-contain mt-3 self-center" 
-                // G59: Fallback on load error
-                onError={() => {
-                  console.warn('[FirmEdit] Failed to load BIS logo thumbnail. Dead URI.');
-                  setForm(prev => ({...prev, bisLogoUri: null}));
-                }} 
-              />
-            )}
-          </GlassCard>
-
-          <GlassCard>
-            <GlassInput label="Primary Mobile" value={form.phone1} onChangeText={(t) => setForm({...form, phone1: t})} icon={<Phone size={18} color="#D4AF37" />} keyboardType="numeric" maxLength={10} />
-            <GlassInput label="Phone 2" value={form.phone2} onChangeText={(t) => setForm({...form, phone2: t})} placeholder="Optional" keyboardType="numeric" maxLength={10} />
-            <GlassInput label="Phone 3" value={form.phone3} onChangeText={(t) => setForm({...form, phone3: t})} placeholder="Optional" keyboardType="numeric" maxLength={10} />
-          </GlassCard>
-
-          <GlassCard>
-            <GlassInput label="Line 1" value={form.addressLine1} onChangeText={(t) => setForm({...form, addressLine1: t})} icon={<MapPin size={18} color="#D4AF37" />} />
-            <GlassInput label="Line 2" value={form.addressLine2} onChangeText={(t) => setForm({...form, addressLine2: t})} />
-            
-            <View className="mb-4">
-              <Text className="text-vj-text/70 font-bold text-xs uppercase tracking-wider mb-2 ml-1">State / Jurisdiction</Text>
-              <TouchableOpacity 
-                onPress={() => { if (!form.gstin) setShowStatePicker(true); else Alert.alert("Locked", "State cannot be changed when GSTIN is registered."); }} 
-                className={`flex-row items-center justify-between rounded-2xl px-5 py-3 border ${form.gstin ? 'bg-gray-100/50 border-gray-200' : 'bg-white/40 border-white/50'}`}
-              >
-                <Text className={form.gstin ? 'text-gray-500' : 'text-vj-text font-semibold'}>{form.stateCode} - {form.stateName}</Text>
-                {!form.gstin && <ChevronDown size={20} color="#D4AF37" />}
-              </TouchableOpacity>
-            </View>
-
-            <GlassInput label="City" value={form.city} onChangeText={(t) => setForm({...form, city: t})} />
-            <GlassInput label="Pincode" value={form.pincode} onChangeText={(t) => setForm({...form, pincode: t})} keyboardType="numeric" maxLength={6} />
-          </GlassCard>
-
-          <View className="mt-4 mb-10">
-            <GlassButton title="Save Changes" icon={<Save size={20} color="#FCFBF8" />} onPress={handleUpdate} loading={loading} />
+            <Text className="text-vj-text font-black text-sm uppercase tracking-wider">
+              Store Profile
+            </Text>
           </View>
 
-        </ScrollView>
+          <GlassInput label="Firm Name" value={form.name} onChangeText={(t) => setForm({...form, name: t})} icon={<Building2 size={18} color="#D4AF37" />} />
+          
+          <View className="mb-4">
+            <Text className="text-vj-text/70 font-bold text-xs uppercase tracking-wider mb-2 ml-1">Firm Code (Locked)</Text>
+            <View className="flex-row items-center justify-between bg-gray-100/60 rounded-2xl px-4 py-3.5 border border-gray-300">
+              <View className="flex-row items-center gap-2.5">
+                <Tag size={18} color="#6B7280" />
+                <Text className="text-gray-700 font-bold text-base">{form.firmCode}</Text>
+              </View>
+              <Lock size={16} color="#9CA3AF" />
+            </View>
+          </View>
 
+          <GlassInput label="Proprietor" value={form.proprietor} onChangeText={(t) => setForm({...form, proprietor: t})} icon={<User size={18} color="#D4AF37" />} />
+        </GlassCard>
+
+        {/* CARD 2: COMPLIANCE & TAX */}
+        <GlassCard>
+          <View className="flex-row items-center gap-2 mb-4 pb-2.5 border-b border-vj-text/10">
+            <View className="bg-amber-500/15 p-2 rounded-xl border border-amber-500/25">
+              <ShieldCheck size={18} color="#D4AF37" />
+            </View>
+            <Text className="text-vj-text font-black text-sm uppercase tracking-wider">
+              Compliance & Tax
+            </Text>
+          </View>
+
+          <View className="mb-4">
+            <Text className="text-vj-text/70 font-bold text-xs uppercase tracking-wider mb-2 ml-1">GSTIN (Statutory Lock)</Text>
+            <View className="flex-row items-center justify-between bg-gray-100/60 rounded-2xl px-4 py-3.5 border border-gray-300">
+              <View className="flex-row items-center gap-2.5">
+                <Hash size={18} color="#6B7280" />
+                <Text className="text-gray-700 font-bold text-base">{form.gstin || "Unregistered (Bill of Supply)"}</Text>
+              </View>
+              <Lock size={16} color="#9CA3AF" />
+            </View>
+          </View>
+
+          <GlassInput label="BIS Licence" value={form.bisLicence} onChangeText={(t) => setForm({...form, bisLicence: t})} icon={<ShieldCheck size={18} color="#D4AF37" />} />
+          
+          {!form.bisLicence ? (
+            <View className="mt-2 p-3.5 bg-white/40 rounded-2xl border border-white/50">
+              <Text className="text-vj-text font-bold text-xs mb-1">BIS Hallmark Logo</Text>
+              <Text className="text-vj-text/60 text-[11px]">Add BIS licence number above to enable BIS logo upload.</Text>
+            </View>
+          ) : (
+            <View className="mt-2 p-3.5 bg-white/60 rounded-2xl border border-white/60 flex-row items-center justify-between">
+              <Text className="text-vj-text font-bold text-xs ml-1">BIS Hallmark Logo</Text>
+              <TouchableOpacity onPress={() => pickImage('bisLogoUri')} className="bg-white px-4 py-2 rounded-full shadow-xs border border-white/80">
+                <Text className="text-xs font-bold text-vj-accent">{form.bisLogoUri ? "Change Logo" : "Upload Logo"}</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+          
+          {form.bisLogoUri && (
+            <Image 
+              source={{ uri: form.bisLogoUri }} 
+              style={{ height: 64, width: 128, resizeMode: 'contain', marginTop: 12, alignSelf: 'center' }}
+              onError={() => {
+                console.warn('[FirmEdit] Failed to load BIS logo thumbnail. Dead URI.');
+                setForm(prev => ({...prev, bisLogoUri: null}));
+              }} 
+            />
+          )}
+        </GlassCard>
+
+        {/* CARD 3: CONTACT NUMBERS */}
+        <GlassCard>
+          <View className="flex-row items-center gap-2 mb-4 pb-2.5 border-b border-vj-text/10">
+            <View className="bg-amber-500/15 p-2 rounded-xl border border-amber-500/25">
+              <Phone size={18} color="#D4AF37" />
+            </View>
+            <Text className="text-vj-text font-black text-sm uppercase tracking-wider">
+              Contact Numbers
+            </Text>
+          </View>
+
+          <GlassInput label="Primary Mobile *" value={form.phone1} onChangeText={(t) => setForm({...form, phone1: t})} icon={<Phone size={18} color="#D4AF37" />} keyboardType="numeric" maxLength={10} />
+          <View className="flex-row gap-3">
+            <View className="flex-1">
+              <GlassInput label="Phone 2" value={form.phone2} onChangeText={(t) => setForm({...form, phone2: t})} placeholder="Optional" keyboardType="numeric" maxLength={10} />
+            </View>
+            <View className="flex-1">
+              <GlassInput label="Phone 3" value={form.phone3} onChangeText={(t) => setForm({...form, phone3: t})} placeholder="Optional" keyboardType="numeric" maxLength={10} />
+            </View>
+          </View>
+        </GlassCard>
+
+        {/* CARD 4: LOCATION ADDRESS */}
+        <GlassCard>
+          <View className="flex-row items-center gap-2 mb-4 pb-2.5 border-b border-vj-text/10">
+            <View className="bg-amber-500/15 p-2 rounded-xl border border-amber-500/25">
+              <MapPin size={18} color="#D4AF37" />
+            </View>
+            <Text className="text-vj-text font-black text-sm uppercase tracking-wider">
+              Store Address
+            </Text>
+          </View>
+
+          <GlassInput label="Line 1 *" value={form.addressLine1} onChangeText={(t) => setForm({...form, addressLine1: t})} icon={<MapPin size={18} color="#D4AF37" />} />
+          <GlassInput label="Line 2" value={form.addressLine2} onChangeText={(t) => setForm({...form, addressLine2: t})} />
+          
+          <View className="mb-4">
+            <Text className="text-vj-text/70 font-bold text-xs uppercase tracking-wider mb-2 ml-1">State / Jurisdiction</Text>
+            <TouchableOpacity 
+              onPress={() => { if (!form.gstin) setShowStatePicker(true); else Alert.alert("Locked", "State cannot be changed when GSTIN is registered."); }} 
+              activeOpacity={0.8}
+              className={`flex-row items-center justify-between rounded-2xl px-4 py-4 border ${form.gstin ? 'bg-gray-100/60 border-gray-300' : 'bg-white border-vj-text/30'}`}
+            >
+              <View className="flex-row items-center gap-2">
+                <View className="px-2.5 py-0.5 rounded-md bg-amber-500/15 border border-amber-500/25">
+                  <Text className="text-amber-900 font-extrabold text-xs">
+                    {form.stateCode}
+                  </Text>
+                </View>
+                <Text className={form.gstin ? 'text-gray-500 font-semibold text-base' : 'text-vj-text font-semibold text-base'}>
+                  {form.stateName}
+                </Text>
+              </View>
+              {form.gstin ? <Lock size={16} color="#9CA3AF" /> : <ChevronDown size={20} color="#D4AF37" />}
+            </TouchableOpacity>
+          </View>
+
+          <View className="flex-row gap-3">
+            <View className="flex-1">
+              <GlassInput label="City *" value={form.city} onChangeText={(t) => setForm({...form, city: t})} />
+            </View>
+            <View className="flex-1">
+              <GlassInput label="Pincode *" value={form.pincode} onChangeText={(t) => setForm({...form, pincode: t})} keyboardType="numeric" maxLength={6} />
+            </View>
+          </View>
+        </GlassCard>
+
+        {/* SUBMIT BUTTON */}
+        <View className="mt-2 mb-10">
+          <GlassButton title="Save Changes" icon={<Save size={20} color="#FCFBF8" />} onPress={handleUpdate} loading={loading} />
+        </View>
+
+      </ScrollView>
+
+      {/* STATE PICKER MODAL */}
       <Modal visible={showStatePicker} animationType="slide" transparent={true}>
         <View className="flex-1 bg-black/50 justify-end">
           <View className="bg-vj-bg rounded-t-3xl h-2/3 p-6 shadow-xl">
@@ -382,6 +455,7 @@ export default function EditFirmScreen() {
         </View>
       </Modal>
 
+      {/* SUCCESS MODAL */}
       <Modal animationType="fade" transparent={true} visible={showSuccessModal}>
         <View className="flex-1 bg-black/50 justify-center items-center px-6">
           <View className="w-full bg-vj-bg rounded-3xl p-8 shadow-xl items-center border border-white/50">

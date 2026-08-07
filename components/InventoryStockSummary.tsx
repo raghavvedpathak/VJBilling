@@ -2,10 +2,9 @@
 // Phase 2 v1.73 — Canonical Implementation
 // Enforces Phantom Debt visibility, Phase 3 Rate Engine boundary, and Purchase Cost Aggregation.
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { GlassCard } from './ui/Glass';
-import { useFocusEffect } from 'expo-router';
 import { itemRepository } from '../repositories/itemRepository';
 import { getCurrencySymbol } from '../utils/calculations';
 import { Scale, AlertCircle, Wallet, TrendingUp } from 'lucide-react-native';
@@ -121,21 +120,19 @@ export function InventoryStockSummary({ firmId, goldRatePerGramPaise, silverRate
     silverBalanceMg: 0,
   });
 
-  useFocusEffect(
-    useCallback(() => {
-      let isActive = true;
-      const fetchSummary = async () => {
-        try {
-          const data = await itemRepository.getStockWeightSummary(firmId);
-          if (isActive) setSummary(data);
-        } catch (error) {
-          console.error('[InventoryStockSummary] Failed to fetch summary:', error);
-        }
-      };
-      fetchSummary();
-      return () => { isActive = false; };
-    }, [firmId])
-  );
+  useEffect(() => {
+    let isActive = true;
+    const fetchSummary = async () => {
+      try {
+        const data = await itemRepository.getStockWeightSummary(firmId);
+        if (isActive) setSummary(data);
+      } catch (error) {
+        console.error('[InventoryStockSummary] Failed to fetch summary:', error);
+      }
+    };
+    fetchSummary();
+    return () => { isActive = false; };
+  }, [firmId]);
 
   return (
     <View style={s.container}>

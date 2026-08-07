@@ -1,11 +1,8 @@
-// app/inventory/item-detail.tsx
-// FEAT-DRILL-DOWN-1 (v1.65) — Screen D: Item Detail + Timeline (STEP 16.4)
-// READ-ONLY | NO dual guards | NO audit write | NO lease acquisition
-
 import React, { useState, useCallback, memo, useMemo } from 'react';
 import { View, Text, ScrollView, StyleSheet, ActivityIndicator, TouchableOpacity, Modal, TextInput, Alert } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useFocusEffect } from 'expo-router';
+import * as Haptics from 'expo-haptics';
 import { useStore } from 'zustand';
 import { TwoToneWrapper } from '../../components/TwoToneWrapper';
 import { useFirmStore } from '../../store/firmStore';

@@ -4,6 +4,7 @@ import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator } from 'rea
 import { FlashList } from '@shopify/flash-list';
 import { useRouter } from 'expo-router';
 import { useFocusEffect } from 'expo-router';
+import * as Haptics from 'expo-haptics';
 import { TwoToneWrapper } from '../../components/TwoToneWrapper';
 import { HeaderPill, GlassCard } from '../../components/ui/Glass';
 import { useStore } from 'zustand';
@@ -126,7 +127,14 @@ export default function GemstonesInventoryScreen() {
         )}
       </View>
 
-      <TouchableOpacity style={s.fab} onPress={() => router.push('/inventory/add-gemstone')} activeOpacity={0.8}>
+      <TouchableOpacity 
+        style={s.fab} 
+        onPress={() => {
+          try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch (e) {}
+          router.push('/inventory/add-gemstone');
+        }} 
+        activeOpacity={0.8}
+      >
         <Plus size={28} color="#ffffff" />
       </TouchableOpacity>
     </TwoToneWrapper>

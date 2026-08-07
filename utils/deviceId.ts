@@ -81,12 +81,24 @@ export async function auditDeviceIdIfNew(): Promise<void> {
 }
 
 /**
+ * Derives a consistent Uint8Array from a canonical secret for portable unpassworded backups.
+ */
+export async function getCanonicalBackupKeyMaterial(): Promise<Uint8Array> {
+  const hexHash = await Crypto.digestStringAsync(
+    Crypto.CryptoDigestAlgorithm.SHA256,
+    'vjbilling_canonical_backup_secret_v1'
+  );
+  const enc = new TextEncoder();
+  return enc.encode(hexHash);
+}
+
+/**
  * v7.26 FIX-VSEC-14: Backup Crypto Fallback
- * Derives a consistent Uint8Array from the Device ID for use as 
+ * Derives a consistent Uint8Array from the Device ID (or provided overrideDeviceId) for use as 
  * raw key material when an automated backup runs without a user password.
  */
-export async function getDeviceDerivedKeyMaterial(): Promise<Uint8Array> {
-  const deviceId = await getDeviceId();
+export async function getDeviceDerivedKeyMaterial(overrideDeviceId?: string): Promise<Uint8Array> {
+  const deviceId = overrideDeviceId || await getDeviceId();
   const hexHash = await Crypto.digestStringAsync(
     Crypto.CryptoDigestAlgorithm.SHA256,
     'vjbilling_device_key_v1:' + deviceId

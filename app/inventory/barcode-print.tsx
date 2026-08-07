@@ -5,6 +5,7 @@ import { View, Text, ActivityIndicator, Alert, TouchableOpacity, Modal } from 'r
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
+import * as Haptics from 'expo-haptics';
 import { TwoToneWrapper } from '../../components/TwoToneWrapper';
 import { HeaderPill, GlassCard, GlassButton } from '../../components/ui/Glass';
 import { useStore } from 'zustand';
@@ -119,6 +120,7 @@ export default function BarcodePrintScreen() {
 
   const handlePrint = async () => {
     if (!label || !activeFirmId || !itemId) return;
+    try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch (e) {}
     setIsProcessing(true);
     try {
       const html = generateTagHTML();
@@ -135,6 +137,7 @@ export default function BarcodePrintScreen() {
 
   const handleSaveToDevice = async () => {
     if (!label || !activeFirmId || !itemId) return;
+    try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch (e) {}
     setIsProcessing(true);
     try {
       const html = generateTagHTML();

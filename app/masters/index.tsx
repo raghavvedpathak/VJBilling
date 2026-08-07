@@ -2,9 +2,10 @@
 import React from 'react';
 import { View, Text, ScrollView, TouchableOpacity, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
+import * as Haptics from 'expo-haptics';
 import { TwoToneWrapper } from '../../components/TwoToneWrapper';
 import { GlassCard, HeaderPill } from '../../components/ui/Glass';
-import { Settings2, Layers, Tag, ChevronRight, Gem, ShieldCheck, LayoutGrid } from 'lucide-react-native';
+import { Layers, Tag, ChevronRight, Gem, ShieldCheck, LayoutGrid } from 'lucide-react-native';
 import { useStore } from 'zustand';
 import { appSettingsStore } from '../../store/appSettingsStore';
 import { COLORS, getThemeColors } from '../../constants/theme';
@@ -24,51 +25,107 @@ export default function MastersIndexScreen() {
   return (
     <TwoToneWrapper title="Master Catalog" showBack headerContent={mastersHeaderPills}>
       <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingTop: 20, paddingBottom: 100 }}>
-        <Text style={s.sectionTitle}>Inventory Structure</Text>
+        
+        <Text className="text-vj-text/60 text-xs font-black uppercase tracking-widest mb-4 ml-1">
+          Inventory Structure
+        </Text>
 
-        <TouchableOpacity activeOpacity={0.8} onPress={() => router.push('/masters/categories')}>
-          <GlassCard style={s.tile}>
-            <View style={s.tileContent}>
-              <View style={s.iconWrapper}>
-                <Layers size={24} color={COLORS.vjText} />
+        {/* Categories Master Tile */}
+        <TouchableOpacity 
+          activeOpacity={0.8} 
+          onPress={() => {
+            try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch (e) {}
+            router.push('/masters/categories');
+          }}
+          className="mb-4"
+        >
+          <GlassCard style={{ padding: 0, borderColor: 'rgba(5, 150, 105, 0.25)' }}>
+            <View className="flex-row items-center gap-4 p-4">
+              <View className="p-3 rounded-2xl border border-black/5 items-center justify-center" style={{ backgroundColor: 'rgba(5, 150, 105, 0.12)' }}>
+                <Layers size={24} color="#059669" />
               </View>
-              <View style={s.textWrapper}>
-                <Text style={s.tileTitle}>Categories</Text>
-                <Text style={s.tileSubtitle}>Manage gold and silver product categories</Text>
+              <View className="flex-1">
+                <View className="flex-row items-center gap-2 mb-0.5">
+                  <Text className="text-vj-text font-black text-lg">Categories</Text>
+                  <View className="px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20">
+                    <Text className="text-[8px] font-black text-emerald-800 uppercase tracking-wider">PRODUCT CATS</Text>
+                  </View>
+                </View>
+                <Text className="text-vj-text/60 text-xs font-semibold">
+                  Manage gold and silver product categories
+                </Text>
               </View>
-              <ChevronRight size={20} color="#D4AF37" style={{ opacity: 0.5 }} />
+              <View className="p-2 bg-vj-text/5 rounded-full border border-vj-text/10">
+                <ChevronRight size={18} color={COLORS.vjText} />
+              </View>
             </View>
           </GlassCard>
         </TouchableOpacity>
 
-        <TouchableOpacity activeOpacity={0.8} onPress={() => router.push('/masters/designs')}>
-          <GlassCard style={s.tile}>
-            <View style={s.tileContent}>
-              <View style={s.iconWrapper}>
-                <Tag size={24} color={COLORS.vjText} />
+        {/* Designs Master Tile */}
+        <TouchableOpacity 
+          activeOpacity={0.8} 
+          onPress={() => {
+            try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch (e) {}
+            router.push('/masters/designs');
+          }}
+          className="mb-4"
+        >
+          <GlassCard style={{ padding: 0, borderColor: 'rgba(124, 58, 237, 0.25)' }}>
+            <View className="flex-row items-center gap-4 p-4">
+              <View className="p-3 rounded-2xl border border-black/5 items-center justify-center" style={{ backgroundColor: 'rgba(124, 58, 237, 0.12)' }}>
+                <Tag size={24} color="#7C3AED" />
               </View>
-              <View style={s.textWrapper}>
-                <Text style={s.tileTitle}>Designs</Text>
-                <Text style={s.tileSubtitle}>Manage design names under each category</Text>
+              <View className="flex-1">
+                <View className="flex-row items-center gap-2 mb-0.5">
+                  <Text className="text-vj-text font-black text-lg">Designs</Text>
+                  <View className="px-2 py-0.5 rounded-full bg-purple-500/10 border border-purple-500/20">
+                    <Text className="text-[8px] font-black text-purple-800 uppercase tracking-wider">DESIGN MATRIX</Text>
+                  </View>
+                </View>
+                <Text className="text-vj-text/60 text-xs font-semibold">
+                  Manage design names under each category
+                </Text>
               </View>
-              <ChevronRight size={20} color="#D4AF37" style={{ opacity: 0.5 }} />
+              <View className="p-2 bg-vj-text/5 rounded-full border border-vj-text/10">
+                <ChevronRight size={18} color={COLORS.vjText} />
+              </View>
             </View>
           </GlassCard>
         </TouchableOpacity>
 
-        <Text style={s.sectionTitle}>Gemstones & Materials</Text>
+        <Text className="text-vj-text/60 text-xs font-black uppercase tracking-widest mb-4 mt-4 ml-1">
+          Gemstones & Materials
+        </Text>
 
-        <TouchableOpacity activeOpacity={0.8} onPress={() => router.push('/masters/stones')}>
-          <GlassCard style={s.tile}>
-            <View style={s.tileContent}>
-              <View style={s.iconWrapper}>
-                <Gem size={24} color={COLORS.vjText} />
+        {/* Stone Master Tile */}
+        <TouchableOpacity 
+          activeOpacity={0.8} 
+          onPress={() => {
+            try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch (e) {}
+            router.push('/masters/stones');
+          }}
+          className="mb-4"
+        >
+          <GlassCard style={{ padding: 0, borderColor: 'rgba(8, 145, 178, 0.25)' }}>
+            <View className="flex-row items-center gap-4 p-4">
+              <View className="p-3 rounded-2xl border border-black/5 items-center justify-center" style={{ backgroundColor: 'rgba(8, 145, 178, 0.12)' }}>
+                <Gem size={24} color="#0891B2" />
               </View>
-              <View style={s.textWrapper}>
-                <Text style={s.tileTitle}>Stone Master</Text>
-                <Text style={s.tileSubtitle}>Define diamond and precious stone types</Text>
+              <View className="flex-1">
+                <View className="flex-row items-center gap-2 mb-0.5">
+                  <Text className="text-vj-text font-black text-lg">Stone Master</Text>
+                  <View className="px-2 py-0.5 rounded-full bg-cyan-500/10 border border-cyan-500/20">
+                    <Text className="text-[8px] font-black text-cyan-800 uppercase tracking-wider">GEMSTONES</Text>
+                  </View>
+                </View>
+                <Text className="text-vj-text/60 text-xs font-semibold">
+                  Define diamond and precious stone types
+                </Text>
               </View>
-              <ChevronRight size={20} color="#D4AF37" style={{ opacity: 0.5 }} />
+              <View className="p-2 bg-vj-text/5 rounded-full border border-vj-text/10">
+                <ChevronRight size={18} color={COLORS.vjText} />
+              </View>
             </View>
           </GlassCard>
         </TouchableOpacity>
@@ -77,64 +134,3 @@ export default function MastersIndexScreen() {
     </TwoToneWrapper>
   );
 }
-
-const s = StyleSheet.create({
-  headerIconRow: { marginBottom: 12 },
-  headerIconCircle: {
-    width: 52, height: 52,
-    borderRadius: 16,
-    backgroundColor: 'rgba(255,255,255,0.12)',
-    justifyContent: 'center', alignItems: 'center',
-    borderWidth: 1, borderColor: 'rgba(255,255,255,0.15)',
-  },
-  headerTitle: {
-    color: COLORS.vjBg,
-    fontSize: 28, fontWeight: '800',
-    letterSpacing: -0.5, marginBottom: 4,
-  },
-  headerSubtitle: {
-    color: 'rgba(252,251,248,0.55)',
-    fontSize: 12, fontWeight: '600',
-    letterSpacing: 0.3, textTransform: 'uppercase',
-  },
-  sectionTitle: {
-    color: 'rgba(92,22,35,0.6)',
-    fontSize: 12,
-    fontWeight: '800',
-    textTransform: 'uppercase',
-    letterSpacing: 1,
-    marginBottom: 16,
-    marginTop: 8,
-    marginLeft: 4,
-  },
-  tile: {
-    padding: 0,
-    marginBottom: 16,
-  },
-  tileContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 16,
-    gap: 16,
-  },
-  iconWrapper: {
-    backgroundColor: 'rgba(255,255,255,0.6)',
-    padding: 12,
-    borderRadius: 100,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.2)',
-  },
-  textWrapper: {
-    flex: 1,
-  },
-  tileTitle: {
-    color: COLORS.vjText,
-    fontWeight: '700',
-    fontSize: 18,
-    marginBottom: 2,
-  },
-  tileSubtitle: {
-    color: 'rgba(92,22,35,0.6)',
-    fontSize: 12,
-  },
-});

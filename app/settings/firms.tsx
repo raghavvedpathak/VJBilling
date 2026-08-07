@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { View, Text, TouchableOpacity, ScrollView, ActivityIndicator, Image, Modal } from 'react-native';
 import { useRouter } from 'expo-router';
+import * as Haptics from 'expo-haptics';
 import { TwoToneWrapper } from '../../components/TwoToneWrapper';
 import { useFirmStore } from '../../store/firmStore';
 import { firmService } from '../../services/firmService';
@@ -34,6 +35,7 @@ export default function FirmManagerScreen() {
 
   const handleSwitch = (targetFirmId: string) => {
     if (targetFirmId === activeFirmId) return;
+    try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch (e) {}
     setDialog({
       visible: true,
       type: 'SWITCH',
@@ -63,6 +65,7 @@ export default function FirmManagerScreen() {
   };
 
   const handleAddFirm = () => {
+    try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch (e) {}
     if (canAddFirm) {
       router.push('/create-firm'); 
     } else {
@@ -76,6 +79,7 @@ export default function FirmManagerScreen() {
   };
 
   const handleEdit = (firmId: string) => {
+    try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch (e) {}
     router.push({ pathname: '/settings/firm-edit', params: { id: firmId } });
   };
 

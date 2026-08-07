@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, TextInput, Alert, Modal, KeyboardAvoidingView, ScrollView, Platform } from 'react-native';
 import { useRouter } from 'expo-router';
+import * as Haptics from 'expo-haptics';
 import { TwoToneWrapper } from '../../components/TwoToneWrapper';
 import { HeaderPill, GlassButton } from '../../components/ui/Glass';
 import { useStore } from 'zustand';
@@ -22,6 +23,7 @@ export default function CreateCategoryScreen() {
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   const handleAdd = async () => {
+    try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); } catch (e) {}
     if (!activeFirmId) return;
     if (!newName.trim()) {
       Alert.alert('Validation Error', 'Category name is required');
@@ -82,13 +84,19 @@ export default function CreateCategoryScreen() {
               <View style={s.toggleRow}>
                 <TouchableOpacity 
                   style={[s.toggleBtn, newMetal === 'GOLD' && s.toggleActiveGold]}
-                  onPress={() => setNewMetal('GOLD')}
+                  onPress={() => {
+                    try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch (e) {}
+                    setNewMetal('GOLD');
+                  }}
                 >
                   <Text style={[s.toggleText, newMetal === 'GOLD' && s.toggleTextActive]}>GOLD</Text>
                 </TouchableOpacity>
                 <TouchableOpacity 
                   style={[s.toggleBtn, newMetal === 'SILVER' && s.toggleActiveSilver]}
-                  onPress={() => setNewMetal('SILVER')}
+                  onPress={() => {
+                    try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch (e) {}
+                    setNewMetal('SILVER');
+                  }}
                 >
                   <Text style={[s.toggleText, newMetal === 'SILVER' && s.toggleTextActive]}>SILVER</Text>
                 </TouchableOpacity>

@@ -3,6 +3,7 @@ import React, { useState, useCallback, useMemo } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
 import { FlashList } from '@shopify/flash-list';
 import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
+import * as Haptics from 'expo-haptics';
 import { TwoToneWrapper } from '../../components/TwoToneWrapper';
 import { HeaderPill } from '../../components/ui/Glass';
 import { useStore } from 'zustand';
@@ -33,7 +34,10 @@ const SkuRow = React.memo(({
     <TouchableOpacity
       activeOpacity={0.7}
       style={s.itemCard}
-      onPress={() => onPress(item.itemId)}
+      onPress={() => {
+        try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch (e) {}
+        onPress(item.itemId);
+      }}
     >
       <View style={[s.metalStripe, { backgroundColor: metalColor }]} />
       <View style={s.itemCardBody}>
@@ -94,7 +98,10 @@ const SkuRow = React.memo(({
         <TouchableOpacity
           style={s.printBtn}
           activeOpacity={0.7}
-          onPress={() => onPrint(item.itemId)}
+          onPress={() => {
+            try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch (e) {}
+            onPrint(item.itemId);
+          }}
         >
           <Printer size={20} color={COLORS.vjAccent} />
         </TouchableOpacity>

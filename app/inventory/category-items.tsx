@@ -3,6 +3,7 @@ import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, Modal, Tex
 import { FlashList } from '@shopify/flash-list';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useFocusEffect } from 'expo-router';
+import * as Haptics from 'expo-haptics';
 import { TwoToneWrapper } from '../../components/TwoToneWrapper';
 import { db } from '../../db/client';
 import { designs as designsTable } from '../../db/schema';
@@ -34,7 +35,10 @@ const DesignRow = memo(({ item, isLowStock, currentThreshold, onPress, onOpenLow
   return (
     <TouchableOpacity
       id={`design-row-${item.designId}-${item.purityPercent}`}
-      onPress={() => onPress(item.designId, item.designName, item.purityPercent)}
+      onPress={() => {
+        try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch (e) {}
+        onPress(item.designId, item.designName, item.purityPercent);
+      }}
       activeOpacity={0.7}
       style={s.card}
     >
@@ -60,6 +64,7 @@ const DesignRow = memo(({ item, isLowStock, currentThreshold, onPress, onOpenLow
             id={`low-stock-bell-${item.designId}`}
             onPress={(e) => {
               e.stopPropagation();
+              try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch (err) {}
               onOpenLowStockModal(item.designId, item.designName, currentThreshold);
             }}
             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}

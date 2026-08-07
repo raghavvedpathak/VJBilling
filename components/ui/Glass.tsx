@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, Text, TextInput, TouchableOpacity, ActivityIndicator, ViewProps, ScrollView } from 'react-native';
 import { BlurView } from 'expo-blur';
+import * as Haptics from 'expo-haptics';
 import { COLORS } from '../../constants/theme';
 
 // ============================================================================
@@ -14,13 +15,26 @@ interface GlassCardProps extends ViewProps {
   intensity?: number | undefined;
 }
 export function GlassCard({ children, style, intensity = 30, ...props }: GlassCardProps) {
+  const flatStyle = React.useMemo(() => {
+    if (!style) return {};
+    if (Array.isArray(style)) return Object.assign({}, ...style);
+    return flatStyleObj(style);
+  }, [style]);
+
+  const overflowStyle = flatStyle.overflow !== undefined ? flatStyle.overflow : 'hidden';
+
   return (
-    <View className="rounded-3xl mb-6 bg-white/60 border border-white" style={[{ overflow: 'visible' }, style]} {...props}>
-      <BlurView intensity={intensity} tint="light" style={{ padding: 20, borderRadius: 24, overflow: 'visible' }}>
+    <View className="rounded-3xl mb-4 bg-white/60 border border-white" style={[{ overflow: overflowStyle }, flatStyle]} {...props}>
+      <BlurView intensity={intensity} tint="light" style={{ padding: 14, borderRadius: 24, overflow: overflowStyle }}>
         {children}
       </BlurView>
     </View>
   );
+}
+
+function flatStyleObj(style: any) {
+  if (typeof style === 'object') return style;
+  return {};
 }
 
 // ============================================================================
@@ -135,9 +149,18 @@ export function GlassButton({
     danger: '#ffffff',    // white on red
   };
 
+  const handlePress = () => {
+    try {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    } catch (e) {
+      // ignore
+    }
+    onPress();
+  };
+
   return (
     <TouchableOpacity
-      onPress={onPress}
+      onPress={handlePress}
       disabled={disabled || loading}
       activeOpacity={0.8}
       className={`${baseStyle} ${variants[variant]} ${disabled ? 'opacity-50' : ''} relative`}
@@ -241,7 +264,7 @@ export function GlassSmartSearch({
   }, [shouldShowOptions, query, options, showAllOnFocus, selectedId]);
 
   return (
-    <View style={{ zIndex: isFocused ? 50 : 1, position: 'relative' }}>
+    <View style={{ zIndex: isFocused ? 9999 : 1, elevation: isFocused ? 9999 : 1, position: 'relative' }}>
       <GlassInput
         label={label}
         placeholder={placeholder}

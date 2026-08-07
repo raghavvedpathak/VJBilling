@@ -3,6 +3,7 @@ import React, { useState, useEffect, useCallback, memo } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
 import { FlashList } from '@shopify/flash-list';
 import { useRouter } from 'expo-router';
+import * as Haptics from 'expo-haptics';
 import { Search, ArrowLeft, PackageSearch, Ghost, Hash, Sparkles, Coins, ScanLine } from 'lucide-react-native';
 import { inventorySearchService } from '../../services/inventorySearchService';
 import { formatWeightMg as formatWeight } from '../../utils/calculations';
@@ -57,7 +58,10 @@ const SearchResultRow = memo(({ item, query, onPress }: SearchResultRowProps) =>
     <TouchableOpacity 
       style={s.card}
       activeOpacity={0.7}
-      onPress={() => onPress(item.itemId)}
+      onPress={() => {
+        try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch (e) {}
+        onPress(item.itemId);
+      }}
     >
       <View style={s.cardHeader}>
         <View style={s.badgeRow}>

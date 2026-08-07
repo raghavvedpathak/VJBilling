@@ -3,6 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, TouchableOpacity, ScrollView, Alert, ActivityIndicator, Modal, Switch } from 'react-native';
 import { useRouter } from 'expo-router';
 import * as Device from 'expo-device';
+import * as Haptics from 'expo-haptics';
 import { TwoToneWrapper } from '../../components/TwoToneWrapper';
 import { useSession } from '../../hooks/useSession';
 import { backupService } from '../../services/backupService';
@@ -12,6 +13,8 @@ import { storage } from '../../utils/storage';
 import { settingsService } from '../../services/settingsService'; 
 import { GlassCard, HeaderPill } from '../../components/ui/Glass';
 import { isPinSet, isPinSkipped } from '../../services/pinService'; // G71 v7.29 Implementation
+import { useStore } from 'zustand';
+import { appSettingsStore } from '../../store/appSettingsStore';
 import {
   Building2,
   HardDriveDownload,
@@ -95,10 +98,13 @@ export default function SettingsScreen() {
     }
   };
 
+  const activeStoreTheme = useStore(appSettingsStore, (s) => s.theme);
+
   const getThemeLabel = (t: string) => {
-    switch(t) {
-      case 'lotus_silk': return 'Kashmir Lotus Silk & Soft Rose Gold';
-      case 'sandstone_ochre': return 'Reth Sandstone Silk & Warm Ochre';
+    const currentTheme = t && t !== 'system' ? t : activeStoreTheme;
+    switch(currentTheme) {
+      case 'lotus_silk': return 'Kashmir Lotus Silk & Rose Gold';
+      case 'sandstone_ochre': return 'Reth Sandstone Silk & Ochre';
       default: return 'Royal Kesari Gold (Default)';
     }
   };
@@ -286,7 +292,7 @@ export default function SettingsScreen() {
 
         <GlassSettingsTile
           title="App Theme"
-          subtitle={getThemeLabel(theme)}
+          subtitle={`${getThemeLabel(theme)} • APPLIED`}
           icon={<Palette size={24} color={COLORS.vjText} />}
           onPress={() => setShowThemeModal(true)}
         />
@@ -431,11 +437,12 @@ export default function SettingsScreen() {
                 { id: 'sandstone_ochre', label: 'Reth Sandstone Silk & Ochre' },
               ].map((t) => {
                 const preset = THEME_PRESETS[t.id as keyof typeof THEME_PRESETS] || THEME_PRESETS.saffron;
+                const isApplied = theme === t.id || activeStoreTheme === t.id;
                 return (
                   <TouchableOpacity
                     key={t.id}
                     onPress={() => updateTheme(t.id)}
-                    className={`p-3.5 rounded-2xl border mb-3 flex-row justify-between items-center ${theme === t.id ? 'bg-vj-text border-vj-text' : 'bg-white/70 border-black/10'}`}
+                    className={`p-3.5 rounded-2xl border mb-3 flex-row justify-between items-center ${isApplied ? 'bg-vj-text border-vj-text' : 'bg-white/70 border-black/10'}`}
                   >
                     <View className="flex-row items-center gap-3 flex-1 mr-2">
                       {/* Color Combo Swatch Preview Badge */}
@@ -445,12 +452,18 @@ export default function SettingsScreen() {
                         <View className="w-4 h-4 rounded-full border border-white/40 shadow-sm" style={{ backgroundColor: preset.vjAccent }} />
                       </View>
 
-                      <Text className={`font-bold text-sm flex-1 ${theme === t.id ? 'text-vj-bg' : 'text-vj-text'}`} numberOfLines={1}>
+                      <Text className={`font-bold text-sm flex-1 ${isApplied ? 'text-vj-bg' : 'text-vj-text'}`} numberOfLines={1}>
                         {t.label}
                       </Text>
+
+                      {isApplied && (
+                        <View className="px-2 py-0.5 rounded-full bg-emerald-500/20 border border-emerald-400/40 mr-1">
+                          <Text className="text-[8px] font-black text-emerald-800 uppercase tracking-wider">APPLIED</Text>
+                        </View>
+                      )}
                     </View>
 
-                    {theme === t.id && <CheckCircle2 size={22} color={COLORS.vjBg} />}
+                    {isApplied && <CheckCircle2 size={22} color={COLORS.vjBg} />}
                   </TouchableOpacity>
                 );
               })}
@@ -473,7 +486,15 @@ function SectionHeader({ title }: { title: string }) {
 
 function GlassSettingsTile({ title, subtitle, icon, onPress, disabled }: any) {
   return (
-    <TouchableOpacity onPress={onPress} disabled={disabled} activeOpacity={0.7} className="mb-2">
+    <TouchableOpacity 
+      onPress={() => {
+        try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch (e) {}
+        if (onPress) onPress();
+      }} 
+      disabled={disabled} 
+      activeOpacity={0.7} 
+      className="mb-2"
+    >
       <GlassCard style={{ padding: 16, borderWidth: 1, borderColor: 'rgba(92,22,35,0.2)' }}>
         <View className={`flex-row items-center gap-4 ${disabled ? 'opacity-50' : ''}`}>
           <View className="bg-white/40 p-3 rounded-full border border-white/50">

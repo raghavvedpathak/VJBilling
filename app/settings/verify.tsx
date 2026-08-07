@@ -1,6 +1,7 @@
 import React, { useState, useEffect, memo } from 'react';
 import { View, Text } from 'react-native';
 import { FlashList } from '@shopify/flash-list';
+import * as Haptics from 'expo-haptics';
 import { TwoToneWrapper } from '../../components/TwoToneWrapper';
 import { verifyService, VerifyFinding } from '../../services/verifyService';
 import { verifyStore } from '../../store/verifyStore';
@@ -68,6 +69,7 @@ export default function VerifyDataScreen() {
   }, []);
 
   const runScan = async () => {
+    try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch (e) {}
     setScanning(true);
     setResults(null);
     setStatus('IDLE');

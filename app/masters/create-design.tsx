@@ -6,6 +6,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, StyleSheet, TextInput, Alert, Modal, KeyboardAvoidingView, ScrollView, Platform, Keyboard, TouchableOpacity } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useFocusEffect } from 'expo-router';
+import * as Haptics from 'expo-haptics';
 import { TwoToneWrapper } from '../../components/TwoToneWrapper';
 import { HeaderPill, GlassButton, GlassSmartSearch } from '../../components/ui/Glass';
 import { useStore } from 'zustand';
@@ -90,6 +91,7 @@ export default function CreateDesignScreen() {
   );
 
   const handleAdd = async () => {
+    try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); } catch (e) {}
     if (!activeFirmId) return;
     if (!newName.trim() || !selectedCategoryId) {
       Alert.alert('Validation Error', 'Name and Category are required');
@@ -120,6 +122,7 @@ export default function CreateDesignScreen() {
   };
 
   const handleCategorySelect = (catId: string, catName: string) => {
+    try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch (e) {}
     setSelectedCategoryId(catId);
     setCategorySearchQuery(catName);
     setShowDropdown(false);

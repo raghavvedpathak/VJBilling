@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { View, Text, ScrollView, Alert, Modal, TouchableOpacity, TextInput, StyleSheet } from 'react-native';
 import { useRouter, useFocusEffect } from 'expo-router';
+import * as Haptics from 'expo-haptics';
 import { TwoToneWrapper } from '../../components/TwoToneWrapper';
 import { storage } from '../../utils/storage';
 import { GlassCard, GlassInput, GlassButton } from '../../components/ui/Glass';
@@ -190,6 +191,7 @@ export default function AddStockScreen() {
     const kVal = percentToKarat(purity) || 0; 
 
     try {
+      try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); } catch (e) {}
       setLoading(true);
       const item = await itemService.createItem({
         designId: selectedDesign.id,
@@ -226,7 +228,7 @@ export default function AddStockScreen() {
       <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingTop: 32, paddingBottom: 350, paddingHorizontal: 16 }} showsVerticalScrollIndicator={false}>
         
         {/* Classification */}
-        <GlassCard style={{ zIndex: 50 }}>
+        <GlassCard style={{ zIndex: 50, overflow: 'visible' }}>
           <View className="flex-row items-center justify-between mb-4">
             <View className="flex-row items-center gap-2">
               <Package size={20} color="#D4AF37" />
@@ -413,7 +415,10 @@ export default function AddStockScreen() {
               ].map(preset => (
                 <TouchableOpacity
                   key={preset.val}
-                  onPress={() => setPurityPercent(preset.val)}
+                  onPress={() => {
+                    try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch (e) {}
+                    setPurityPercent(preset.val);
+                  }}
                   style={{
                     backgroundColor: purityPercent === preset.val ? '#D4AF37' : 'rgba(212,175,55,0.12)',
                     paddingHorizontal: 8,

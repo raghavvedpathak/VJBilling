@@ -11,6 +11,7 @@ import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Crypto from 'expo-crypto';
 import * as Updates from 'expo-updates';
+import * as Haptics from 'expo-haptics';
 import CryptoJS from 'crypto-js';
 import { Alert } from 'react-native';
 import { db } from '../db/client';
@@ -29,13 +30,91 @@ import {
 import { eq } from 'drizzle-orm';
 import { leaseService } from './leaseService';
 import { auditRepository } from '../repositories/auditRepository';
-import { getDeviceId, getDeviceDerivedKeyMaterial } from '../utils/deviceId';
+import { getDeviceId, getDeviceDerivedKeyMaterial, getCanonicalBackupKeyMaterial } from '../utils/deviceId';
 import { useLeaseStore } from '../store/leaseStore';
 import { storage } from '../utils/storage';
 import { safeModeService } from './safeModeService';
 import { now } from '../utils/now';
 import { SCHEMA_VERSION, ERR } from '../constants';
 import type { BackupEnvelope } from './backupService';
+
+async function decryptBackupEnvelope(parsedBlob: any, password?: string): Promise<BackupEnvelope> {
+  if (parsedBlob.passwordProtected === true && !password) {
+    throw new Error(ERR.BACKUP_PASSWORD_REQUIRED + ': password required for this backup');
+  }
+
+  const toWordArray = (u8: Uint8Array) => {
+    const words: number[] = [];
+    for (let i = 0; i < u8.length; i += 4) {
+      words.push(
+        (u8[i] << 24) |
+        ((u8[i + 1] ?? 0) << 16) |
+        ((u8[i + 2] ?? 0) << 8) |
+        (u8[i + 3] ?? 0)
+      );
+    }
+    return CryptoJS.lib.WordArray.create(words, u8.length);
+  };
+
+  const keySourceCandidates: Uint8Array[] = [];
+
+  if (parsedBlob.passwordProtected === true) {
+    keySourceCandidates.push(new TextEncoder().encode(password));
+  } else {
+    // Unpassworded backup — multi-tier key material resolution
+    // Tier 1: Canonical Backup Secret (for portable backups across reinstalls/devices)
+    const canonicalKey = await getCanonicalBackupKeyMaterial();
+    keySourceCandidates.push(canonicalKey);
+
+    // Tier 2: Envelope deviceId (for legacy backups created before reinstall)
+    if (parsedBlob.deviceId && typeof parsedBlob.deviceId === 'string') {
+      try {
+        const envelopeDeviceKey = await getDeviceDerivedKeyMaterial(parsedBlob.deviceId);
+        keySourceCandidates.push(envelopeDeviceKey);
+      } catch {}
+    }
+
+    // Tier 3: Current local deviceId
+    try {
+      const currentDeviceKey = await getDeviceDerivedKeyMaterial();
+      keySourceCandidates.push(currentDeviceKey);
+    } catch {}
+  }
+
+  const salt = CryptoJS.enc.Base64.parse(parsedBlob.salt);
+  const iv = CryptoJS.enc.Base64.parse(parsedBlob.iv);
+  const iterations = parsedBlob.encryptionVersion === 2 ? 10000 : 100000;
+
+  for (const candidateKeySource of keySourceCandidates) {
+    try {
+      const keyMaterial = toWordArray(candidateKeySource);
+      const key = CryptoJS.PBKDF2(keyMaterial, salt, {
+        keySize: 256 / 32,
+        iterations: iterations,
+        hasher: CryptoJS.algo.SHA256,
+      });
+
+      const decrypted = CryptoJS.AES.decrypt(parsedBlob.ciphertext, key, {
+        iv: iv,
+        mode: CryptoJS.mode.CBC,
+        padding: CryptoJS.pad.Pkcs7,
+      });
+
+      const decryptedText = decrypted.toString(CryptoJS.enc.Utf8);
+      if (decryptedText) {
+        const payload = JSON.parse(decryptedText);
+        return {
+          ...parsedBlob,
+          payload
+        } as unknown as BackupEnvelope;
+      }
+    } catch {
+      // Try next candidate
+    }
+  }
+
+  throw new Error(ERR.CHECKSUM_MISMATCH + ': Decryption failed — wrong password or tampered file');
+}
 
 export const restoreService = {
 
@@ -64,59 +143,8 @@ export const restoreService = {
       throw new Error(ERR.RESTORE_VALIDATION_FAILED + ': File is not valid JSON data.');
     }
 
-    // Step 3: Decrypt for Preview
-    if (parsedBlob.passwordProtected === true && !password) {
-      throw new Error(ERR.BACKUP_PASSWORD_REQUIRED + ': password required for this backup');
-    }
-
-    const keySourceMaterial = parsedBlob.passwordProtected === true 
-      ? new TextEncoder().encode(password) 
-      : await getDeviceDerivedKeyMaterial();
-
-    const toWordArray = (u8: Uint8Array) => {
-      const words: number[] = [];
-      for (let i = 0; i < u8.length; i += 4) {
-        words.push(
-          (u8[i] << 24) |
-          ((u8[i + 1] ?? 0) << 16) |
-          ((u8[i + 2] ?? 0) << 8) |
-          (u8[i + 3] ?? 0)
-        );
-      }
-      return CryptoJS.lib.WordArray.create(words, u8.length);
-    };
-
-    let backup: BackupEnvelope;
-    try {
-      const salt = CryptoJS.enc.Base64.parse(parsedBlob.salt);
-      const iv = CryptoJS.enc.Base64.parse(parsedBlob.iv);
-
-      const keyMaterial = toWordArray(keySourceMaterial);
-      const iterations = parsedBlob.encryptionVersion === 2 ? 10000 : 100000;
-      const key = CryptoJS.PBKDF2(keyMaterial, salt, {
-        keySize: 256 / 32,
-        iterations: iterations,
-        hasher: CryptoJS.algo.SHA256,
-      });
-
-      const decrypted = CryptoJS.AES.decrypt(parsedBlob.ciphertext, key, {
-        iv: iv,
-        mode: CryptoJS.mode.CBC,
-        padding: CryptoJS.pad.Pkcs7,
-      });
-
-      const decryptedText = decrypted.toString(CryptoJS.enc.Utf8);
-      if (!decryptedText) {
-        throw new Error('Empty decryption result');
-      }
-      const payload = JSON.parse(decryptedText);
-      backup = {
-        ...parsedBlob,
-        payload
-      } as unknown as BackupEnvelope;
-    } catch (e) {
-      throw new Error(ERR.CHECKSUM_MISMATCH + ': Decryption failed — wrong password or tampered file');
-    }
+    // Step 3: Decrypt for Preview using multi-tier key resolution
+    const backup = await decryptBackupEnvelope(parsedBlob, password);
 
     // Step 4: Validate
     await this.validateBackupSchema(backup);
@@ -182,62 +210,8 @@ export const restoreService = {
     try {
       const currentDeviceId = await getDeviceId();
 
-      const parsedBlob = JSON.parse(encryptedFileContent) as { 
-        iv: string; salt: string; ciphertext: string; passwordProtected?: boolean; encryptionVersion?: 1 | 2;
-      };
-
-      if (parsedBlob.passwordProtected === true && !password) {
-        throw new Error(ERR.BACKUP_PASSWORD_REQUIRED + ': password required for this backup');
-      }
-
-      const keySourceMaterial = parsedBlob.passwordProtected === true 
-        ? new TextEncoder().encode(password) 
-        : await getDeviceDerivedKeyMaterial();
-
-      const toWordArray = (u8: Uint8Array) => {
-        const words: number[] = [];
-        for (let i = 0; i < u8.length; i += 4) {
-          words.push(
-            (u8[i] << 24) |
-            ((u8[i + 1] ?? 0) << 16) |
-            ((u8[i + 2] ?? 0) << 8) |
-            (u8[i + 3] ?? 0)
-          );
-        }
-        return CryptoJS.lib.WordArray.create(words, u8.length);
-      };
-
-      let backup: BackupEnvelope;
-      try {
-        const salt = CryptoJS.enc.Base64.parse(parsedBlob.salt);
-        const iv = CryptoJS.enc.Base64.parse(parsedBlob.iv);
-
-        const keyMaterial = toWordArray(keySourceMaterial);
-        const iterations = parsedBlob.encryptionVersion === 2 ? 10000 : 100000;
-        const key = CryptoJS.PBKDF2(keyMaterial, salt, {
-          keySize: 256 / 32,
-          iterations: iterations,
-          hasher: CryptoJS.algo.SHA256,
-        });
-
-        const decrypted = CryptoJS.AES.decrypt(parsedBlob.ciphertext, key, {
-          iv: iv,
-          mode: CryptoJS.mode.CBC,
-          padding: CryptoJS.pad.Pkcs7,
-        });
-
-        const decryptedText = decrypted.toString(CryptoJS.enc.Utf8);
-        if (!decryptedText) {
-          throw new Error('Empty decryption result');
-        }
-        const payload = JSON.parse(decryptedText);
-        backup = {
-          ...parsedBlob,
-          payload
-        } as unknown as BackupEnvelope;
-      } catch (e) {
-        throw new Error(ERR.CHECKSUM_MISMATCH + ': Decryption failed — wrong password or tampered file');
-      }
+      const parsedBlob = JSON.parse(encryptedFileContent);
+      const backup = await decryptBackupEnvelope(parsedBlob, password);
 
       await this.validateBackupSchema(backup);
 
@@ -318,6 +292,9 @@ export const restoreService = {
       // INVALIDATE LEASES & CLEAR SAFE MODE
       useLeaseStore.getState().setActiveLease(null);
       await safeModeService.clear();
+      try {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      } catch (e) {}
 
       // SET LOGO CHECK FLAG + RELOAD
       await storage.setItem('vjbilling_post_restore_logo_check_pending', 'true');

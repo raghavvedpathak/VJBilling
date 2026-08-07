@@ -3,6 +3,7 @@ import { db } from '../../db/client';
 import React, { useState, useEffect, useMemo } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator, Alert, ScrollView, Modal } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import * as Haptics from 'expo-haptics';
 import { TwoToneWrapper } from '../../components/TwoToneWrapper';
 import { useFirmStore } from '../../store/firmStore';
 import { itemRepository } from '../../repositories/itemRepository';
@@ -155,6 +156,7 @@ export default function EditDraftScreen() {
       }
     }
 
+    try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); } catch (e) {}
     setSaving(true);
     try {
       const newGrossMg = Math.round(parsedGross * 1000);

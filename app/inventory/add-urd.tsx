@@ -2,6 +2,7 @@
 import React, { useState, useMemo } from 'react';
 import { View, Text, ScrollView, Alert, TouchableOpacity, Modal, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
+import * as Haptics from 'expo-haptics';
 import { TwoToneWrapper } from '../../components/TwoToneWrapper';
 import { GlassCard, GlassInput, GlassButton } from '../../components/ui/Glass';
 import { useFirmStore } from '../../store/firmStore';
@@ -53,6 +54,7 @@ export default function AddURDScreen() {
   };
 
   const addItemRow = () => {
+    try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch (e) {}
     if (items.length >= 10) {
       Alert.alert('Limit Reached', 'You can add up to 10 URD items per transaction batch.');
       return;
@@ -61,6 +63,7 @@ export default function AddURDScreen() {
   };
 
   const removeItemRow = (index: number) => {
+    try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch (e) {}
     if (items.length <= 1) {
       Alert.alert('Cannot Delete', 'At least one item is required for URD Purchase.');
       return;
@@ -74,6 +77,7 @@ export default function AddURDScreen() {
           text: 'Delete',
           style: 'destructive',
           onPress: () => {
+            try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch (e) {}
             const newItems = items.filter((_, i) => i !== index);
             setItems(newItems);
           }
@@ -120,6 +124,7 @@ export default function AddURDScreen() {
   }, [itemCalculations]);
 
   const handleSubmit = async () => {
+    try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); } catch (e) {}
     if (!activeFirmId) return;
     if (!customerName.trim()) { Alert.alert('Error', 'Seller/Customer Name is required'); return; }
     

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, TouchableOpacity, ScrollView, TextInput, Keyboard, Alert } from 'react-native';
 import { useRouter } from 'expo-router';
+import * as Haptics from 'expo-haptics';
 import { TwoToneWrapper } from '../../components/TwoToneWrapper';
 import { HeaderPill, GlassCard } from '../../components/ui/Glass';
 import { useStore } from 'zustand';
@@ -49,6 +50,9 @@ export default function PinSettingsScreen() {
   };
 
   const startFlow = (newFlow: FlowState) => {
+    try {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    } catch (e) {}
     setFlow(newFlow);
     setPinInput('');
     setError(null);
@@ -64,6 +68,10 @@ export default function PinSettingsScreen() {
     const cleanVal = val.replace(/[^0-9]/g, '');
     if (cleanVal.length > targetLength) return;
     
+    try {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    } catch (e) {}
+
     setPinInput(cleanVal);
     setError(null);
 
@@ -83,10 +91,12 @@ export default function PinSettingsScreen() {
       } else if (flow === 'TURN_ON_CONFIRM') {
         if (completedPin === tempPin) {
           await setPin(completedPin);
+          try { Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success); } catch (e) {}
           Alert.alert("Success", "Security PIN has been turned on.");
           setHasPin(true);
           resetFlow();
         } else {
+          try { Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error); } catch (e) {}
           setError('PINs do not match. Try again.');
           setTempPin('');
           setPinInput('');
@@ -96,18 +106,21 @@ export default function PinSettingsScreen() {
       } else if (flow === 'TURN_OFF_CURRENT') {
         const ok = await verifyPin(completedPin);
         if (!ok) {
+           try { Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error); } catch (e) {}
            setError('Incorrect PIN.');
            setPinInput('');
            setTimeout(() => inputRef.current?.focus(), 300);
            return;
         }
         await removePin(completedPin);
+        try { Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success); } catch (e) {}
         Alert.alert("Success", "Security PIN has been turned off.");
         setHasPin(false);
         resetFlow();
       } else if (flow === 'CHANGE_CURRENT') {
         const ok = await verifyPin(completedPin);
         if (!ok) {
+           try { Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error); } catch (e) {}
            setError('Incorrect PIN.');
            setPinInput('');
            setTimeout(() => inputRef.current?.focus(), 300);
@@ -126,9 +139,11 @@ export default function PinSettingsScreen() {
       } else if (flow === 'CHANGE_CONFIRM') {
         if (completedPin === tempPin) {
           await changePin(currentPin, completedPin);
+          try { Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success); } catch (e) {}
           Alert.alert("Success", "Security PIN has been changed.");
           resetFlow();
         } else {
+          try { Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error); } catch (e) {}
           setError('PINs do not match. Try again.');
           setTempPin('');
           setPinInput('');
@@ -137,6 +152,7 @@ export default function PinSettingsScreen() {
         }
       }
     } catch (e: any) {
+       try { Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error); } catch (err) {}
        setError(e.message);
        setPinInput('');
        setTimeout(() => inputRef.current?.focus(), 300);

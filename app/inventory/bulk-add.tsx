@@ -2,6 +2,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { View, Text, ScrollView, Alert, Modal, TouchableOpacity, TextInput, StyleSheet } from 'react-native';
 import { useRouter, useFocusEffect } from 'expo-router';
+import * as Haptics from 'expo-haptics';
 import { TwoToneWrapper } from '../../components/TwoToneWrapper';
 import { storage } from '../../utils/storage';
 import { GlassCard, GlassInput, GlassButton } from '../../components/ui/Glass';
@@ -141,7 +142,10 @@ const BulkItemRow = ({ index, row, updateRow, removeRow, stones, metal }: any) =
           ].map(preset => (
             <TouchableOpacity
               key={preset.val}
-              onPress={() => updateRow(index, 'purityPercent', preset.val)}
+              onPress={() => {
+                try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch (e) {}
+                updateRow(index, 'purityPercent', preset.val);
+              }}
               style={{
                 backgroundColor: row.purityPercent === preset.val || row.purityPercent === preset.label.split('K')[0] ? '#D4AF37' : 'rgba(212,175,55,0.12)',
                 paddingHorizontal: 8,
@@ -167,7 +171,10 @@ const BulkItemRow = ({ index, row, updateRow, removeRow, stones, metal }: any) =
           ].map(preset => (
             <TouchableOpacity
               key={preset.val}
-              onPress={() => updateRow(index, 'purityPercent', preset.val)}
+              onPress={() => {
+                try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch (e) {}
+                updateRow(index, 'purityPercent', preset.val);
+              }}
               style={{
                 backgroundColor: row.purityPercent === preset.val ? '#D4AF37' : 'rgba(212,175,55,0.12)',
                 paddingHorizontal: 8,
@@ -360,6 +367,7 @@ export default function BulkAddScreen() {
   };
 
   const addRow = () => {
+    try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch (e) {}
     if (rows.length >= BULK_ITEM_MAX) {
       Alert.alert('Limit Reached', `You can only add up to ${BULK_ITEM_MAX} items per batch.`);
       return;
@@ -383,10 +391,12 @@ export default function BulkAddScreen() {
   };
 
   const removeRow = (index: number) => {
+    try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch (e) {}
     setRows(rows.filter((_, i) => i !== index));
   };
 
   const handleSubmit = async () => {
+    try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); } catch (e) {}
     if (!selectedDesign || !selectedCategory || !selectedHsn) {
       Alert.alert('Missing Classification', 'Please select a Design, Category, and HSN Code for this batch.');
       return;

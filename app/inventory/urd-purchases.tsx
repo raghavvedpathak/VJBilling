@@ -7,6 +7,7 @@ import { useRouter } from 'expo-router';
 import { useFocusEffect } from 'expo-router';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
+import * as Haptics from 'expo-haptics';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { TwoToneWrapper } from '../../components/TwoToneWrapper';
 import { GlassCard, GlassButton } from '../../components/ui/Glass';
@@ -64,6 +65,7 @@ export default function URDPurchasesScreen() {
   );
 
   const handleConfirm = (id: string, name: string) => {
+    try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch (e) {}
     Alert.alert(
       'Confirm Purchase',
       `Are you sure you want to finalize the purchase from ${name}? This will generate a permanent URD bill number.`,
@@ -75,6 +77,7 @@ export default function URDPurchasesScreen() {
           onPress: async () => {
             try {
               if (!activeFirmId) return;
+              try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); } catch (e) {}
               await urdPurchaseService.confirmURDPurchase(id, activeFirmId);
               setSuccessMessage('Purchase confirmed. Bill number generated.');
               loadData();
@@ -89,6 +92,7 @@ export default function URDPurchasesScreen() {
 
   const handlePreviewBill = async (item: URDPurchase) => {
     if (!activeFirmId) return;
+    try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch (e) {}
     setSelectedUrd(item);
     setDocType('BILL');
     setPreviewTitle('URD Purchase Bill Preview');
@@ -106,6 +110,7 @@ export default function URDPurchasesScreen() {
 
   const handlePreviewDeclaration = async (item: URDPurchase) => {
     if (!activeFirmId) return;
+    try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch (e) {}
     setSelectedUrd(item);
     setDocType('DECLARATION');
     setPreviewTitle('घोषणापत्र / शपथपत्र Preview');

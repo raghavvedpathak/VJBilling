@@ -2,6 +2,7 @@
 import React, { useMemo } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
+import * as Haptics from 'expo-haptics';
 import { useSession } from '../hooks/useSession';
 import { useFyBannerStore } from '../store/fyBannerStore';
 import { AlertTriangle, X, ChevronRight } from 'lucide-react-native';
@@ -32,7 +33,10 @@ export function FYEndBanner({ activeFY }: FYEndBannerProps = {}) {
         <TouchableOpacity 
           style={s.actionBtn} 
           activeOpacity={0.7}
-          onPress={() => router.push('/settings/close-fy')}
+          onPress={() => {
+            try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch (e) {}
+            router.push('/settings/close-fy');
+          }}
         >
           <Text style={s.actionText}>Start FY Close</Text>
           <ChevronRight size={14} color="#B45309" />

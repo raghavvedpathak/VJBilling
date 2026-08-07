@@ -2,8 +2,9 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { View, Text, ScrollView, Alert, TouchableOpacity, Modal, TextInput } from 'react-native';
 import { useRouter, useFocusEffect } from 'expo-router';
+import * as Haptics from 'expo-haptics';
 import { TwoToneWrapper } from '../../components/TwoToneWrapper';
-import { GlassCard, GlassInput, GlassButton } from '../../components/ui/Glass';
+import { GlassCard, GlassInput, GlassButton, GlassSmartSearch } from '../../components/ui/Glass';
 import { useFirmStore } from '../../store/firmStore';
 import { gemstoneLotService } from '../../services/gemstoneLotService';
 import { stoneRepository } from '../../repositories/stoneRepository';
@@ -89,6 +90,7 @@ export default function AddGemstoneScreen() {
   }, [carats, ratePerCarat]);
 
   const handleSubmit = async () => {
+    try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); } catch (e) {}
     if (!activeFirmId) return;
     if (!selectedStone) { Alert.alert('Error', 'Please select a Stone Type'); return; }
     if (!lotName.trim()) { Alert.alert('Error', 'Lot Name is required'); return; }
@@ -128,16 +130,26 @@ export default function AddGemstoneScreen() {
     <TwoToneWrapper title="New Gemstone Lot" showBack>
       <ScrollView contentContainerStyle={{ paddingTop: 32, paddingBottom: 350 }} showsVerticalScrollIndicator={false}>
         
-        <GlassCard style={{ marginBottom: 16 }}>
+        <GlassCard style={{ marginBottom: 16, zIndex: 50, overflow: 'visible' }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 16 }}>
             <Gem size={20} color="#D4AF37" />
             <Text style={{ fontSize: 18, fontWeight: '700', color: COLORS.vjText }}>Stone Definition</Text>
           </View>
           
-          <TouchableOpacity onPress={() => setShowStoneModal(true)} style={{ marginBottom: 16, backgroundColor: 'rgba(255,255,255,0.6)', padding: 16, borderRadius: 12, borderWidth: 1, borderColor: 'rgba(92,22,35,0.2)' }}>
-            <Text style={{ fontSize: 12, fontWeight: '700', color: 'rgba(92,22,35,0.6)', textTransform: 'uppercase', marginBottom: 4 }}>Stone Master Type</Text>
-            <Text style={{ fontSize: 16, fontWeight: '600', color: COLORS.vjText }}>{selectedStone ? `${selectedStone.name} (${selectedStone.type})` : 'Select Stone Type...'}</Text>
-          </TouchableOpacity>
+          <View style={{ zIndex: 50, marginBottom: 8 }}>
+            <GlassSmartSearch 
+              label="Stone Master Type *"
+              placeholder="Search stone type..."
+              options={stones.map(s => ({ id: s.id, label: s.name || 'Unnamed', sublabel: s.type || '' }))}
+              selectedId={selectedStone?.id || null}
+              onSelect={(opt) => {
+                try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch (e) {}
+                if (!opt) return setSelectedStone(null);
+                const sel = stones.find(s => s.id === opt.id)!;
+                setSelectedStone(sel);
+              }}
+            />
+          </View>
 
           <GlassInput label="Lot Description Name *" placeholder="e.g. Round Brilliant 0.50ct" value={lotName} onChangeText={setLotName} />
           <GlassInput label="Supplier Name" placeholder="Optional vendor name" value={supplierName} onChangeText={setSupplierName} />

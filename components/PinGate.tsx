@@ -2,6 +2,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, Keyboard, Image, ScrollView } from 'react-native';
 import { BlurView } from 'expo-blur';
+import * as Haptics from 'expo-haptics';
 import { Lock, ShieldAlert, CheckCircle2, Diamond, Eye, EyeOff } from 'lucide-react-native';
 import { 
   isPinSet, 
@@ -79,6 +80,7 @@ export function PinGate({ onSuccess }: { onSuccess: () => void }) {
     const cleanVal = val.replace(/[^0-9]/g, '');
     if (cleanVal.length > targetLength) return;
     
+    try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch (e) {}
     setPinInput(cleanVal);
     setError(null);
 

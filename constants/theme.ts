@@ -2,7 +2,7 @@ export const THEME_PRESETS = {
   saffron: { // DEFAULT
     id: 'saffron',
     label: 'Royal Kesari Gold (Default)',
-    vjHeaderBg: '#5C1623', // Vibrant Royal Kesari Burgundy Header
+    vjHeaderBg: '#420D19', // Richer Deep Royal Kesari Burgundy Header
     vjText: '#2A1208',
     vjBg: '#FDF9F3',
     vjAccent: '#E67E22',
@@ -14,7 +14,7 @@ export const THEME_PRESETS = {
   lotus_silk: { // Kashmir Lotus Silk & Soft Rose Gold
     id: 'lotus_silk',
     label: 'Kashmir Lotus Silk & Soft Rose Gold',
-    vjHeaderBg: '#7A1C2E', // Vibrant Kashmir Rose Crimson Header
+    vjHeaderBg: '#4E121E', // Richer Deep Kashmir Crimson Header
     vjText: '#36141D',
     vjBg: '#FAF0F2',
     vjAccent: '#C97A63',
@@ -26,7 +26,7 @@ export const THEME_PRESETS = {
   sandstone_ochre: { // Reth Sandstone Silk & Warm Ochre
     id: 'sandstone_ochre',
     label: 'Reth Sandstone Silk & Warm Ochre',
-    vjHeaderBg: '#6E2C00', // Vibrant Sandstone Ochre Header
+    vjHeaderBg: '#481B00', // Richer Deep Sandstone Ochre Header
     vjText: '#381A08',
     vjBg: '#FAF4EC',
     vjAccent: '#D98338',

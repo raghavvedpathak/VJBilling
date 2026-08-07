@@ -4,6 +4,7 @@ import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, Alert, Mod
 import { FlashList } from '@shopify/flash-list';
 import { useRouter } from 'expo-router';
 import { useFocusEffect } from 'expo-router';
+import * as Haptics from 'expo-haptics';
 import { TwoToneWrapper } from '../../components/TwoToneWrapper';
 import { HeaderPill, GlassButton } from '../../components/ui/Glass';
 import { useStore } from 'zustand';
@@ -36,8 +37,13 @@ const DraftRow = memo(({ item, onActivate, onEdit }: DraftRowProps) => {
       <View style={s.cardBody}>
         <View style={s.rowTop}>
           <Text style={s.sku} numberOfLines={1}>{displaySku}</Text>
-          <View style={[s.metalPill, { borderColor: metalColor }]}>
-            <Text style={[s.metalPillText, { color: metalColor }]}>{purityDisplay}</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+            <View style={{ backgroundColor: 'rgba(217,119,6,0.15)', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4, borderWidth: 1, borderColor: 'rgba(217,119,6,0.3)' }}>
+              <Text style={{ fontSize: 9, fontWeight: '800', color: '#D97706', textTransform: 'uppercase' }}>DRAFT</Text>
+            </View>
+            <View style={[s.metalPill, { borderColor: metalColor }]}>
+              <Text style={[s.metalPillText, { color: metalColor }]}>{purityDisplay}</Text>
+            </View>
           </View>
         </View>
 
@@ -55,7 +61,10 @@ const DraftRow = memo(({ item, onActivate, onEdit }: DraftRowProps) => {
         <TouchableOpacity 
           style={s.editBtn} 
           activeOpacity={0.7}
-          onPress={() => onEdit(item.itemId)} // <-- Calls handleEdit
+          onPress={() => {
+            try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch (e) {}
+            onEdit(item.itemId);
+          }}
         >
           <Edit3 size={20} color={COLORS.vjAccent} />
         </TouchableOpacity>
@@ -63,7 +72,10 @@ const DraftRow = memo(({ item, onActivate, onEdit }: DraftRowProps) => {
         <TouchableOpacity 
           style={s.activateBtn} 
           activeOpacity={0.7}
-          onPress={() => onActivate(item.itemId, displaySku)}
+          onPress={() => {
+            try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); } catch (e) {}
+            onActivate(item.itemId, displaySku);
+          }}
         >
           <Check size={20} color="#fff" />
         </TouchableOpacity>
@@ -101,10 +113,12 @@ export default function DraftsScreen() {
   );
 
   const handleEdit = useCallback((itemId: string) => {
+    try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch (e) {}
     router.push({ pathname: '/inventory/edit-draft', params: { itemId } });
   }, [router]);
 
   const handleActivate = useCallback((itemId: string, displaySku: string) => {
+    try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); } catch (e) {}
     setConfirmActivate({ itemId, displaySku });
   }, []);
 

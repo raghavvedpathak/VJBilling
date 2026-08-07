@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, ScrollView, StyleSheet, ActivityIndicator, Alert, TextInput } from 'react-native';
 import { useRouter } from 'expo-router';
+import * as Haptics from 'expo-haptics';
 import { TwoToneWrapper } from '../../components/TwoToneWrapper';
 import { GlassCard, GlassButton } from '../../components/ui/Glass';
 import { useFirmStore } from '../../store/firmStore';
@@ -51,6 +52,7 @@ export default function CloseFYWizard() {
   }, [activeFirmId, activeFY]);
 
   const handleBackup = async () => {
+    try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); } catch (e) {}
     setIsBackingUp(true);
     try {
       const result = await backupService.createBackup();
@@ -65,6 +67,7 @@ export default function CloseFYWizard() {
   };
 
   const handleCloseFY = async () => {
+    try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); } catch (e) {}
     if (confirmText !== 'CLOSE') {
       Alert.alert('Validation Error', 'Please type CLOSE exactly as shown to proceed.');
       return;

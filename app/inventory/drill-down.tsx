@@ -10,6 +10,7 @@ import { FlashList } from '@shopify/flash-list';
 import { useRouter } from 'expo-router';
 import { useFocusEffect } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import * as Haptics from 'expo-haptics';
 import { TwoToneWrapper } from '../../components/TwoToneWrapper';
 import { useFirmStore } from '../../store/firmStore';
 import { inventoryDrillDownService } from '../../services/inventoryDrillDownService';
@@ -86,6 +87,7 @@ export default function DrillDownScreen() {
   );
 
   const handleCategoryPress = useCallback((categoryId: string, categoryName: string) => {
+    try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch (e) {}
     router.push({
       pathname: '/inventory/category-items',
       params: { categoryId, categoryName },
@@ -133,7 +135,10 @@ export default function DrillDownScreen() {
       </View>
       <TouchableOpacity 
         style={[s.fab, { bottom: Math.max(insets.bottom + 24, 64) }]}
-        onPress={() => router.push('/inventory/add-stock')}
+        onPress={() => {
+          try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch (e) {}
+          router.push('/inventory/add-stock');
+        }}
         activeOpacity={0.8}
       >
         <Plus size={28} color="#ffffff" />

@@ -9,6 +9,7 @@
 
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
+import * as Haptics from 'expo-haptics';
 import { Platform } from 'react-native';
 import { storage } from '../utils/storage';
 import CryptoJS from 'crypto-js';
@@ -21,7 +22,7 @@ import {
 } from '../db/schema';
 import { leaseService } from './leaseService';
 import { auditRepository } from '../repositories/auditRepository';
-import { getDeviceId, getDeviceDerivedKeyMaterial } from '../utils/deviceId';
+import { getDeviceId, getDeviceDerivedKeyMaterial, getCanonicalBackupKeyMaterial } from '../utils/deviceId';
 import { SCHEMA_VERSION, APP_VERSION } from '../constants';
 
 export const BACKUP_DIR = FileSystem.documentDirectory + 'backups/';
@@ -155,7 +156,7 @@ export const backupService = {
 
       const payloadStr = JSON.stringify(payload);
       const enc = new TextEncoder();
-      const keySourceMaterial = password ? enc.encode(password) : await getDeviceDerivedKeyMaterial();
+      const keySourceMaterial = password ? enc.encode(password) : await getCanonicalBackupKeyMaterial();
 
       // Convert Uint8Array key source to CryptoJS WordArray
       const toWordArray = (u8: Uint8Array) => {
@@ -303,6 +304,9 @@ export const backupService = {
       }
 
       console.log('[Backup] Successfully created backup:', fileName, 'Size:', fileSizeBytes, 'bytes');
+      try {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      } catch (e) {}
 
       // AUDIT WRITE — MUST be OUTSIDE the transaction (G41 exempt)
       await auditRepository.log(null, {

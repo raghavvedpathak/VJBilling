@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, TextInput, Alert, Modal, KeyboardAvoidingView, ScrollView, Platform } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
+import * as Haptics from 'expo-haptics';
 import { TwoToneWrapper } from '../../components/TwoToneWrapper';
 import { HeaderPill, GlassButton } from '../../components/ui/Glass';
 import { useStore } from 'zustand';
@@ -25,6 +26,7 @@ export default function EditCategoryScreen() {
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   const handleEditSubmit = async () => {
+    try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); } catch (e) {}
     if (!activeFirmId || !id) return;
     if (!newName.trim()) {
       Alert.alert('Validation Error', 'Category name is required');

@@ -9,6 +9,7 @@ import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator } from 'rea
 import { FlashList } from '@shopify/flash-list';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useFocusEffect } from 'expo-router';
+import * as Haptics from 'expo-haptics';
 import { TwoToneWrapper } from '../../components/TwoToneWrapper';
 import { HeaderPill } from '../../components/ui/Glass';
 import { useStore } from 'zustand';
@@ -29,7 +30,10 @@ const ItemRow = memo(({ item, onPress, onPrint }: { item: ItemSearchResult, onPr
     <TouchableOpacity 
       activeOpacity={0.7} 
       style={s.itemCard} 
-      onPress={() => onPress(item.itemId)}
+      onPress={() => {
+        try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch (e) {}
+        onPress(item.itemId);
+      }}
     >
       <View style={[s.metalStripe, { backgroundColor: metalColor }]} />
 
@@ -42,7 +46,11 @@ const ItemRow = memo(({ item, onPress, onPrint }: { item: ItemSearchResult, onPr
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
             <TouchableOpacity 
               activeOpacity={0.7}
-              onPress={(e) => { e.stopPropagation(); onPrint(item.itemId); }}
+              onPress={(e) => {
+                e.stopPropagation();
+                try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch (e) {}
+                onPrint(item.itemId);
+              }}
               style={s.printBtn}
             >
               <Printer size={16} color={COLORS.vjAccent} />
