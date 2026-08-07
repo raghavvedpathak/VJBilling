@@ -9,6 +9,8 @@ import { useSession } from '../hooks/useSession';
 import { useFirmStore } from '../store/firmStore';
 import { firmRepository, Firm } from '../repositories/firmRepository';
 import { ShieldCheck, HardDriveUpload, Plus, Building2, ArrowRight, CheckCircle2 } from 'lucide-react-native';
+import { RestorePreviewModal } from '../components/RestorePreviewModal';
+import { BackupEnvelope } from '../services/backupService';
 import { COLORS } from '../constants/theme';
 
 export default function WelcomeScreen() {
@@ -21,6 +23,11 @@ export default function WelcomeScreen() {
   const [restoring, setRestoring] = useState(false);
   const [existingFirms, setExistingFirms] = useState<Firm[]>([]);
   const [enteringFirmId, setEnteringFirmId] = useState<string | null>(null);
+
+  // Restore Preview Modal State
+  const [previewModalVisible, setPreviewModalVisible] = useState(false);
+  const [previewBackup, setPreviewBackup] = useState<BackupEnvelope | null>(null);
+  const [previewFileContent, setPreviewFileContent] = useState<string | null>(null);
 
   // Scan for existing store profiles in DB & backup files on boot
   useEffect(() => {
@@ -62,25 +69,29 @@ export default function WelcomeScreen() {
 
   const handleRestore = async () => {
     try {
+      const result = await restoreService.inspectBackupFile();
+      if (!result) return;
+
+      setPreviewBackup(result.backup);
+      setPreviewFileContent(result.fileContent);
+      setPreviewModalVisible(true);
+    } catch (error: any) {
+      Alert.alert("Invalid Backup File", error.message || "Failed to parse backup file.");
+    }
+  };
+
+  const handleConfirmRestore = async () => {
+    if (!previewFileContent) return;
+    try {
       setRestoring(true);
-      const status = await restoreService.restoreFromFile();
-      
-      if (status === 'CANCELED') {
-        setRestoring(false);
-        return;
-      }
-
+      await restoreService.restore(previewFileContent);
       await refreshSession();
-
-      if (status === 'COMPLETED_WITH_ISSUES') {
-        Alert.alert("Restored with Warnings", "Database restored with minor issues. Safe Mode activated.");
-        router.replace('/settings/verify');
-      } else {
-        Alert.alert("Welcome Back", "Database restored successfully.");
-        router.replace('/dashboard');
-      }
+      setPreviewModalVisible(false);
+      Alert.alert("Welcome Back", "Database restored successfully.");
+      router.replace('/dashboard');
     } catch (error: any) {
       Alert.alert("Restore Failed", error.message);
+    } finally {
       setRestoring(false);
     }
   };
@@ -254,6 +265,16 @@ export default function WelcomeScreen() {
         </View>
 
       </ScrollView>
+
+      {/* Modern Restore Preview Modal */}
+      <RestorePreviewModal
+        visible={previewModalVisible}
+        backup={previewBackup}
+        fileContent={previewFileContent}
+        isRestoring={restoring}
+        onConfirm={handleConfirmRestore}
+        onCancel={() => setPreviewModalVisible(false)}
+      />
     </TwoToneWrapper>
   );
 }

@@ -37,6 +37,8 @@ import {
   KeyRound,
   ShieldCheck
 } from 'lucide-react-native';
+import { RestorePreviewModal } from '../../components/RestorePreviewModal';
+import { BackupEnvelope } from '../../services/backupService';
 import { COLORS, THEME_PRESETS, getThemeColors } from '../../constants/theme';
 
 export default function SettingsScreen() {
@@ -44,6 +46,11 @@ export default function SettingsScreen() {
   const { firm, refreshSession } = useSession();
   const [backingUp, setBackingUp] = useState(false);
   const [restoring, setRestoring] = useState(false);
+  
+  // Restore Preview Modal State
+  const [previewModalVisible, setPreviewModalVisible] = useState(false);
+  const [previewBackup, setPreviewBackup] = useState<BackupEnvelope | null>(null);
+  const [previewFileContent, setPreviewFileContent] = useState<string | null>(null);
   
   // Settings State
   const [dateFormat, setDateFormat] = useState('dd/MM/yyyy'); 
@@ -159,36 +166,32 @@ export default function SettingsScreen() {
   };
 
   const handleRestore = async () => {
-    Alert.alert(
-      "Restore Database?",
-      "WARNING: This will replace ALL current data with the backup file. This action cannot be undone.\n\nAre you sure?",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Yes, Replace Everything",
-          style: "destructive",
-          onPress: async () => {
-              try {
-                setRestoring(true);
-                const status = await restoreService.restoreFromFile();
-                if (status === 'CANCELED') return;
-                await refreshSession();
-                if (status === 'COMPLETED_WITH_ISSUES') {
-                   Alert.alert("Restored with Warnings", "Issues found. Safe Mode activated.");
-                   router.replace('/settings/verify');
-                } else {
-                   Alert.alert("Success", "Database restored successfully.");
-                   router.replace('/dashboard');
-                }
-              } catch (error: any) {
-                Alert.alert("Restore Failed", error.message);
-              } finally {
-                setRestoring(false);
-              }
-          }
-        }
-      ]
-    );
+    try {
+      const result = await restoreService.inspectBackupFile();
+      if (!result) return; // User canceled document picker
+
+      setPreviewBackup(result.backup);
+      setPreviewFileContent(result.fileContent);
+      setPreviewModalVisible(true);
+    } catch (error: any) {
+      Alert.alert("Invalid Backup File", error.message || "Failed to parse backup file.");
+    }
+  };
+
+  const handleConfirmRestore = async () => {
+    if (!previewFileContent) return;
+    try {
+      setRestoring(true);
+      await restoreService.restore(previewFileContent);
+      await refreshSession();
+      setPreviewModalVisible(false);
+      Alert.alert("Success", "Database restored successfully.");
+      router.replace('/dashboard');
+    } catch (error: any) {
+      Alert.alert("Restore Failed", error.message);
+    } finally {
+      setRestoring(false);
+    }
   };
 
   const colors = getThemeColors(theme);
@@ -471,6 +474,16 @@ export default function SettingsScreen() {
           </View>
         </View>
       </Modal>
+
+      {/* Modern Restore Preview Modal */}
+      <RestorePreviewModal
+        visible={previewModalVisible}
+        backup={previewBackup}
+        fileContent={previewFileContent}
+        isRestoring={restoring}
+        onConfirm={handleConfirmRestore}
+        onCancel={() => setPreviewModalVisible(false)}
+      />
 
     </TwoToneWrapper>
   );

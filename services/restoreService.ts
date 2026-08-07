@@ -118,6 +118,48 @@ async function decryptBackupEnvelope(parsedBlob: any, password?: string): Promis
 
 export const restoreService = {
 
+  /**
+   * Inspects and decrypts a backup file without modifying the database yet.
+   * Used by UI to render the modern RestorePreviewModal.
+   */
+  async inspectBackupFile(password?: string): Promise<{ backup: BackupEnvelope; fileContent: string } | null> {
+    await leaseService.assertNoActiveLease();
+
+    const result = await DocumentPicker.getDocumentAsync({
+      type: ['application/json', 'application/octet-stream', '*/*'],
+      copyToCacheDirectory: true,
+    });
+
+    if (result.canceled) return null;
+
+    const fileUri = result.assets[0].uri;
+    let fileContent = '';
+    try {
+      fileContent = await FileSystem.readAsStringAsync(fileUri, { encoding: 'utf8' as any });
+    } catch (e) {
+      throw new Error(ERR.RESTORE_VALIDATION_FAILED + ': Could not read the selected file. Ensure it is a valid .vjb backup.');
+    }
+
+    let parsedBlob: any;
+    try {
+      parsedBlob = JSON.parse(fileContent);
+    } catch (e) {
+      throw new Error(ERR.RESTORE_VALIDATION_FAILED + ': File is not valid JSON data.');
+    }
+
+    const backup = await decryptBackupEnvelope(parsedBlob, password);
+    await this.validateBackupSchema(backup);
+
+    if (!backup.payload || !Array.isArray(backup.payload.firms)) {
+      throw new Error(ERR.RESTORE_VALIDATION_FAILED + ': Invalid payload structure.');
+    }
+    if (backup.payload.firms.length > 3) {
+      throw new Error(ERR.RESTORE_VALIDATION_FAILED + `: Backup contains ${backup.payload.firms.length} firms. Maximum capacity is 3.`);
+    }
+
+    return { backup, fileContent };
+  },
+
   async restoreFromFile(password?: string): Promise<'CANCELED' | 'COMPLETED' | 'COMPLETED_WITH_ISSUES'> {
     await leaseService.assertNoActiveLease();
 
