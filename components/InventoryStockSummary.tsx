@@ -3,11 +3,12 @@
 // Enforces Phantom Debt visibility, Phase 3 Rate Engine boundary, and Purchase Cost Aggregation.
 
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import * as Haptics from 'expo-haptics';
 import { GlassCard } from './ui/Glass';
 import { itemRepository } from '../repositories/itemRepository';
 import { getCurrencySymbol } from '../utils/calculations';
-import { Scale, AlertCircle, Wallet, TrendingUp } from 'lucide-react-native';
+import { Scale, AlertCircle, Wallet, TrendingUp, ShieldCheck } from 'lucide-react-native';
 
 import { COLORS } from '../constants/theme';
 
@@ -26,15 +27,6 @@ export interface InventoryStockSummaryProps {
   silverRatePerGramPaise?: number; // Injected by Phase 3 Rate Engine
 }
 
-// Custom Bullion Bar Icon
-const IngotIcon = ({ color }: { color: string }) => (
-  <View style={[s.ingotContainer, { backgroundColor: color }]}>
-    <View style={s.ingotInnerBorder}>
-      <Text style={s.ingotText}>999</Text>
-    </View>
-  </View>
-);
-
 const formatWeight = (mg: number) => (mg / 1000).toFixed(3) + ' g';
 
 const formatLiveValue = (mg: number, ratePerGramPaise?: number) => {
@@ -43,70 +35,160 @@ const formatLiveValue = (mg: number, ratePerGramPaise?: number) => {
   return getCurrencySymbol() + (totalValuePaise / 100).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 };
 
-const SummaryCard = ({ metal, totalMg, debtMg, balanceMg, ratePaise, accentColor }: any) => {
-  const hasDebt = debtMg > 0;
-  const estimatedValue = formatLiveValue(totalMg, ratePaise);
-  
+// Custom 3D Bullion Bar Component for Gold & Silver Vault Headers
+const BullionBar3D = ({ isGold }: { isGold: boolean }) => {
   return (
-    <GlassCard>
-      
-      {/* Header Section */}
-      <View style={s.header}>
-        <View style={s.titleRow}>
-          <View style={[s.iconBox, { backgroundColor: accentColor + '15' }]}>
-            <IngotIcon color={accentColor} />
-          </View>
-          <Text style={s.metalTitle}>{metal === 'GOLD' ? 'Gold Stock' : 'Silver Stock'}</Text>
-        </View>
-
-        <View style={s.valueContainer}>
-          {/* Estimated Live Value (Phase 3) */}
-          <Text style={s.valueLabel}>{['I', 'N', 'R'].join('')} Total</Text>
-          {estimatedValue ? (
-            <Text style={[s.valueText, { color: accentColor }]}>{estimatedValue}</Text>
-          ) : (
-            <Text style={s.noRateText}>{getCurrencySymbol()} —</Text>
-          )}
-        </View>
-      </View>
-
-      {/* Data Grid Section */}
-      <View style={s.grid}>
-        {/* Physical Box */}
-        <View style={s.gridBox}>
-          <View style={s.gridLabelRow}>
-            <Scale size={12} color="rgba(46,29,0,0.4)" />
-            <Text style={s.gridLabel}>Physical</Text>
-          </View>
-          <Text style={s.gridValue}>{formatWeight(totalMg)}</Text>
-        </View>
-
-        {/* Divider */}
-        <View style={s.gridDivider} />
-
-        {/* Phantom Box */}
-        <View style={s.gridBox}>
-          <View style={s.gridLabelRow}>
-            <AlertCircle size={12} color={hasDebt ? COLORS.danger : 'rgba(46,29,0,0.4)'} />
-            <Text style={[s.gridLabel, hasDebt && { color: COLORS.danger }]}>Phantom</Text>
-          </View>
-          <Text style={[s.gridValue, hasDebt && { color: COLORS.danger }]}>
-            {hasDebt ? `-${formatWeight(debtMg)}` : '0.000 g'}
-          </Text>
-        </View>
-      </View>
-
-      {/* Bottom Hero Balance */}
-      <View style={[s.balanceRow, { backgroundColor: accentColor + '08' }]}>
-        <View style={s.balanceLabelRow}>
-          <Wallet size={16} color={accentColor} />
-          <Text style={[s.balanceLabel, { color: accentColor }]}>True Ledger Balance</Text>
-        </View>
-        <Text style={[s.balanceValue, balanceMg < 0 && { color: COLORS.danger }]}>
-          {formatWeight(balanceMg)}
+    <View 
+      style={{
+        width: 44,
+        height: 26,
+        borderRadius: 5,
+        backgroundColor: isGold ? '#D4AF37' : '#9CA3AF',
+        borderWidth: 1.5,
+        borderColor: isGold ? '#FFE87C' : '#F3F4F6',
+        borderBottomWidth: 3,
+        borderBottomColor: isGold ? '#8B6508' : '#374151',
+        borderRightWidth: 2.5,
+        borderRightColor: isGold ? '#B8860B' : '#4B5563',
+        justifyContent: 'center',
+        alignItems: 'center',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.3,
+        shadowRadius: 3,
+        elevation: 4,
+        overflow: 'hidden',
+        position: 'relative'
+      }}
+    >
+      {/* Glossy Metallic Light Reflective Highlight */}
+      <View 
+        style={{
+          position: 'absolute',
+          top: -2,
+          left: -4,
+          right: 0,
+          height: 10,
+          backgroundColor: 'rgba(255, 255, 255, 0.45)',
+          transform: [{ skewY: '-15deg' }],
+        }}
+      />
+      {/* Inner Bevel Border */}
+      <View 
+        style={{
+          width: 36,
+          height: 18,
+          borderRadius: 3,
+          borderWidth: 1,
+          borderColor: isGold ? 'rgba(255, 255, 255, 0.75)' : 'rgba(255, 255, 255, 0.85)',
+          justifyContent: 'center',
+          alignItems: 'center',
+          backgroundColor: isGold ? 'rgba(184, 134, 11, 0.25)' : 'rgba(75, 85, 99, 0.25)',
+        }}
+      >
+        <Text 
+          style={{
+            fontSize: 8,
+            fontWeight: '900',
+            color: isGold ? '#4A2E00' : '#111827',
+            letterSpacing: 0.6,
+          }}
+        >
+          999
         </Text>
       </View>
-    </GlassCard>
+    </View>
+  );
+};
+
+const SummaryCard = ({ metal, totalMg, debtMg, balanceMg, ratePaise, accentColor }: any) => {
+  const isGold = metal === 'GOLD';
+  const hasDebt = debtMg > 0;
+  const estimatedValue = formatLiveValue(totalMg, ratePaise);
+
+  const handleCardPress = () => {
+    try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch (e) {}
+  };
+  
+  return (
+    <TouchableOpacity activeOpacity={0.9} onPress={handleCardPress}>
+      <GlassCard 
+        style={{
+          backgroundColor: isGold ? 'rgba(253, 248, 238, 0.75)' : 'rgba(244, 245, 247, 0.75)',
+          borderColor: isGold ? 'rgba(212, 175, 55, 0.35)' : 'rgba(156, 163, 175, 0.35)',
+          padding: 0,
+        }}
+      >
+        {/* Header Section */}
+        <View style={s.header}>
+          <View style={s.titleRow}>
+            <BullionBar3D isGold={isGold} />
+            <Text style={s.metalTitle}>{isGold ? 'Gold Stock' : 'Silver Stock'}</Text>
+          </View>
+
+          <View style={s.valueContainer}>
+            <Text style={s.valueLabel}>Live Valuation</Text>
+            {estimatedValue ? (
+              <View style={s.valueRow}>
+                <TrendingUp size={14} color={accentColor} />
+                <Text style={[s.valueText, { color: accentColor }]}>{estimatedValue}</Text>
+              </View>
+            ) : (
+              <View style={s.noRateBadge}>
+                <Text style={s.noRateText}>{getCurrencySymbol()} —</Text>
+              </View>
+            )}
+          </View>
+        </View>
+
+        {/* Data Grid Section */}
+        <View style={s.grid}>
+          {/* Physical Box */}
+          <View style={s.gridBox}>
+            <View style={s.gridLabelRow}>
+              <Scale size={12} color="rgba(46,29,0,0.5)" />
+              <Text style={s.gridLabel}>Gross Physical</Text>
+            </View>
+            <Text style={s.gridValue}>{formatWeight(totalMg)}</Text>
+          </View>
+
+          {/* Divider */}
+          <View style={s.gridDivider} />
+
+          {/* Phantom Box */}
+          <View style={s.gridBox}>
+            <View style={s.gridLabelRow}>
+              {hasDebt ? (
+                <AlertCircle size={12} color={COLORS.danger} />
+              ) : (
+                <ShieldCheck size={12} color="#059669" />
+              )}
+              <Text style={[s.gridLabel, hasDebt ? { color: COLORS.danger } : { color: '#059669' }]}>
+                {hasDebt ? 'Phantom Debt' : 'Phantom Status'}
+              </Text>
+            </View>
+            {hasDebt ? (
+              <View style={s.phantomAlertPill}>
+                <Text style={s.phantomAlertText}>-{formatWeight(debtMg)}</Text>
+              </View>
+            ) : (
+              <Text style={s.cleanPhantomText}>Clean (0.000 g)</Text>
+            )}
+          </View>
+        </View>
+
+        {/* Bottom Hero Balance */}
+        <View style={[s.balanceRow, { backgroundColor: isGold ? 'rgba(212, 175, 55, 0.08)' : 'rgba(156, 163, 175, 0.08)' }]}>
+          <View style={s.balanceLabelRow}>
+            <Wallet size={16} color={accentColor} />
+            <Text style={[s.balanceLabel, { color: accentColor }]}>True Ledger Balance</Text>
+          </View>
+          <Text style={[s.balanceValue, balanceMg < 0 && { color: COLORS.danger }]}>
+            {formatWeight(balanceMg)}
+          </Text>
+        </View>
+      </GlassCard>
+    </TouchableOpacity>
   );
 };
 
@@ -163,55 +245,41 @@ const s = StyleSheet.create({
     gap: 16,
   },
 
-  // Custom Bullion Bar Styles
-  ingotContainer: {
-    width: 26,
-    height: 16,
-    borderRadius: 3,
-    justifyContent: 'center',
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.3,
-    shadowRadius: 1,
-    elevation: 2,
-  },
-  ingotInnerBorder: {
-    position: 'absolute',
-    top: 2, left: 2, right: 2, bottom: 2,
-    borderRadius: 1,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.4)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  ingotText: {
-    fontSize: 5,
-    fontWeight: '900',
-    color: 'rgba(255,255,255,0.8)',
-  },
   // Typography & Layout
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
     padding: 16,
-    paddingBottom: 12,
+    paddingBottom: 14,
   },
   titleRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: 12,
   },
-  iconBox: {
-    padding: 6,
-    borderRadius: 8,
+  badgePillRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 2,
+  },
+  metalTag: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 999,
+    borderWidth: 1,
+  },
+  metalTagText: {
+    fontSize: 9,
+    fontWeight: '900',
+    letterSpacing: 0.6,
+    textTransform: 'uppercase',
   },
   metalTitle: {
-    fontSize: 14,
-    fontWeight: '800',
+    fontSize: 16,
+    fontWeight: '900',
     color: COLORS.vjText,
-    letterSpacing: 0.5,
+    letterSpacing: -0.2,
   },
   valueContainer: {
     alignItems: 'flex-end',
@@ -219,17 +287,15 @@ const s = StyleSheet.create({
   valueLabel: {
     fontSize: 10,
     fontWeight: '800',
-    color: 'rgba(46,29,0,0.4)',
+    color: 'rgba(46,29,0,0.5)',
     textTransform: 'uppercase',
     letterSpacing: 0.5,
-    marginBottom: 4,
+    marginBottom: 2,
   },
-  investedText: {
-    fontSize: 15,
-    fontWeight: '900',
-    color: COLORS.vjText,
-    fontFamily: 'monospace',
-    letterSpacing: -0.5,
+  valueRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
   },
   valueText: {
     fontSize: 15,
@@ -238,23 +304,20 @@ const s = StyleSheet.create({
     letterSpacing: -0.5,
   },
   noRateBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: 'rgba(46,29,0,0.04)',
+    backgroundColor: 'rgba(46,29,0,0.05)',
     paddingHorizontal: 8,
-    paddingVertical: 4,
+    paddingVertical: 3,
     borderRadius: 6,
   },
   noRateText: {
-    fontSize: 10,
+    fontSize: 11,
     fontWeight: '700',
     color: 'rgba(46,29,0,0.5)',
   },
   grid: {
     flexDirection: 'row',
     paddingHorizontal: 16,
-    paddingBottom: 16,
+    paddingBottom: 14,
   },
   gridBox: {
     flex: 1,
@@ -266,20 +329,42 @@ const s = StyleSheet.create({
     marginBottom: 4,
   },
   gridLabel: {
-    fontSize: 11,
-    fontWeight: '600',
+    fontSize: 10,
+    fontWeight: '800',
     color: 'rgba(46,29,0,0.5)',
     textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
   gridValue: {
     fontSize: 15,
-    fontWeight: '700',
+    fontWeight: '800',
     color: COLORS.vjText,
+    fontFamily: 'monospace',
+  },
+  cleanPhantomText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#059669',
+    fontFamily: 'monospace',
+  },
+  phantomAlertPill: {
+    backgroundColor: 'rgba(239, 68, 68, 0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(239, 68, 68, 0.3)',
+    alignSelf: 'flex-start',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  phantomAlertText: {
+    fontSize: 13,
+    fontWeight: '900',
+    color: COLORS.danger,
     fontFamily: 'monospace',
   },
   gridDivider: {
     width: 1,
-    backgroundColor: COLORS.border,
+    backgroundColor: 'rgba(92,22,35,0.12)',
     marginHorizontal: 16,
   },
   balanceRow: {
@@ -289,7 +374,7 @@ const s = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderTopWidth: 1,
-    borderTopColor: COLORS.border,
+    borderTopColor: 'rgba(92,22,35,0.12)',
   },
   balanceLabelRow: {
     flexDirection: 'row',
@@ -297,8 +382,8 @@ const s = StyleSheet.create({
     gap: 8,
   },
   balanceLabel: {
-    fontSize: 12,
-    fontWeight: '800',
+    fontSize: 11,
+    fontWeight: '900',
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },

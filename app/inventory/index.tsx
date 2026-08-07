@@ -55,7 +55,7 @@ export default function InventoryHubScreen() {
             try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch (e) {}
             router.push('/inventory/search');
           }}
-          className="mb-6"
+          className="mb-4"
         >
           <GlassCard style={{ padding: 0 }}>
             <View className="flex-row items-center p-4 bg-white/40 justify-between">
@@ -71,6 +71,42 @@ export default function InventoryHubScreen() {
                 <Text className="text-white text-[10px] font-black text-center uppercase tracking-widest">
                   SEARCH
                 </Text>
+              </View>
+            </View>
+          </GlassCard>
+        </TouchableOpacity>
+
+        {/* SECTION: CATALOG DEFINITIONS */}
+        <Text className="text-vj-text/60 text-xs font-black uppercase tracking-widest mb-3 ml-1">
+          Catalog Definitions
+        </Text>
+
+        <TouchableOpacity 
+          activeOpacity={0.8} 
+          onPress={() => {
+            try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch (e) {}
+            router.push('/masters');
+          }} 
+          className="mb-6"
+        >
+          <GlassCard style={{ padding: 0, borderColor: 'rgba(180, 83, 9, 0.25)' }}>
+            <View className="flex-row items-center gap-4 p-4">
+              <View className="p-3 rounded-2xl border border-black/5 items-center justify-center" style={{ backgroundColor: 'rgba(180, 83, 9, 0.12)' }}>
+                <Database size={24} color="#B45309" />
+              </View>
+              <View className="flex-1">
+                <View className="flex-row items-center gap-2 mb-0.5">
+                  <Text className="text-vj-text font-black text-lg">Metal Master</Text>
+                  <View className="px-2 py-0.5 rounded-full bg-amber-500/10 border border-amber-500/20">
+                    <Text className="text-[8px] font-black text-amber-800 uppercase tracking-wider">MASTERS</Text>
+                  </View>
+                </View>
+                <Text className="text-vj-text/60 text-xs font-semibold">
+                  Categories, Designs, Stones & HSN Codes
+                </Text>
+              </View>
+              <View className="p-2 bg-vj-text/5 rounded-full border border-vj-text/10">
+                <ChevronRight size={18} color={COLORS.vjText} />
               </View>
             </View>
           </GlassCard>
@@ -156,42 +192,6 @@ export default function InventoryHubScreen() {
             onPress={() => router.push('/inventory/gemstones')} 
           />
         </View>
-
-        {/* SECTION 4: GOVERNANCE & MASTERS */}
-        <Text className="text-vj-text/60 text-xs font-black uppercase tracking-widest mb-4 mt-2 ml-1">
-          Governance & Masters
-        </Text>
-
-        <TouchableOpacity 
-          activeOpacity={0.8} 
-          onPress={() => {
-            try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch (e) {}
-            router.push('/masters');
-          }} 
-          className="mb-4"
-        >
-          <GlassCard style={{ padding: 0, borderColor: 'rgba(180, 83, 9, 0.25)' }}>
-            <View className="flex-row items-center gap-4 p-4">
-              <View className="p-3 rounded-2xl border border-black/5 items-center justify-center" style={{ backgroundColor: 'rgba(180, 83, 9, 0.12)' }}>
-                <Database size={24} color="#B45309" />
-              </View>
-              <View className="flex-1">
-                <View className="flex-row items-center gap-2 mb-0.5">
-                  <Text className="text-vj-text font-black text-lg">Metal Master</Text>
-                  <View className="px-2 py-0.5 rounded-full bg-amber-500/10 border border-amber-500/20">
-                    <Text className="text-[8px] font-black text-amber-800 uppercase tracking-wider">MASTERS</Text>
-                  </View>
-                </View>
-                <Text className="text-vj-text/60 text-xs font-semibold">
-                  Categories, Designs, Stones & HSN Codes
-                </Text>
-              </View>
-              <View className="p-2 bg-vj-text/5 rounded-full border border-vj-text/10">
-                <ChevronRight size={18} color={COLORS.vjText} />
-              </View>
-            </View>
-          </GlassCard>
-        </TouchableOpacity>
 
       </ScrollView>
     </TwoToneWrapper>
