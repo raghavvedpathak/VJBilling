@@ -1,6 +1,7 @@
 // services/backupService.ts
 // v2.9 Canonical Implementation (AES-256-GCM Encryption + Optional Password)
 // v7.28 FIX-V728-1: BackupEnvelope explicit declaration using Drizzle inferred types
+// v7.33 FIX-V733-5: BackupResult includes mirroredToPublicStorage
 //
 // CONSTITUTIONAL RULES:
 //   - createBackup() does NOT call assertNotInSafeMode(). (Read operation exempt from Safe Mode).
@@ -28,10 +29,12 @@ import { SCHEMA_VERSION, APP_VERSION } from '../constants';
 export const BACKUP_DIR = FileSystem.documentDirectory + 'VJBilling/backups/';
 
 // v7.25 FIX-V725-10: checksum field removed (AES-GCM auth tag provides integrity)
+// v7.33 FIX-V733-5: mirroredToPublicStorage added for SAF/public storage status
 export interface BackupResult { 
   fileName: string; 
   filePath: string; 
   fileSizeBytes: number; 
+  mirroredToPublicStorage: boolean;
 }
 
 // v7.28 FIX-V728-1: Explicit typing for the decrypted payload format
@@ -316,7 +319,7 @@ export const backupService = {
         payload: JSON.stringify({ exportedAt: envelope.exportedAt, fileName, fileSizeBytes }),
       });
 
-      return { fileName, filePath, fileSizeBytes };
+      return { fileName, filePath, fileSizeBytes, mirroredToPublicStorage: isPublicSaved };
 
     } catch (error) {
       console.error('[Backup] Error:', error);

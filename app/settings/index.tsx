@@ -178,11 +178,11 @@ export default function SettingsScreen() {
     }
   };
 
-  const handleConfirmRestore = async () => {
+  const handleConfirmRestore = async (password?: string) => {
     if (!previewFileContent) return;
     try {
       setRestoring(true);
-      await restoreService.restore(previewFileContent);
+      await restoreService.restore(previewFileContent, password);
       await refreshSession();
       setPreviewModalVisible(false);
       Alert.alert("Success", "Database restored successfully.");

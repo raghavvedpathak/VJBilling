@@ -9,7 +9,7 @@ import { GlassCard, GlassButton, HeaderPill } from '../../components/ui/Glass';
 import { Building2, Plus, Pencil, Archive, ArchiveRestore, AlertTriangle, ShieldCheck } from 'lucide-react-native';
 import { useStore } from 'zustand';
 import { appSettingsStore } from '../../store/appSettingsStore';
-import { COLORS, getThemeColors } from '../../constants/theme';
+import { getThemeColors } from '../../constants/theme';
 
 type DialogState = {
   visible: boolean;
@@ -22,7 +22,7 @@ type DialogState = {
 
 export default function FirmManagerScreen() {
   const router = useRouter();
-  const { firms, activeFirmId, switchFirm } = useFirmStore();
+  const { firms, activeFirmId } = useFirmStore();
   const [loadingId, setLoadingId] = useState<string | null>(null);
   const activeTheme = useStore(appSettingsStore, (s) => s.theme);
   const colors = getThemeColors(activeTheme);
@@ -52,7 +52,8 @@ export default function FirmManagerScreen() {
     setDialog(null);
     setLoadingId(targetId);
     try {
-      await switchFirm(targetId);
+      // FIX-V714-7: Call firmService.switchFirm() so Dual Guard, DB update, and FIRM_SWITCHED audit event execute
+      await firmService.switchFirm(targetId);
       router.replace('/dashboard');
     } catch (err: any) {
       setDialog({

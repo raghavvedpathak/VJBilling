@@ -80,11 +80,11 @@ export default function WelcomeScreen() {
     }
   };
 
-  const handleConfirmRestore = async () => {
+  const handleConfirmRestore = async (password?: string) => {
     if (!previewFileContent) return;
     try {
       setRestoring(true);
-      await restoreService.restore(previewFileContent);
+      await restoreService.restore(previewFileContent, password);
       await refreshSession();
       setPreviewModalVisible(false);
       Alert.alert("Welcome Back", "Database restored successfully.");

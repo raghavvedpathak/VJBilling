@@ -1,22 +1,23 @@
 // components/RestorePreviewModal.tsx
-import React from 'react';
-import { View, Text, StyleSheet, Modal, TouchableOpacity, ScrollView, ActivityIndicator } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, Modal, TouchableOpacity, ScrollView } from 'react-native';
 import * as Haptics from 'expo-haptics';
-import { GlassCard, GlassButton } from './ui/Glass';
+import { GlassCard, GlassButton, GlassInput } from './ui/Glass';
 import { 
   DatabaseBackup, 
   ShieldAlert, 
   Building2, 
   Package, 
   Layers, 
-  Gem, 
   FileSpreadsheet, 
   Calendar, 
   Clock, 
   HardDrive,
   X,
   AlertTriangle,
-  Coins
+  Coins,
+  Lock,
+  ImageOff
 } from 'lucide-react-native';
 import { COLORS } from '../constants/theme';
 import { BackupEnvelope } from '../services/backupService';
@@ -26,7 +27,7 @@ export interface RestorePreviewModalProps {
   backup: BackupEnvelope | null;
   fileContent: string | null;
   isRestoring?: boolean;
-  onConfirm: () => void;
+  onConfirm: (password?: string) => void;
   onCancel: () => void;
 }
 
@@ -37,7 +38,18 @@ export function RestorePreviewModal({
   onConfirm,
   onCancel,
 }: RestorePreviewModalProps) {
+  const [password, setPassword] = useState('');
+
+  useEffect(() => {
+    if (!visible) {
+      setPassword('');
+    }
+  }, [visible]);
+
   if (!visible || !backup) return null;
+
+  const isPasswordProtected = backup.passwordProtected === true;
+  const isConfirmDisabled = isRestoring || (isPasswordProtected && password.trim().length === 0);
 
   const firms = backup.payload?.firms || [];
   const primaryFirm = firms[0];
@@ -64,8 +76,9 @@ export function RestorePreviewModal({
   const isSafeModeActive = backup.payload?.safeModeState?.isActive === 1;
 
   const handleConfirmPress = () => {
+    if (isConfirmDisabled) return;
     try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); } catch (e) {}
-    onConfirm();
+    onConfirm(isPasswordProtected ? password : undefined);
   };
 
   const handleCancelPress = () => {
@@ -84,6 +97,11 @@ export function RestorePreviewModal({
         <View style={s.container}>
           <GlassCard style={s.modalCard}>
             
+            {/* MANDATORY WATERMARK BANNER */}
+            <View style={s.watermarkBanner}>
+              <Text style={s.watermarkText}>PREVIEW — NOT RESTORED YET</Text>
+            </View>
+
             {/* Header Title Bar */}
             <View style={s.headerRow}>
               <View style={s.headerTitleGroup}>
@@ -144,8 +162,6 @@ export function RestorePreviewModal({
               {/* Data Breakdown Grid */}
               <Text style={s.sectionHeader}>Backup Contents Breakdown</Text>
               <View style={s.gridContainer}>
-                
-                {/* Inventory Items */}
                 <View style={s.gridTile}>
                   <View style={s.gridTileHeader}>
                     <Package size={16} color="#4F46E5" />
@@ -153,8 +169,6 @@ export function RestorePreviewModal({
                   </View>
                   <Text style={s.gridTileValue}>{itemCount} Items</Text>
                 </View>
-
-                {/* Categories & Designs */}
                 <View style={s.gridTile}>
                   <View style={s.gridTileHeader}>
                     <Layers size={16} color="#059669" />
@@ -162,8 +176,6 @@ export function RestorePreviewModal({
                   </View>
                   <Text style={s.gridTileValue}>{categoryCount} Cat / {designCount} Des</Text>
                 </View>
-
-                {/* URD & Gemstones */}
                 <View style={s.gridTile}>
                   <View style={s.gridTileHeader}>
                     <Coins size={16} color="#E11D48" />
@@ -171,8 +183,6 @@ export function RestorePreviewModal({
                   </View>
                   <Text style={s.gridTileValue}>{gemstoneLotCount} Gem / {urdCount} URD</Text>
                 </View>
-
-                {/* Audit Logs */}
                 <View style={s.gridTile}>
                   <View style={s.gridTileHeader}>
                     <FileSpreadsheet size={16} color="#D97706" />
@@ -180,10 +190,31 @@ export function RestorePreviewModal({
                   </View>
                   <Text style={s.gridTileValue}>{auditCount} Events</Text>
                 </View>
-
               </View>
 
-              {/* Warnings Banner */}
+              {/* CONDITIONAL BACKUP PASSWORD FIELD (v7.26 FIX-V726-3) */}
+              {isPasswordProtected && (
+                <View style={s.passwordContainer}>
+                  <GlassInput
+                    label="Backup Password *"
+                    value={password}
+                    onChangeText={setPassword}
+                    placeholder="Enter decryption password"
+                    secureTextEntry
+                    icon={<Lock size={18} color="#D4AF37" />}
+                  />
+                </View>
+              )}
+
+              {/* G60/G61 LOGO EXCLUSION NOTICE */}
+              <View style={s.logoNoticeCard}>
+                <ImageOff size={16} color="#D97706" />
+                <Text style={s.logoNoticeText}>
+                  Logo images are not included in backups and will need to be re-uploaded after restoring on a new device.
+                </Text>
+              </View>
+
+              {/* Safe Mode Alert */}
               {isSafeModeActive && (
                 <View style={s.safeModeAlert}>
                   <ShieldAlert size={18} color={COLORS.danger} />
@@ -193,10 +224,11 @@ export function RestorePreviewModal({
                 </View>
               )}
 
+              {/* Current Data Warning */}
               <View style={s.warningCard}>
                 <AlertTriangle size={18} color="#D97706" />
                 <Text style={s.warningText}>
-                  Restoring will permanently overwrite all current store data on this device with the contents of this backup file.
+                  Restoring will permanently replace all current store data on this device with the contents of this backup file.
                 </Text>
               </View>
 
@@ -209,7 +241,7 @@ export function RestorePreviewModal({
                 onPress={handleConfirmPress}
                 variant="danger"
                 loading={isRestoring}
-                disabled={isRestoring}
+                disabled={isConfirmDisabled}
                 icon={isRestoring ? undefined : <DatabaseBackup size={18} color="white" />}
               />
               {!isRestoring && (
@@ -239,20 +271,37 @@ const s = StyleSheet.create({
   container: {
     width: '100%',
     maxWidth: 420,
-    maxHeight: '85%',
+    maxHeight: '88%',
   },
   modalCard: {
     padding: 20,
-    backgroundColor: 'rgba(255, 255, 255, 0.94)',
+    backgroundColor: 'rgba(255, 255, 255, 0.95)',
     borderColor: 'rgba(212, 175, 55, 0.35)',
     borderWidth: 1.5,
     borderRadius: 24,
+  },
+  watermarkBanner: {
+    backgroundColor: 'rgba(212, 175, 55, 0.2)',
+    borderColor: 'rgba(212, 175, 55, 0.4)',
+    borderWidth: 1,
+    borderRadius: 8,
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    alignSelf: 'center',
+    marginBottom: 12,
+  },
+  watermarkText: {
+    fontSize: 10,
+    fontWeight: '900',
+    color: '#B8860B',
+    letterSpacing: 1.2,
+    textAlign: 'center',
   },
   headerRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 16,
+    marginBottom: 14,
   },
   headerTitleGroup: {
     flexDirection: 'row',
@@ -283,7 +332,7 @@ const s = StyleSheet.create({
     backgroundColor: 'rgba(0, 0, 0, 0.05)',
   },
   scrollArea: {
-    maxHeight: 380,
+    maxHeight: 480,
   },
   metaPillContainer: {
     flexDirection: 'row',
@@ -368,7 +417,7 @@ const s = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 10,
-    marginBottom: 14,
+    marginBottom: 12,
   },
   gridTile: {
     width: '48%',
@@ -396,6 +445,27 @@ const s = StyleSheet.create({
     color: COLORS.vjText,
     fontFamily: 'monospace',
   },
+  passwordContainer: {
+    marginBottom: 12,
+  },
+  logoNoticeCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: 'rgba(217, 119, 6, 0.06)',
+    borderColor: 'rgba(217, 119, 6, 0.2)',
+    borderWidth: 1,
+    borderRadius: 12,
+    padding: 10,
+    marginBottom: 10,
+  },
+  logoNoticeText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#B45309',
+    flex: 1,
+    lineHeight: 14,
+  },
   safeModeAlert: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -405,7 +475,7 @@ const s = StyleSheet.create({
     borderWidth: 1,
     borderRadius: 14,
     padding: 12,
-    marginBottom: 12,
+    marginBottom: 10,
   },
   safeModeAlertText: {
     fontSize: 11,
