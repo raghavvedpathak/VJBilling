@@ -9,7 +9,7 @@ import { useFocusEffect } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Haptics from 'expo-haptics';
 import { TwoToneWrapper } from '../../components/TwoToneWrapper';
-import { HeaderPill, GlassCard, GlassButton } from '../../components/ui/Glass';
+import { HeaderPill, GlassCard, GlassButton, GlassMetalBadge } from '../../components/ui/Glass';
 import { useStore } from 'zustand';
 import { appSettingsStore } from '../../store/appSettingsStore';
 import { Layers, Plus, X, Edit2, Trash2, LayoutGrid, List as ListIcon, CheckCircle, ShieldCheck } from 'lucide-react-native';
@@ -85,6 +85,7 @@ export default function CategoriesScreen() {
       params: { 
         id: cat.id, 
         initialName: cat.name,
+        initialMetal: cat.metal,
       } 
     });
   };
@@ -134,17 +135,7 @@ export default function CategoriesScreen() {
                   <Text style={s.rowCode}>{c.code}</Text>
                 </View>
                 <View style={viewMode === 'grid' ? s.cardBottomGrid : s.cardBottomList}>
-                  <View 
-                    style={[
-                      s.metalPill, 
-                      { 
-                        backgroundColor: c.metal === 'GOLD' ? 'rgba(212,175,55,0.15)' : 'rgba(148,163,184,0.15)',
-                        borderColor: c.metal === 'GOLD' ? 'rgba(212,175,55,0.35)' : 'rgba(148,163,184,0.35)' 
-                      }
-                    ]}
-                  >
-                    <Text style={[s.metalPillText, { color: c.metal === 'GOLD' ? '#B45309' : '#475569' }]}>{c.metal}</Text>
-                  </View>
+                  <GlassMetalBadge metal={c.metal} />
                   <View style={s.actionRow}>
                     <TouchableOpacity onPress={() => openEdit(c)} style={s.actionBtn}><Edit2 size={16} color="#D4AF37" /></TouchableOpacity>
                     <TouchableOpacity onPress={() => handleDelete(c)} style={s.actionBtn}><Trash2 size={16} color="#ef4444" /></TouchableOpacity>

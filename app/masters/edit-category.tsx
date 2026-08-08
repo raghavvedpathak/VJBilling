@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, TextInput, Alert, Modal, KeyboardAvoidingView, 
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { TwoToneWrapper } from '../../components/TwoToneWrapper';
-import { HeaderPill, GlassButton } from '../../components/ui/Glass';
+import { HeaderPill, GlassButton, GlassInput, GlassMetalBadge } from '../../components/ui/Glass';
 import { useStore } from 'zustand';
 import { appSettingsStore } from '../../store/appSettingsStore';
 import { Edit2, CheckCircle, ShieldCheck } from 'lucide-react-native';
@@ -19,7 +19,7 @@ export default function EditCategoryScreen() {
   const insets = useSafeAreaInsets();
   
   // Get initial params from routing
-  const { id, initialName } = useLocalSearchParams<{ id: string; initialName: string }>();
+  const { id, initialName, initialMetal } = useLocalSearchParams<{ id: string; initialName: string; initialMetal?: 'GOLD' | 'SILVER' }>();
   
   const [newName, setNewName] = useState(initialName || '');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -55,6 +55,7 @@ export default function EditCategoryScreen() {
   const editCategoryHeaderPills = (
     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginTop: 4 }}>
       <HeaderPill icon={<Edit2 size={12} color={colors.vjBg} />} label={initialName || 'Category'} />
+      {initialMetal ? <HeaderPill label={initialMetal} variant={initialMetal === 'GOLD' ? 'warning' : 'default'} /> : null}
       <HeaderPill icon={<ShieldCheck size={12} color="#4ADE80" />} label="Firm Scoped" variant="success" />
     </View>
   );
@@ -65,14 +66,22 @@ export default function EditCategoryScreen() {
         <ScrollView style={s.container} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingTop: 32, paddingBottom: 350 }} keyboardShouldPersistTaps="handled">
           <View style={s.card}>
             <View style={s.formGroup}>
-               <Text style={s.label}>Category Name</Text>
-               <TextInput 
-                 style={s.input}
-                 value={newName}
-                 onChangeText={setNewName}
-                 placeholder="e.g. Gold Rings"
-               />
+              <GlassInput 
+                label="Category Name"
+                value={newName}
+                onChangeText={setNewName}
+                placeholder="e.g. Gold Rings"
+              />
             </View>
+
+            {initialMetal ? (
+              <View style={s.formGroup}>
+                <Text style={s.label}>Metal Type (Immutable)</Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4 }}>
+                  <GlassMetalBadge metal={initialMetal} />
+                </View>
+              </View>
+            ) : null}
           </View>
         </ScrollView>
         <View style={{ paddingHorizontal: 24, paddingBottom: 32, paddingTop: 16 }}>

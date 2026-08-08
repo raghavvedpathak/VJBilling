@@ -24,7 +24,7 @@ export function GlassCard({ children, style, intensity = 30, ...props }: GlassCa
   const overflowStyle = flatStyle.overflow !== undefined ? flatStyle.overflow : 'hidden';
 
   return (
-    <View className="rounded-3xl mb-4 bg-white/60 border border-white" style={[{ overflow: overflowStyle }, flatStyle]} {...props}>
+    <View className="rounded-3xl mb-4 bg-white/60 border border-white/40" style={[{ overflow: overflowStyle }, flatStyle]} {...props}>
       <BlurView intensity={intensity} tint="light" style={{ padding: 14, borderRadius: 24, overflow: overflowStyle }}>
         {children}
       </BlurView>
@@ -133,7 +133,7 @@ export function GlassButton({
 
   const variants = {
     primary: 'bg-vj-text',
-    secondary: 'bg-white/60 border border-white',
+    secondary: 'bg-white/60 border border-white/40',
     danger: 'bg-vj-danger/90',
   };
 
@@ -368,3 +368,201 @@ export function HeaderPill({ icon, label, variant = 'default' }: HeaderPillProps
     </View>
   );
 }
+
+// ============================================================================
+// 7. 3D BULLION BAR COMPONENT
+// Premium 3D metallic Gold & Silver Bar element with bevels & reflective highlights
+// ============================================================================
+export function BullionBar3D({ isGold, scale = 1 }: { isGold: boolean; scale?: number }) {
+  const width = 44 * scale;
+  const height = 26 * scale;
+  return (
+    <View 
+      style={{
+        width,
+        height,
+        borderRadius: 5 * scale,
+        backgroundColor: isGold ? '#D4AF37' : '#9CA3AF',
+        borderWidth: 1.5 * scale,
+        borderColor: isGold ? '#FFE87C' : '#F3F4F6',
+        borderBottomWidth: 3 * scale,
+        borderBottomColor: isGold ? '#8B6508' : '#374151',
+        borderRightWidth: 2.5 * scale,
+        borderRightColor: isGold ? '#B8860B' : '#4B5563',
+        justifyContent: 'center',
+        alignItems: 'center',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.3,
+        shadowRadius: 3,
+        overflow: 'hidden',
+        position: 'relative'
+      }}
+    >
+      {/* Glossy Metallic Light Reflective Highlight */}
+      <View 
+        style={{
+          position: 'absolute',
+          top: -2,
+          left: -4,
+          right: 0,
+          height: 10 * scale,
+          backgroundColor: 'rgba(255, 255, 255, 0.45)',
+          transform: [{ skewY: '-15deg' }],
+        }}
+      />
+      {/* Inner Bevel Border */}
+      <View 
+        style={{
+          width: 36 * scale,
+          height: 18 * scale,
+          borderRadius: 3 * scale,
+          borderWidth: 1 * scale,
+          borderColor: isGold ? 'rgba(255, 255, 255, 0.75)' : 'rgba(255, 255, 255, 0.85)',
+          justifyContent: 'center',
+          alignItems: 'center',
+          backgroundColor: isGold ? 'rgba(184, 134, 11, 0.25)' : 'rgba(75, 85, 99, 0.25)',
+        }}
+      >
+        <Text 
+          style={{
+            fontSize: 8 * scale,
+            fontWeight: '900',
+            color: isGold ? '#4A2E00' : '#111827',
+            letterSpacing: 0.6,
+          }}
+        >
+          999
+        </Text>
+      </View>
+    </View>
+  );
+}
+
+// ============================================================================
+// 8. GLASS METAL SELECTOR & BADGE
+// High-end glassmorphic UI components for Gold & Silver selection & badges
+// ============================================================================
+interface GlassMetalSelectorProps {
+  selectedMetal: 'GOLD' | 'SILVER';
+  onSelectMetal: (metal: 'GOLD' | 'SILVER') => void;
+  label?: string;
+}
+
+export function GlassMetalSelector({ selectedMetal, onSelectMetal, label = 'Metal Type' }: GlassMetalSelectorProps) {
+  const handlePress = (metal: 'GOLD' | 'SILVER') => {
+    try {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    } catch (e) {}
+    onSelectMetal(metal);
+  };
+
+  const isGoldSelected = selectedMetal === 'GOLD';
+  const isSilverSelected = selectedMetal === 'SILVER';
+
+  return (
+    <View style={{ marginBottom: 20 }}>
+      {label ? (
+        <Text style={{ fontSize: 12, fontWeight: '800', color: 'rgba(92,22,35,0.6)', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 10 }}>
+          {label}
+        </Text>
+      ) : null}
+      <View style={{ flexDirection: 'row', gap: 14 }}>
+        {/* 🌟 24K GOLD GLASS BUTTON */}
+        <TouchableOpacity
+          onPress={() => handlePress('GOLD')}
+          activeOpacity={0.85}
+          style={{
+            flex: 1,
+            paddingVertical: 14,
+            paddingHorizontal: 16,
+            borderRadius: 18,
+            borderWidth: isGoldSelected ? 2 : 1,
+            borderColor: isGoldSelected ? '#D4AF37' : 'rgba(212, 175, 55, 0.25)',
+            backgroundColor: isGoldSelected ? '#FEF3C7' : 'rgba(255, 255, 255, 0.5)',
+            flexDirection: 'row',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 10,
+          }}
+        >
+          <Text
+            style={{
+              fontSize: 15,
+              fontWeight: '900',
+              letterSpacing: 1,
+              color: isGoldSelected ? '#92400E' : 'rgba(120, 53, 15, 0.5)',
+              backgroundColor: 'transparent',
+            }}
+          >
+            GOLD
+          </Text>
+          <BullionBar3D isGold={true} scale={0.7} />
+        </TouchableOpacity>
+
+        {/* 🪙 STERLING SILVER GLASS BUTTON */}
+        <TouchableOpacity
+          onPress={() => handlePress('SILVER')}
+          activeOpacity={0.85}
+          style={{
+            flex: 1,
+            paddingVertical: 14,
+            paddingHorizontal: 16,
+            borderRadius: 18,
+            borderWidth: isSilverSelected ? 2 : 1,
+            borderColor: isSilverSelected ? '#64748B' : 'rgba(148, 163, 184, 0.25)',
+            backgroundColor: isSilverSelected ? '#E2E8F0' : 'rgba(255, 255, 255, 0.5)',
+            flexDirection: 'row',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 10,
+          }}
+        >
+          <Text
+            style={{
+              fontSize: 15,
+              fontWeight: '900',
+              letterSpacing: 1,
+              color: isSilverSelected ? '#0F172A' : 'rgba(30, 41, 59, 0.5)',
+              backgroundColor: 'transparent',
+            }}
+          >
+            SILVER
+          </Text>
+          <BullionBar3D isGold={false} scale={0.7} />
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+}
+
+export function GlassMetalBadge({ metal }: { metal: 'GOLD' | 'SILVER' }) {
+  const isGold = metal === 'GOLD';
+  return (
+    <View
+      style={{
+        paddingHorizontal: 12,
+        paddingVertical: 5,
+        borderRadius: 12,
+        borderWidth: 1.5,
+        backgroundColor: isGold ? '#FEF3C7' : '#E2E8F0',
+        borderColor: isGold ? '#D4AF37' : '#64748B',
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+      }}
+    >
+      <Text
+        style={{
+          fontSize: 11,
+          fontWeight: '900',
+          letterSpacing: 0.8,
+          color: isGold ? '#92400E' : '#0F172A',
+        }}
+      >
+        {metal}
+      </Text>
+      <BullionBar3D isGold={isGold} scale={0.5} />
+    </View>
+  );
+}

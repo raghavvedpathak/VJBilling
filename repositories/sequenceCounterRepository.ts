@@ -1,13 +1,14 @@
 import { eq } from 'drizzle-orm';
 import { sequenceCounters } from '../db/schema';
-import { financialYearRepository } from './fyRepository';
+import { fyRepository } from './fyRepository';
 import type { DrizzleTransaction } from '../types/phase2.types';
 import { now } from '../utils/now';
+import { ERR } from '../constants';
 
 export const sequenceCounterRepository = {
   nextVal(tx: DrizzleTransaction, firmId: string, fyId: string, type: string): number {
-    const fy = financialYearRepository.getById(tx, firmId, fyId);
-    if (!fy) throw new Error('FY_NOT_FOUND');
+    const fy = fyRepository.getById(tx, firmId, fyId);
+    if (!fy) throw new Error(ERR.FY_NOT_FOUND);
     const fyLabel = fy.label;
     
     const counterId = `${firmId}_${type}_${fyLabel}`;

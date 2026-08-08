@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, TextInput, Alert, Modal, KeyboardAvoidingView, 
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { TwoToneWrapper } from '../../components/TwoToneWrapper';
-import { HeaderPill, GlassButton } from '../../components/ui/Glass';
+import { HeaderPill, GlassButton, GlassInput, GlassMetalBadge } from '../../components/ui/Glass';
 import { useStore } from 'zustand';
 import { appSettingsStore } from '../../store/appSettingsStore';
 import { Edit2, CheckCircle, ShieldCheck } from 'lucide-react-native';
@@ -19,7 +19,7 @@ export default function EditDesignScreen() {
   const insets = useSafeAreaInsets();
   
   // Get initial params from routing
-  const { id, initialName, initialThreshold } = useLocalSearchParams<{ id: string; initialName: string; initialThreshold?: string }>();
+  const { id, initialName, initialMetal, initialThreshold } = useLocalSearchParams<{ id: string; initialName: string; initialMetal?: 'GOLD' | 'SILVER'; initialThreshold?: string }>();
   
   const [newName, setNewName] = useState(initialName || '');
   const [lowStockThreshold, setLowStockThreshold] = useState(initialThreshold || '');
@@ -62,6 +62,7 @@ export default function EditDesignScreen() {
   const editDesignHeaderPills = (
     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginTop: 4 }}>
       <HeaderPill icon={<Edit2 size={12} color={colors.vjBg} />} label={initialName || 'Design'} />
+      {initialMetal ? <HeaderPill label={initialMetal} variant={initialMetal === 'GOLD' ? 'warning' : 'default'} /> : null}
       <HeaderPill icon={<ShieldCheck size={12} color="#4ADE80" />} label="Firm Scoped" variant="success" />
     </View>
   );
@@ -72,9 +73,8 @@ export default function EditDesignScreen() {
         <ScrollView style={s.container} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingTop: 32, paddingBottom: 350 }} keyboardShouldPersistTaps="handled">
           <View style={s.card}>
             <View style={s.formGroup}>
-              <Text style={s.label}>Design Name</Text>
-              <TextInput 
-                style={s.input}
+              <GlassInput 
+                label="Design Name"
                 value={newName}
                 onChangeText={setNewName}
                 placeholder="e.g. Classic Band"
@@ -82,10 +82,18 @@ export default function EditDesignScreen() {
               <Text style={s.helpText}>No special characters. Max 2 words.</Text>
             </View>
 
+            {initialMetal ? (
+              <View style={s.formGroup}>
+                <Text style={s.label}>Metal Type (Immutable)</Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4 }}>
+                  <GlassMetalBadge metal={initialMetal} />
+                </View>
+              </View>
+            ) : null}
+
             <View style={s.formGroup}>
-              <Text style={s.label}>Low-Stock Alert Threshold (Count)</Text>
-              <TextInput 
-                style={s.input}
+              <GlassInput 
+                label="Low-Stock Alert Threshold (Count)"
                 value={lowStockThreshold}
                 onChangeText={setLowStockThreshold}
                 placeholder="e.g. 5 (Leave blank to remove alert)"

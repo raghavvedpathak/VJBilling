@@ -46,7 +46,7 @@ export function TwoToneWrapper({ title, children, showBack, actionIcon, onAction
                 {showBack && (
                   <TouchableOpacity 
                     onPress={handleBack}
-                    className="h-10 w-10 rounded-full bg-white/10 justify-center items-center border border-white/20"
+                    className="h-10 w-10 rounded-full bg-white/12 justify-center items-center"
                   >
                     <ChevronLeft size={24} color={colors.vjBg} />
                   </TouchableOpacity>
@@ -58,7 +58,7 @@ export function TwoToneWrapper({ title, children, showBack, actionIcon, onAction
                 )}
               </View>
               {actionIcon && (
-                <TouchableOpacity onPress={onAction} className="h-10 w-10 rounded-full bg-white/10 justify-center items-center border border-white/20">
+                <TouchableOpacity onPress={onAction} className="h-10 w-10 rounded-full bg-white/12 justify-center items-center">
                   {actionIcon}
                 </TouchableOpacity>
               )}
@@ -74,8 +74,8 @@ export function TwoToneWrapper({ title, children, showBack, actionIcon, onAction
         </View>
 
         {/* === LOWER ZONE (LIGHT WITH ROUNDED CORNERS) === */}
-        {/* ARCHITECT FIX: Added overflow-hidden to stop ScrollView height snapping */}
-        <View className="flex-1 rounded-t-[32px] shadow-2xl overflow-hidden" style={{ backgroundColor: colors.vjBg }}>
+        {/* ARCHITECT FIX: Clean rounded top panel without shadow seam strip */}
+        <View className="flex-1 rounded-t-[32px] overflow-hidden" style={{ backgroundColor: colors.vjBg }}>
           <DynamicBackground />
           <KeyboardAvoidingView
             behavior={Platform.OS === 'ios' ? 'padding' : undefined}

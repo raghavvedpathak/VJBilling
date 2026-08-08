@@ -58,9 +58,8 @@ export function karatToPercent(karat: number): number {
   return pct;
 }
 
-// percentToKarat() — checks PURITY_MAP direct karat match first, then PURITY_PERCENT_EXTENDED (exact match), then PURITY_MAP (within 0.05%). Returns null if no match.
+// percentToKarat() — checks PURITY_PERCENT_EXTENDED (exact match), then PURITY_MAP (within 0.05%). Returns null if no match.
 export function percentToKarat(percent: number): number | null {
-  if (PURITY_MAP[percent] !== undefined) return percent;
   if (PURITY_PERCENT_EXTENDED[percent] !== undefined) return PURITY_PERCENT_EXTENDED[percent];
   for (const [k, v] of Object.entries(PURITY_MAP)) {
     if (Math.abs(v - percent) < 0.05) return Number(k);

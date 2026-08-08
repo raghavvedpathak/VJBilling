@@ -27,11 +27,13 @@ import {
   Package, Tag, Scale, Gem, FileText,
   Clock, AlertTriangle, Info, AlertCircle,
   Shield, MapPin, Calculator, Tag as TagIcon,
-  Trash2, Sparkles, Coins, Percent, Crown, Award
+  Trash2, Sparkles, Coins, Percent, Crown, Award, Edit3,
+  ChevronUp, ChevronDown
 } from 'lucide-react-native';
-import type { ItemDetail, ItemTimelineEvent } from '../../types/phase2.types';
+import type { ItemDetail, ItemTimelineEvent, UpdateableItemDraftFields, MetalSource } from '../../types/phase2.types';
 import { TERMINAL_ITEM_STATUSES } from '../../types/phase2.types';
 import { getJewelryCategoryIcon } from '../../utils/jewelryIcons';
+
 const formatCurrency = (paise: number | null): string => {
   if (paise === null || paise === undefined) return '—';
   return getCurrencySymbol() + (Math.round(paise) / 100).toFixed(2);
@@ -45,6 +47,8 @@ const getEventLabel = (event: ItemTimelineEvent): string => {
     case 'ITEM_EDITED': return 'Details Updated';
     case 'WEIGHT_ADJUSTED': return 'Weight Adjusted';
     case 'HUID_ADDED': return 'HUID Assigned';
+    case 'HUID_CORRECTED': return 'HUID Corrected';
+    case 'METAL_SOURCE_CORRECTED': return 'Metal Source Corrected';
     case 'BARCODE_REPRINTED': return 'Barcode Reprinted';
     case 'ITEM_RETURNED': return 'Returned to Stock';
     case 'ITEM_SENT_TO_KARIGAR': return `Sent to Karigar · ${event.karigarName || 'Unknown'}`;
@@ -157,27 +161,53 @@ export default function ItemDetailScreen() {
     return null;
   });
   const [loading, setLoading] = useState(false);
+
+  // Date Correction State
   const [isDateModalVisible, setDateModalVisible] = useState(false);
   const [dateReason, setDateReason] = useState('');
-
-  // Calendar States
   const [calendarYear, setCalendarYear] = useState(new Date().getFullYear());
   const [calendarMonth, setCalendarMonth] = useState(new Date().getMonth());
   const [selectedCalendarDate, setSelectedCalendarDate] = useState<Date>(new Date());
-  
+  const [correctingDate, setCorrectingDate] = useState(false);
   const { dateFormatToken } = appSettingsStore.getState();
 
-  // HUID State
+  // Add / Correct HUID State
   const [isHuidModalVisible, setHuidModalVisible] = useState(false);
   const [huidInput, setHuidInput] = useState('');
-  const [addingHuid, setAddingHuid] = useState(false);
-  const [correctingDate, setCorrectingDate] = useState(false);
+  const [huidReason, setHuidReason] = useState('');
+  const [submittingHuid, setSubmittingHuid] = useState(false);
+
+  // Metal Source Correction State
+  const [isMetalSourceModalVisible, setMetalSourceModalVisible] = useState(false);
+  const [selectedMetalSource, setSelectedMetalSource] = useState<MetalSource>('SUPPLIER_PURCHASE');
+  const [metalSourceReason, setMetalSourceReason] = useState('');
+  const [correctingMetalSource, setCorrectingMetalSource] = useState(false);
 
   // Delete Item State
   const [isDeleteModalVisible, setDeleteModalVisible] = useState(false);
   const [deleteReason, setDeleteReason] = useState('');
   const [deleting, setDeleting] = useState(false);
 
+  // Edit Details Modal State (itemService.updateItem)
+  const [isEditDetailsModalVisible, setEditDetailsModalVisible] = useState(false);
+  const [editLocation, setEditLocation] = useState('');
+  const [editMakingChargeRupees, setEditMakingChargeRupees] = useState('');
+  const [editStoneCostRupees, setEditStoneCostRupees] = useState('');
+  const [editPurchaseRateRupees, setEditPurchaseRateRupees] = useState('');
+  const [editSizeValue, setEditSizeValue] = useState('');
+  const [editSizeUnit, setEditSizeUnit] = useState<'INCH' | 'MM' | 'CM' | 'RING_SIZE' | ''>('');
+  const [updatingDetails, setUpdatingDetails] = useState(false);
+
+  // Adjust Weight Modal State (itemService.adjustWeight)
+  const [isAdjustWeightModalVisible, setAdjustWeightModalVisible] = useState(false);
+  const [adjustGrossGrams, setAdjustGrossGrams] = useState('');
+  const [adjustStoneGrams, setAdjustStoneGrams] = useState('');
+  const [adjustBeadsGrams, setAdjustBeadsGrams] = useState('');
+  const [adjustWastagePercent, setAdjustWastagePercent] = useState('');
+  const [adjustWeightReason, setAdjustWeightReason] = useState('');
+  const [adjustingWeight, setAdjustingWeight] = useState(false);
+
+  // --- Handlers ---
   const handleOpenDeleteModal = useCallback(() => {
     setDeleteReason('');
     setDeleteModalVisible(true);
@@ -213,26 +243,45 @@ export default function ItemDetailScreen() {
     setDateModalVisible(true);
   };
 
-  const handlePrevMonth = () => {
-    if (calendarMonth === 0) {
-      setCalendarMonth(11);
-      setCalendarYear(prev => prev - 1);
-    } else {
-      setCalendarMonth(prev => prev - 1);
-    }
+  const getMaxDaysInMonth = (year: number, month: number) => {
+    return new Date(year, month + 1, 0).getDate();
   };
 
-  const handleNextMonth = () => {
-    if (calendarMonth === 11) {
-      setCalendarMonth(0);
-      setCalendarYear(prev => prev + 1);
-    } else {
-      setCalendarMonth(prev => prev + 1);
-    }
+  const handleDayStep = (delta: number) => {
+    try { Haptics.selectionAsync(); } catch {}
+    const currentDay = selectedCalendarDate.getDate();
+    const maxDays = getMaxDaysInMonth(calendarYear, calendarMonth);
+    let newDay = currentDay + delta;
+    if (newDay < 1) newDay = maxDays;
+    if (newDay > maxDays) newDay = 1;
+    setSelectedCalendarDate(new Date(calendarYear, calendarMonth, newDay));
   };
 
-  const handleSelectDay = (day: number) => {
-    setSelectedCalendarDate(new Date(calendarYear, calendarMonth, day));
+  const handleMonthStep = (delta: number) => {
+    try { Haptics.selectionAsync(); } catch {}
+    let newMonth = calendarMonth + delta;
+    let newYear = calendarYear;
+    if (newMonth < 0) {
+      newMonth = 11;
+      newYear -= 1;
+    } else if (newMonth > 11) {
+      newMonth = 0;
+      newYear += 1;
+    }
+    setCalendarMonth(newMonth);
+    setCalendarYear(newYear);
+    const maxDays = getMaxDaysInMonth(newYear, newMonth);
+    const clampedDay = Math.min(selectedCalendarDate.getDate(), maxDays);
+    setSelectedCalendarDate(new Date(newYear, newMonth, clampedDay));
+  };
+
+  const handleYearStep = (delta: number) => {
+    try { Haptics.selectionAsync(); } catch {}
+    const newYear = calendarYear + delta;
+    setCalendarYear(newYear);
+    const maxDays = getMaxDaysInMonth(newYear, calendarMonth);
+    const clampedDay = Math.min(selectedCalendarDate.getDate(), maxDays);
+    setSelectedCalendarDate(new Date(newYear, calendarMonth, clampedDay));
   };
 
   const handleCorrectDate = async () => {
@@ -287,30 +336,177 @@ export default function ItemDetailScreen() {
   };
 
   const handleOpenHuidModal = useCallback(() => {
-    setHuidInput('');
+    setHuidInput(item?.huid || '');
+    setHuidReason('');
     setHuidModalVisible(true);
-  }, []);
+  }, [item]);
 
-  const handleAddHuid = async () => {
-    if (!activeFirmId || !itemId) return;
+  const handleSaveHuid = async () => {
+    if (!activeFirmId || !itemId || !item) return;
     const huidUpper = huidInput.trim().toUpperCase();
     if (!/^[A-Z0-9]{6}$/.test(huidUpper)) {
       Alert.alert('Invalid HUID', 'HUID must be exactly 6 uppercase alphanumeric characters.');
       return;
     }
 
-    setAddingHuid(true);
+    setSubmittingHuid(true);
     try {
-      await itemService.addHUID(itemId, activeFirmId, huidUpper);
+      if (item.huid === null) {
+        await itemService.addHUID(itemId, activeFirmId, huidUpper);
+        Alert.alert('Success', 'HUID assigned successfully.');
+      } else {
+        if (!huidReason.trim()) {
+          Alert.alert('Reason Required', 'Please enter a reason for correcting the HUID.');
+          setSubmittingHuid(false);
+          return;
+        }
+        await itemService.correctHUID(itemId, activeFirmId, huidUpper, huidReason.trim());
+        Alert.alert('Success', 'HUID corrected successfully.');
+      }
       setHuidModalVisible(false);
-      Alert.alert('Success', 'HUID added successfully.');
-      // Refresh item detail
       const detail = await inventoryDrillDownService.getItemDetail(activeFirmId, itemId);
       setItem(detail);
     } catch (e: any) {
-      Alert.alert('Error', e.message || 'Failed to add HUID');
+      Alert.alert('Error', e.message || 'Failed to update HUID');
     } finally {
-      setAddingHuid(false);
+      setSubmittingHuid(false);
+    }
+  };
+
+  const handleOpenMetalSourceModal = useCallback(() => {
+    if (!item) return;
+    setSelectedMetalSource(item.metalSource as MetalSource);
+    setMetalSourceReason('');
+    setMetalSourceModalVisible(true);
+  }, [item]);
+
+  const handleCorrectMetalSource = async () => {
+    if (!item || !activeFirmId) return;
+    if (!metalSourceReason.trim()) {
+      Alert.alert('Reason Required', 'Please enter a reason for correcting the metal source.');
+      return;
+    }
+
+    setCorrectingMetalSource(true);
+    try {
+      await itemService.correctMetalSource(item.id, activeFirmId, selectedMetalSource, metalSourceReason.trim());
+      setMetalSourceModalVisible(false);
+      Alert.alert('Success', 'Metal source corrected successfully.');
+      const detail = await inventoryDrillDownService.getItemDetail(activeFirmId, item.id);
+      setItem(detail);
+    } catch (e: any) {
+      Alert.alert('Error', e.message || 'Failed to correct metal source');
+    } finally {
+      setCorrectingMetalSource(false);
+    }
+  };
+
+  // --- Handle updateItem() ---
+  const handleOpenEditDetailsModal = useCallback(() => {
+    if (!item) return;
+    setEditLocation(item.location || '');
+    setEditMakingChargeRupees(item.makingChargePaise !== null ? (item.makingChargePaise / 100).toString() : '');
+    setEditStoneCostRupees(item.stoneCostPaise !== null ? (item.stoneCostPaise / 100).toString() : '');
+    setEditPurchaseRateRupees(item.purchaseRatePaise !== null ? (item.purchaseRatePaise / 100).toString() : '');
+    setEditSizeValue(item.sizeValue !== null ? item.sizeValue.toString() : '');
+    setEditSizeUnit(item.sizeUnit || '');
+    setEditDetailsModalVisible(true);
+  }, [item]);
+
+  const handleSaveDetails = async () => {
+    if (!item || !activeFirmId) return;
+
+    const hasSizeValue = editSizeValue.trim() !== '';
+    const hasSizeUnit = editSizeUnit !== '';
+    if (hasSizeValue !== hasSizeUnit) {
+      Alert.alert('Invalid Size', 'Size value and Size unit must either both be provided or both left blank.');
+      return;
+    }
+
+    setUpdatingDetails(true);
+    try {
+      const payload: UpdateableItemDraftFields = {
+        location: editLocation.trim() || null,
+        makingChargePaise: editMakingChargeRupees.trim() !== '' ? Math.round(Number(editMakingChargeRupees) * 100) : null,
+        stoneCostPaise: editStoneCostRupees.trim() !== '' ? Math.round(Number(editStoneCostRupees) * 100) : null,
+        purchaseRatePaise: editPurchaseRateRupees.trim() !== '' ? Math.round(Number(editPurchaseRateRupees) * 100) : null,
+        sizeValue: hasSizeValue ? Number(editSizeValue) : null,
+        sizeUnit: hasSizeUnit ? (editSizeUnit as any) : null,
+      };
+
+      await itemService.updateItem(item.id, activeFirmId, payload);
+      setEditDetailsModalVisible(false);
+
+      const detail = await inventoryDrillDownService.getItemDetail(activeFirmId, item.id);
+      setItem(detail);
+      Alert.alert('Success', 'Item details updated.');
+    } catch (e: any) {
+      Alert.alert('Error', e.message || 'Failed to update details');
+    } finally {
+      setUpdatingDetails(false);
+    }
+  };
+
+  // --- Handle adjustWeight() ---
+  const handleOpenAdjustWeightModal = useCallback(() => {
+    if (!item) return;
+    setAdjustGrossGrams((item.grossWeightMg / 1000).toString());
+    setAdjustStoneGrams((item.stoneWeightMg / 1000).toString());
+    setAdjustBeadsGrams((item.beadsWeightMg / 1000).toString());
+    setAdjustWastagePercent(item.wastagePercent ? item.wastagePercent.toString() : '');
+    setAdjustWeightReason('');
+    setAdjustWeightModalVisible(true);
+  }, [item]);
+
+  const handleSaveWeightAdjustment = async () => {
+    if (!item || !activeFirmId) return;
+
+    const grossGrams = Number(adjustGrossGrams);
+    const stoneGrams = adjustStoneGrams ? Number(adjustStoneGrams) : 0;
+    const beadsGrams = adjustBeadsGrams ? Number(adjustBeadsGrams) : 0;
+
+    if (isNaN(grossGrams) || grossGrams <= 0) {
+      Alert.alert('Invalid Weight', 'Gross weight must be greater than 0.');
+      return;
+    }
+
+    const newGrossMg = Math.round(grossGrams * 1000);
+    const newStoneMg = Math.round(stoneGrams * 1000);
+    const newBeadsMg = Math.round(beadsGrams * 1000);
+    const newNetMg = newGrossMg - newStoneMg - newBeadsMg;
+
+    if (newNetMg <= 0) {
+      Alert.alert('Invalid Net Weight', 'Net weight (Gross - Stone - Beads) must be greater than 0.');
+      return;
+    }
+
+    if (!adjustWeightReason.trim()) {
+      Alert.alert('Reason Required', 'Please enter a reason for adjusting the weight.');
+      return;
+    }
+
+    setAdjustingWeight(true);
+    try {
+      const newWastage = adjustWastagePercent.trim() !== '' ? Number(adjustWastagePercent) : undefined;
+      await itemService.adjustWeight(
+        item.id,
+        activeFirmId,
+        newGrossMg,
+        newStoneMg,
+        newBeadsMg,
+        adjustWeightReason.trim(),
+        newWastage
+      );
+
+      setAdjustWeightModalVisible(false);
+
+      const detail = await inventoryDrillDownService.getItemDetail(activeFirmId, item.id);
+      setItem(detail);
+      Alert.alert('Success', 'Weights adjusted successfully.');
+    } catch (e: any) {
+      Alert.alert('Error', e.message || 'Failed to adjust weights');
+    } finally {
+      setAdjustingWeight(false);
     }
   };
 
@@ -343,7 +539,6 @@ export default function ItemDetailScreen() {
   }
 
   const metalColor = item.metal === 'GOLD' ? COLORS.gold : COLORS.silver;
-  const isPhantom = item.status === 'PHANTOM_AVAILABLE' || item.status === 'PHANTOM_SOLD';
   const purityDisplay = getDisplayPurity(item.purityPercent, item.purityKarat, item.metal);
 
   const dateToken = dateFormatToken || 'dd/MM/yyyy';
@@ -372,23 +567,16 @@ export default function ItemDetailScreen() {
     } catch {}
   }
 
-  // --- Calendar Date Picker Calculation ---
   const daysInMonth = new Date(calendarYear, calendarMonth + 1, 0).getDate();
   const firstDayIndex = new Date(calendarYear, calendarMonth, 1).getDay();
   
   const cells: (number | null)[] = [];
-  for (let i = 0; i < firstDayIndex; i++) {
-    cells.push(null);
-  }
-  for (let i = 1; i <= daysInMonth; i++) {
-    cells.push(i);
-  }
+  for (let i = 0; i < firstDayIndex; i++) cells.push(null);
+  for (let i = 1; i <= daysInMonth; i++) cells.push(i);
+  
   const rows: (number | null)[][] = [];
-  for (let i = 0; i < cells.length; i += 7) {
-    rows.push(cells.slice(i, i + 7));
-  }
+  for (let i = 0; i < cells.length; i += 7) rows.push(cells.slice(i, i + 7));
 
-  // --- Live Cost Breakdown Calculations ---
   const vaultTruth = computeVaultTruthGrams(item.fineWeightMg);
   const costTruth = computeCostTruthGrams(item.fineGoldChargedMg, item.fineWeightMg);
   const wastageGold = computeWastageGoldGrams(costTruth, vaultTruth);
@@ -401,7 +589,8 @@ export default function ItemDetailScreen() {
   const hasCostData = rate > 0 || making > 0 || stoneC > 0;
   const totalAmount = computeAbsoluteTotalCostRupees(costTruth, rate, making, stoneC);
 
-  const canDelete = !TERMINAL_ITEM_STATUSES.includes(item.status);
+  const isEditable = !TERMINAL_ITEM_STATUSES.includes(item.status);
+  const isDraft = item.status === 'DRAFT';
   const activeTheme = useStore(appSettingsStore, (s) => s.theme);
   const colors = getThemeColors(activeTheme);
 
@@ -425,9 +614,45 @@ export default function ItemDetailScreen() {
             
             <View style={s.divider} />
             
-            <DetailRow label="Gross Weight" value={formatWeight(item.grossWeightMg)} icon={<Scale size={14} color={COLORS.vjAccent} />} />
-            <DetailRow label="Stone Weight" value={formatWeight(item.stoneWeightMg)} icon={<Gem size={14} color={COLORS.vjAccent} />} />
-            <DetailRow label="Beads Weight" value={formatWeight(item.beadsWeightMg)} icon={<Package size={14} color={COLORS.vjAccent} />} />
+            <View style={s.detailRow}>
+              <View style={s.detailLabelRow}>
+                <Scale size={14} color={COLORS.vjAccent} />
+                <Text style={s.detailLabel}>Gross Weight</Text>
+                {isEditable && (
+                  <TouchableOpacity activeOpacity={0.7} onPress={handleOpenAdjustWeightModal} style={{ marginLeft: 6 }}>
+                    <Text style={{ color: COLORS.vjAccent, fontSize: 13, fontWeight: '700' }}>✎ Adjust</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+              <Text style={s.detailValue}>{formatWeight(item.grossWeightMg)}</Text>
+            </View>
+
+            <View style={s.detailRow}>
+              <View style={s.detailLabelRow}>
+                <Gem size={14} color={COLORS.vjAccent} />
+                <Text style={s.detailLabel}>Stone Weight</Text>
+                {isEditable && (
+                  <TouchableOpacity activeOpacity={0.7} onPress={handleOpenAdjustWeightModal} style={{ marginLeft: 6 }}>
+                    <Text style={{ color: COLORS.vjAccent, fontSize: 13, fontWeight: '700' }}>✎ Adjust</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+              <Text style={s.detailValue}>{formatWeight(item.stoneWeightMg)}</Text>
+            </View>
+
+            <View style={s.detailRow}>
+              <View style={s.detailLabelRow}>
+                <Package size={14} color={COLORS.vjAccent} />
+                <Text style={s.detailLabel}>Beads Weight</Text>
+                {isEditable && (
+                  <TouchableOpacity activeOpacity={0.7} onPress={handleOpenAdjustWeightModal} style={{ marginLeft: 6 }}>
+                    <Text style={{ color: COLORS.vjAccent, fontSize: 13, fontWeight: '700' }}>✎ Adjust</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+              <Text style={s.detailValue}>{formatWeight(item.beadsWeightMg)}</Text>
+            </View>
+
             <DetailRow label="Net Weight" value={formatWeight(item.netWeightMg)} icon={<Scale size={14} color={COLORS.vjAccent} />} />
             <DetailRow label="Purity" value={purityDisplay} icon={<Percent size={14} color={COLORS.vjAccent} />} />
             <DetailRow label="Fine Weight" value={formatWeight(item.fineWeightMg)} icon={<Award size={14} color={COLORS.vjAccent} />} />
@@ -449,9 +674,11 @@ export default function ItemDetailScreen() {
               </View>
               <View style={{flexDirection: 'row', alignItems: 'center', gap: 6}}>
                 <Text style={s.detailValue}>{item.huid || '—'}</Text>
-                {item.huid === null && !TERMINAL_ITEM_STATUSES.includes(item.status) && (
+                {isEditable && (
                   <TouchableOpacity activeOpacity={0.7} onPress={handleOpenHuidModal}>
-                     <Text style={{color: COLORS.vjAccent, fontSize: 16}}>✎ Add HUID</Text>
+                    <Text style={{color: COLORS.vjAccent, fontSize: 13, fontWeight: '700'}}>
+                      {item.huid === null ? '✎ Add HUID' : '✎ Correct HUID'}
+                    </Text>
                   </TouchableOpacity>
                 )}
               </View>
@@ -467,17 +694,29 @@ export default function ItemDetailScreen() {
               icon={<MapPin size={14} color={COLORS.vjAccent} />} 
             />
             <DetailRow label="Status" value={item.status.replace(/_/g, ' ')} icon={<Info size={14} color={COLORS.vjAccent} />} />
-            <DetailRow label="Metal Source" value={item.metalSource.replace(/_/g, ' ')} icon={<Package size={14} color={COLORS.vjAccent} />} />
+            
+            <View style={s.detailRow}>
+              <View style={s.detailLabelRow}>
+                <Package size={14} color={COLORS.vjAccent} />
+                <Text style={s.detailLabel}>Metal Source</Text>
+                {isEditable && (
+                  <TouchableOpacity activeOpacity={0.7} onPress={handleOpenMetalSourceModal} style={{ marginLeft: 6 }}>
+                    <Text style={{ color: COLORS.vjAccent, fontSize: 13, fontWeight: '700' }}>✎ Correct</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+              <Text style={s.detailValue}>{item.metalSource.replace(/_/g, ' ')}</Text>
+            </View>
+
             <DetailRow label="HSN Code" value={item.hsnCode} icon={<FileText size={14} color={COLORS.vjAccent} />} />
             
             <View style={s.detailRow}>
               <View style={s.detailLabelRow}>
                 <View style={s.detailIcon}><Clock size={14} color={COLORS.vjAccent} /></View>
                 <Text style={s.detailLabel}>Added On</Text>
-                {/* GAP-P2-DATE-SKU-EDIT-1 (v1.79) */}
-                {(item.status !== 'SOLD' && item.status !== 'MELTED' && item.status !== 'PHANTOM_SOLD') && (
+                {isEditable && (
                   <TouchableOpacity activeOpacity={0.7} onPress={handleOpenDateModal} style={{ marginLeft: 6 }}>
-                     <Text style={{color: COLORS.vjAccent, fontSize: 16, fontWeight: 'bold'}}>✎</Text>
+                     <Text style={{color: COLORS.vjAccent, fontSize: 13, fontWeight: 'bold'}}>✎ Edit</Text>
                   </TouchableOpacity>
                 )}
               </View>
@@ -510,7 +749,7 @@ export default function ItemDetailScreen() {
             
             {/* === INVOICE SLOT === */}
             {item.invoiceId ? (
-              <TouchableOpacity style={s.detailRow} activeOpacity={0.7} onPress={() => {/* Phase 3 navigation here */}}>
+              <TouchableOpacity style={s.detailRow} activeOpacity={0.7} onPress={() => {/* Phase 3 navigation */}}>
                 <View style={s.detailLabelRow}>
                   <FileText size={14} color={COLORS.vjAccent} />
                   <Text style={s.detailLabel}>Sale Invoice</Text>
@@ -521,10 +760,31 @@ export default function ItemDetailScreen() {
               <DetailRow label="Sale Invoice" value="—" icon={<FileText size={14} color={COLORS.vjAccent} />} />
             )}
 
+            {/* EDIT & DELETE ACTION BUTTONS */}
+            {isEditable && (
+              <View style={s.cardActionRow}>
+                <TouchableOpacity
+                  style={s.editActionBtn}
+                  activeOpacity={0.7}
+                  onPress={handleOpenEditDetailsModal}
+                >
+                  <Edit3 size={15} color={COLORS.vjAccent} />
+                  <Text style={s.editActionBtnText}>Edit Location, Size & Charges</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={s.deleteCardBtn}
+                  activeOpacity={0.7}
+                  onPress={handleOpenDeleteModal}
+                >
+                  <Trash2 size={15} color={COLORS.error} />
+                  <Text style={s.deleteCardBtnText}>Delete Item</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+
           </View>
         </View>
-
-
 
         {/* === TIMELINE SECTION === */}
         <View style={s.section}>
@@ -556,96 +816,167 @@ export default function ItemDetailScreen() {
 
       </ScrollView>
 
-      {/* Date Correction Modal */}
-      <Modal visible={isDateModalVisible} transparent animationType="fade">
+      {/* Edit Details Modal (updateItem) */}
+      <Modal visible={isEditDetailsModalVisible} transparent animationType="fade">
         <View style={s.modalOverlay}>
-          <View style={s.modalContent}>
-            <Text style={s.modalTitle}>Correct Added Date</Text>
-            
-            <Text style={s.modalLabel}>Select New Date</Text>
-            
-            <View style={s.calendarContainer}>
-              <View style={s.calendarHeader}>
-                <TouchableOpacity onPress={handlePrevMonth} style={s.arrowBtn}>
-                  <Text style={s.arrowText}>‹</Text>
-                </TouchableOpacity>
-                <Text style={s.calendarTitleText}>
-                  {MONTH_NAMES[calendarMonth]} {calendarYear}
-                </Text>
-                <TouchableOpacity onPress={handleNextMonth} style={s.arrowBtn}>
-                  <Text style={s.arrowText}>›</Text>
-                </TouchableOpacity>
-              </View>
+          <ScrollView contentContainerStyle={s.modalScrollContent}>
+            <View style={s.modalContent}>
+              <Text style={s.modalTitle}>Edit Item Details</Text>
+              
+              <Text style={s.modalLabel}>Location</Text>
+              <TextInput 
+                style={s.modalInput}
+                value={editLocation}
+                onChangeText={setEditLocation}
+                placeholder="e.g. SHOP, LOCKER, KARIGAR"
+                editable={!updatingDetails}
+              />
 
-              {/* Weekdays */}
-              <View style={s.weekDaysRow}>
-                {WEEK_DAYS.map(day => (
-                  <Text key={day} style={s.weekDayText}>{day}</Text>
+              <Text style={s.modalLabel}>Size Value</Text>
+              <TextInput 
+                style={s.modalInput}
+                value={editSizeValue}
+                onChangeText={setEditSizeValue}
+                placeholder="e.g. 2.4, 12, 18"
+                keyboardType="numeric"
+                editable={!updatingDetails}
+              />
+
+              <Text style={s.modalLabel}>Size Unit</Text>
+              <View style={s.unitSelectorRow}>
+                {(['INCH', 'MM', 'CM', 'RING_SIZE', ''] as const).map((unit) => (
+                  <TouchableOpacity
+                    key={unit}
+                    style={[s.unitChip, editSizeUnit === unit && s.unitChipSelected]}
+                    onPress={() => setEditSizeUnit(unit)}
+                    disabled={updatingDetails}
+                  >
+                    <Text style={[s.unitChipText, editSizeUnit === unit && s.unitChipTextSelected]}>
+                      {unit === '' ? 'None' : unit}
+                    </Text>
+                  </TouchableOpacity>
                 ))}
               </View>
 
-              {/* Days Grid */}
-              <View style={s.daysGrid}>
-                {rows.map((row, rIdx) => (
-                  <View key={rIdx} style={s.daysRow}>
-                    {row.map((day, cIdx) => {
-                      if (day === null) {
-                        return <View key={cIdx} style={s.dayCellEmpty} />;
-                      }
-                      
-                      const isSelected = selectedCalendarDate.getDate() === day &&
-                                         selectedCalendarDate.getMonth() === calendarMonth &&
-                                         selectedCalendarDate.getFullYear() === calendarYear;
+              <Text style={s.modalLabel}>Purchase Rate (₹ / gram)</Text>
+              <TextInput 
+                style={s.modalInput}
+                value={editPurchaseRateRupees}
+                onChangeText={setEditPurchaseRateRupees}
+                placeholder="e.g. 6250.50"
+                keyboardType="numeric"
+                editable={!updatingDetails}
+              />
 
-                      return (
-                        <TouchableOpacity
-                          key={cIdx}
-                          style={[s.dayCell, isSelected && s.dayCellSelected]}
-                          onPress={() => handleSelectDay(day)}
-                        >
-                          <Text style={[s.dayText, isSelected && s.dayTextSelected]}>
-                            {day}
-                          </Text>
-                        </TouchableOpacity>
-                      );
-                    })}
-                  </View>
-                ))}
+              <Text style={s.modalLabel}>Making Charge (₹)</Text>
+              <TextInput 
+                style={s.modalInput}
+                value={editMakingChargeRupees}
+                onChangeText={setEditMakingChargeRupees}
+                placeholder="e.g. 500"
+                keyboardType="numeric"
+                editable={!updatingDetails}
+              />
+
+              <Text style={s.modalLabel}>Stone Cost (₹)</Text>
+              <TextInput 
+                style={s.modalInput}
+                value={editStoneCostRupees}
+                onChangeText={setEditStoneCostRupees}
+                placeholder="e.g. 1200"
+                keyboardType="numeric"
+                editable={!updatingDetails}
+              />
+
+              <View style={s.modalActions}>
+                <TouchableOpacity style={s.modalBtnSecondary} onPress={() => setEditDetailsModalVisible(false)} disabled={updatingDetails}>
+                  <Text style={s.modalBtnTextSecondary}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={s.modalBtnPrimary} onPress={handleSaveDetails} disabled={updatingDetails}>
+                  {updatingDetails ? <ActivityIndicator color="#fff" /> : <Text style={s.modalBtnTextPrimary}>Save Changes</Text>}
+                </TouchableOpacity>
               </View>
             </View>
-
-            <Text style={s.selectedDateLabel}>
-              Selected: {selectedCalendarDateFormatted}
-            </Text>
-
-            <Text style={s.modalLabel}>Reason for Correction</Text>
-            <TextInput 
-              style={s.modalInput}
-              value={dateReason}
-              onChangeText={setDateReason}
-              placeholder="e.g. Typo in entry date"
-              editable={!correctingDate}
-            />
-
-            <View style={s.modalActions}>
-              <TouchableOpacity style={s.modalBtnSecondary} onPress={() => setDateModalVisible(false)} disabled={correctingDate}>
-                <Text style={s.modalBtnTextSecondary}>Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={s.modalBtnPrimary} onPress={handleCorrectDate} disabled={correctingDate}>
-                {correctingDate ? <ActivityIndicator color="#fff" /> : <Text style={s.modalBtnTextPrimary}>Save</Text>}
-              </TouchableOpacity>
-            </View>
-          </View>
+          </ScrollView>
         </View>
       </Modal>
 
-      {/* Add HUID Modal */}
+      {/* Adjust Weight Modal (adjustWeight) */}
+      <Modal visible={isAdjustWeightModalVisible} transparent animationType="fade">
+        <View style={s.modalOverlay}>
+          <ScrollView contentContainerStyle={s.modalScrollContent}>
+            <View style={s.modalContent}>
+              <Text style={s.modalTitle}>Adjust Item Weights</Text>
+              
+              <Text style={s.modalLabel}>Gross Weight (grams) *</Text>
+              <TextInput 
+                style={s.modalInput}
+                value={adjustGrossGrams}
+                onChangeText={setAdjustGrossGrams}
+                placeholder="e.g. 12.500"
+                keyboardType="numeric"
+                editable={!adjustingWeight}
+              />
+
+              <Text style={s.modalLabel}>Stone Weight (grams)</Text>
+              <TextInput 
+                style={s.modalInput}
+                value={adjustStoneGrams}
+                onChangeText={setAdjustStoneGrams}
+                placeholder="e.g. 0.500"
+                keyboardType="numeric"
+                editable={!adjustingWeight}
+              />
+
+              <Text style={s.modalLabel}>Beads Weight (grams)</Text>
+              <TextInput 
+                style={s.modalInput}
+                value={adjustBeadsGrams}
+                onChangeText={setAdjustBeadsGrams}
+                placeholder="e.g. 0.200"
+                keyboardType="numeric"
+                editable={!adjustingWeight}
+              />
+
+              <Text style={s.modalLabel}>Supplier Wastage %</Text>
+              <TextInput 
+                style={s.modalInput}
+                value={adjustWastagePercent}
+                onChangeText={setAdjustWastagePercent}
+                placeholder="e.g. 5.0"
+                keyboardType="numeric"
+                editable={!adjustingWeight}
+              />
+
+              <Text style={s.modalLabel}>Reason for Adjustment *</Text>
+              <TextInput 
+                style={s.modalInput}
+                value={adjustWeightReason}
+                onChangeText={setAdjustWeightReason}
+                placeholder="e.g. Re-weighed after polishing"
+                editable={!adjustingWeight}
+              />
+
+              <View style={s.modalActions}>
+                <TouchableOpacity style={s.modalBtnSecondary} onPress={() => setAdjustWeightModalVisible(false)} disabled={adjustingWeight}>
+                  <Text style={s.modalBtnTextSecondary}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={s.modalBtnPrimary} onPress={handleSaveWeightAdjustment} disabled={adjustingWeight}>
+                  {adjustingWeight ? <ActivityIndicator color="#fff" /> : <Text style={s.modalBtnTextPrimary}>Adjust Weight</Text>}
+                </TouchableOpacity>
+              </View>
+            </View>
+          </ScrollView>
+        </View>
+      </Modal>
+
+      {/* Add / Correct HUID Modal */}
       <Modal visible={isHuidModalVisible} transparent animationType="fade">
         <View style={s.modalOverlay}>
           <View style={s.modalContent}>
-            <Text style={s.modalTitle}>Add HUID</Text>
+            <Text style={s.modalTitle}>{item.huid === null ? 'Add HUID' : 'Correct HUID'}</Text>
             
-            <Text style={s.modalLabel}>HUID (6 chars)</Text>
+            <Text style={s.modalLabel}>HUID (6 uppercase chars) *</Text>
             <TextInput 
               style={s.modalInput}
               value={huidInput}
@@ -653,18 +984,162 @@ export default function ItemDetailScreen() {
               placeholder="e.g. A1B2C3"
               autoCapitalize="characters"
               maxLength={6}
-              editable={!addingHuid}
+              editable={!submittingHuid}
             />
 
+            {item.huid !== null && (
+              <>
+                <Text style={s.modalLabel}>Reason for Correction *</Text>
+                <TextInput 
+                  style={s.modalInput}
+                  value={huidReason}
+                  onChangeText={setHuidReason}
+                  placeholder="e.g. Transposition typo on initial entry"
+                  editable={!submittingHuid}
+                />
+              </>
+            )}
+
             <View style={s.modalActions}>
-              <TouchableOpacity style={s.modalBtnSecondary} onPress={() => setHuidModalVisible(false)} disabled={addingHuid}>
+              <TouchableOpacity style={s.modalBtnSecondary} onPress={() => setHuidModalVisible(false)} disabled={submittingHuid}>
                 <Text style={s.modalBtnTextSecondary}>Cancel</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={s.modalBtnPrimary} onPress={handleAddHuid} disabled={addingHuid}>
-                {addingHuid ? <ActivityIndicator color="#fff" /> : <Text style={s.modalBtnTextPrimary}>Add</Text>}
+              <TouchableOpacity style={s.modalBtnPrimary} onPress={handleSaveHuid} disabled={submittingHuid}>
+                {submittingHuid ? <ActivityIndicator color="#fff" /> : <Text style={s.modalBtnTextPrimary}>Save</Text>}
               </TouchableOpacity>
             </View>
           </View>
+        </View>
+      </Modal>
+
+      {/* Correct Metal Source Modal */}
+      <Modal visible={isMetalSourceModalVisible} transparent animationType="fade">
+        <View style={s.modalOverlay}>
+          <View style={s.modalContent}>
+            <Text style={s.modalTitle}>Correct Metal Source</Text>
+            
+            <Text style={s.modalLabel}>Select Source *</Text>
+            <View style={s.unitSelectorRow}>
+              {(['SUPPLIER_PURCHASE', 'CUSTOMER_OLD_GOLD', 'EXCHANGE', 'KARIGAR', 'MELT_OUTPUT', 'OPENING_BALANCE'] as MetalSource[]).map((src) => (
+                <TouchableOpacity
+                  key={src}
+                  style={[s.unitChip, selectedMetalSource === src && s.unitChipSelected]}
+                  onPress={() => setSelectedMetalSource(src)}
+                  disabled={correctingMetalSource}
+                >
+                  <Text style={[s.unitChipText, selectedMetalSource === src && s.unitChipTextSelected]}>
+                    {src.replace(/_/g, ' ')}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            <Text style={s.modalLabel}>Reason for Correction *</Text>
+            <TextInput 
+              style={s.modalInput}
+              value={metalSourceReason}
+              onChangeText={setMetalSourceReason}
+              placeholder="e.g. Mistakenly entered as supplier purchase"
+              editable={!correctingMetalSource}
+            />
+
+            <View style={s.modalActions}>
+              <TouchableOpacity style={s.modalBtnSecondary} onPress={() => setMetalSourceModalVisible(false)} disabled={correctingMetalSource}>
+                <Text style={s.modalBtnTextSecondary}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={s.modalBtnPrimary} onPress={handleCorrectMetalSource} disabled={correctingMetalSource}>
+                {correctingMetalSource ? <ActivityIndicator color="#fff" /> : <Text style={s.modalBtnTextPrimary}>Save</Text>}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Date Correction Modal */}
+      <Modal visible={isDateModalVisible} transparent animationType="fade">
+        <View style={s.modalOverlay}>
+          <ScrollView contentContainerStyle={s.modalScrollContent}>
+            <View style={[s.modalContent, { borderRadius: 20, borderWidth: 1, borderColor: 'rgba(212,175,55,0.3)' }]}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 16 }}>
+                <Clock size={20} color={COLORS.vjAccent} />
+                <Text style={[s.modalTitle, { marginBottom: 0 }]}>Correct Added Date</Text>
+              </View>
+
+              <Text style={s.modalLabel}>Select Date (Day / Month / Year)</Text>
+              
+              {/* 3-Column Spacious Glass Wheel Spinner */}
+              <View style={s.picker3ColumnRow}>
+                
+                {/* Column 1: DAY */}
+                <View style={s.pickerColumnCard}>
+                  <Text style={s.pickerColumnLabel}>DAY</Text>
+                  <TouchableOpacity activeOpacity={0.7} style={s.pickerStepBtnVertical} onPress={() => handleDayStep(1)}>
+                    <ChevronUp size={20} color="#5C1623" />
+                  </TouchableOpacity>
+                  <View style={s.pickerValueCapsule}>
+                    <Text style={s.pickerValueText}>{String(selectedCalendarDate.getDate()).padStart(2, '0')}</Text>
+                  </View>
+                  <TouchableOpacity activeOpacity={0.7} style={s.pickerStepBtnVertical} onPress={() => handleDayStep(-1)}>
+                    <ChevronDown size={20} color="#5C1623" />
+                  </TouchableOpacity>
+                </View>
+
+                {/* Column 2: MONTH */}
+                <View style={[s.pickerColumnCard, { flex: 1.3 }]}>
+                  <Text style={s.pickerColumnLabel}>MONTH</Text>
+                  <TouchableOpacity activeOpacity={0.7} style={s.pickerStepBtnVertical} onPress={() => handleMonthStep(1)}>
+                    <ChevronUp size={20} color="#5C1623" />
+                  </TouchableOpacity>
+                  <View style={s.pickerValueCapsule}>
+                    <Text style={s.pickerValueText}>{MONTH_NAMES[calendarMonth].substring(0, 3)}</Text>
+                  </View>
+                  <TouchableOpacity activeOpacity={0.7} style={s.pickerStepBtnVertical} onPress={() => handleMonthStep(-1)}>
+                    <ChevronDown size={20} color="#5C1623" />
+                  </TouchableOpacity>
+                </View>
+
+                {/* Column 3: YEAR */}
+                <View style={s.pickerColumnCard}>
+                  <Text style={s.pickerColumnLabel}>YEAR</Text>
+                  <TouchableOpacity activeOpacity={0.7} style={s.pickerStepBtnVertical} onPress={() => handleYearStep(1)}>
+                    <ChevronUp size={20} color="#5C1623" />
+                  </TouchableOpacity>
+                  <View style={s.pickerValueCapsule}>
+                    <Text style={s.pickerValueText}>{calendarYear}</Text>
+                  </View>
+                  <TouchableOpacity activeOpacity={0.7} style={s.pickerStepBtnVertical} onPress={() => handleYearStep(-1)}>
+                    <ChevronDown size={20} color="#5C1623" />
+                  </TouchableOpacity>
+                </View>
+
+              </View>
+
+              {/* Selected Date Capsule */}
+              <View style={s.selectedDateBadgeCapsule}>
+                <Text style={s.selectedDateLabel}>
+                  📅 Selected Date: {selectedCalendarDateFormatted}
+                </Text>
+              </View>
+
+              <Text style={s.modalLabel}>Reason for Correction *</Text>
+              <TextInput 
+                style={s.modalInput}
+                value={dateReason}
+                onChangeText={setDateReason}
+                placeholder="e.g. Typo in entry date"
+                editable={!correctingDate}
+              />
+
+              <View style={s.modalActions}>
+                <TouchableOpacity style={s.modalBtnSecondary} onPress={() => setDateModalVisible(false)} disabled={correctingDate}>
+                  <Text style={s.modalBtnTextSecondary}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={s.modalBtnPrimary} onPress={handleCorrectDate} disabled={correctingDate}>
+                  {correctingDate ? <ActivityIndicator color="#fff" /> : <Text style={s.modalBtnTextPrimary}>Save Date</Text>}
+                </TouchableOpacity>
+              </View>
+            </View>
+          </ScrollView>
         </View>
       </Modal>
 
@@ -783,18 +1258,49 @@ const s = StyleSheet.create({
     paddingLeft: 11,
   },
 
-  // --- Costs Highlight ---
-  costHeaderRow: { paddingHorizontal: 14, paddingTop: 12, paddingBottom: 4 },
-  costHeaderTitle: { fontSize: 11, fontWeight: '800', color: COLORS.vjAccent, textTransform: 'uppercase', letterSpacing: 0.5 },
-  costTotalBox: { 
-    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-    marginHorizontal: 10, marginBottom: 10, marginTop: 4,
-    paddingVertical: 12, paddingHorizontal: 16,
-    backgroundColor: 'rgba(184,115,51,0.08)', borderRadius: 12,
-    borderWidth: 1, borderColor: 'rgba(184,115,51,0.2)'
+  // --- Card Action Buttons ---
+  cardActionRow: {
+    flexDirection: 'row',
+    gap: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
   },
-  costTotalLabel: { fontSize: 14, fontWeight: '800', color: COLORS.vjText },
-  costTotalValue: { fontSize: 16, fontWeight: '900', color: '#92400E', fontFamily: 'monospace' },
+  editActionBtn: {
+    flex: 2,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    backgroundColor: 'rgba(184,115,51,0.1)',
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(184,115,51,0.25)',
+  },
+  editActionBtnText: {
+    color: COLORS.vjAccent,
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  deleteCardBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    backgroundColor: 'rgba(239,68,68,0.08)',
+    paddingVertical: 10,
+    paddingHorizontal: 10,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(239,68,68,0.25)',
+  },
+  deleteCardBtnText: {
+    color: COLORS.error,
+    fontSize: 12,
+    fontWeight: '700',
+  },
 
   // --- Timeline ---
   timelineTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 14, marginLeft: 2 },
@@ -817,10 +1323,35 @@ const s = StyleSheet.create({
 
   // --- Modal ---
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' },
+  modalScrollContent: { flexGrow: 1, justifyContent: 'center', alignItems: 'center', paddingVertical: 40, width: '100%' },
   modalContent: { width: '85%', backgroundColor: '#fff', borderRadius: 16, padding: 24 },
   modalTitle: { fontSize: 18, fontWeight: '700', color: COLORS.vjText, marginBottom: 16 },
   modalLabel: { fontSize: 13, fontWeight: '600', color: 'rgba(92,22,35,0.6)', marginBottom: 6 },
   modalInput: { borderWidth: 1, borderColor: '#e5e7eb', borderRadius: 8, padding: 12, marginBottom: 16, fontSize: 15, color: '#1f2937' },
+  unitSelectorRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 16 },
+  unitChip: { paddingVertical: 6, paddingHorizontal: 12, borderRadius: 8, backgroundColor: '#f3f4f6', borderWidth: 1, borderColor: '#e5e7eb' },
+  unitChipSelected: { backgroundColor: COLORS.vjAccent, borderColor: COLORS.vjAccent },
+  unitChipText: { fontSize: 12, fontWeight: '600', color: '#4b5563' },
+  unitChipTextSelected: { color: '#ffffff', fontWeight: '700' },
+  presetChipsRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 14,
+    flexWrap: 'wrap',
+  },
+  presetChip: {
+    paddingVertical: 7,
+    paddingHorizontal: 12,
+    borderRadius: 10,
+    backgroundColor: 'rgba(212,175,55,0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(212,175,55,0.3)',
+  },
+  presetChipText: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#78350F',
+  },
   modalActions: { flexDirection: 'row', justifyContent: 'flex-end', gap: 12, marginTop: 8 },
   modalBtnSecondary: { paddingVertical: 10, paddingHorizontal: 16, borderRadius: 8, backgroundColor: '#f3f4f6' },
   modalBtnTextSecondary: { color: '#4b5563', fontWeight: '600' },
@@ -839,82 +1370,69 @@ const s = StyleSheet.create({
   costBreakdownTotalLabel: { fontSize: 14, color: COLORS.vjText, fontWeight: '900' },
   costBreakdownTotalValue: { fontSize: 14, color: '#78350F', fontWeight: '900', fontFamily: 'monospace' },
 
-  // --- Calendar Date Picker ---
-  calendarContainer: {
+  // --- 3-Column Spacious Glass Wheel Spinner ---
+  picker3ColumnRow: {
+    flexDirection: 'row',
+    gap: 12,
+    alignItems: 'center',
+    marginBottom: 18,
+    marginTop: 4,
+  },
+  pickerColumnCard: {
+    flex: 1,
+    backgroundColor: '#FFFDF9',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(212,175,55,0.35)',
+    paddingVertical: 10,
+    paddingHorizontal: 6,
+    alignItems: 'center',
+    shadowColor: '#5C1623',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 3,
+  },
+  pickerColumnLabel: {
+    fontSize: 11,
+    fontWeight: '900',
+    color: '#92400E',
+    letterSpacing: 0.8,
+    marginBottom: 8,
+  },
+  pickerStepBtnVertical: {
+    width: '100%',
+    height: 34,
+    borderRadius: 10,
+    backgroundColor: 'rgba(92,22,35,0.06)',
     borderWidth: 1,
     borderColor: 'rgba(92,22,35,0.08)',
-    borderRadius: 12,
-    padding: 10,
-    backgroundColor: '#FAF9F6',
-    marginBottom: 12,
-  },
-  calendarHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 10,
-  },
-  arrowBtn: {
-    paddingHorizontal: 12,
-    paddingVertical: 4,
-  },
-  arrowText: {
-    fontSize: 24,
-    color: COLORS.vjText,
-    fontWeight: 'bold',
-  },
-  calendarTitleText: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: COLORS.vjText,
-  },
-  weekDaysRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    marginBottom: 6,
-  },
-  weekDayText: {
-    width: 32,
-    textAlign: 'center',
-    fontSize: 11,
-    fontWeight: '700',
-    color: 'rgba(92,22,35,0.4)',
-  },
-  daysGrid: {
-    gap: 4,
-  },
-  daysRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-  },
-  dayCell: {
-    width: 32,
-    height: 32,
     justifyContent: 'center',
     alignItems: 'center',
-    borderRadius: 16,
   },
-  dayCellSelected: {
-    backgroundColor: COLORS.vjAccent,
+  pickerValueCapsule: {
+    paddingVertical: 8,
+    paddingHorizontal: 4,
   },
-  dayCellEmpty: {
-    width: 32,
-    height: 32,
+  pickerValueText: {
+    fontSize: 17,
+    fontWeight: '900',
+    color: '#5C1623',
+    textAlign: 'center',
   },
-  dayText: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: COLORS.vjText,
-  },
-  dayTextSelected: {
-    color: '#ffffff',
-    fontWeight: '800',
+  selectedDateBadgeCapsule: {
+    backgroundColor: 'rgba(212,175,55,0.1)',
+    borderWidth: 1,
+    borderColor: 'rgba(212,175,55,0.3)',
+    borderRadius: 10,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    alignSelf: 'center',
+    marginBottom: 14,
   },
   selectedDateLabel: {
     fontSize: 12,
-    color: COLORS.vjText,
-    fontWeight: '700',
+    color: '#78350F',
+    fontWeight: '800',
     textAlign: 'center',
-    marginBottom: 12,
   },
 });

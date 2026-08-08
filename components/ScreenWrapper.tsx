@@ -54,13 +54,13 @@ export function ScreenWrapper({
                 {showBack && (
                   <TouchableOpacity
                     onPress={handleBack}
-                    className="h-10 w-10 rounded-full bg-vj-glass justify-center items-center border border-white/60 shadow-sm"
+                    className="h-10 w-10 rounded-full bg-vj-glass justify-center items-center border border-white/30"
                   >
                     <ChevronLeft size={24} color={colors.vjText} />
                   </TouchableOpacity>
                 )}
                 {title && (
-                  <Text className="text-2xl font-bold tracking-tight shadow-sm" style={{ color: colors.vjText }}>
+                  <Text className="text-2xl font-bold tracking-tight" style={{ color: colors.vjText }}>
                     {title}
                   </Text>
                 )}
@@ -68,7 +68,7 @@ export function ScreenWrapper({
               {actionIcon && (
                 <TouchableOpacity
                   onPress={onAction}
-                  className="h-10 w-10 rounded-full bg-vj-glass justify-center items-center border border-white/60"
+                  className="h-10 w-10 rounded-full bg-vj-glass justify-center items-center border border-white/30"
                 >
                   {actionIcon}
                 </TouchableOpacity>

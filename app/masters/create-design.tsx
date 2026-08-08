@@ -8,7 +8,7 @@ import { useRouter } from 'expo-router';
 import { useFocusEffect } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { TwoToneWrapper } from '../../components/TwoToneWrapper';
-import { HeaderPill, GlassButton, GlassSmartSearch } from '../../components/ui/Glass';
+import { HeaderPill, GlassButton, GlassSmartSearch, GlassMetalSelector } from '../../components/ui/Glass';
 import { useStore } from 'zustand';
 import { appSettingsStore } from '../../store/appSettingsStore';
 import { Tag, CheckCircle, ShieldCheck } from 'lucide-react-native';
@@ -159,31 +159,14 @@ export default function CreateDesignScreen() {
               />
             </View>
 
-            <View style={s.formGroup}>
-              <Text style={s.label}>Metal Type</Text>
-              <View style={s.toggleRow}>
-                <TouchableOpacity 
-                  style={[s.toggleBtn, newMetal === 'GOLD' && s.toggleActiveGold]}
-                  onPress={() => {
-                    setNewMetal('GOLD');
-                    setSelectedCategoryId('');
-                    setCategorySearchQuery('');
-                  }}
-                >
-                  <Text style={[s.toggleText, newMetal === 'GOLD' && s.toggleTextActive]}>GOLD</Text>
-                </TouchableOpacity>
-                <TouchableOpacity 
-                  style={[s.toggleBtn, newMetal === 'SILVER' && s.toggleActiveSilver]}
-                  onPress={() => {
-                    setNewMetal('SILVER');
-                    setSelectedCategoryId('');
-                    setCategorySearchQuery('');
-                  }}
-                >
-                  <Text style={[s.toggleText, newMetal === 'SILVER' && s.toggleTextActive]}>SILVER</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
+            <GlassMetalSelector
+              selectedMetal={newMetal}
+              onSelectMetal={(m) => {
+                setNewMetal(m);
+                setSelectedCategoryId('');
+                setCategorySearchQuery('');
+              }}
+            />
 
             <View style={[s.formGroup, { zIndex: 50 }]}>
               <GlassSmartSearch

@@ -9,7 +9,7 @@ import { useFocusEffect } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Haptics from 'expo-haptics';
 import { TwoToneWrapper } from '../../components/TwoToneWrapper';
-import { HeaderPill, GlassCard, GlassButton } from '../../components/ui/Glass';
+import { HeaderPill, GlassCard, GlassButton, GlassMetalBadge } from '../../components/ui/Glass';
 import { useStore } from 'zustand';
 import { appSettingsStore } from '../../store/appSettingsStore';
 import { Tag, Plus, X, Edit2, Trash2, LayoutGrid, List as ListIcon, CheckCircle, ShieldCheck } from 'lucide-react-native';
@@ -124,6 +124,7 @@ export default function DesignsScreen() {
       params: { 
         id: d.id, 
         initialName: d.name,
+        initialMetal: d.metal,
         initialThreshold: d.lowStockThreshold?.toString() || ''
       } 
     });
@@ -174,17 +175,7 @@ export default function DesignsScreen() {
                   <Text style={s.rowCode} numberOfLines={1}>{d.code} • {d.categoryName || 'Unlinked'}</Text>
                 </View>
                 <View style={viewMode === 'grid' ? s.cardBottomGrid : s.cardBottomList}>
-                  <View 
-                    style={[
-                      s.metalPill, 
-                      { 
-                        backgroundColor: d.metal === 'GOLD' ? 'rgba(212,175,55,0.15)' : 'rgba(148,163,184,0.15)',
-                        borderColor: d.metal === 'GOLD' ? 'rgba(212,175,55,0.35)' : 'rgba(148,163,184,0.35)' 
-                      }
-                    ]}
-                  >
-                    <Text style={[s.metalPillText, { color: d.metal === 'GOLD' ? '#B45309' : '#475569' }]}>{d.metal}</Text>
-                  </View>
+                  <GlassMetalBadge metal={d.metal} />
                   <View style={s.actionRow}>
                     <TouchableOpacity onPress={() => openEdit(d)} style={s.actionBtn}><Edit2 size={16} color="#D4AF37" /></TouchableOpacity>
                     <TouchableOpacity onPress={() => handleDelete(d)} style={s.actionBtn}><Trash2 size={16} color="#ef4444" /></TouchableOpacity>

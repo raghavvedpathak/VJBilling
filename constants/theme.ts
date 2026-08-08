@@ -77,8 +77,12 @@ export const COLORS = {
   // --- Glassmorphism Design Tokens ---
   glassBg: 'rgba(255, 255, 255, 0.75)',
   glassBorder: 'rgba(255, 255, 255, 0.6)',
-  glassGoldBg: 'rgba(230, 126, 34, 0.12)',
-  glassGoldBorder: 'rgba(230, 126, 34, 0.35)',
+  glassGoldBg: 'rgba(212, 175, 55, 0.15)',
+  glassGoldBorder: 'rgba(212, 175, 55, 0.45)',
+  glassSilverBg: 'rgba(226, 232, 240, 0.65)',
+  glassSilverBorder: 'rgba(148, 163, 184, 0.6)',
+  silverText: '#1E293B',
+  goldText: '#92400E',
 
   // --- Neutral Tokens ---
   surface: '#FFFFFF',

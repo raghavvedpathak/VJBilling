@@ -20,29 +20,34 @@ import { COLORS as CENTRAL_COLORS, getThemeColors } from '../../constants/theme'
 
 const COLORS = {
   ...CENTRAL_COLORS,
-  highlight: '#FDE047', // Yellow Highlight
+  highlight: 'rgba(212, 175, 55, 0.22)', // Soft Gold Highlight
 };
 
 // --- Custom Component: Smart Text Highlighter ---
-const HighlightText = ({ text, query, style }: { text?: string | null, query: string, style: any }) => {
+const HighlightText = memo(({ text, query, style }: { text?: string | null, query: string, style: any }) => {
   if (!text) return null;
   if (!query) return <Text style={style}>{text}</Text>;
 
-  const parts = text.split(new RegExp(`(${query})`, 'gi'));
-  return (
-    <Text style={style}>
-      {parts.map((part, index) =>
-        part.toLowerCase() === query.toLowerCase() ? (
-          <Text key={index} style={[style, { backgroundColor: COLORS.highlight, color: '#000' }]}>
-            {part}
-          </Text>
-        ) : (
-          <Text key={index} style={style}>{part}</Text>
-        )
-      )}
-    </Text>
-  );
-};
+  const safeQuery = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  try {
+    const parts = text.split(new RegExp(`(${safeQuery})`, 'gi'));
+    return (
+      <Text style={style}>
+        {parts.map((part, index) =>
+          part.toLowerCase() === query.toLowerCase() ? (
+            <Text key={index} style={[style, { backgroundColor: COLORS.highlight, color: '#78350F', fontWeight: '900' }]}>
+              {part}
+            </Text>
+          ) : (
+            <Text key={index} style={style}>{part}</Text>
+          )
+        )}
+      </Text>
+    );
+  } catch {
+    return <Text style={style}>{text}</Text>;
+  }
+});
 
 type SearchResultRowProps = {
   item: ItemSearchResult;
@@ -122,11 +127,11 @@ export default function InventorySearchScreen() {
   const [showScanner, setShowScanner] = useState(false);
   const [permission, requestPermission] = useCameraPermissions();
 
-  // Snappy Debounced Search Effect (150ms)
+  // Ultra-Fast Debounced Search Effect (80ms)
   useEffect(() => {
     const trimmedQuery = query.trim();
     
-    if (trimmedQuery.length < 2 || !activeFirmId) {
+    if (trimmedQuery.length < 1 || !activeFirmId) {
       setResults([]);
       setIsSearching(false);
       return;
@@ -142,10 +147,10 @@ export default function InventorySearchScreen() {
       } finally {
         setIsSearching(false);
       }
-    }, 150); 
+    }, 80); 
 
     return () => clearTimeout(delayDebounceFn);
-  }, [query]);
+  }, [query, activeFirmId]);
 
   const handleItemPress = useCallback((itemId: string) => {
     router.push(`/inventory/item-detail?itemId=${itemId}`);
@@ -248,30 +253,40 @@ export default function InventorySearchScreen() {
 
       {/* Results Area */}
       <View style={s.listContainer}>
-        {query.trim().length > 0 && query.trim().length < 2 ? (
+        {query.trim().length === 0 ? (
           <View style={s.emptyState}>
-            <Hash size={48} color={COLORS.border} />
-            <Text style={s.emptyTitle}>Keep typing...</Text>
-            <Text style={s.emptySub}>Enter at least 2 characters to search</Text>
+            <Hash size={44} color="rgba(92,22,35,0.25)" />
+            <Text style={s.emptyTitle}>Search Inventory</Text>
+            <Text style={s.emptySub}>Type SKU, HUID, Category, Design, or scan barcode</Text>
           </View>
-        ) : query.trim().length >= 2 && results.length === 0 && !isSearching ? (
+        ) : results.length === 0 && !isSearching ? (
           <View style={s.emptyState}>
-            <PackageSearch size={48} color={COLORS.border} />
+            <PackageSearch size={44} color="rgba(92,22,35,0.25)" />
             <Text style={s.emptyTitle}>No items found</Text>
-            <Text style={s.emptySub}>Try searching for a different SKU or HUID</Text>
+            <Text style={s.emptySub}>Try searching for a different SKU, HUID, or tag</Text>
           </View>
         ) : (
-          <FlashList
-            data={results}
-            // @ts-ignore: estimatedItemSize required by spec even if missing from standard local FlashList type signatures
-            estimatedItemSize={95}
-            keyExtractor={(item) => item.itemId}
-            renderItem={({ item }) => (
-              <SearchResultRow item={item} query={query} onPress={handleItemPress} />
+          <>
+            {results.length > 0 && (
+              <View style={{ paddingHorizontal: 16, paddingTop: 6, paddingBottom: 4 }}>
+                <Text style={{ fontSize: 11, fontWeight: '800', color: '#78350F', letterSpacing: 0.5 }}>
+                  ✨ {results.length} {results.length === 1 ? 'ITEM' : 'ITEMS'} FOUND
+                </Text>
+              </View>
             )}
-            contentContainerStyle={s.listPadding}
-            keyboardShouldPersistTaps="handled"
-          />
+            <FlashList
+              data={results}
+              // @ts-ignore: estimatedItemSize required by spec
+              estimatedItemSize={95}
+              getItemType={(item) => item.metal}
+              keyExtractor={(item) => item.itemId}
+              renderItem={({ item }) => (
+                <SearchResultRow item={item} query={query} onPress={handleItemPress} />
+              )}
+              contentContainerStyle={s.listPadding}
+              keyboardShouldPersistTaps="handled"
+            />
+          </>
         )}
       </View>
 
@@ -333,17 +348,16 @@ const s = StyleSheet.create({
   searchBox: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.92)',
+    backgroundColor: '#FFFFFF',
     borderRadius: 18,
-    borderWidth: 1.5,
-    borderColor: 'rgba(212, 175, 55, 0.4)',
+    borderWidth: 1,
+    borderColor: 'rgba(212, 175, 55, 0.3)',
     height: 52,
     paddingHorizontal: 14,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
+    shadowOpacity: 0.05,
     shadowRadius: 6,
-    elevation: 3,
   },
   searchIcon: {
     marginRight: 8,
@@ -362,9 +376,9 @@ const s = StyleSheet.create({
   scanBtn: {
     padding: 8,
     borderRadius: 12,
-    backgroundColor: 'rgba(212, 175, 55, 0.15)',
+    backgroundColor: 'rgba(212, 175, 55, 0.12)',
     borderWidth: 1,
-    borderColor: 'rgba(212, 175, 55, 0.35)',
+    borderColor: 'rgba(212, 175, 55, 0.25)',
     marginLeft: 4,
   },
   spinner: {
@@ -379,17 +393,16 @@ const s = StyleSheet.create({
     paddingBottom: 40,
   },
   card: {
-    backgroundColor: 'rgba(255, 255, 255, 0.85)',
+    backgroundColor: '#FFFFFF',
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: 'rgba(212, 175, 55, 0.25)',
+    borderColor: 'rgba(212, 175, 55, 0.2)',
     padding: 14,
     marginBottom: 10,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
+    shadowOpacity: 0.04,
     shadowRadius: 4,
-    elevation: 2,
   },
   cardHeader: {
     flexDirection: 'row',

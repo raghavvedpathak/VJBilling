@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, TextInput, Alert, Modal, KeyboardAvoidingView, 
 import { useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { TwoToneWrapper } from '../../components/TwoToneWrapper';
-import { HeaderPill, GlassButton } from '../../components/ui/Glass';
+import { HeaderPill, GlassButton, GlassMetalSelector } from '../../components/ui/Glass';
 import { useStore } from 'zustand';
 import { appSettingsStore } from '../../store/appSettingsStore';
 import { Layers, CheckCircle, ShieldCheck } from 'lucide-react-native';
@@ -79,29 +79,10 @@ export default function CreateCategoryScreen() {
               />
             </View>
 
-            <View style={s.formGroup}>
-              <Text style={s.label}>Metal Type</Text>
-              <View style={s.toggleRow}>
-                <TouchableOpacity 
-                  style={[s.toggleBtn, newMetal === 'GOLD' && s.toggleActiveGold]}
-                  onPress={() => {
-                    try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch (e) {}
-                    setNewMetal('GOLD');
-                  }}
-                >
-                  <Text style={[s.toggleText, newMetal === 'GOLD' && s.toggleTextActive]}>GOLD</Text>
-                </TouchableOpacity>
-                <TouchableOpacity 
-                  style={[s.toggleBtn, newMetal === 'SILVER' && s.toggleActiveSilver]}
-                  onPress={() => {
-                    try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch (e) {}
-                    setNewMetal('SILVER');
-                  }}
-                >
-                  <Text style={[s.toggleText, newMetal === 'SILVER' && s.toggleTextActive]}>SILVER</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
+            <GlassMetalSelector
+              selectedMetal={newMetal}
+              onSelectMetal={setNewMetal}
+            />
           </View>
         </ScrollView>
         <View style={{ paddingHorizontal: 16, paddingBottom: 32, paddingTop: 16 }}>
