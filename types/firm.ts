@@ -27,6 +27,7 @@ export type CreateFirmInput = {
 export type UpdateFirmInput = {
   name?: string;
   proprietor?: string;
+  gstin?: string | null;
   addressLine1?: string;
   addressLine2?: string | null;
   city?: string;

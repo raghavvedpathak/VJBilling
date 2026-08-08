@@ -11,6 +11,7 @@ import { useFirmStore } from '../../store/firmStore';
 import { INDIAN_STATES } from '../../utils/indianStates'; 
 import { GlassCard, GlassInput, GlassButton } from '../../components/ui/Glass';
 import { Save, Building2, User, MapPin, Hash, Phone, ShieldCheck, ImagePlus, Tag, CheckCircle2, ArrowLeft, ChevronDown, X, Lock } from 'lucide-react-native';
+import { validateGSTIN } from '../../utils/validateGSTIN';
 import { useUnsavedChangesGuard } from '../../hooks/useUnsavedChangesGuard';
 import { COLORS } from '../../constants/theme';
 
@@ -84,7 +85,9 @@ export default function EditFirmScreen() {
            form.pincode !== originalFirm.pincode ||
            form.logoUri !== (originalFirm.firmLogoRef || null) ||
            form.bisLogoUri !== (originalFirm.bisLogoRef || null) ||
-           form.bisLicence !== (originalFirm.bisLicence || '');
+           form.bisLicence !== (originalFirm.bisLicence || '') ||
+           form.gstin !== (originalFirm.gstin || '') ||
+           form.stateCode !== (originalFirm.stateCode || '');
   }, [form, originalFirm]);
 
   useUnsavedChangesGuard(isDirty);
@@ -122,13 +125,6 @@ export default function EditFirmScreen() {
 
     if (!result.canceled && result.assets && result.assets.length > 0) {
       const asset = result.assets[0];
-      const mimeType = asset.mimeType || '';
-      
-      if (!mimeType.includes('jpeg') && !mimeType.includes('png') && !asset.uri.toLowerCase().endsWith('.jpg') && !asset.uri.toLowerCase().endsWith('.png') && !asset.uri.toLowerCase().endsWith('.jpeg')) {
-        Alert.alert("Invalid Type", "Only PNG or JPEG images are accepted.");
-        return;
-      }
-
       let finalUri = asset.uri;
       
       if (asset.width > 1024 || asset.height > 1024) {
@@ -185,6 +181,23 @@ export default function EditFirmScreen() {
       return;
     }
 
+    if (!originalFirm?.gstin && form.gstin) {
+      try {
+        validateGSTIN(form.gstin);
+        const gstinStatePrefix = form.gstin.trim().slice(0, 2);
+        if (gstinStatePrefix !== form.stateCode) {
+          Alert.alert(
+            "State Mismatch",
+            `GSTIN state prefix (${gstinStatePrefix}) must match chosen jurisdiction state code (${form.stateCode}).`
+          );
+          return;
+        }
+      } catch (err: any) {
+        Alert.alert("Invalid GSTIN", err.message || "Please enter a valid 15-character GSTIN.");
+        return;
+      }
+    }
+
     const executeUpdate = async () => {
       try {
         setLoading(true);
@@ -204,9 +217,12 @@ export default function EditFirmScreen() {
           pincode: form.pincode,
         };
 
-        if (!originalFirm.gstin) {
+        if (!originalFirm?.gstin) {
           updatePayload.stateCode = form.stateCode;
           updatePayload.stateName = form.stateName;
+          if (form.gstin) {
+            updatePayload.gstin = form.gstin.trim().toUpperCase();
+          }
         }
 
         await firmService.updateFirm(id, updatePayload);
@@ -238,27 +254,28 @@ export default function EditFirmScreen() {
       <TouchableOpacity
         onPress={() => pickImage('logoUri')}
         activeOpacity={0.8}
-        className="h-28 w-28 rounded-3xl justify-center items-center overflow-hidden border-2 border-white/40 shadow-sm mb-2"
+        className="h-28 w-28 rounded-3xl justify-center items-center overflow-hidden border-2 border-white/40 shadow-sm mb-2 bg-vj-glass"
       >
-        <BlurView intensity={20} tint="light" className="w-full h-full justify-center items-center">
-          {form.logoUri ? (
-            <Image 
-              source={{ uri: form.logoUri }} 
-              style={{ width: '100%', height: '100%', resizeMode: 'cover' }}
-              onError={() => {
-                console.warn('[FirmEdit] Failed to load firm logo thumbnail. Dead URI.');
-                setForm(prev => ({...prev, logoUri: null}));
-              }} 
-            />
-          ) : (
+        {form.logoUri ? (
+          <Image 
+            source={{ uri: form.logoUri }} 
+            style={{ width: '100%', height: '100%' }}
+            resizeMode="cover"
+            onError={() => {
+              console.warn('[FirmEdit] Failed to load firm logo thumbnail. Dead URI.');
+              setForm(prev => ({...prev, logoUri: null}));
+            }} 
+          />
+        ) : (
+          <BlurView intensity={20} tint="light" className="w-full h-full justify-center items-center">
             <View className="items-center justify-center">
               <ImagePlus size={26} color="#FCFBF8" />
               <Text className="text-[9px] text-vj-bg font-black tracking-widest uppercase mt-1 text-center px-1">
                 NO LOGO
               </Text>
             </View>
-          )}
-        </BlurView>
+          </BlurView>
+        )}
       </TouchableOpacity>
       
       <TouchableOpacity onPress={() => pickImage('logoUri')} className="px-4 py-1.5 rounded-full border border-white/30">
@@ -316,16 +333,27 @@ export default function EditFirmScreen() {
             </Text>
           </View>
 
-          <View className="mb-4">
-            <Text className="text-vj-text/70 font-bold text-xs uppercase tracking-wider mb-2 ml-1">GSTIN (Statutory Lock)</Text>
-            <View className="flex-row items-center justify-between bg-gray-100/60 rounded-2xl px-4 py-3.5 border border-gray-300">
-              <View className="flex-row items-center gap-2.5">
-                <Hash size={18} color="#6B7280" />
-                <Text className="text-gray-700 font-bold text-base">{form.gstin || "Unregistered (Bill of Supply)"}</Text>
+          {!originalFirm?.gstin ? (
+            <GlassInput 
+              label="GSTIN (Optional)" 
+              value={form.gstin} 
+              onChangeText={(t) => setForm({ ...form, gstin: t.toUpperCase() })} 
+              placeholder="27AAAAA0000A1Z5" 
+              maxLength={15} 
+              icon={<Hash size={18} color="#D4AF37" />} 
+            />
+          ) : (
+            <View className="mb-4">
+              <Text className="text-vj-text/70 font-bold text-xs uppercase tracking-wider mb-2 ml-1">GSTIN (Statutory Lock)</Text>
+              <View className="flex-row items-center justify-between bg-gray-100/60 rounded-2xl px-4 py-3.5 border border-gray-300">
+                <View className="flex-row items-center gap-2.5">
+                  <Hash size={18} color="#6B7280" />
+                  <Text className="text-gray-700 font-bold text-base">{form.gstin}</Text>
+                </View>
+                <Lock size={16} color="#9CA3AF" />
               </View>
-              <Lock size={16} color="#9CA3AF" />
             </View>
-          </View>
+          )}
 
           <GlassInput label="BIS Licence" value={form.bisLicence} onChangeText={(t) => setForm({...form, bisLicence: t})} icon={<ShieldCheck size={18} color="#D4AF37" />} />
           
@@ -394,9 +422,9 @@ export default function EditFirmScreen() {
           <View className="mb-4">
             <Text className="text-vj-text/70 font-bold text-xs uppercase tracking-wider mb-2 ml-1">State / Jurisdiction</Text>
             <TouchableOpacity 
-              onPress={() => { if (!form.gstin) setShowStatePicker(true); else Alert.alert("Locked", "State cannot be changed when GSTIN is registered."); }} 
+              onPress={() => { if (!originalFirm?.gstin) setShowStatePicker(true); else Alert.alert("Locked", "State cannot be changed when GSTIN is registered."); }} 
               activeOpacity={0.8}
-              className={`flex-row items-center justify-between rounded-2xl px-4 py-4 border ${form.gstin ? 'bg-gray-100/60 border-gray-300' : 'bg-white border-vj-text/30'}`}
+              className={`flex-row items-center justify-between rounded-2xl px-4 py-4 border ${originalFirm?.gstin ? 'bg-gray-100/60 border-gray-300' : 'bg-white border-vj-text/30'}`}
             >
               <View className="flex-row items-center gap-2">
                 <View className="px-2.5 py-0.5 rounded-md bg-amber-500/15 border border-amber-500/25">
@@ -404,11 +432,11 @@ export default function EditFirmScreen() {
                     {form.stateCode}
                   </Text>
                 </View>
-                <Text className={form.gstin ? 'text-gray-500 font-semibold text-base' : 'text-vj-text font-semibold text-base'}>
+                <Text className={originalFirm?.gstin ? 'text-gray-500 font-semibold text-base' : 'text-vj-text font-semibold text-base'}>
                   {form.stateName}
                 </Text>
               </View>
-              {form.gstin ? <Lock size={16} color="#9CA3AF" /> : <ChevronDown size={20} color="#D4AF37" />}
+              {originalFirm?.gstin ? <Lock size={16} color="#9CA3AF" /> : <ChevronDown size={20} color="#D4AF37" />}
             </TouchableOpacity>
           </View>
 

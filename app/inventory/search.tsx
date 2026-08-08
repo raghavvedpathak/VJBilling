@@ -1,10 +1,11 @@
 // app/inventory/search.tsx
 import React, { useState, useEffect, useCallback, memo } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator, Modal, Alert } from 'react-native';
 import { FlashList } from '@shopify/flash-list';
 import { useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
-import { Search, ArrowLeft, PackageSearch, Ghost, Hash, Sparkles, Coins, ScanLine } from 'lucide-react-native';
+import { CameraView, useCameraPermissions } from 'expo-camera';
+import { Search, ArrowLeft, PackageSearch, Ghost, Hash, Sparkles, Coins, ScanLine, X, Camera } from 'lucide-react-native';
 import { inventorySearchService } from '../../services/inventorySearchService';
 import { formatWeightMg as formatWeight } from '../../utils/calculations';
 import type { ItemSearchResult } from '../../types/phase2.types';
@@ -118,6 +119,8 @@ export default function InventorySearchScreen() {
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<ItemSearchResult[]>([]);
   const [isSearching, setIsSearching] = useState(false);
+  const [showScanner, setShowScanner] = useState(false);
+  const [permission, requestPermission] = useCameraPermissions();
 
   // Snappy Debounced Search Effect (150ms)
   useEffect(() => {
@@ -161,6 +164,40 @@ export default function InventorySearchScreen() {
     }
   }, [query, activeFirmId, router]);
 
+  const handleScanPress = async () => {
+    try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); } catch (e) {}
+    if (!permission?.granted) {
+      const res = await requestPermission();
+      if (!res.granted) {
+        Alert.alert("Permission Required", "Camera access is needed to scan product barcodes.");
+        return;
+      }
+    }
+    setShowScanner(true);
+  };
+
+  const handleBarcodeScanned = useCallback(async ({ data }: { data: string }) => {
+    if (!data) return;
+    try { Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success); } catch (e) {}
+    setShowScanner(false);
+    setQuery(data);
+
+    if (activeFirmId) {
+      try {
+        setIsSearching(true);
+        const searchResults = await inventorySearchService.searchItems(activeFirmId, data);
+        setResults(searchResults);
+        if (searchResults.length === 1) {
+          router.push(`/inventory/item-detail?itemId=${searchResults[0].itemId}`);
+        }
+      } catch (e) {
+        console.error('[Search] Barcode lookup failed:', e);
+      } finally {
+        setIsSearching(false);
+      }
+    }
+  }, [activeFirmId, router]);
+
   const activeTheme = useStore(appSettingsStore, (s) => s.theme);
   const colors = getThemeColors(activeTheme);
 
@@ -173,21 +210,39 @@ export default function InventorySearchScreen() {
 
   return (
     <TwoToneWrapper title="Stock Search" showBack headerContent={searchHeaderPills}>
-      <View style={[s.container, { backgroundColor: 'transparent' }]}>
+      
+      {/* TOP ANCHORED SEARCH BAR */}
+      <View style={s.topSearchSection}>
         <View style={s.searchBox}>
-          <Search size={18} color={COLORS.muted} style={s.searchIcon} />
+          <Search size={18} color="#D4AF37" style={s.searchIcon} />
           <TextInput
             style={s.input}
-            placeholder="Scan Barcode / Search SKU, HUID, Design..."
-            placeholderTextColor={COLORS.muted}
+            placeholder="Scan Barcode / Search SKU, HUID..."
+            placeholderTextColor="rgba(46, 29, 0, 0.4)"
             value={query}
             onChangeText={setQuery}
             onSubmitEditing={handleAutoSubmitBarcode}
             autoFocus
             autoCapitalize="characters"
           />
-          <ScanLine size={18} color={COLORS.goldAccent} style={{ marginRight: 6 }} />
-          {isSearching && <ActivityIndicator size="small" color={COLORS.vjText} style={s.spinner} />}
+          {isSearching ? (
+            <ActivityIndicator size="small" color="#D4AF37" style={s.spinner} />
+          ) : query.length > 0 ? (
+            <TouchableOpacity 
+              onPress={() => setQuery('')}
+              style={s.clearBtn}
+            >
+              <X size={16} color="rgba(46, 29, 0, 0.5)" />
+            </TouchableOpacity>
+          ) : null}
+
+          <TouchableOpacity
+            activeOpacity={0.7}
+            onPress={handleScanPress}
+            style={s.scanBtn}
+          >
+            <ScanLine size={20} color="#B8860B" />
+          </TouchableOpacity>
         </View>
       </View>
 
@@ -219,50 +274,98 @@ export default function InventorySearchScreen() {
           />
         )}
       </View>
+
+      {/* LIVE CAMERA BARCODE SCANNER MODAL */}
+      <Modal
+        visible={showScanner}
+        animationType="slide"
+        onRequestClose={() => setShowScanner(false)}
+      >
+        <View style={s.scannerContainer}>
+          <CameraView
+            style={StyleSheet.absoluteFill}
+            facing="back"
+            barcodeScannerSettings={{
+              barcodeTypes: ['qr', 'code128', 'code39', 'ean13', 'ean8', 'upc_a'],
+            }}
+            onBarcodeScanned={handleBarcodeScanned}
+          />
+
+          {/* Viewfinder Overlay */}
+          <View style={s.overlay}>
+            <View style={s.scannerHeader}>
+              <TouchableOpacity
+                onPress={() => setShowScanner(false)}
+                style={s.closeScannerBtn}
+              >
+                <X size={24} color="#FFF" />
+              </TouchableOpacity>
+              <Text style={s.scannerTitle}>Scan Tag Barcode</Text>
+              <View style={{ width: 40 }} />
+            </View>
+
+            <View style={s.viewfinderContainer}>
+              <View style={s.viewfinderBox}>
+                <View style={[s.corner, s.cornerTL]} />
+                <View style={[s.corner, s.cornerTR]} />
+                <View style={[s.corner, s.cornerBL]} />
+                <View style={[s.corner, s.cornerBR]} />
+              </View>
+            </View>
+
+            <View style={s.scannerFooter}>
+              <Text style={s.scannerHint}>Align jewelry tag barcode inside frame</Text>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
     </TwoToneWrapper>
   );
 }
 
 const s = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: COLORS.vjBg,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingTop: 50,
-    paddingHorizontal: 16,
-    paddingBottom: 16,
-    backgroundColor: COLORS.surface,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
-  },
-  backBtn: {
-    padding: 8,
-    marginRight: 8,
-    marginLeft: -8,
+  topSearchSection: {
+    paddingHorizontal: 14,
+    paddingTop: 12,
+    paddingBottom: 6,
   },
   searchBox: {
-    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(255,255,255,0.6)',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.5)',
-    height: 44,
-    paddingHorizontal: 12,
+    backgroundColor: 'rgba(255, 255, 255, 0.92)',
+    borderRadius: 18,
+    borderWidth: 1.5,
+    borderColor: 'rgba(212, 175, 55, 0.4)',
+    height: 52,
+    paddingHorizontal: 14,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 6,
+    elevation: 3,
   },
   searchIcon: {
     marginRight: 8,
   },
   input: {
     flex: 1,
-    fontSize: 16,
-    fontWeight: '600',
+    fontSize: 15,
+    fontWeight: '700',
     color: COLORS.vjText,
     height: '100%',
+  },
+  clearBtn: {
+    padding: 6,
+    marginRight: 4,
+  },
+  scanBtn: {
+    padding: 8,
+    borderRadius: 12,
+    backgroundColor: 'rgba(212, 175, 55, 0.15)',
+    borderWidth: 1,
+    borderColor: 'rgba(212, 175, 55, 0.35)',
+    marginLeft: 4,
   },
   spinner: {
     marginLeft: 8,
@@ -271,23 +374,28 @@ const s = StyleSheet.create({
     flex: 1,
   },
   listPadding: {
-    padding: 16,
-    paddingTop: 32,
+    paddingHorizontal: 14,
+    paddingTop: 12,
     paddingBottom: 40,
   },
   card: {
-    backgroundColor: 'rgba(255,255,255,0.6)',
-    borderRadius: 12,
+    backgroundColor: 'rgba(255, 255, 255, 0.85)',
+    borderRadius: 16,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.5)',
-    padding: 16,
-    marginBottom: 12,
+    borderColor: 'rgba(212, 175, 55, 0.25)',
+    padding: 14,
+    marginBottom: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
   },
   cardHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 12,
+    marginBottom: 10,
   },
   badgeRow: {
     flexDirection: 'row',
@@ -297,9 +405,9 @@ const s = StyleSheet.create({
   metalBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
   },
   metalText: {
     fontSize: 10,
@@ -321,14 +429,14 @@ const s = StyleSheet.create({
     flex: 1,
   },
   skuText: {
-    fontSize: 18,
+    fontSize: 17,
     fontWeight: '900',
     color: COLORS.vjText,
     letterSpacing: 0.5,
-    marginBottom: 4,
+    marginBottom: 2,
   },
   categoryText: {
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: '600',
     color: COLORS.muted,
   },
@@ -336,13 +444,13 @@ const s = StyleSheet.create({
     alignItems: 'flex-end',
   },
   weightLabel: {
-    fontSize: 10,
+    fontSize: 9,
     fontWeight: '800',
     color: COLORS.muted,
     marginBottom: 2,
   },
   weightValue: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '800',
     color: COLORS.vjText,
     fontFamily: 'monospace',
@@ -351,18 +459,107 @@ const s = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingTop: 100,
+    paddingTop: 80,
   },
   emptyTitle: {
     fontSize: 18,
     fontWeight: '800',
     color: COLORS.vjText,
     marginTop: 16,
-    marginBottom: 8,
+    marginBottom: 6,
   },
   emptySub: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '500',
     color: COLORS.muted,
+  },
+  scannerContainer: {
+    flex: 1,
+    backgroundColor: '#000',
+  },
+  overlay: {
+    flex: 1,
+    justifyContent: 'space-between',
+    backgroundColor: 'rgba(0,0,0,0.5)',
+  },
+  scannerHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingTop: 50,
+    paddingHorizontal: 20,
+    paddingBottom: 20,
+  },
+  closeScannerBtn: {
+    padding: 8,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    borderRadius: 999,
+  },
+  scannerTitle: {
+    color: '#FFF',
+    fontSize: 18,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+  },
+  viewfinderContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  viewfinderBox: {
+    width: 260,
+    height: 260,
+    borderRadius: 24,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.3)',
+    position: 'relative',
+    backgroundColor: 'transparent',
+  },
+  corner: {
+    position: 'absolute',
+    width: 32,
+    height: 32,
+    borderColor: '#D4AF37',
+  },
+  cornerTL: {
+    top: -2,
+    left: -2,
+    borderTopWidth: 4,
+    borderLeftWidth: 4,
+    borderTopLeftRadius: 16,
+  },
+  cornerTR: {
+    top: -2,
+    right: -2,
+    borderTopWidth: 4,
+    borderRightWidth: 4,
+    borderTopRightRadius: 16,
+  },
+  cornerBL: {
+    bottom: -2,
+    left: -2,
+    borderBottomWidth: 4,
+    borderLeftWidth: 4,
+    borderBottomLeftRadius: 16,
+  },
+  cornerBR: {
+    bottom: -2,
+    right: -2,
+    borderBottomWidth: 4,
+    borderRightWidth: 4,
+    borderBottomRightRadius: 16,
+  },
+  scannerFooter: {
+    paddingBottom: 60,
+    alignItems: 'center',
+  },
+  scannerHint: {
+    color: '#FFF',
+    fontSize: 14,
+    fontWeight: '700',
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 999,
+    overflow: 'hidden',
   },
 });

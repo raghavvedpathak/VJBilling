@@ -167,10 +167,21 @@ export const firmService = {
       const existingFirm = await firmRepository.getById(firmId);
       if (!existingFirm) throw new Error('FIRM_NOT_FOUND');
 
-      if ('gstin' in input && input.gstin !== existingFirm.gstin) {
+      if (existingFirm.gstin && 'gstin' in input && input.gstin !== existingFirm.gstin) {
         throw new Error(
-          'GSTIN_IMMUTABLE: GSTIN is a statutory signal and cannot be added, removed, or changed after firm creation.'
+          'GSTIN_IMMUTABLE: GSTIN is a statutory signal and cannot be changed or removed after firm registration.'
         );
+      }
+
+      if (!existingFirm.gstin && input.gstin) {
+        validateGSTIN(input.gstin);
+        const gstinStateCode = input.gstin.slice(0, 2);
+        const targetStateCode = input.stateCode || existingFirm.stateCode;
+        if (gstinStateCode !== targetStateCode) {
+          throw new Error(
+            `GSTIN_STATE_MISMATCH: GSTIN state prefix (${gstinStateCode}) must match firm stateCode (${targetStateCode}).`
+          );
+        }
       }
 
       if ('firmCode' in input && input.firmCode !== existingFirm.firmCode) {

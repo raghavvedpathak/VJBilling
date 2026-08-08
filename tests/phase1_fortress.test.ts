@@ -304,6 +304,19 @@ describe('Statutory Signal Locking & GSTIN Immutability', () => {
     await expect(firmService.updateFirm(firm.id, { stateCode: '29' } as any))
       .rejects.toThrow('GSTIN_STATE_UPDATE_BLOCKED');
   });
+
+  it('allows adding a GSTIN to an unregistered firm', async () => {
+    const firm = await firmService.createFirm({
+      ...makeFirm('UnregFirm', 'UNREG1'),
+      gstin: null,
+      stateCode: '27',
+      stateName: 'Maharashtra',
+    } as any);
+    await db.delete(writerLeases);
+
+    const updated = await firmService.updateFirm(firm.id, { gstin: '27AAPFU0939F1ZV' } as any);
+    expect(updated.gstin).toBe('27AAPFU0939F1ZV');
+  });
 });
 
 // =============================================================================

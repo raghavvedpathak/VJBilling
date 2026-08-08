@@ -132,12 +132,37 @@ export default function CreateFirmScreen() {
   useUnsavedChangesGuard(isDirty);
 
   const pickImage = async (field: 'firmLogoUri' | 'bisLogoUri') => {
-    const result = await ImagePicker.launchImageLibraryAsync({
+    Alert.alert(
+      "Select Image Source",
+      "Choose where to pick the image from:",
+      [
+        { text: "Camera", onPress: () => handleImageSelection(field, 'camera') },
+        { text: "Gallery", onPress: () => handleImageSelection(field, 'gallery') },
+        { text: "Cancel", style: "cancel" }
+      ]
+    );
+  };
+
+  const handleImageSelection = async (field: 'firmLogoUri' | 'bisLogoUri', source: 'camera' | 'gallery') => {
+    let result;
+    const options: ImagePicker.ImagePickerOptions = {
       mediaTypes: ['images'],
       allowsEditing: true,
       quality: LOGO_QUALITY,
-    });
-    if (!result.canceled) {
+    };
+
+    if (source === 'camera') {
+      const permission = await ImagePicker.requestCameraPermissionsAsync();
+      if (!permission.granted) {
+        Alert.alert("Permission Required", "Camera access is needed.");
+        return;
+      }
+      result = await ImagePicker.launchCameraAsync(options);
+    } else {
+      result = await ImagePicker.launchImageLibraryAsync(options);
+    }
+
+    if (!result.canceled && result.assets && result.assets.length > 0) {
       setForm((prev) => ({ ...prev, [field]: result.assets[0].uri }));
     }
   };
@@ -205,23 +230,34 @@ export default function CreateFirmScreen() {
       <TouchableOpacity
         onPress={() => pickImage('firmLogoUri')}
         activeOpacity={0.8}
-        className="h-28 w-28 rounded-3xl justify-center items-center overflow-hidden border-2 border-white/40 shadow-sm"
+        className="h-28 w-28 rounded-3xl justify-center items-center overflow-hidden border-2 border-white/40 shadow-sm mb-2 bg-vj-glass"
       >
-        <BlurView intensity={20} tint="light" className="w-full h-full justify-center items-center">
-          {form.firmLogoUri ? (
-            <Image
-              source={{ uri: form.firmLogoUri }}
-              style={{ width: '100%', height: '100%', resizeMode: 'cover' }}
-            />
-          ) : (
+        {form.firmLogoUri ? (
+          <Image
+            source={{ uri: form.firmLogoUri }}
+            style={{ width: '100%', height: '100%' }}
+            resizeMode="cover"
+            onError={() => {
+              console.warn('[CreateFirm] Failed to load logo preview thumbnail.');
+              setForm(prev => ({ ...prev, firmLogoUri: null }));
+            }}
+          />
+        ) : (
+          <BlurView intensity={20} tint="light" className="w-full h-full justify-center items-center">
             <View className="items-center justify-center">
               <ImagePlus size={26} color="#FCFBF8" />
-              <Text className="text-[9px] text-vj-bg font-black tracking-widest uppercase mt-1">
+              <Text className="text-[9px] text-vj-bg font-black tracking-widest uppercase mt-1 text-center px-1">
                 STORE LOGO
               </Text>
             </View>
-          )}
-        </BlurView>
+          </BlurView>
+        )}
+      </TouchableOpacity>
+
+      <TouchableOpacity onPress={() => pickImage('firmLogoUri')} className="px-4 py-1.5 rounded-full border border-white/30">
+        <Text className="text-[11px] text-white font-bold tracking-widest uppercase">
+          {form.firmLogoUri ? "CHANGE LOGO" : "UPLOAD LOGO"}
+        </Text>
       </TouchableOpacity>
     </View>
   );

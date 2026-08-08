@@ -29,6 +29,7 @@ export default function FirmManagerScreen() {
   
   // MODERN MODAL STATE
   const [dialog, setDialog] = useState<DialogState | null>(null);
+  const [brokenLogos, setBrokenLogos] = useState<Record<string, boolean>>({});
 
   const activeFirmCount = firms.filter(f => !f.isArchived).length;
   const canAddFirm = firms.length < 3;
@@ -47,10 +48,11 @@ export default function FirmManagerScreen() {
 
   const confirmSwitch = async () => {
     if (!dialog?.targetId) return;
-    setLoadingId(dialog.targetId);
+    const targetId = dialog.targetId;
     setDialog(null);
+    setLoadingId(targetId);
     try {
-      await switchFirm(dialog.targetId);
+      await switchFirm(targetId);
       router.replace('/dashboard');
     } catch (err: any) {
       setDialog({
@@ -164,8 +166,16 @@ export default function FirmManagerScreen() {
                   <View className={`h-12 w-12 rounded-full justify-center items-center overflow-hidden border border-white/50 ${isActive ? 'bg-vj-success/20' : isArchived ? 'bg-gray-200' : 'bg-vj-glass'}`}>
                     {isLoading ? (
                        <ActivityIndicator color={isActive ? '#15803d' : colors.vjText} />
-                    ) : displayLogo ? (
-                       <Image source={{ uri: displayLogo }} className="w-full h-full resize-mode-contain" />
+                    ) : displayLogo && !brokenLogos[firm.id] ? (
+                       <Image 
+                         source={{ uri: displayLogo }} 
+                         style={{ width: '100%', height: '100%' }}
+                         resizeMode="contain"
+                         onError={() => {
+                           console.warn(`[FirmManager] Failed to load logo for firm ${firm.id}. Dead URI.`);
+                           setBrokenLogos(prev => ({ ...prev, [firm.id]: true }));
+                         }}
+                       />
                     ) : (
                        <Building2 size={24} color={isActive ? '#15803d' : isArchived ? '#999' : colors.vjText} />
                     )}
