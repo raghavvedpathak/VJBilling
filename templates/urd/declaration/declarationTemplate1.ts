@@ -1,7 +1,7 @@
-import type { URDCustomerDeclarationParams } from './urdTemplate.types';
+import type { URDCustomerDeclarationParams } from '../urdTemplate.types';
 
 /**
- * Official Marathi Customer Declaration / Affidavit Template
+ * Official Marathi Customer Declaration / Affidavit Template (Template 1)
  * Preserves exact original HTML/CSS styling word-for-word.
  */
 export function renderURDCustomerDeclaration(params: URDCustomerDeclarationParams): string {
@@ -13,6 +13,11 @@ export function renderURDCustomerDeclaration(params: URDCustomerDeclarationParam
     grossGrams,
     fineGrams,
     ratePerGram,
+    grossValueRupees,
+    adjustmentRupees,
+    hasAdjustment,
+    adjustmentSign,
+    formattedAdjustment,
     totalRupees,
     formattedDate,
     idProofType,
@@ -323,7 +328,7 @@ export function renderURDCustomerDeclaration(params: URDCustomerDeclarationParam
             <td>${grossGrams}</td>
             <td>${fineGrams}</td>
             <td>${symbol}${ratePerGram}</td>
-            <td>${symbol}${totalRupees}</td>
+            <td>${symbol}${hasAdjustment ? grossValueRupees : totalRupees}</td>
           </tr>
           <tr>
             <td colspan="2" style="text-align: right; font-weight: bold;">एकूण ग्रॅम</td>
@@ -332,8 +337,18 @@ export function renderURDCustomerDeclaration(params: URDCustomerDeclarationParam
             <td></td>
             <td></td>
           </tr>
+          ${hasAdjustment ? `
+            <tr>
+              <td colspan="5" style="text-align: right; font-weight: bold;">ढोबळ एकूण (Gross Total)</td>
+              <td style="font-weight: bold;">${symbol}${grossValueRupees}</td>
+            </tr>
+            <tr>
+              <td colspan="5" style="text-align: right; font-weight: bold;">समायोजित रक्कम (Adjusted Amount)</td>
+              <td style="font-weight: bold;">${adjustmentSign || '+'}${symbol}${adjustmentRupees}</td>
+            </tr>
+          ` : ''}
           <tr>
-            <td colspan="5" style="text-align: right; font-weight: bold;">एकूण खरेदी किंमत</td>
+            <td colspan="5" style="text-align: right; font-weight: bold;">एकूण खरेदी किंमत (Net Amount)</td>
             <td style="font-weight: bold; font-size: 15px;">${symbol}${totalRupees}</td>
           </tr>
         </tbody>
@@ -382,3 +397,5 @@ export function renderURDCustomerDeclaration(params: URDCustomerDeclarationParam
 </body>
 </html>`;
 }
+
+export const renderURDCustomerDeclaration1 = renderURDCustomerDeclaration;

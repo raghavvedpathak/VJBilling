@@ -179,6 +179,8 @@ export interface CreateURDPurchaseInput {
   grossWeightMg: number;       // must be > 0
   purityPercent: number;       // must be > 0 and <= 100
   ratePerGramPaise: number;   // must be > 0
+  adjustmentPaise?: number;    // optional +/- adjustment in paise
+  totalValuePaise?: number;    // optional precalculated total valuation in paise
   paymentMode: 'CASH' | 'BANK' | 'UPI';
   bankAccountId?: string | null; // required if BANK or UPI
   notes?: string | null;

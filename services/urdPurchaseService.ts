@@ -40,8 +40,9 @@ export async function generateURDPurchaseBill(
 export async function generateURDCustomerDeclaration(
   urdId: string,
   firmId: string,
+  templateId?: 'template1' | 'template2'
 ): Promise<string> {
-  return urdPurchaseService.generateURDCustomerDeclaration(urdId, firmId);
+  return urdPurchaseService.generateURDCustomerDeclaration(urdId, firmId, templateId);
 }
 
 export async function deleteURDPurchase(
@@ -49,6 +50,14 @@ export async function deleteURDPurchase(
   firmId: string,
 ): Promise<void> {
   return urdPurchaseService.deleteURDPurchase(urdId, firmId);
+}
+
+export async function updateURDPurchase(
+  urdId: string,
+  input: Partial<CreateURDPurchaseInput>,
+  firmId: string,
+): Promise<URDPurchase> {
+  return urdPurchaseService.updateURDPurchase(urdId, input, firmId);
 }
 
 export const urdPurchaseService = {
@@ -87,7 +96,7 @@ export const urdPurchaseService = {
       throw new Error(ERR.URD_BANK_ACCOUNT_MUST_BE_NULL_FOR_CASH);
 
     const fineWeightMg = computeURDFineWeightMg(input.grossWeightMg, input.purityPercent);
-    const totalValuePaise = computeURDTotalValuePaise(fineWeightMg, input.ratePerGramPaise);
+    const totalValuePaise = input.totalValuePaise ?? computeURDTotalValuePaise(fineWeightMg, input.ratePerGramPaise, input.adjustmentPaise ?? 0);
     if (totalValuePaise > 999999999) throw new Error(ERR.URD_AMOUNT_EXCEEDS_MAX); // ALIGN-P1-V77 / FIX-V79-4
 
     const fyId = await fyService.resolveTransactionFyId(firmId, input.purchaseDate);
@@ -176,7 +185,6 @@ export const urdPurchaseService = {
     return db.transaction((tx) => {
       const urd = urdPurchaseRepository.getById(tx, firmId, urdId);
       if (!urd || urd.firmId !== firmId) throw new Error(ERR.URD_NOT_FOUND_OR_WRONG_FIRM);
-      if (urd.status !== 'CONFIRMED') throw new Error(ERR.URD_NOT_CONFIRMED);
 
       const customerName = input.customerName ?? urd.customerName;
       const grossWeightMg = input.grossWeightMg ?? urd.grossWeightMg;
@@ -191,26 +199,20 @@ export const urdPurchaseService = {
       if (ratePerGramPaise <= 0) throw new Error(ERR.URD_RATE_INVALID);
 
       const fineWeightMg = computeURDFineWeightMg(grossWeightMg, purityPercent);
-      const totalValuePaise = computeURDTotalValuePaise(fineWeightMg, ratePerGramPaise);
+      const totalValuePaise = input.totalValuePaise ?? computeURDTotalValuePaise(fineWeightMg, ratePerGramPaise, input.adjustmentPaise ?? 0);
       if (totalValuePaise > 999999999) throw new Error(ERR.URD_AMOUNT_EXCEEDS_MAX);
 
       if (urd.oldGoldLotId) {
-        oldGoldLotRepository.insert(tx, {
-          id: urd.oldGoldLotId,
-          firmId,
+        oldGoldLotRepository.update(tx, firmId, urd.oldGoldLotId, {
           receivedFrom: customerName,
           customerId: input.customerId ?? urd.customerId,
           receivedDate: input.purchaseDate ?? urd.purchaseDate,
           grossWeightMg,
           purityPercent,
-          metalSource: 'CUSTOMER',
           fineWeightMg,
           purchaseRatePaise: ratePerGramPaise,
           totalAmountPaise: totalValuePaise,
           notes: input.notes ?? urd.notes,
-          status: 'RECEIVED',
-          createdAt: urd.createdAt,
-          updatedAt: now(),
         });
       }
 
@@ -326,7 +328,7 @@ export const urdPurchaseService = {
     return urdPrintService.generateURDPurchaseBill(urdId, firmId);
   },
 
-  async generateURDCustomerDeclaration(urdId: string, firmId: string): Promise<string> {
-    return urdPrintService.generateURDCustomerDeclaration(urdId, firmId);
+  async generateURDCustomerDeclaration(urdId: string, firmId: string, templateId?: 'template1' | 'template2'): Promise<string> {
+    return urdPrintService.generateURDCustomerDeclaration(urdId, firmId, templateId);
   }
 };

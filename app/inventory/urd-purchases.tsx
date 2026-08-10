@@ -16,7 +16,7 @@ import { urdPurchaseRepository } from '../../repositories/urdPurchaseRepository'
 import { firmRepository } from '../../repositories/firmRepository';
 import { urdPurchaseService } from '../../services/urdPurchaseService';
 import { getCurrencySymbol, formatWeightMg as formatWeight } from '../../utils/calculations';
-import { FileDown, Plus, Scale, Banknote, ShieldAlert, CheckCircle, Printer, Trash2, Eye, X, Share2 } from 'lucide-react-native';
+import { FileDown, Plus, Scale, Banknote, ShieldAlert, CheckCircle, Printer, Trash2, Eye, X, Share2, Edit3 } from 'lucide-react-native';
 import type { URDPurchase } from '../../types/phase2.types';
 import type { Firm } from '../../types/firm';
 import { COLORS } from '../../constants/theme';
@@ -85,9 +85,26 @@ export default function URDPurchasesScreen() {
     );
   };
 
+  const [selectedItem, setSelectedItem] = useState<URDPurchase | null>(null);
+  const [previewType, setPreviewType] = useState<'BILL' | 'DECLARATION'>('BILL');
+  const [selectedTemplate, setSelectedTemplate] = useState<'template1' | 'template2'>('template1');
+
+  const loadDeclarationPreview = async (item: URDPurchase, tId: 'template1' | 'template2') => {
+    if (!activeFirmId) return;
+    setPreviewHtml(null);
+    try {
+      const html = await urdPurchaseService.generateURDCustomerDeclaration(item.id, activeFirmId, tId);
+      setPreviewHtml(html);
+    } catch (error: any) {
+      Alert.alert('Preview Error', error.message);
+    }
+  };
+
   const handlePreviewBill = async (item: URDPurchase) => {
     if (!activeFirmId) return;
     try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch (e) {}
+    setSelectedItem(item);
+    setPreviewType('BILL');
     setPreviewTitle('URD Purchase Bill Preview');
     setPreviewHtml(null);
     setPreviewVisible(true);
@@ -101,20 +118,24 @@ export default function URDPurchasesScreen() {
     }
   };
 
-  const handlePreviewDeclaration = async (item: URDPurchase) => {
+  const handlePreviewDeclaration = async (item: URDPurchase, tId: 'template1' | 'template2' = 'template1') => {
     if (!activeFirmId) return;
     try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch (e) {}
+    setSelectedItem(item);
+    setPreviewType('DECLARATION');
+    setSelectedTemplate(tId);
     setPreviewTitle('घोषणापत्र / शपथपत्र Preview');
     setPreviewHtml(null);
     setPreviewVisible(true);
 
-    try {
-      const html = await urdPurchaseService.generateURDCustomerDeclaration(item.id, activeFirmId);
-      setPreviewHtml(html);
-    } catch (error: any) {
-      setPreviewVisible(false);
-      Alert.alert('Preview Error', error.message);
-    }
+    await loadDeclarationPreview(item, tId);
+  };
+
+  const handleSwitchTemplate = async (tId: 'template1' | 'template2') => {
+    if (!selectedItem || tId === selectedTemplate) return;
+    try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch (e) {}
+    setSelectedTemplate(tId);
+    await loadDeclarationPreview(selectedItem, tId);
   };
 
   const handlePrintFromPreview = async () => {
@@ -213,10 +234,27 @@ export default function URDPurchasesScreen() {
           </View>
 
           <View style={s.actionRowSub}>
+            {!isConfirmed && (
+              <TouchableOpacity style={s.printBillBtn} onPress={() => handlePreviewBill(item)}>
+                <Eye size={14} color={COLORS.vjText} />
+                <Text style={s.printBillBtnText}>Preview Bill</Text>
+              </TouchableOpacity>
+            )}
+
             <TouchableOpacity style={s.declarationBtn} onPress={() => handlePreviewDeclaration(item)}>
               <Eye size={14} color="#C8860A" />
-              <Text style={s.declarationBtnText}>Preview शपथपत्र (Declaration)</Text>
+              <Text style={s.declarationBtnText}>Preview शपथपत्र</Text>
             </TouchableOpacity>
+
+            {!isConfirmed && (
+              <TouchableOpacity
+                style={s.editDraftBtn}
+                onPress={() => router.push({ pathname: '/inventory/edit-urd', params: { urdId: item.id } })}
+              >
+                <Edit3 size={14} color={COLORS.vjText} />
+                <Text style={s.editDraftBtnText}>Edit</Text>
+              </TouchableOpacity>
+            )}
 
             <TouchableOpacity style={s.deleteBtn} onPress={() => handleDelete(item.id, item.customerName)}>
               <Trash2 size={14} color={COLORS.danger} />
@@ -296,6 +334,30 @@ export default function URDPurchasesScreen() {
             </TouchableOpacity>
           </View>
 
+          {previewType === 'DECLARATION' && (
+            <View style={s.templateBar}>
+              <Text style={s.templateBarLabel}>Format / Language:</Text>
+              <View style={s.templateSegmentGroup}>
+                <TouchableOpacity
+                  style={[s.templateSegmentBtn, selectedTemplate === 'template1' && s.templateSegmentBtnActive]}
+                  onPress={() => handleSwitchTemplate('template1')}
+                >
+                  <Text style={[s.templateSegmentText, selectedTemplate === 'template1' && s.templateSegmentTextActive]}>
+                    Marathi (मराठी)
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[s.templateSegmentBtn, selectedTemplate === 'template2' && s.templateSegmentBtnActive]}
+                  onPress={() => handleSwitchTemplate('template2')}
+                >
+                  <Text style={[s.templateSegmentText, selectedTemplate === 'template2' && s.templateSegmentTextActive]}>
+                    English (Affidavit)
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          )}
+
           <View style={{ flex: 1, backgroundColor: '#ffffff' }}>
             {previewHtml ? (
               <WebView
@@ -368,7 +430,9 @@ const s = StyleSheet.create({
   confirmBtnText: { fontSize: 13, fontWeight: '800', color: '#ffffff' },
   declarationBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 8, borderRadius: 10, backgroundColor: 'rgba(200,134,10,0.12)', borderWidth: 1, borderColor: 'rgba(200,134,10,0.3)' },
   declarationBtnText: { fontSize: 12, fontWeight: '800', color: '#C8860A' },
-  deleteBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, paddingVertical: 8, paddingHorizontal: 16, borderRadius: 10, backgroundColor: 'rgba(239,68,68,0.1)', borderWidth: 1, borderColor: 'rgba(239,68,68,0.2)' },
+  editDraftBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, paddingVertical: 8, paddingHorizontal: 12, borderRadius: 10, backgroundColor: 'rgba(212,175,55,0.15)', borderWidth: 1, borderColor: 'rgba(212,175,55,0.35)' },
+  editDraftBtnText: { fontSize: 12, fontWeight: '800', color: COLORS.vjText },
+  deleteBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, paddingVertical: 8, paddingHorizontal: 12, borderRadius: 10, backgroundColor: 'rgba(239,68,68,0.1)', borderWidth: 1, borderColor: 'rgba(239,68,68,0.2)' },
   deleteBtnText: { fontSize: 12, fontWeight: '800', color: COLORS.danger },
   
   modalOverlayCenter: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', alignItems: 'center', padding: 24 },
@@ -381,6 +445,13 @@ const s = StyleSheet.create({
   previewHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#8B2538', paddingHorizontal: 16, paddingTop: 48, paddingBottom: 16 },
   previewHeaderTitle: { color: '#FCFBF8', fontSize: 16, fontWeight: '700', flex: 1, marginRight: 16 },
   closeIconBtn: { padding: 4, borderRadius: 8, backgroundColor: 'rgba(255,255,255,0.15)' },
+  templateBar: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#6B1B29', paddingHorizontal: 16, paddingVertical: 10, gap: 10 },
+  templateBarLabel: { color: 'rgba(255,255,255,0.7)', fontSize: 12, fontWeight: '700' },
+  templateSegmentGroup: { flex: 1, flexDirection: 'row', backgroundColor: 'rgba(0,0,0,0.25)', borderRadius: 8, padding: 3, gap: 4 },
+  templateSegmentBtn: { flex: 1, paddingVertical: 6, paddingHorizontal: 8, borderRadius: 6, alignItems: 'center', justifyContent: 'center' },
+  templateSegmentBtnActive: { backgroundColor: '#D4AF37' },
+  templateSegmentText: { color: 'rgba(255,255,255,0.75)', fontSize: 11, fontWeight: '700' },
+  templateSegmentTextActive: { color: '#ffffff', fontWeight: '800' },
   previewFooter: { flexDirection: 'row', gap: 12, backgroundColor: '#FCFBF8', padding: 16, borderTopWidth: 1, borderTopColor: 'rgba(0,0,0,0.1)' },
   previewShareBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 12, borderRadius: 12, backgroundColor: 'rgba(92,22,35,0.08)' },
   previewShareBtnText: { color: COLORS.vjText, fontWeight: '700', fontSize: 14 },

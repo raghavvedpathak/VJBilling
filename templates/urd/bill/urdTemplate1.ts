@@ -1,8 +1,8 @@
-import type { URDTemplateParams } from './urdTemplate.types';
+import type { URDTemplateParams } from '../urdTemplate.types';
 
 /**
- * Template 1: Standard A5 Landscape URD Purchase Bill
- * Preserves exact original HTML/CSS styling word-for-word line-for-line, with discount breakdown support.
+ * URD Template 1: Standard A5 Landscape URD Purchase Bill
+ * Preserves exact original HTML/CSS styling word-for-word line-for-line, with adjustment (+/-) support.
  */
 export function renderURDTemplate1(params: URDTemplateParams): string {
   const {
@@ -14,6 +14,10 @@ export function renderURDTemplate1(params: URDTemplateParams): string {
     grossGrams,
     fineGrams,
     grossValueRupees,
+    adjustmentRupees,
+    hasAdjustment,
+    adjustmentSign,
+    formattedAdjustment,
     discountRupees,
     hasDiscount,
     totalRupees,
@@ -337,7 +341,7 @@ export function renderURDTemplate1(params: URDTemplateParams): string {
           <td>${grossGrams}</td>
           <td>${urd.purityPercent}%</td>
           <td>${symbol}${rateRupees}</td>
-          <td style="font-weight: bold;">${symbol}${hasDiscount ? grossValueRupees : totalRupees}</td>
+          <td style="font-weight: bold;">${symbol}${(hasAdjustment || hasDiscount) ? grossValueRupees : totalRupees}</td>
         </tr>
       </tbody>
     </table>
@@ -357,12 +361,18 @@ export function renderURDTemplate1(params: URDTemplateParams): string {
       </div>
       <div class="summary-right">
         <table class="totals-table">
-          ${hasDiscount ? `
+          ${hasAdjustment ? `
             <tr><td>GROSS TOTAL</td><td>${symbol}${grossValueRupees}</td></tr>
+            <tr><td>Round Off</td><td>0.00</td></tr>
+            <tr><td>Adjusted Amount</td><td>${adjustmentSign || '+'}${symbol}${adjustmentRupees}</td></tr>
+          ` : (hasDiscount ? `
+            <tr><td>GROSS TOTAL</td><td>${symbol}${grossValueRupees}</td></tr>
+            <tr><td>Round Off</td><td>0.00</td></tr>
             <tr><td>Less: Discount</td><td>-${symbol}${discountRupees}</td></tr>
-          ` : ''}
-          <tr><td>NET TOTAL</td><td>${symbol}${totalRupees}</td></tr>
-          <tr><td>Round Off</td><td>0.00</td></tr>
+          ` : `
+            <tr><td>GROSS TOTAL</td><td>${symbol}${grossValueRupees}</td></tr>
+            <tr><td>Round Off</td><td>0.00</td></tr>
+          `)}
           <tr class="highlight-net"><td>NET AMOUNT</td><td>${symbol}${totalRupees}</td></tr>
           <tr><td>AMT RECEIVED</td><td>${symbol}${totalRupees}</td></tr>
           <tr><td>BALANCE</td><td>${symbol}0.00</td></tr>

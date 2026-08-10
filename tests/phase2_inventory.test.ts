@@ -1614,10 +1614,9 @@ describe('Purity Map and Utilities', () => {
       paymentMode: 'CASH'
     }, FIRM_ID);
 
-    // 3. Trying to generate bill for DRAFT throws URD_NOT_CONFIRMED
-    await expect(
-      urdPurchaseService.generateURDPurchaseBill(urd.id, FIRM_ID)
-    ).rejects.toThrow('URD_NOT_CONFIRMED');
+    // 3. Generating bill preview for DRAFT returns valid HTML with DRAFT invoice number
+    const draftHtml = await urdPurchaseService.generateURDPurchaseBill(urd.id, FIRM_ID);
+    expect(draftHtml).toContain('DRAFT');
 
     // 4. Confirm URD purchase
     await urdPurchaseService.confirmURDPurchase(urd.id, FIRM_ID);

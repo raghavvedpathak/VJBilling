@@ -7,6 +7,10 @@ export interface URDTemplateParams {
   grossGrams: string;
   fineGrams: string;
   grossValueRupees: string;
+  adjustmentRupees?: string;
+  hasAdjustment?: boolean;
+  adjustmentSign?: string;
+  formattedAdjustment?: string;
   discountRupees: string;
   hasDiscount: boolean;
   totalRupees: string;
@@ -28,6 +32,11 @@ export interface URDCustomerDeclarationParams {
   grossGrams: string;
   fineGrams: string;
   ratePerGram: string;
+  grossValueRupees?: string;
+  adjustmentRupees?: string;
+  hasAdjustment?: boolean;
+  adjustmentSign?: string;
+  formattedAdjustment?: string;
   totalRupees: string;
   formattedDate: string;
   idProofType: string;

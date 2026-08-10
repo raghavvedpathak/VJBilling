@@ -8,7 +8,7 @@ import { TwoToneWrapper } from '../../components/TwoToneWrapper';
 import { GlassCard, GlassInput, GlassButton } from '../../components/ui/Glass';
 import { useFirmStore } from '../../store/useFirmStore';
 import { urdPurchaseService } from '../../services/urdPurchaseService';
-import { getCurrencySymbol, formatRupees, computeURDCostBreakdown } from '../../utils/calculations';
+import { getCurrencySymbol, formatRupees, computeURDCostBreakdown, parseCleanFloat } from '../../utils/calculations';
 import { User, Scale, Banknote, CheckCircle, Trash2, Plus } from 'lucide-react-native';
 import type { URDMetalType } from '../../types/phase2.types';
 import { COLORS } from '../../constants/theme';
@@ -19,6 +19,7 @@ export interface URDItemRow {
   grossWeight: string;
   purityPercent: string;
   ratePerGram: string;
+  adjustmentType: '+' | '-';
   discount: string;
 }
 
@@ -28,6 +29,7 @@ const getEmptyRow = (): URDItemRow => ({
   grossWeight: '',
   purityPercent: '',
   ratePerGram: '',
+  adjustmentType: '+',
   discount: '',
 });
 
@@ -90,15 +92,19 @@ export default function AddURDScreen() {
   // Calculations for all items
   const itemCalculations = useMemo(() => {
     return items.map(row => {
-      const grossMg = Math.round((parseFloat(row.grossWeight) || 0) * 1000);
-      const purity = parseFloat(row.purityPercent) || 0;
-      const ratePaise = Math.round((parseFloat(row.ratePerGram) || 0) * 100);
-      const discountPaise = Math.round((parseFloat(row.discount) || 0) * 100);
+      const grossG = parseCleanFloat(row.grossWeight);
+      const grossMg = Math.round(grossG * 1000);
+      const purity = parseCleanFloat(row.purityPercent);
+      const rateG = parseCleanFloat(row.ratePerGram);
+      const ratePaise = Math.round(rateG * 100);
+      const rawAdj = parseCleanFloat(row.discount);
+      const signedAdj = row.adjustmentType === '-' ? -Math.abs(rawAdj) : Math.abs(rawAdj);
+      const adjustmentPaise = Math.round(signedAdj * 100);
 
       return {
-        ...computeURDCostBreakdown(grossMg, purity, ratePaise, discountPaise),
+        ...computeURDCostBreakdown(grossMg, purity, ratePaise, adjustmentPaise),
         metalType: row.metalType,
-        grossWeightG: (parseFloat(row.grossWeight) || 0),
+        grossWeightG: grossG,
         isValid: grossMg > 0 && purity > 0 && ratePaise > 0
       };
     });
@@ -132,9 +138,9 @@ export default function AddURDScreen() {
     // Validate all item rows
     for (let i = 0; i < items.length; i++) {
       const row = items[i];
-      const grossMg = Math.round((parseFloat(row.grossWeight) || 0) * 1000);
-      const purity = parseFloat(row.purityPercent) || 0;
-      const ratePaise = Math.round((parseFloat(row.ratePerGram) || 0) * 100);
+      const grossMg = Math.round(parseCleanFloat(row.grossWeight) * 1000);
+      const purity = parseCleanFloat(row.purityPercent);
+      const ratePaise = Math.round(parseCleanFloat(row.ratePerGram) * 100);
 
       if (isNaN(grossMg) || grossMg <= 0) { Alert.alert('Validation Error', `Item #${i + 1}: Invalid Gross Weight`); return; }
       if (isNaN(purity) || purity <= 0 || purity > 100) { Alert.alert('Validation Error', `Item #${i + 1}: Purity must be between 1 and 100%`); return; }
@@ -151,10 +157,9 @@ export default function AddURDScreen() {
       const cPan = customerPAN.trim().toUpperCase() || null;
 
       // Loop through all items and save as URD Purchases
-      for (const row of items) {
-        const grossMg = Math.round(parseFloat(row.grossWeight) * 1000);
-        const purity = parseFloat(row.purityPercent);
-        const ratePaise = Math.round(parseFloat(row.ratePerGram) * 100);
+      for (let i = 0; i < items.length; i++) {
+        const row = items[i];
+        const calc = itemCalculations[i];
 
         await urdPurchaseService.createURDPurchase({
           purchaseDate,
@@ -164,9 +169,11 @@ export default function AddURDScreen() {
           customerAadhaar: cAadhaar,
           customerPAN: cPan,
           metalType: row.metalType,
-          grossWeightMg: grossMg,
-          purityPercent: purity,
-          ratePerGramPaise: ratePaise,
+          grossWeightMg: calc.grossWeightMg,
+          purityPercent: calc.purityPercent,
+          ratePerGramPaise: calc.ratePerGramPaise,
+          adjustmentPaise: calc.adjustmentPaise,
+          totalValuePaise: calc.totalValuePaise,
           paymentMode,
           bankAccountId: paymentMode !== 'CASH' ? bankAccountId || 'UNKNOWN_ACCOUNT' : null,
         }, activeFirmId);
@@ -314,9 +321,42 @@ export default function AddURDScreen() {
                 onChangeText={(t) => updateRow(index, 'ratePerGram', t)} 
               />
 
+              <View style={{ marginBottom: 12 }}>
+                <Text style={{ fontSize: 12, fontWeight: '600', color: COLORS.vjText, marginBottom: 6 }}>
+                  Adjustment Type:
+                </Text>
+                <View style={{ flexDirection: 'row', gap: 8 }}>
+                  <TouchableOpacity 
+                    style={{
+                      flex: 1, paddingVertical: 8, borderRadius: 8, alignItems: 'center',
+                      backgroundColor: (row.adjustmentType || '+') === '+' ? COLORS.vjText : 'rgba(255,255,255,0.4)',
+                      borderWidth: 1, borderColor: (row.adjustmentType || '+') === '+' ? COLORS.vjText : 'rgba(0,0,0,0.1)'
+                    }}
+                    onPress={() => updateRow(index, 'adjustmentType', '+')}
+                  >
+                    <Text style={{ fontSize: 12, fontWeight: 'bold', color: (row.adjustmentType || '+') === '+' ? '#fff' : COLORS.vjText }}>
+                      + Addition (Round-Up)
+                    </Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity 
+                    style={{
+                      flex: 1, paddingVertical: 8, borderRadius: 8, alignItems: 'center',
+                      backgroundColor: row.adjustmentType === '-' ? COLORS.danger : 'rgba(255,255,255,0.4)',
+                      borderWidth: 1, borderColor: row.adjustmentType === '-' ? COLORS.danger : 'rgba(0,0,0,0.1)'
+                    }}
+                    onPress={() => updateRow(index, 'adjustmentType', '-')}
+                  >
+                    <Text style={{ fontSize: 12, fontWeight: 'bold', color: row.adjustmentType === '-' ? '#fff' : COLORS.vjText }}>
+                      - Deduction (Round-Down)
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+
               <GlassInput 
-                label={`Discount / Deduction (${getCurrencySymbol()})`} 
-                placeholder="0 (Optional deduction)" 
+                label={`Adjustment Amount (${getCurrencySymbol()})`} 
+                placeholder="0 (Optional amount)" 
                 keyboardType="numeric" 
                 value={row.discount} 
                 onChangeText={(t) => updateRow(index, 'discount', t)} 
@@ -331,7 +371,7 @@ export default function AddURDScreen() {
                   </View>
                   <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
                     <Text style={{ fontSize: 11, color: 'rgba(92,22,35,0.6)', fontWeight: '600' }}>Item Net Valuation:</Text>
-                    <Text style={{ fontSize: 13, color: COLORS.vjText, fontWeight: '800', fontFamily: 'monospace' }}>{formatRupees(calc.totalValueRupees)}</Text>
+                    <Text style={{ fontSize: 13, color: COLORS.vjText, fontWeight: '800', fontFamily: 'monospace' }}>{formatRupees(calc.totalValuePaise)}</Text>
                   </View>
                 </View>
               )}

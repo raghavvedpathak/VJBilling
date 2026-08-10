@@ -15,6 +15,10 @@ export interface OldGoldLotRepository {
   // --- insert (Step 12.6 createOldGoldLot) ---
   insert(tx: DrizzleTransaction, data: NewOldGoldLot): OldGoldLot;
 
+  // --- update ---
+  update(tx: DrizzleTransaction, id: string, data: Partial<NewOldGoldLot>): void;
+  update(tx: DrizzleTransaction, firmId: string, id: string, data: Partial<NewOldGoldLot>): void;
+
   // --- findByFirmId (Sync tx overload required by closeFY, async standalone for UI) ---
   findByFirmId(firmId: string): Promise<OldGoldLot[]>;
   findByFirmId(tx: DrizzleTransaction, firmId: string): OldGoldLot[];
@@ -58,6 +62,25 @@ export const oldGoldLotRepository: OldGoldLotRepository = {
     tx.insert(oldGoldLots).values(data).run();
     const result = tx.select().from(oldGoldLots).where(eq(oldGoldLots.id, data.id!)).get();
     return result as OldGoldLot;
+  },
+
+  update(
+    tx: DrizzleTransaction,
+    second: string,
+    third: string | Partial<NewOldGoldLot>,
+    fourth?: Partial<NewOldGoldLot>
+  ): void {
+    if (fourth !== undefined) {
+      tx.update(oldGoldLots)
+        .set({ ...fourth, updatedAt: now() })
+        .where(and(eq(oldGoldLots.id, third as string), eq(oldGoldLots.firmId, second)))
+        .run();
+    } else {
+      tx.update(oldGoldLots)
+        .set({ ...(third as Partial<NewOldGoldLot>), updatedAt: now() })
+        .where(eq(oldGoldLots.id, second))
+        .run();
+    }
   },
 
   findByFirmId(first: DrizzleTransaction | string, second?: string): any {

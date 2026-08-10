@@ -39,6 +39,7 @@ export {
   computeGemstoneTotalPaise,
 
   // Central URD Purchase & Live Cost Breakdown Formulas
+  parseCleanFloat,
   computeURDFineWeightMg,
   computeURDTotalValuePaise,
   computeURDCostBreakdown,

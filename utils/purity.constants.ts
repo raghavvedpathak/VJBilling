@@ -147,6 +147,14 @@ export function formatWeightGrams(grams: number | null | undefined): string {
   return grams.toFixed(3) + ' g';
 }
 
+export function parseCleanFloat(input: string | number | null | undefined): number {
+  if (input === null || input === undefined) return 0;
+  if (typeof input === 'number') return isNaN(input) ? 0 : input;
+  const cleaned = input.toString().replace(/,/g, '').trim();
+  const val = parseFloat(cleaned);
+  return isNaN(val) ? 0 : val;
+}
+
 export function mgToGrams(mg: number): number {
   return mg / 1000;
 }
@@ -195,6 +203,8 @@ export interface URDCostBreakdown {
   ratePerGramRupees: number;
   grossValuePaise: number;
   grossValueRupees: number;
+  adjustmentPaise: number;
+  adjustmentRupees: number;
   discountPaise: number;
   discountRupees: number;
   subtotalPaise: number;
@@ -215,13 +225,13 @@ export function computeURDFineWeightMg(grossWeightMg: number, purityPercent: num
 export function computeURDTotalValuePaise(
   fineWeightMg: number,
   ratePerGramPaise: number,
-  discountPaise: number = 0
+  adjustmentPaise: number = 0
 ): number {
   const safeFineMg = Math.max(0, fineWeightMg || 0);
   const safeRatePaise = Math.max(0, ratePerGramPaise || 0);
-  const safeDiscountPaise = Math.max(0, discountPaise || 0);
+  const safeAdjustmentPaise = adjustmentPaise || 0;
   const grossValuePaise = Math.round((safeFineMg / 1000) * safeRatePaise);
-  const subtotalPaise = Math.max(0, grossValuePaise - safeDiscountPaise);
+  const subtotalPaise = Math.max(0, grossValuePaise + safeAdjustmentPaise);
   return Math.round(subtotalPaise / 100) * 100;
 }
 
@@ -229,27 +239,29 @@ export function computeURDCostBreakdown(
   grossWeightMg: number,
   purityPercent: number,
   ratePerGramPaise: number,
-  discountPaise: number = 0
+  adjustmentPaise: number = 0
 ): URDCostBreakdown {
   const safeGrossMg = Math.max(0, grossWeightMg || 0);
   const safePurity = Math.max(0, Math.min(100, purityPercent || 0));
   const safeRatePaise = Math.max(0, ratePerGramPaise || 0);
-  const safeDiscountPaise = Math.max(0, discountPaise || 0);
+  const safeAdjustmentPaise = adjustmentPaise || 0;
 
   const fineWeightMg = computeURDFineWeightMg(safeGrossMg, safePurity);
   const grossValuePaise = Math.round((fineWeightMg / 1000) * safeRatePaise);
-  const subtotalAfterDiscountPaise = Math.max(0, grossValuePaise - safeDiscountPaise);
+  const subtotalAfterAdjustmentPaise = Math.max(0, grossValuePaise + safeAdjustmentPaise);
   
   // Round to nearest rupee (100 paise)
-  const totalValuePaise = Math.round(subtotalAfterDiscountPaise / 100) * 100;
-  const roundOffPaise = totalValuePaise - subtotalAfterDiscountPaise;
+  const totalValuePaise = Math.round(subtotalAfterAdjustmentPaise / 100) * 100;
+  const roundOffPaise = totalValuePaise - subtotalAfterAdjustmentPaise;
 
   const grossWeightGrams = safeGrossMg / 1000;
   const fineWeightGrams = fineWeightMg / 1000;
   const ratePerGramRupees = safeRatePaise / 100;
   const grossValueRupees = grossValuePaise / 100;
-  const discountRupees = safeDiscountPaise / 100;
-  const subtotalRupees = subtotalAfterDiscountPaise / 100;
+  const adjustmentRupees = safeAdjustmentPaise / 100;
+  const discountPaise = -safeAdjustmentPaise;
+  const discountRupees = discountPaise / 100;
+  const subtotalRupees = subtotalAfterAdjustmentPaise / 100;
   const roundOffRupees = roundOffPaise / 100;
   const totalValueRupees = totalValuePaise / 100;
 
@@ -263,9 +275,11 @@ export function computeURDCostBreakdown(
     ratePerGramRupees,
     grossValuePaise,
     grossValueRupees,
-    discountPaise: safeDiscountPaise,
+    adjustmentPaise: safeAdjustmentPaise,
+    adjustmentRupees,
+    discountPaise,
     discountRupees,
-    subtotalPaise: subtotalAfterDiscountPaise,
+    subtotalPaise: subtotalAfterAdjustmentPaise,
     subtotalRupees,
     roundOffPaise,
     roundOffRupees,
