@@ -1,3 +1,5 @@
+// store/safeModeStore.ts — Phase 2 v2.11 Canonical Store
+
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import { storage } from '../utils/storage';
@@ -9,7 +11,7 @@ export type SafeModeTrigger =
   | 'SCHEMA_VERSION_MISMATCH'
   | 'CHECKSUM_MISMATCH'
   | 'FY_INTEGRITY_BROKEN'
-  | 'STORAGE_CORRUPTION_DETECTED' // ARCHITECT FIX: Added missing constitutional trigger
+  | 'STORAGE_CORRUPTION_DETECTED'
   | 'UNKNOWN_ERROR';
 
 type SafeModeSlice = { 
@@ -19,8 +21,6 @@ type SafeModeSlice = {
   setState: (state: Partial<SafeModeSlice>) => void;
 };
 
-// FIX: Renamed from `useSafeModeStore` to `safeModeStore` to match spec
-// and prevent React hook violations when called from background services.
 export const safeModeStore = create<SafeModeSlice>()(
   persist(
     (set) => ({ 

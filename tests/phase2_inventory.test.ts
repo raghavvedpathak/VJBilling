@@ -90,13 +90,13 @@ beforeAll(async () => {
   
   // Phase 2 tables
   await _rawClient.execute(`CREATE TABLE IF NOT EXISTS categories (
-    id TEXT PRIMARY KEY, firm_id TEXT NOT NULL, name TEXT NOT NULL, code TEXT NOT NULL DEFAULT '', description TEXT, metal TEXT NOT NULL DEFAULT 'GOLD', is_active INTEGER NOT NULL DEFAULT 1, created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+    id TEXT PRIMARY KEY, firm_id TEXT NOT NULL, name TEXT NOT NULL, code TEXT NOT NULL DEFAULT '', description TEXT, is_active INTEGER NOT NULL DEFAULT 1, created_at TEXT NOT NULL, updated_at TEXT NOT NULL
   )`);
   await _rawClient.execute(`CREATE TABLE IF NOT EXISTS designs (
     id TEXT PRIMARY KEY, firm_id TEXT NOT NULL, name TEXT NOT NULL, code TEXT NOT NULL DEFAULT '', description TEXT, default_hsn TEXT, metal TEXT NOT NULL, low_stock_threshold INTEGER, is_active INTEGER NOT NULL DEFAULT 1, created_at TEXT NOT NULL, updated_at TEXT NOT NULL
   )`);
   await _rawClient.execute(`CREATE TABLE IF NOT EXISTS items (
-    id TEXT PRIMARY KEY, firm_id TEXT NOT NULL, fy_id TEXT NOT NULL, sku TEXT NOT NULL, barcode TEXT NOT NULL, huid TEXT, design_id TEXT NOT NULL, category_id TEXT NOT NULL DEFAULT '', hsn_code TEXT NOT NULL DEFAULT '',
+    id TEXT PRIMARY KEY, firm_id TEXT NOT NULL, sku TEXT NOT NULL, barcode TEXT NOT NULL, huid TEXT, design_id TEXT NOT NULL, category_id TEXT NOT NULL DEFAULT '', hsn_code TEXT NOT NULL DEFAULT '',
     metal TEXT NOT NULL, purity_percent REAL NOT NULL, purity_karat INTEGER NOT NULL,
     gross_weight_mg INTEGER NOT NULL, stone_weight_mg INTEGER NOT NULL DEFAULT 0, beads_weight_mg INTEGER NOT NULL DEFAULT 0, net_weight_mg INTEGER NOT NULL,
     fine_weight_mg INTEGER NOT NULL, wastage_percent REAL NOT NULL DEFAULT 0, fine_gold_charged_mg INTEGER, purchase_rate_paise INTEGER, making_charge_paise INTEGER, stone_cost_paise INTEGER, purity_rounding_delta_mg INTEGER NOT NULL DEFAULT 0,
@@ -176,7 +176,7 @@ beforeEach(async () => {
 
   // Insert mock category and HSN
   await db.insert(categories).values({
-    id: 'CAT_1', firmId: FIRM_ID, name: 'Test Category', metal: 'GOLD', code: 'CAT',
+    id: 'CAT_1', firmId: FIRM_ID, name: 'Test Category', code: 'CAT',
     isActive: 1, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString()
   });
   await db.insert(hsnCodes).values({
@@ -244,7 +244,6 @@ describe('SKU Engine', () => {
       id: 'mock_item', firmId: FIRM_ID, sku: 'RIN-1225-0001', barcode: 'RIN-1225-0001',
       designId: d.id, categoryId: 'CAT_1', hsnCode: '7113', metal: 'GOLD', purityPercent: 91.6, purityKarat: 22,
       grossWeightMg: 1000, netWeightMg: 1000, fineWeightMg: 916, status: 'AVAILABLE', metalSource: 'PURCHASE',
-      fyId: 'FY1',
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()
     });
@@ -966,14 +965,15 @@ describe('Purity Map and Utilities', () => {
     const [correctedSourceItem] = await db.select().from(items).where(eq(items.id, itemDraft.id));
     expect(correctedSourceItem?.metalSource).toBe('CUSTOMER_OLD_GOLD');
 
-    // Non-DRAFT correction throws ITEM_NOT_DRAFT
+    // Terminal-status correction throws ITEM_EDIT_LOCKED_TERMINAL_STATUS (v2.11 FIX-METALSOURCE-POSTPUBLISH-1)
     const itemAvailableMS = await itemService.createItem({
       designId: d.id, categoryId: 'CAT_1', hsnCode: '7113', purityPercent: 91.6, purityKarat: 22, grossWeightMg: 5000
     }, FIRM_ID);
     await itemService.updateItemStatus(itemAvailableMS.id, FIRM_ID, 'AVAILABLE');
+    await itemService.updateItemStatus(itemAvailableMS.id, FIRM_ID, 'SOLD');
     await expect(
       itemService.correctMetalSource(itemAvailableMS.id, FIRM_ID, 'EXCHANGE', 'Change exchange')
-    ).rejects.toThrow('ITEM_NOT_DRAFT');
+    ).rejects.toThrow('ITEM_EDIT_LOCKED_TERMINAL_STATUS');
 
     // 3. correctHUID() tests
     const itemHuid = await itemService.createItem({
@@ -1568,7 +1568,7 @@ describe('Purity Map and Utilities', () => {
     // 2. Perform restore from the saved string
     // Let's modify the database first by adding a category
     await db.insert(categories).values({
-      id: 'CAT_NEW', firmId: FIRM_ID, name: 'New category during restore', metal: 'GOLD', code: 'NEW', isActive: 1, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString()
+      id: 'CAT_NEW', firmId: FIRM_ID, name: 'New category during restore', code: 'NEW', isActive: 1, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString()
     });
 
     // Restore

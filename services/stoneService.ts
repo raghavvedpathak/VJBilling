@@ -1,3 +1,5 @@
+// services/stoneService.ts — Phase 2 v2.11 Canonical Service
+
 import { db } from '../db/client';
 import { leaseService } from './leaseService';
 import { safeModeService } from './safeModeService';
@@ -5,24 +7,24 @@ import { stoneRepository } from '../repositories/stoneRepository';
 import { auditRepository } from '../repositories/auditRepository';
 import { getDeviceId } from '../utils/deviceId';
 import { now } from '../utils/now';
+import { sanitizeText } from '../utils/sanitize';
 import * as Crypto from 'expo-crypto';
 import type { CreateStoneInput, Stone } from '../types/phase2.types';
-import { ERR } from '../constants';
+import { ERR } from '../constants/errorCodes';
 
 export const stoneService = {
-  // createStone() service body from Step 4
+  // --- createStone (Step 4 / FIX-STONE-1) ---
   async createStone(input: CreateStoneInput, firmId: string): Promise<Stone> {
     await leaseService.assertNoActiveLease(); // GUARD 1
-    safeModeService.assertNotInSafeMode(); // GUARD 2
+    safeModeService.assertNotInSafeMode();    // GUARD 2
 
-    // Hoisted async call outside transaction
+    const sanitizedName = sanitizeText(input.name); // GAP-P1ALIGN-4 (v1.74)
     const deviceId = await getDeviceId();
 
-    // FIX-V718-1: Synchronous transaction block
     return db.transaction((tx) => {
       const stone = stoneRepository.insert(tx, {
         id: Crypto.randomUUID(), 
-        name: input.name, 
+        name: sanitizedName, 
         type: input.type,
         firmId, 
         isActive: 1, 
@@ -35,16 +37,17 @@ export const stoneService = {
         firmId, 
         entityId: stone.id,
         deviceId, 
-        payload: JSON.stringify({ name: stone.name, type: stone.type }) 
+        payload: { name: stone.name, type: stone.type } 
       });
 
       return stone;
     });
   },
 
+  // --- softDeleteStone (Step 4 / FIX-STONE-1) ---
   async softDeleteStone(stoneId: string, firmId: string): Promise<void> {
-    await leaseService.assertNoActiveLease();
-    safeModeService.assertNotInSafeMode();
+    await leaseService.assertNoActiveLease(); // GUARD 1
+    safeModeService.assertNotInSafeMode();    // GUARD 2
 
     const deviceId = await getDeviceId();
 
@@ -61,7 +64,7 @@ export const stoneService = {
         firmId,
         entityId: stoneId,
         deviceId,
-        payload: JSON.stringify({ stoneId, name: stone.name })
+        payload: { stoneId, name: stone.name }
       });
     });
   }

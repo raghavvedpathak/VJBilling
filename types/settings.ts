@@ -1,7 +1,4 @@
-// types/settings.ts
-// Phase 1 Settings Types
-// G67: Currency fields are explicitly OMITTED from UpdateSettingsInput
-// to enforce constitutional immutability at compile time.
+// types/settings.ts — Phase 2 v2.11 Canonical Settings Types
 
 export type UpdateSettingsInput = {
   theme?: string; // 'system' | 'light' | 'dark'

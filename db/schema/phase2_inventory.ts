@@ -1,14 +1,21 @@
 import { sqliteTable, text, integer, real, index, foreignKey, unique } from 'drizzle-orm/sqlite-core';
 import { isNotNull, sql } from 'drizzle-orm';
-import { firms, type Metal } from './phase1_core';
-// PHASE 2 — INVENTORY TRUTH LAYER (Migration 0002)
+import { firms } from './phase1_core';
+
+// PHASE 2 — INVENTORY TRUTH LAYER (v2.11 SPECIFICATION)
 // =============================================================================
 
-// PURITY HELPERS (Step 2 — in-memory constants, no DB table)
+// PURITY HELPERS (Step 6.1 — in-memory constants, no DB table)
 export const PURITY_MAP: Record<number, number> = {
-  24: 99.9, 22: 91.6, 20: 83.3, 18: 75.0, 17: 70.8,
-  14: 58.5, 10: 41.7, 9: 37.5,
-  // Silver: use purityKarat=0 with explicit purityPercent
+  24: 99.9,
+  23: 95.8,
+  22: 91.6,
+  21: 87.5,
+  20: 83.3,
+  18: 75.0,
+  14: 58.3,
+  10: 41.7,
+  9: 37.5,
 };
 
 export const PURITY_PERCENT_EXTENDED: Record<number, number> = {
@@ -21,7 +28,7 @@ export function karatToPercent(karat: number): number {
   return PURITY_MAP[karat] ?? 0;
 }
 
-export function percentToKarat(percent: number): number {
+export function percentToKarat(percent: number): number | null {
   // Check extended map first (exact match for 99.99, 99.50)
   const extended = PURITY_PERCENT_EXTENDED[percent];
   if (extended !== undefined) return extended;
@@ -29,15 +36,14 @@ export function percentToKarat(percent: number): number {
   for (const [k, p] of Object.entries(PURITY_MAP)) {
     if (Math.abs(p - percent) < 0.05) return Number(k);
   }
-  return 0; // silver or unknown
+  return null; // silver or non-standard custom purity
 }
 
-// Categories
+// Categories (Step 2 — ARCH-FLAT-CAT v1.42: Flat structure, no metal column)
 export const categories = sqliteTable('categories', {
   id: text('id').primaryKey(),
-  firmId: text('firm_id').notNull(),
   name: text('name').notNull(),
-  metal: text('metal', { enum: ['GOLD', 'SILVER'] }).notNull(),
+  firmId: text('firm_id').notNull(),
   isActive: integer('is_active').notNull().default(1),
   code: text('code').notNull(), // CAT-DES-DISPLAY-CODE (v1.42): e.g. CAT0001
   createdAt: text('created_at').notNull(),
@@ -47,7 +53,7 @@ export const categories = sqliteTable('categories', {
   idxCategoriesFirmActive: index('idx_categories_firm_active').on(table.firmId, table.isActive),
 })); 
 
-// Designs
+// Designs (Step 3)
 export const designs = sqliteTable('designs', {
   id: text('id').primaryKey(),
   name: text('name').notNull(),
@@ -67,7 +73,7 @@ export const designs = sqliteTable('designs', {
   idxDesignsFirmMetal: index('idx_designs_firm_metal').on(table.firmId, table.metal),
 }));
 
-// Items (individual SKUs)
+// Items (individual SKUs - Step 6)
 export const items = sqliteTable('items', {
   id: text('id').primaryKey(),
   sku: text('sku').notNull().unique(),
@@ -78,7 +84,7 @@ export const items = sqliteTable('items', {
   categoryId: text('category_id').notNull(), // FIX-CAT-ITEM-FK (v1.42)
   firmId: text('firm_id').notNull(),
   primaryStoneId: text('primary_stone_id'),
-  metal: text('metal', { enum: ['GOLD', 'SILVER'] }).notNull(),
+  metal: text('metal', { enum: ['GOLD', 'SILVER'] }).notNull(), // FEAT-ITEM-METAL-DENORM-1 (v1.95)
   purityPercent: real('purity_percent').notNull(),
   purityKarat: real('purity_karat').notNull(),
   grossWeightMg: integer('gross_weight_mg').notNull(),
@@ -86,16 +92,16 @@ export const items = sqliteTable('items', {
   beadsWeightMg: integer('beads_weight_mg').notNull().default(0),
   netWeightMg: integer('net_weight_mg').notNull(), // PHYSICAL: gross - stone - beads
   fineWeightMg: integer('fine_weight_mg').notNull(), // PHYSICAL: round(net x purity / 100)
-  purityRoundingDeltaMg: integer('purity_rounding_delta_mg').notNull().default(0), // FEAT-PURITY-ROUND-1
-  wastagePercent: real('wastage_percent').notNull().default(0),
-  fineGoldChargedMg: integer('fine_gold_charged_mg'), // nullable
-  purchaseRatePaise: integer('purchase_rate_paise'), // nullable
-  makingChargePaise: integer('making_charge_paise'), // nullable
-  stoneCostPaise: integer('stone_cost_paise'), // nullable
-  location: text('location'), // nullable
-  invoiceId: text('invoice_id'), // nullable DORMANT
-  phantomStockId: text('phantom_stock_id'), // nullable
-  hsnCode: text('hsn_code').notNull(), // GST HSN code
+  purityRoundingDeltaMg: integer('purity_rounding_delta_mg').notNull().default(0), // FEAT-PURITY-ROUND-1 (v1.90)
+  wastagePercent: real('wastage_percent').notNull().default(0), // FIX-WAST-1 (v1.26)
+  fineGoldChargedMg: integer('fine_gold_charged_mg'), // nullable (FIX-WAST-2 v1.26)
+  purchaseRatePaise: integer('purchase_rate_paise'), // nullable (FIX-WAST-3 v1.26)
+  makingChargePaise: integer('making_charge_paise'), // nullable (FIX-COST-1 v1.40)
+  stoneCostPaise: integer('stone_cost_paise'), // nullable (FIX-COST-2 v1.40)
+  location: text('location'), // nullable (FIX-LOC-1 v1.40)
+  invoiceId: text('invoice_id'), // nullable DORMANT (FIX-INV-1 v1.40)
+  phantomStockId: text('phantom_stock_id'), // nullable (FEAT-PHANTOM-INVENTORY-1 v1.67)
+  hsnCode: text('hsn_code').notNull(), // GST HSN code (FIX-HSN-ITEM-1 v1.44)
   sizeValue: real('size_value'), // FIX-GAP-P2-SIZE-2 (v1.76)
   sizeUnit: text('size_unit', { enum: ['INCH','MM','CM','RING_SIZE'] }), // FIX-GAP-P2-SIZE-2 (v1.76)
   metalSource: text('metal_source', {
@@ -106,7 +112,6 @@ export const items = sqliteTable('items', {
   status: text('status', {
     enum: ['DRAFT','AVAILABLE','SOLD','SENT_TO_REFINERY','MELTED','DAMAGED','RETURNED','SENT_TO_MELT','SENT_TO_KARIGAR','PHANTOM_AVAILABLE','PHANTOM_SOLD']
   }).notNull().default('DRAFT'),
-  fyId: text('fy_id').notNull(),
   createdAt: text('created_at').notNull(),
   updatedAt: text('updated_at').notNull(),
 }, (table) => ({
@@ -122,9 +127,10 @@ export const items = sqliteTable('items', {
   idxItemsInvoice: index('idx_items_invoice').on(table.invoiceId).where(isNotNull(table.invoiceId)),
   idxItemsPhantomAvailable: index('idx_items_phantom_available').on(table.firmId, table.phantomStockId).where(sql`status = 'PHANTOM_AVAILABLE'`),
   idxItemsPhantomSold: index('idx_items_phantom_sold').on(table.firmId, table.phantomStockId).where(sql`status = 'PHANTOM_SOLD'`),
+  idxItemsSize: index('idx_items_size').on(table.firmId, table.sizeUnit, table.sizeValue).where(isNotNull(table.sizeValue)), // FIX-GAP-P2-SIZE-3 (v1.76)
 }));
 
-// Item Events (append-only audit trail per item)
+// Item Events (append-only audit trail per item - Step 1.6 & 6.7)
 export const itemEvents = sqliteTable('item_events', {
   id: text('id').primaryKey(),
   itemId: text('item_id').notNull(),
@@ -148,24 +154,20 @@ export const itemEvents = sqliteTable('item_events', {
   idxItemEventsFirmType: index('idx_item_events_firm_type').on(table.firmId, table.eventType),
 }));
 
-// SCHEMA-1 FIX (v1.8): sequenceCounters table
+// Sequence Counters (SCHEMA-1 FIX v1.8 / Step 5)
 export const sequenceCounters = sqliteTable('sequence_counters', {
-  id: text('id').primaryKey(), // format: '{firmId}_{MMYY}'
+  id: text('id').primaryKey(), // format: '{firmId}_{MMYY}' or '{firmId}_{type}_{fyLabel}'
   firmId: text('firm_id').notNull(),
   month: text('month').notNull(), // MMYY format e.g. '0226'
   year: text('year').notNull(), // 4-digit year e.g. '2026'
   currentSeq: integer('current_seq').notNull().default(0),
   lastUsedAt: text('last_used_at').notNull(), 
-  // FIX-URD-SEQ-ARCH-1 (v1.53): TWO SEQUENCE SCOPES — SAME TABLE, DIFFERENT KEY FORMAT.
-  // SKU items: key = '{firmId}_{MMYY}' — month-scoped
-  // Documents: key = '{firmId}_{type}_{fyLabel}' — FY-scoped
-  // Valid type values in keys are: 'SALE' | 'CREDIT_NOTE' | 'URD'
 }, (table) => ({
   firmFk: foreignKey({ columns: [table.firmId], foreignColumns: [firms.id] }),
   idxSequenceCountersFirmMonth: index('idx_sequence_counters_firm_month').on(table.firmId, table.month),
 })); 
 
-// Old Gold Lots (BLOCK-4 v1.15)
+// Old Gold Lots (BLOCK-4 v1.15 / Step 12)
 export const oldGoldLots = sqliteTable('old_gold_lots', {
   id: text('id').primaryKey(),
   firmId: text('firm_id').notNull(),
@@ -180,17 +182,17 @@ export const oldGoldLots = sqliteTable('old_gold_lots', {
   }).notNull().default('RECEIVED'),
   createdAt: text('created_at').notNull(),
   updatedAt: text('updated_at').notNull(),
-  customerId: text('customer_id'),
-  fineWeightMg: integer('fine_weight_mg').notNull().default(0),
-  purityRoundingDeltaMg: integer('purity_rounding_delta_mg').notNull().default(0), // FEAT-PURITY-ROUND-1
-  purchaseRatePaise: integer('purchase_rate_paise'),
-  totalAmountPaise: integer('total_amount_paise'),
+  customerId: text('customer_id'), // FIX-OLDGOLD-CUSTOMER-1 (v1.49)
+  fineWeightMg: integer('fine_weight_mg').notNull().default(0), // FIX-OLDGOLD-COST-1 (v1.51)
+  purityRoundingDeltaMg: integer('purity_rounding_delta_mg').notNull().default(0), // FEAT-PURITY-ROUND-1 (v1.91)
+  purchaseRatePaise: integer('purchase_rate_paise'), // FIX-OLDGOLD-COST-1 (v1.51)
+  totalAmountPaise: integer('total_amount_paise'), // FIX-OLDGOLD-COST-1 (v1.51)
 }, (table) => ({
   firmFk: foreignKey({ columns: [table.firmId], foreignColumns: [firms.id] }),
   idxOldGoldLotsFirm: index('idx_old_gold_lots_firm').on(table.firmId, table.status, table.metalSource),
 }));
 
-// FIX-URD-1 (v1.49): urd_purchases table — standalone purchase of old gold/jewellery from unregistered customer
+// URD Purchases (FIX-URD-1 v1.49 / Step 12.9)
 export const urdPurchases = sqliteTable('urd_purchases', {
   id: text('id').primaryKey(),
   firmId: text('firm_id').notNull(),
@@ -226,7 +228,7 @@ export const urdPurchases = sqliteTable('urd_purchases', {
   idxUrdPurchasesFy: index('idx_urd_purchases_fy').on(table.firmId, table.fyId),
 }));
 
-// Design-Category Map (Phase 6 analytics denormalization)
+// Design-Category Map (DESIGN-CAT-MAP v1.42 / Step 3.5)
 export const designCategoryMap = sqliteTable('design_category_map', {
   id: text('id').primaryKey(),
   designId: text('design_id').notNull(),
@@ -235,13 +237,15 @@ export const designCategoryMap = sqliteTable('design_category_map', {
   createdAt: text('created_at').notNull(),
 }, (table) => ({
   uniqueDCM: unique().on(table.designId, table.categoryId, table.firmId),
+  idxDcmDesign: index('idx_dcm_design').on(table.designId),
+  idxDcmCategory: index('idx_dcm_category').on(table.categoryId),
 }));
 
-// Stones (Stone Master)
+// Stones (Step 4 / FIX-MISSING-CREATE-1 v1.95)
 export const stones = sqliteTable('stones', {
   id: text('id').primaryKey(),
   name: text('name').notNull(),
-  type: text('type').notNull(), // 'DIAMOND' | 'RUBY' | 'EMERALD' | 'SAPPHIRE'
+  type: text('type', { enum: ['DIAMOND', 'RUBY', 'EMERALD', 'SAPPHIRE'] }).notNull(), // FIX-MISSING-CREATE-1 (v1.95) DB enum
   firmId: text('firm_id').notNull(),
   isActive: integer('is_active').default(1).notNull(),
   createdAt: text('created_at').notNull(),
@@ -250,7 +254,7 @@ export const stones = sqliteTable('stones', {
   firmFk: foreignKey({ columns: [table.firmId], foreignColumns: [firms.id] }),
 }));
 
-// Gemstone Lots (Step 4.5)
+// Gemstone Lots (GEMSTONE-1 v1.21 / Step 4.5)
 export const gemstoneLots = sqliteTable('gemstone_lots', {
   id: text('id').primaryKey(),
   firmId: text('firm_id').notNull(),
@@ -273,7 +277,7 @@ export const gemstoneLots = sqliteTable('gemstone_lots', {
   idxGemstoneLotsName: index('idx_gemstone_lots_name').on(table.name),
 }));
 
-// HSN Code Master (FIX-HSN-MASTER-1 v1.46)
+// HSN Code Master (FIX-HSN-MASTER-1 v1.46 / Step 4.75)
 export const hsnCodes = sqliteTable('hsn_codes', {
   id: text('id').primaryKey(), // uuid
   code: text('code').notNull().unique(), // '7113', '711311', etc.
@@ -281,4 +285,4 @@ export const hsnCodes = sqliteTable('hsn_codes', {
   chapter: text('chapter').notNull().default('71'), // '71' for jewellery
   isActive: integer('is_active').notNull().default(1), // 1=active 0=deactivated
   createdAt: text('created_at').notNull(), // ISO timestamp
-});
+});

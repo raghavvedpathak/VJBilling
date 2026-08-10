@@ -1,13 +1,13 @@
 /* eslint-disable no-restricted-imports */
-// app/inventory/add-stock.tsx
+/// app/inventory/add-stock.tsx — Phase 2 v2.11 Canonical Screen
+
 import React, { useState, useEffect, useMemo } from 'react';
-import { View, Text, ScrollView, Alert, Modal, TouchableOpacity, TextInput, StyleSheet } from 'react-native';
+import { View, Text, ScrollView, Alert, Modal, TouchableOpacity, StyleSheet } from 'react-native';
 import { useRouter, useFocusEffect } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { TwoToneWrapper } from '../../components/TwoToneWrapper';
-import { storage } from '../../utils/storage';
-import { GlassCard, GlassInput, GlassButton } from '../../components/ui/Glass';
-import { useFirmStore } from '../../store/firmStore';
+import { GlassCard, GlassInput, GlassButton, GlassSmartSearch } from '../../components/ui/Glass';
+import { useFirmStore } from '../../store/useFirmStore';
 import { itemService } from '../../services/itemService';
 import { designRepository } from '../../repositories/designRepository';
 import { categoryRepository } from '../../repositories/categoryRepository';
@@ -16,8 +16,7 @@ import { stoneRepository } from '../../repositories/stoneRepository';
 import { designCategoryMapRepository } from '../../repositories/designCategoryMapRepository';
 import { itemRepository } from '../../repositories/itemRepository';
 import type { Design, Category, HsnCode, Stone } from '../../types/phase2.types';
-import { Package, Scale, Percent, MapPin, Calculator, Wallet, CheckCircle, RefreshCw } from 'lucide-react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Package, Scale, Percent, MapPin, Calculator, Wallet, CheckCircle } from 'lucide-react-native';
 import { seedHsnCodes } from '../../db/seed';
 import { 
   percentToKarat, 
@@ -31,10 +30,7 @@ import {
   formatSKUDisplay,
   getCurrencySymbol 
 } from '../../utils/calculations';
-
 import { COLORS } from '../../constants/theme';
-
-import { GlassSmartSearch } from '../../components/ui/Glass';
 
 export default function AddStockScreen() {
   const router = useRouter();
@@ -103,7 +99,6 @@ export default function AddStockScreen() {
         setCategories(c || []);
         setHsnCodes(h || []);
         setStones(s || []);
-
       };
       loadData();
     }, [activeFirmId])
@@ -116,7 +111,6 @@ export default function AddStockScreen() {
     return k > 0 ? `${k}K` : '';
   }, [purityPercent]);
 
-  // Wholesale Math Live Preview
   const liveWastageSeparation = useMemo(() => {
     const g = parseFloat(grossWeight) || 0;
     const s = parseFloat(stoneWeight) || 0;
@@ -134,10 +128,10 @@ export default function AddStockScreen() {
     const { fineWeightMg } = resolveFineWeightMg(netWeightMg, p, metal);
     const vaultTruth = computeVaultTruthGrams(fineWeightMg);
 
-    const fineGoldChargedMg = computeFineGoldChargedMg(netWeightMg, p, w, metal);
+    const fineGoldChargedMg = computeFineGoldChargedMg(netWeightMg, p, w);
     const costTruth = computeCostTruthGrams(fineGoldChargedMg, fineWeightMg);
     
-    const effectivePricePerGram = computeEffectivePricePerGram(rate, p, w, metal);
+    const effectivePricePerGram = computeEffectivePricePerGram(rate, p, w);
     const absoluteTotalCost = computeAbsoluteTotalCostRupees(netWeightG, effectivePricePerGram, making, stoneC);
 
     return {
@@ -273,7 +267,6 @@ export default function AddStockScreen() {
                 
                 if (activeFirmId) {
                   try {
-                    // Auto-select linked Category if mapped to this design
                     const mappings = await designCategoryMapRepository.findByDesignId(selDesign.id, activeFirmId);
                     let catList = categories;
                     if (catList.length === 0) {
@@ -293,10 +286,6 @@ export default function AddStockScreen() {
                     console.warn("Failed to auto-select category:", err);
                   }
                 }
-
-                if (selectedCategory && selectedCategory.metal !== selDesign.metal) {
-                  setSelectedCategory(null);
-                }
               }}
             />
           </View>
@@ -305,7 +294,7 @@ export default function AddStockScreen() {
             <GlassSmartSearch 
               label="Category *"
               placeholder="Search categories..."
-              options={categories.filter(c => selectedDesign ? c.metal === selectedDesign.metal : true).map(c => ({ id: c.id, label: c.name || 'Unnamed Category', sublabel: c.metal || 'Unknown' }))}
+              options={categories.map(c => ({ id: c.id, label: c.name || 'Unnamed Category', sublabel: '' }))}
               selectedId={selectedCategory?.id || null}
               onFocusFetch={async () => {
                 if (activeFirmId) {
@@ -665,6 +654,5 @@ const styles = StyleSheet.create({
     fontWeight: '900',
     color: COLORS.vjText,
     fontFamily: 'monospace',
-    letterSpacing: 2,
   }
 });

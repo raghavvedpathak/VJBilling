@@ -1,24 +1,18 @@
-// app/inventory/design-items.tsx
-// FEAT-SCREEN-C-FLAT-1 (v1.97) — Screen C: Individual Items Under Design (STEP 16.3)
-// READ-ONLY | NO dual guards | NO audit write | NO lease acquisition
-// FlashList MANDATORY | estimatedItemSize defined | React.memo() rows
-// Flat list layout: purityPercent DESC, then created_at DESC (client-side sort)
+// app/inventory/design-items.tsx — Phase 2 v2.11 Canonical Screen
 
 import React, { useState, useCallback, memo, useMemo } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
 import { FlashList } from '@shopify/flash-list';
-import { useRouter, useLocalSearchParams } from 'expo-router';
-import { useFocusEffect } from 'expo-router';
+import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { TwoToneWrapper } from '../../components/TwoToneWrapper';
 import { HeaderPill } from '../../components/ui/Glass';
 import { useStore } from 'zustand';
 import { appSettingsStore } from '../../store/appSettingsStore';
-import { useFirmStore } from '../../store/firmStore';
+import { useFirmStore } from '../../store/useFirmStore';
 import { inventoryDrillDownService } from '../../services/inventoryDrillDownService';
 import { getDisplayPurity, formatSKUDisplay, formatWeightMg as formatWeight } from '../../utils/calculations';
-import { MapPin, Tag, Package, Printer, Scale } from 'lucide-react-native';
-import { getJewelryCategoryIcon } from '../../utils/jewelryIcons';
+import { MapPin, Package, Printer, Scale } from 'lucide-react-native';
 import type { ItemSearchResult } from '../../types/phase2.types';
 import { COLORS, getThemeColors } from '../../constants/theme';
 
@@ -177,10 +171,6 @@ export default function DesignItemsScreen() {
 
 const s = StyleSheet.create({
   listContainer: { flex: 1 },
-  headerIconRow: { marginBottom: 12 },
-  headerIconCircle: { width: 52, height: 52, borderRadius: 16, backgroundColor: 'rgba(255,255,255,0.12)', justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: 'rgba(255,255,255,0.15)' },
-  headerTitle: { color: COLORS.vjBg, fontSize: 28, fontWeight: '800', letterSpacing: -0.5, marginBottom: 4 },
-  headerSubtitle: { color: 'rgba(252,251,248,0.55)', fontSize: 12, fontWeight: '600', textTransform: 'uppercase' },
   loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 12 },
   loadingText: { color: 'rgba(92,22,35,0.4)', fontSize: 14, fontWeight: '600' },
   itemCard: {

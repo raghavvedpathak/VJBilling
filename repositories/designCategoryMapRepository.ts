@@ -1,3 +1,5 @@
+// repositories/designCategoryMapRepository.ts — Phase 2 v2.11 Canonical Repository
+
 import { eq, and } from 'drizzle-orm';
 import { db } from '../db/client';
 import { designCategoryMap } from '../db/schema';
@@ -7,25 +9,66 @@ import { now } from '../utils/now';
 
 type DCMRecord = typeof designCategoryMap.$inferSelect;
 
-export const designCategoryMapRepository = {
-  // FIX-DCM-WRITE-1 (v1.46): INSERT OR IGNORE automatically deduplicates.
-  // FIX-V718-1: Synchronous execution using .run() inside transactions.
+export interface DesignCategoryMapRepository {
+  // --- insert (FIX-DCM-WRITE-1 v1.46 / Step 3.5 & Step 6) ---
   insert(
     tx: DrizzleTransaction,
-    data: { designId: string; categoryId: string; firmId: string }
+    data: { designId: string; categoryId: string; firmId: string; id?: string; createdAt?: string }
+  ): void;
+
+  // --- findByDesignId (Sync tx overload and async standalone) ---
+  findByDesignId(designId: string, firmId: string): Promise<DCMRecord[]>;
+  findByDesignId(tx: DrizzleTransaction, designId: string, firmId: string): DCMRecord[];
+
+  // --- findByCategory (Sync tx overload and async standalone) ---
+  findByCategory(categoryId: string, firmId: string): Promise<DCMRecord[]>;
+  findByCategory(tx: DrizzleTransaction, categoryId: string, firmId: string): DCMRecord[];
+
+  // --- delete (FIX-V718-1) ---
+  delete(tx: DrizzleTransaction, designId: string, categoryId: string, firmId: string): void;
+}
+
+export const designCategoryMapRepository: DesignCategoryMapRepository = {
+  // --- insert (FIX-DCM-WRITE-1 v1.46 / Step 3.5 & Step 6) ---
+  // Accepts id/createdAt from createItem() or auto-generates if omitted.
+  // .onConflictDoNothing() handles UNIQUE(designId, categoryId, firmId) deduplication silently.
+  insert(
+    tx: DrizzleTransaction,
+    data: { designId: string; categoryId: string; firmId: string; id?: string; createdAt?: string }
   ): void {
-    tx.insert(designCategoryMap).values({
-      id: Crypto.randomUUID(),
-      designId: data.designId,
-      categoryId: data.categoryId,
-      firmId: data.firmId,
-      createdAt: now(),
-    }).onConflictDoNothing().run(); // Unique constraint handles deduplication silently
+    tx.insert(designCategoryMap)
+      .values({
+        id: data.id ?? Crypto.randomUUID(),
+        designId: data.designId,
+        categoryId: data.categoryId,
+        firmId: data.firmId,
+        createdAt: data.createdAt ?? now(),
+      })
+      .onConflictDoNothing()
+      .run();
   },
 
-  // Operates globally outside a transaction — safely left as async
-  async findByDesignId(designId: string, firmId: string): Promise<DCMRecord[]> {
-    return db
+  // --- findByDesignId (Sync tx overload and async standalone) ---
+  findByDesignId(
+    first: DrizzleTransaction | string,
+    second: string,
+    third?: string
+  ): any {
+    if (typeof first === 'string') {
+      return db
+        .select()
+        .from(designCategoryMap)
+        .where(
+          and(
+            eq(designCategoryMap.designId, first),
+            eq(designCategoryMap.firmId, second)
+          )
+        );
+    }
+    const tx = first as DrizzleTransaction;
+    const designId = second;
+    const firmId = third!;
+    return tx
       .select()
       .from(designCategoryMap)
       .where(
@@ -33,12 +76,31 @@ export const designCategoryMapRepository = {
           eq(designCategoryMap.designId, designId),
           eq(designCategoryMap.firmId, firmId)
         )
-      );
+      )
+      .all() as DCMRecord[];
   },
 
-  // Operates globally outside a transaction — safely left as async
-  async findByCategory(categoryId: string, firmId: string): Promise<DCMRecord[]> {
-    return db
+  // --- findByCategory (Sync tx overload and async standalone) ---
+  findByCategory(
+    first: DrizzleTransaction | string,
+    second: string,
+    third?: string
+  ): any {
+    if (typeof first === 'string') {
+      return db
+        .select()
+        .from(designCategoryMap)
+        .where(
+          and(
+            eq(designCategoryMap.categoryId, first),
+            eq(designCategoryMap.firmId, second)
+          )
+        );
+    }
+    const tx = first as DrizzleTransaction;
+    const categoryId = second;
+    const firmId = third!;
+    return tx
       .select()
       .from(designCategoryMap)
       .where(
@@ -46,10 +108,11 @@ export const designCategoryMapRepository = {
           eq(designCategoryMap.categoryId, categoryId),
           eq(designCategoryMap.firmId, firmId)
         )
-      );
+      )
+      .all() as DCMRecord[];
   },
 
-  // FIX-V718-1: Synchronous execution using .run() inside transactions.
+  // --- delete (FIX-V718-1) ---
   delete(tx: DrizzleTransaction, designId: string, categoryId: string, firmId: string): void {
     tx.delete(designCategoryMap)
       .where(

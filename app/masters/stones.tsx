@@ -1,19 +1,18 @@
-import { stoneRepository } from '../../repositories/stoneRepository';
-// app/masters/stones.tsx
+// app/masters/stones.tsx — Phase 2 v2.11 Canonical Screen
+
 import React, { useState, useCallback } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Modal, TextInput, Alert, ActivityIndicator, KeyboardAvoidingView, Platform } from 'react-native';
-import { useRouter } from 'expo-router';
-import { useFocusEffect } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { TwoToneWrapper } from '../../components/TwoToneWrapper';
 import { HeaderPill, GlassCard, GlassButton } from '../../components/ui/Glass';
 import { useStore } from 'zustand';
 import { appSettingsStore } from '../../store/appSettingsStore';
 import { Gem, Plus, X, Trash2, LayoutGrid, List as ListIcon, CheckCircle, ShieldCheck } from 'lucide-react-native';
-import { useFirmStore } from '../../store/firmStore';
+import { useFirmStore } from '../../store/useFirmStore';
+import { stoneRepository } from '../../repositories/stoneRepository';
 import { stoneService } from '../../services/stoneService';
 import type { Stone } from '../../types/phase2.types';
-
 import { COLORS, getThemeColors } from '../../constants/theme';
 
 type StoneType = 'DIAMOND' | 'RUBY' | 'EMERALD' | 'SAPPHIRE';
@@ -213,7 +212,6 @@ export default function StonesScreen() {
         </KeyboardAvoidingView>
       </Modal>
 
-      {/* Modern Success Modal */}
       <Modal visible={!!successMessage} transparent animationType="fade">
         <View style={s.modalOverlayCenter}>
           <View style={s.successModalContent}>
@@ -238,10 +236,6 @@ export default function StonesScreen() {
 
 const s = StyleSheet.create({
   container: { flex: 1, paddingTop: 8 },
-  headerIconRow: { marginBottom: 12 },
-  headerIconCircle: { width: 52, height: 52, borderRadius: 16, backgroundColor: 'rgba(255,255,255,0.12)', justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: 'rgba(255,255,255,0.15)' },
-  headerTitle: { color: COLORS.vjBg, fontSize: 28, fontWeight: '800', letterSpacing: -0.5, marginBottom: 4 },
-  headerSubtitle: { color: 'rgba(252,251,248,0.55)', fontSize: 12, fontWeight: '600', textTransform: 'uppercase' },
   controlsRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 8, marginTop: 4 },
   toggleContainer: { flexDirection: 'row', backgroundColor: 'rgba(92,22,35,0.05)', borderRadius: 12, padding: 4 },
   toggleIconBtn: { padding: 8, borderRadius: 8 },
@@ -271,7 +265,6 @@ const s = StyleSheet.create({
   typeText: { fontSize: 13, fontWeight: '700', color: COLORS.vjText, opacity: 0.7 },
   typeTextActive: { color: '#fff' },
 
-  // Success Modal Styles
   modalOverlayCenter: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.6)',

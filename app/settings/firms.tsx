@@ -3,7 +3,7 @@ import { View, Text, TouchableOpacity, ScrollView, ActivityIndicator, Image, Mod
 import { useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { TwoToneWrapper } from '../../components/TwoToneWrapper';
-import { useFirmStore } from '../../store/firmStore';
+import { useFirmStore } from '../../store/useFirmStore';
 import { firmService } from '../../services/firmService';
 import { GlassCard, GlassButton, HeaderPill } from '../../components/ui/Glass'; 
 import { Building2, Plus, Pencil, Archive, ArchiveRestore, AlertTriangle, ShieldCheck } from 'lucide-react-native';
@@ -31,7 +31,7 @@ export default function FirmManagerScreen() {
   const [dialog, setDialog] = useState<DialogState | null>(null);
   const [brokenLogos, setBrokenLogos] = useState<Record<string, boolean>>({});
 
-  const activeFirmCount = firms.filter(f => !f.isArchived).length;
+  const activeFirmCount = firms.filter((f: any) => !f.isArchived).length;
   const canAddFirm = firms.length < 3;
 
   const handleSwitch = (targetFirmId: string) => {
@@ -52,7 +52,6 @@ export default function FirmManagerScreen() {
     setDialog(null);
     setLoadingId(targetId);
     try {
-      // FIX-V714-7: Call firmService.switchFirm() so Dual Guard, DB update, and FIRM_SWITCHED audit event execute
       await firmService.switchFirm(targetId);
       router.replace('/dashboard');
     } catch (err: any) {
@@ -148,7 +147,7 @@ export default function FirmManagerScreen() {
     <TwoToneWrapper title="My Firms" showBack headerContent={capacityHeaderPills}>
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{paddingBottom: 100, paddingTop: 20}}>
 
-        {firms.map((firm) => {
+        {firms.map((firm: any) => {
           const isActive = firm.id === activeFirmId;
           const isArchived = firm.isArchived === 1;
           const isLoading = loadingId === firm.id;

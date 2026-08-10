@@ -1,12 +1,12 @@
-// app/inventory/bulk-add.tsx
+// app/inventory/bulk-add.tsx — Phase 2 v2.11 Canonical Screen
+
 import React, { useState, useEffect, useMemo } from 'react';
-import { View, Text, ScrollView, Alert, Modal, TouchableOpacity, TextInput, StyleSheet } from 'react-native';
+import { View, Text, ScrollView, Alert, Modal, TouchableOpacity, StyleSheet } from 'react-native';
 import { useRouter, useFocusEffect } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { TwoToneWrapper } from '../../components/TwoToneWrapper';
-import { storage } from '../../utils/storage';
-import { GlassCard, GlassInput, GlassButton } from '../../components/ui/Glass';
-import { useFirmStore } from '../../store/firmStore';
+import { GlassCard, GlassInput, GlassButton, GlassSmartSearch } from '../../components/ui/Glass';
+import { useFirmStore } from '../../store/useFirmStore';
 import { itemService } from '../../services/itemService';
 import { designRepository } from '../../repositories/designRepository';
 import { categoryRepository } from '../../repositories/categoryRepository';
@@ -15,8 +15,7 @@ import { stoneRepository } from '../../repositories/stoneRepository';
 import { itemRepository } from '../../repositories/itemRepository';
 import { designCategoryMapRepository } from '../../repositories/designCategoryMapRepository';
 import type { Design, Category, HsnCode, Stone } from '../../types/phase2.types';
-import { Package, Plus, Trash2, Calculator, Layers, MapPin, Wallet, CheckCircle } from 'lucide-react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Package, Plus, Trash2, Calculator, Layers, CheckCircle } from 'lucide-react-native';
 import { 
   PURITY_MAP,
   percentToKarat, 
@@ -34,10 +33,7 @@ import { COLORS } from '../../constants/theme';
 
 const BULK_ITEM_MAX = 50;
 
-import { GlassSmartSearch } from '../../components/ui/Glass';
-
 const BulkItemRow = ({ index, row, updateRow, removeRow, stones, metal }: any) => {
-  // Compute Karat badge for GOLD items
   const computedKarat = useMemo(() => {
     const p = parseFloat(row.purityPercent);
     if (isNaN(p) || p <= 0) return '';
@@ -47,7 +43,6 @@ const BulkItemRow = ({ index, row, updateRow, removeRow, stones, metal }: any) =
     return k && k > 0 ? `${k}K` : '';
   }, [row.purityPercent, metal]);
 
-  // Pure Wholesale Costing Engine
   const calculations = useMemo(() => {
     const gross = parseFloat(row.grossWeight) || 0;
     const stone = parseFloat(row.stoneWeight) || 0;
@@ -63,13 +58,12 @@ const BulkItemRow = ({ index, row, updateRow, removeRow, stones, metal }: any) =
     const { fineWeightMg } = resolveFineWeightMg(netWeightMg, purity, metal || 'GOLD');
     const vaultTruth = computeVaultTruthGrams(fineWeightMg);
 
-    const fineGoldChargedMg = computeFineGoldChargedMg(netWeightMg, purity, wastage, metal);
+    const fineGoldChargedMg = computeFineGoldChargedMg(netWeightMg, purity, wastage);
     const costTruth = computeCostTruthGrams(fineGoldChargedMg, fineWeightMg);
 
-    const effectivePricePerGram = computeEffectivePricePerGram(rate, purity, wastage, metal);
+    const effectivePricePerGram = computeEffectivePricePerGram(rate, purity, wastage);
     const absoluteTotalCost = computeAbsoluteTotalCostRupees(netWeightG, effectivePricePerGram, making, stoneC);
 
-    const wastageGold = costTruth - vaultTruth;
     const hasCostData = rate > 0 || making > 0 || stoneC > 0;
 
     return {
@@ -78,7 +72,6 @@ const BulkItemRow = ({ index, row, updateRow, removeRow, stones, metal }: any) =
       wastageRaw: wastage,
       totalTouch: purity + wastage,
       vaultTruth,
-      wastageGold,
       costTruth,
       hasCostData,
       pricePerGram: effectivePricePerGram,
@@ -99,14 +92,12 @@ const BulkItemRow = ({ index, row, updateRow, removeRow, stones, metal }: any) =
         )}
       </View>
 
-      {/* Weights */}
       <View style={s.inputGrid}>
         <View style={s.inputCol}><GlassInput label="Gross (g)*" value={row.grossWeight} onChangeText={(t: string) => updateRow(index, 'grossWeight', t)} keyboardType="numeric" /></View>
         <View style={s.inputCol}><GlassInput label="Stone (g)" value={row.stoneWeight} onChangeText={(t: string) => updateRow(index, 'stoneWeight', t)} keyboardType="numeric" /></View>
         <View style={s.inputCol}><GlassInput label="Beads (g)" value={row.beadsWeight} onChangeText={(t: string) => updateRow(index, 'beadsWeight', t)} keyboardType="numeric" /></View>
       </View>
 
-      {/* Purity & Rate */}
       <View style={s.inputGrid}>
         <View style={s.inputCol}>
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
@@ -128,7 +119,6 @@ const BulkItemRow = ({ index, row, updateRow, removeRow, stones, metal }: any) =
         <View style={s.inputCol}><GlassInput label={`Rate/g (${getCurrencySymbol()})`} value={row.purchaseRate} onChangeText={(t: string) => updateRow(index, 'purchaseRate', t)} keyboardType="numeric" /></View>
       </View>
 
-      {/* Quick Purity Preset Chips */}
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 4, marginBottom: 12 }}>
         {metal === 'GOLD' ? (
           [
@@ -194,19 +184,16 @@ const BulkItemRow = ({ index, row, updateRow, removeRow, stones, metal }: any) =
         )}
       </View>
 
-      {/* Costs */}
       <View style={s.inputGrid}>
         <View style={s.inputCol}><GlassInput label={`Making Chg (${getCurrencySymbol()})`} value={row.makingCharge} onChangeText={(t: string) => updateRow(index, 'makingCharge', t)} keyboardType="numeric" /></View>
         <View style={s.inputCol}><GlassInput label={`Stone Cost (${getCurrencySymbol()})`} value={row.stoneCost} onChangeText={(t: string) => updateRow(index, 'stoneCost', t)} keyboardType="numeric" /></View>
       </View>
 
-      {/* Tracking */}
       <View style={s.inputGrid}>
         <View style={s.inputCol}><GlassInput label="Location" value={row.location} onChangeText={(t: string) => updateRow(index, 'location', t)} autoCapitalize="characters" /></View>
         <View style={s.inputCol}><GlassInput label="BIS HUID" value={row.huid} onChangeText={(t: string) => updateRow(index, 'huid', t)} autoCapitalize="characters" maxLength={6} /></View>
       </View>
 
-      {/* Size */}
       <View style={[s.inputGrid, { zIndex: 20 }]}>
         <View style={s.inputCol}>
           <GlassInput label="Size Value" value={row.sizeValue} onChangeText={(t: string) => updateRow(index, 'sizeValue', t)} keyboardType="numeric" placeholder="e.g. 18" />
@@ -232,7 +219,6 @@ const BulkItemRow = ({ index, row, updateRow, removeRow, stones, metal }: any) =
         </View>
       </View>
 
-      {/* Primary Stone Inline Search */}
       <View style={{ zIndex: 10 }}>
         <GlassSmartSearch 
           label="Primary Stone (Optional)"
@@ -251,7 +237,6 @@ const BulkItemRow = ({ index, row, updateRow, removeRow, stones, metal }: any) =
         />
       </View>
 
-      {/* Live Cost Breakdown */}
       {calculations.isValid && (
         <View style={s.liveMathBox}>
           <View style={s.mathHeader}>
@@ -269,10 +254,6 @@ const BulkItemRow = ({ index, row, updateRow, removeRow, stones, metal }: any) =
           <View style={s.mathRow}>
             <Text style={s.mathLabel}>Vault Truth (Fine):</Text>
             <Text style={[s.mathValue, { color: '#047857' }]}>{calculations.vaultTruth.toFixed(3)} g</Text>
-          </View>
-          <View style={s.mathRow}>
-            <Text style={s.mathLabel}>{metal === 'SILVER' ? 'Wastage Silver:' : 'Wastage Gold:'}</Text>
-            <Text style={[s.mathValue, { color: '#BE123C' }]}>{(calculations.costTruth - calculations.vaultTruth).toFixed(3)} g</Text>
           </View>
           <View style={s.mathRow}>
             <Text style={s.mathLabel}>Cost Truth (Fine):</Text>
@@ -354,7 +335,6 @@ export default function BulkAddScreen() {
         setCategories(c);
         setHsnCodes(h);
         setStones(s);
-
       };
       loadData();
     }, [activeFirmId])
@@ -374,7 +354,6 @@ export default function BulkAddScreen() {
     }
     const lastRow = rows[rows.length - 1];
     
-    // Smart Copy: Copies everything EXCEPT weights and HUID to save typing
     setRows([...rows, { 
       ...getEmptyRow(), 
       purityPercent: lastRow.purityPercent, 
@@ -418,7 +397,6 @@ export default function BulkAddScreen() {
         return;
       }
 
-      // Size pairing guard
       const hasSizeVal = r.sizeValue && r.sizeValue.trim() !== '';
       const hasSizeUnit = r.sizeUnit && r.sizeUnit.trim() !== '';
       if ((hasSizeVal && !hasSizeUnit) || (!hasSizeVal && hasSizeUnit)) {
@@ -463,7 +441,6 @@ export default function BulkAddScreen() {
       setLoading(true);
       await itemService.createItemsBulk(inputs, activeFirmId!);
       
-      // TRIGGER MODERN SUCCESS MODAL
       setSuccessCount(inputs.length);
     } catch (e: any) {
       Alert.alert('Bulk Add Failed', e.message);
@@ -478,9 +455,9 @@ export default function BulkAddScreen() {
         
         <View style={{ zIndex: 2000 }}>
           <GlassCard style={{ marginBottom: 16 }}>
-          <View className="flex-row items-center gap-2 mb-4">
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 16 }}>
             <Layers size={20} color="#D4AF37" />
-            <Text className="text-lg font-bold text-vj-text">Batch Classification</Text>
+            <Text style={{ fontSize: 16, fontWeight: 'bold', color: COLORS.vjText }}>Batch Classification</Text>
           </View>
           
           <Text style={{ fontSize: 12, color: 'rgba(92,22,35,0.6)', marginBottom: 16 }}>
@@ -518,7 +495,6 @@ export default function BulkAddScreen() {
                 
                 if (activeFirmId) {
                   try {
-                    // Auto-select linked Category if mapped to this design
                     const mappings = await designCategoryMapRepository.findByDesignId(selDesign.id, activeFirmId);
                     let catList = categories;
                     if (catList.length === 0) {
@@ -538,10 +514,6 @@ export default function BulkAddScreen() {
                     console.warn("Failed to auto-select category in bulk add:", err);
                   }
                 }
-
-                if (selectedCategory && selectedCategory.metal !== selDesign.metal) {
-                  setSelectedCategory(null);
-                }
               }}
             />
           </View>
@@ -550,7 +522,7 @@ export default function BulkAddScreen() {
             <GlassSmartSearch 
               label="Category *"
               placeholder="Search categories..."
-              options={categories.filter(c => selectedDesign ? c.metal === selectedDesign.metal : true).map(c => ({ id: c.id, label: c.name, sublabel: c.metal }))}
+              options={categories.map(c => ({ id: c.id, label: c.name, sublabel: '' }))}
               selectedId={selectedCategory?.id || null}
               onFocusFetch={async () => {
                 if (activeFirmId) {
@@ -615,7 +587,6 @@ export default function BulkAddScreen() {
 
       </ScrollView>
 
-      {/* Modern Bulk Success Modal */}
       <Modal visible={!!successCount} transparent animationType="fade">
         <View style={styles.modalOverlay}>
           <View style={styles.successModalContent}>
@@ -646,7 +617,6 @@ const s = StyleSheet.create({
   itemsHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12, marginTop: 8, marginLeft: 4 },
   itemsTitle: { fontSize: 18, fontWeight: '800', color: COLORS.vjText },
   
-
   rowHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
   rowTitle: { fontSize: 14, fontWeight: '800', color: '#D4AF37', textTransform: 'uppercase', letterSpacing: 1 },
   

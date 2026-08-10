@@ -3,7 +3,7 @@
 import { sql, eq, and, desc, asc, isNotNull } from 'drizzle-orm';
 import { db } from '../db/client';
 import { categories, items, designs, itemEvents, auditLogs } from '../db/schema';
-import type { ItemSearchResult, DesignCategoryStockResult, ItemDetail, ItemTimelineEvent, MetalSourceStockResult } from '../types/phase2.types';
+import type { ItemSearchResult, DesignCategoryStockResult, ItemDetail, ItemTimelineEvent, MetalSourceStockResult, StockStatus } from '../types/phase2.types';
 
 export const inventoryDrillDownRepository = {
   async getCategoriesWithStock(firmId: string) {
@@ -208,7 +208,7 @@ export const inventoryDrillDownRepository = {
       designName: r.designName || 'Unknown Design',
       categoryName: r.categoryName || 'Unknown Category',
       metal: r.metal as 'GOLD' | 'SILVER',
-      status: r.status as 'DRAFT' as any, // Cast since return type is 'AVAILABLE' | 'PHANTOM_AVAILABLE'
+      status: r.status as unknown as 'AVAILABLE' | 'PHANTOM_AVAILABLE',
       sizeUnit: r.sizeUnit as 'INCH'|'MM'|'CM'|'RING_SIZE'|null,
     }));
   },
@@ -236,7 +236,7 @@ export const inventoryDrillDownRepository = {
     return {
       ...result.item,
       metal: result.item.metal as 'GOLD' | 'SILVER',
-      status: result.item.status as any,
+      status: result.item.status as StockStatus,
       designName: result.designName,
       categoryName: result.categoryName,
     };

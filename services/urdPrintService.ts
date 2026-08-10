@@ -1,10 +1,13 @@
+// services/urdPrintService.ts — Phase 2 v2.11 Canonical Service
+
 import * as FileSystem from 'expo-file-system/legacy';
 import { db } from '../db/client';
 import { urdPurchaseRepository } from '../repositories/urdPurchaseRepository';
 import { firmRepository } from '../repositories/firmRepository';
 import { bisLogoRepository } from '../repositories/bisLogoRepository';
-import { ERR } from '../constants';
-import { amountToWords, getCurrencySymbol, formatWeightMg } from '../utils/calculations';
+import { ERR } from '../constants/errorCodes';
+import { amountToWords, getCurrencySymbol } from '../utils/calculations';
+import { formatWeightMg } from '../utils/purity.constants';
 import { formatDate } from '../utils/formatDate';
 import { renderURDTemplate1, renderURDCustomerDeclaration } from '../templates/urd';
 
@@ -35,7 +38,7 @@ export const urdPrintService = {
    * Generates standard URD Purchase Bill HTML (Template 1)
    */
   async generateURDPurchaseBill(urdId: string, firmId: string): Promise<string> {
-    const urd = await urdPurchaseRepository.getById(db as any, firmId, urdId);
+    const urd = await urdPurchaseRepository.getById(urdId);
     if (!urd || urd.firmId !== firmId) throw new Error(ERR.URD_NOT_FOUND_OR_WRONG_FIRM);
     if (urd.status !== 'CONFIRMED') throw new Error(ERR.URD_NOT_CONFIRMED);
 
@@ -50,7 +53,6 @@ export const urdPrintService = {
     const grossGrams = formatWeightMg(urd.grossWeightMg);
     const fineGrams = formatWeightMg(urd.fineWeightMg);
 
-    // Calculate gross value before discount & discount amount
     const grossValuePaise = Math.round((urd.fineWeightMg / 1000) * urd.ratePerGramPaise);
     const discountPaise = Math.max(0, grossValuePaise - urd.totalValuePaise);
     const grossValueRupees = (grossValuePaise / 100).toFixed(2);
@@ -102,10 +104,10 @@ export const urdPrintService = {
   },
 
   /**
-   * Generates Official Marathi Customer Declaration / Affidavit ("जुने किंवा वापरलेल्या दागिन्यांच्या मालकीबाबत घोषणापत्र / शपथपत्र")
+   * Generates Official Marathi Customer Declaration / Affidavit
    */
   async generateURDCustomerDeclaration(urdId: string, firmId: string): Promise<string> {
-    const urd = await urdPurchaseRepository.getById(db as any, firmId, urdId);
+    const urd = await urdPurchaseRepository.getById(urdId);
     if (!urd || urd.firmId !== firmId) throw new Error(ERR.URD_NOT_FOUND_OR_WRONG_FIRM);
 
     const firm = await firmRepository.getById(firmId);

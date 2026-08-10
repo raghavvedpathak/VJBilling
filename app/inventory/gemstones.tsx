@@ -1,20 +1,19 @@
-// app/inventory/gemstones.tsx
+// app/inventory/gemstones.tsx — Phase 2 v2.11 Canonical Screen
+
 import React, { useState, useCallback, memo } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { FlashList } from '@shopify/flash-list';
-import { useRouter } from 'expo-router';
-import { useFocusEffect } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { TwoToneWrapper } from '../../components/TwoToneWrapper';
 import { HeaderPill, GlassCard } from '../../components/ui/Glass';
 import { useStore } from 'zustand';
 import { appSettingsStore } from '../../store/appSettingsStore';
-import { useFirmStore } from '../../store/firmStore';
+import { useFirmStore } from '../../store/useFirmStore';
 import { gemstoneLotRepository } from '../../repositories/gemstoneLotRepository';
 import { getCurrencySymbol } from '../../utils/calculations';
 import { Gem, Plus, Diamond, Banknote, ShieldAlert, CheckCircle, Sparkles } from 'lucide-react-native';
 import type { GemstoneLot } from '../../types/phase2.types';
-
 import { COLORS, getThemeColors } from '../../constants/theme';
 
 const formatCarats = (caratsX100: number) => (caratsX100 / 100).toFixed(2) + ' ct';
@@ -79,7 +78,6 @@ export default function GemstonesInventoryScreen() {
         setLoading(true);
         try {
           const results = await gemstoneLotRepository.findByFirmId(activeFirmId);
-          // Sort newest first
           if (active) setData(results.sort((a, b) => b.createdAt.localeCompare(a.createdAt)));
         } catch (e) {
           console.error(e);
@@ -112,7 +110,7 @@ export default function GemstonesInventoryScreen() {
             data={data}
             keyExtractor={(item) => item.id}
             renderItem={({ item }) => <LotRow item={item} />}
-            // @ts-ignore
+            // @ts-ignore: estimatedItemSize required by spec
             estimatedItemSize={140}
             contentContainerStyle={{paddingBottom: 120, paddingTop: 32}}
             showsVerticalScrollIndicator={false}
@@ -143,10 +141,6 @@ export default function GemstonesInventoryScreen() {
 
 const s = StyleSheet.create({
   listContainer: { flex: 1 },
-  headerIconRow: { marginBottom: 12 },
-  headerIconCircle: { width: 52, height: 52, borderRadius: 16, backgroundColor: 'rgba(255,255,255,0.12)', justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: 'rgba(255,255,255,0.15)' },
-  headerTitle: { color: COLORS.vjBg, fontSize: 28, fontWeight: '800', letterSpacing: -0.5, marginBottom: 4 },
-  headerSubtitle: { color: 'rgba(252,251,248,0.55)', fontSize: 12, fontWeight: '600', textTransform: 'uppercase' },
   emptyContainer: { alignItems: 'center', marginTop: 60, gap: 8 },
   emptyTitle: { color: 'rgba(92,22,35,0.5)', fontSize: 18, fontWeight: '700' },
   emptySubtitle: { color: 'rgba(92,22,35,0.35)', fontSize: 13 },

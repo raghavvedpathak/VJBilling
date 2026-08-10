@@ -1,26 +1,20 @@
-/* eslint-disable no-restricted-imports */
-import { db } from '../../db/client';
-import { categories as categoriesTable } from '../../db/schema';
-import { eq, and } from 'drizzle-orm';
+// app/masters/categories.tsx — Phase 2 v2.11 Canonical Screen
+
 import React, { useState, useCallback, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Modal, Alert, ActivityIndicator } from 'react-native';
-import { useRouter } from 'expo-router';
-import { useFocusEffect } from 'expo-router';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Modal, ActivityIndicator } from 'react-native';
+import { useRouter, useFocusEffect } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Haptics from 'expo-haptics';
 import { TwoToneWrapper } from '../../components/TwoToneWrapper';
-import { HeaderPill, GlassCard, GlassButton, GlassMetalBadge } from '../../components/ui/Glass';
+import { HeaderPill, GlassCard, GlassButton } from '../../components/ui/Glass';
 import { useStore } from 'zustand';
 import { appSettingsStore } from '../../store/appSettingsStore';
-import { Layers, Plus, X, Edit2, Trash2, LayoutGrid, List as ListIcon, CheckCircle, ShieldCheck } from 'lucide-react-native';
-import { useFirmStore } from '../../store/firmStore';
+import { Layers, Plus, Edit2, Trash2, LayoutGrid, List as ListIcon, CheckCircle, ShieldCheck } from 'lucide-react-native';
+import { useFirmStore } from '../../store/useFirmStore';
+import { categoryRepository } from '../../repositories/categoryRepository';
 import { categoryService } from '../../services/categoryService';
-import { now } from '../../utils/now';
-import * as Crypto from 'expo-crypto';
-
+import type { Category } from '../../types/phase2.types';
 import { COLORS, getThemeColors } from '../../constants/theme';
-
-type Category = typeof categoriesTable.$inferSelect;
 
 export default function CategoriesScreen() {
   const router = useRouter();
@@ -29,7 +23,6 @@ export default function CategoriesScreen() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
   
-  // FIXED: Bulletproof AsyncStorage for View Mode
   const [viewMode, setViewModeState] = useState<'list' | 'grid'>('list');
 
   useEffect(() => {
@@ -54,13 +47,10 @@ export default function CategoriesScreen() {
     if (!activeFirmId) return;
     setLoading(true);
     try {
-      const results = await db
-        .select()
-        .from(categoriesTable)
-        .where(and(eq(categoriesTable.firmId, activeFirmId), eq(categoriesTable.isActive, 1)));
+      const results = await categoryRepository.findByFirmId(activeFirmId);
       setCategories(results);
     } catch (e) {
-      console.error(e);
+      console.error('[CategoriesScreen] loadCategories failed:', e);
     } finally {
       setLoading(false);
     }
@@ -73,7 +63,6 @@ export default function CategoriesScreen() {
   );
   
   const handleDelete = (cat: Category) => {
-    if (!activeFirmId) return;
     try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch (e) {}
     setConfirmDelete(cat);
   };
@@ -82,11 +71,7 @@ export default function CategoriesScreen() {
     try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch (e) {}
     router.push({ 
       pathname: '/masters/edit-category', 
-      params: { 
-        id: cat.id, 
-        initialName: cat.name,
-        initialMetal: cat.metal,
-      } 
+      params: { id: cat.id } 
     });
   };
 
@@ -95,8 +80,8 @@ export default function CategoriesScreen() {
 
   const categoryHeaderPills = (
     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginTop: 4 }}>
-      <HeaderPill icon={<Layers size={12} color={colors.vjBg} />} label={`${categories.length} Product Categories`} />
-      <HeaderPill icon={<ShieldCheck size={12} color="#4ADE80" />} label="Gold & Silver Scoped" variant="success" />
+      <HeaderPill icon={<Layers size={12} color={colors.vjBg} />} label={`${categories.length} Categories`} />
+      <HeaderPill icon={<ShieldCheck size={12} color="#4ADE80" />} label="Master Categories" variant="success" />
     </View>
   );
 
@@ -135,7 +120,6 @@ export default function CategoriesScreen() {
                   <Text style={s.rowCode}>{c.code}</Text>
                 </View>
                 <View style={viewMode === 'grid' ? s.cardBottomGrid : s.cardBottomList}>
-                  <GlassMetalBadge metal={c.metal} />
                   <View style={s.actionRow}>
                     <TouchableOpacity onPress={() => openEdit(c)} style={s.actionBtn}><Edit2 size={16} color="#D4AF37" /></TouchableOpacity>
                     <TouchableOpacity onPress={() => handleDelete(c)} style={s.actionBtn}><Trash2 size={16} color="#ef4444" /></TouchableOpacity>
@@ -147,8 +131,6 @@ export default function CategoriesScreen() {
         )}
       </View>
 
-
-      {/* Modern Success Modal */}
       <Modal visible={!!successMessage} transparent animationType="fade">
         <View style={s.modalOverlayCenter}>
           <View style={s.successModalContent}>
@@ -157,18 +139,13 @@ export default function CategoriesScreen() {
             </View>
             <Text style={s.successTitle}>Success!</Text>
             <Text style={s.successSubtitle}>{successMessage}</Text>
-            
             <View style={{ width: '100%', marginTop: 16 }}>
-              <GlassButton 
-                title="Done" 
-                onPress={() => setSuccessMessage(null)} 
-              />
+              <GlassButton title="Done" onPress={() => setSuccessMessage(null)} />
             </View>
           </View>
         </View>
       </Modal>
 
-      {/* Modern Confirmation Modal */}
       <Modal visible={!!confirmDelete} transparent animationType="fade">
         <View style={s.modalOverlayCenter}>
           <View style={s.successModalContent}>
@@ -177,14 +154,9 @@ export default function CategoriesScreen() {
             </View>
             <Text style={s.successTitle}>Confirm Delete</Text>
             <Text style={s.successSubtitle}>Are you sure you want to delete {confirmDelete?.name}?</Text>
-            
             <View style={{ width: '100%', marginTop: 16, flexDirection: 'row', gap: 12 }}>
               <View style={{ flex: 1 }}>
-                <GlassButton 
-                  title="Cancel" 
-                  onPress={() => setConfirmDelete(null)} 
-                  variant="secondary"
-                />
+                <GlassButton title="Cancel" onPress={() => setConfirmDelete(null)} variant="secondary" />
               </View>
               <View style={{ flex: 1 }}>
                 <GlassButton 
@@ -199,7 +171,7 @@ export default function CategoriesScreen() {
                       setSuccessMessage('Category deleted');
                       loadCategories();
                     } catch (error: any) {
-                      setErrorMessage(error.message === 'CATEGORY_HAS_ACTIVE_ITEMS' ? 'Cannot delete: Category has active inventory items.' : error.message);
+                      setErrorMessage(error.message);
                     } finally {
                       setLoading(false);
                     }
@@ -212,7 +184,6 @@ export default function CategoriesScreen() {
         </View>
       </Modal>
 
-      {/* Modern Error Modal */}
       <Modal visible={!!errorMessage} transparent animationType="fade">
         <View style={s.modalOverlayCenter}>
           <View style={s.successModalContent}>
@@ -221,12 +192,8 @@ export default function CategoriesScreen() {
             </View>
             <Text style={s.successTitle}>Delete Failed</Text>
             <Text style={s.successSubtitle}>{errorMessage}</Text>
-            
             <View style={{ width: '100%', marginTop: 16 }}>
-              <GlassButton 
-                title="Dismiss" 
-                onPress={() => setErrorMessage(null)} 
-              />
+              <GlassButton title="Dismiss" onPress={() => setErrorMessage(null)} />
             </View>
           </View>
         </View>
@@ -237,21 +204,6 @@ export default function CategoriesScreen() {
 
 const s = StyleSheet.create({
   container: { flex: 1, paddingTop: 8 },
-  headerIconRow: { marginBottom: 12 },
-  headerIconCircle: {
-    width: 52, height: 52, borderRadius: 16,
-    backgroundColor: 'rgba(255,255,255,0.12)',
-    justifyContent: 'center', alignItems: 'center',
-    borderWidth: 1, borderColor: 'rgba(255,255,255,0.15)',
-  },
-  headerTitle: {
-    color: COLORS.vjBg, fontSize: 28, fontWeight: '800',
-    letterSpacing: -0.5, marginBottom: 4,
-  },
-  headerSubtitle: {
-    color: 'rgba(252,251,248,0.55)', fontSize: 12, fontWeight: '600',
-    letterSpacing: 0.3, textTransform: 'uppercase',
-  },
   controlsRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 8, marginTop: 4 },
   toggleContainer: { flexDirection: 'row', backgroundColor: 'rgba(92,22,35,0.05)', borderRadius: 12, padding: 4 },
   toggleIconBtn: { padding: 8, borderRadius: 8 },
@@ -265,13 +217,8 @@ const s = StyleSheet.create({
   cardBottomGrid: { flexDirection: 'row', width: '100%', justifyContent: 'space-between', alignItems: 'center' },
   rowTitle: { color: COLORS.vjText, fontSize: 16, fontWeight: '700', marginBottom: 2 },
   rowCode: { color: 'rgba(92,22,35,0.5)', fontSize: 12, fontWeight: '600' },
-  metalPill: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8, borderWidth: 1 },
-  metalPillText: { fontSize: 10, fontWeight: '800', letterSpacing: 0.5 },
   actionRow: { flexDirection: 'row', gap: 8 },
   actionBtn: { padding: 8, backgroundColor: 'rgba(92,22,35,0.05)', borderRadius: 8 },
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
-  
-  // Success Modal Styles
   modalOverlayCenter: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.6)',
@@ -288,16 +235,12 @@ const s = StyleSheet.create({
     alignItems: 'center',
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.5)',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.25,
-    shadowRadius: 20,
   },
   successIconContainer: {
     marginBottom: 16,
-    backgroundColor: 'rgba(16, 185, 129, 0.1)',
     padding: 16,
     borderRadius: 50,
+    backgroundColor: 'rgba(16, 185, 129, 0.1)',
   },
   successTitle: {
     fontSize: 24,

@@ -1,7 +1,9 @@
+// services/urdPurchaseService.ts — Phase 2 v2.11 Canonical Service
+
 import { eq, and } from 'drizzle-orm';
 import { db } from '../db/client';
 import { urdPurchases } from '../db/schema';
-import { ERR } from '../constants';
+import { ERR } from '../constants/errorCodes';
 import { urdPurchaseRepository } from '../repositories/urdPurchaseRepository';
 import { oldGoldLotRepository } from '../repositories/oldGoldLotRepository';
 import { sequenceCounterRepository } from '../repositories/sequenceCounterRepository';
@@ -14,9 +16,7 @@ import type { CreateURDPurchaseInput, URDPurchase } from '../types/phase2.types'
 import { getDeviceId } from '../utils/deviceId';
 import { now } from '../utils/now';
 import * as Crypto from 'expo-crypto';
-import { firmRepository } from '../repositories/firmRepository';
-import { amountToWords, getCurrencySymbol, computeURDFineWeightMg, computeURDTotalValuePaise } from '../utils/calculations';
-
+import { computeURDFineWeightMg, computeURDTotalValuePaise } from '../utils/purity.constants';
 import { urdPrintService } from './urdPrintService';
 
 function uuid() {
@@ -52,8 +52,8 @@ export async function deleteURDPurchase(
 }
 
 export const urdPurchaseService = {
-  // PUBLIC EXPORT — Phase 3 cross-phase seam. Phase 3 MUST call this;
-  // NEVER call urdPurchaseRepository.getById() from Phase 3 directly.
+  // PUBLIC EXPORT — Phase 3 cross-phase seam (URD-SERVICE-SEAM-1 v1.72)
+  // Phase 3 MUST call this; NEVER call urdPurchaseRepository.getById() from Phase 3 directly.
   async getById(
     id: string,
     firmId: string,
@@ -61,18 +61,19 @@ export const urdPurchaseService = {
     const urd = await db.select().from(urdPurchases)
       .where(and(eq(urdPurchases.id, id), eq(urdPurchases.firmId, firmId)))
       .limit(1)
-      .then(res => res[0] as unknown as URDPurchase || null);
+      .then(res => res[0] as URDPurchase || null);
       
     if (!urd || urd.firmId !== firmId) return null;
     return urd;
   },
 
+  // --- createURDPurchase (Step 12.11 / FIX-URD-1 v1.49 & FIX-URD-COST-1 v1.62) ---
   async createURDPurchase(
     input: CreateURDPurchaseInput,
     firmId: string
   ): Promise<URDPurchase> {
-    await leaseService.assertNoActiveLease();
-    safeModeService.assertNotInSafeMode();
+    await leaseService.assertNoActiveLease(); // GUARD 1
+    safeModeService.assertNotInSafeMode();    // GUARD 2
 
     if (!input.customerName?.trim()) throw new Error(ERR.URD_CUSTOMER_NAME_REQUIRED);
     if (input.grossWeightMg <= 0) throw new Error(ERR.URD_GROSS_WEIGHT_INVALID);
@@ -87,12 +88,13 @@ export const urdPurchaseService = {
 
     const fineWeightMg = computeURDFineWeightMg(input.grossWeightMg, input.purityPercent);
     const totalValuePaise = computeURDTotalValuePaise(fineWeightMg, input.ratePerGramPaise);
-    if (totalValuePaise > 999999999) throw new Error(ERR.URD_AMOUNT_EXCEEDS_MAX);
+    if (totalValuePaise > 999999999) throw new Error(ERR.URD_AMOUNT_EXCEEDS_MAX); // ALIGN-P1-V77 / FIX-V79-4
 
     const fyId = await fyService.resolveTransactionFyId(firmId, input.purchaseDate);
     const deviceId = await getDeviceId();
 
     return db.transaction((tx) => {
+      // 1. Create old_gold_lots row
       const lot = oldGoldLotRepository.insert(tx, {
         id: uuid(),
         firmId,
@@ -107,9 +109,11 @@ export const urdPurchaseService = {
         totalAmountPaise: totalValuePaise,
         notes: input.notes ?? null,
         status: 'RECEIVED',
-        createdAt: now(), updatedAt: now(),
+        createdAt: now(),
+        updatedAt: now(),
       });
 
+      // 2. Create urd_purchases row (DRAFT — no urdNumber yet)
       const urd = urdPurchaseRepository.insert(tx, {
         id: uuid(),
         firmId,
@@ -133,34 +137,44 @@ export const urdPurchaseService = {
         oldGoldLotId: lot.id,
         status: 'DRAFT',
         notes: input.notes ?? null,
-        createdAt: now(), updatedAt: now(),
+        createdAt: now(),
+        updatedAt: now(),
       });
 
+      // 3. Audit log
       auditRepository.log(tx, {
-        eventType: 'URD_PURCHASE_CREATED', firmId, entityId: urd.id,
+        eventType: 'URD_PURCHASE_CREATED',
+        firmId,
+        entityId: urd.id,
         deviceId,
-        payload: JSON.stringify({
-          urdId: urd.id, lotId: lot.id,
-          status: urd.status,
-          createdAt: urd.createdAt,
-        }),
+        payload: {
+          urdId: urd.id,
+          lotId: lot.id,
+          customerName: urd.customerName,
+          customerId: urd.customerId,
+          grossWeightMg: input.grossWeightMg,
+          purityPercent: input.purityPercent,
+          fineWeightMg,
+          totalValuePaise,
+        },
       });
 
       return urd;
     });
   },
 
+  // --- updateURDPurchase ---
   async updateURDPurchase(
     urdId: string,
     input: Partial<CreateURDPurchaseInput>,
     firmId: string
   ): Promise<URDPurchase> {
-    await leaseService.assertNoActiveLease();
-    safeModeService.assertNotInSafeMode();
+    await leaseService.assertNoActiveLease(); // GUARD 1
+    safeModeService.assertNotInSafeMode();    // GUARD 2
     const deviceId = await getDeviceId();
 
     return db.transaction((tx) => {
-      const urd = urdPurchaseRepository.getById(tx as any, firmId, urdId);
+      const urd = urdPurchaseRepository.getById(tx, firmId, urdId);
       if (!urd || urd.firmId !== firmId) throw new Error(ERR.URD_NOT_FOUND_OR_WRONG_FIRM);
       if (urd.status !== 'CONFIRMED') throw new Error(ERR.URD_NOT_CONFIRMED);
 
@@ -195,7 +209,8 @@ export const urdPurchaseService = {
           totalAmountPaise: totalValuePaise,
           notes: input.notes ?? urd.notes,
           status: 'RECEIVED',
-          createdAt: urd.createdAt, updatedAt: now(),
+          createdAt: urd.createdAt,
+          updatedAt: now(),
         });
       }
 
@@ -218,9 +233,11 @@ export const urdPurchaseService = {
       });
 
       auditRepository.log(tx, {
-        eventType: 'URD_PURCHASE_UPDATED', firmId, entityId: urdId,
+        eventType: 'URD_PURCHASE_UPDATED' as any,
+        firmId,
+        entityId: urdId,
         deviceId,
-        payload: JSON.stringify({ urdId, customerName, grossWeightMg, purityPercent, totalValuePaise }),
+        payload: { urdId, customerName, grossWeightMg, purityPercent, totalValuePaise },
       });
 
       return {
@@ -238,9 +255,10 @@ export const urdPurchaseService = {
     });
   },
 
+  // --- deleteURDPurchase ---
   async deleteURDPurchase(urdId: string, firmId: string): Promise<void> {
-    await leaseService.assertNoActiveLease();
-    safeModeService.assertNotInSafeMode();
+    await leaseService.assertNoActiveLease(); // GUARD 1
+    safeModeService.assertNotInSafeMode();    // GUARD 2
     const deviceId = await getDeviceId();
 
     return db.transaction((tx) => {
@@ -254,19 +272,22 @@ export const urdPurchaseService = {
       urdPurchaseRepository.delete(tx, firmId, urdId);
 
       auditRepository.log(tx, {
-        eventType: 'URD_PURCHASE_DELETED', firmId, entityId: urdId,
+        eventType: 'URD_PURCHASE_DELETED' as any,
+        firmId,
+        entityId: urdId,
         deviceId,
-        payload: JSON.stringify({ urdId, urdNumber: urd.urdNumber }),
+        payload: { urdId, urdNumber: urd.urdNumber },
       });
     });
   },
 
+  // --- confirmURDPurchase (Step 12.11 / FIX-URD-1 v1.49) ---
   async confirmURDPurchase(
     urdId: string,
     firmId: string
   ): Promise<URDPurchase> {
-    await leaseService.assertNoActiveLease();
-    safeModeService.assertNotInSafeMode();
+    await leaseService.assertNoActiveLease(); // GUARD 1
+    safeModeService.assertNotInSafeMode();    // GUARD 2
     const deviceId = await getDeviceId();
 
     return db.transaction((tx) => {
@@ -277,7 +298,7 @@ export const urdPurchaseService = {
       if (urd.totalValuePaise > 999999999) throw new Error(ERR.URD_AMOUNT_EXCEEDS_MAX);
 
       const seq = sequenceCounterRepository.nextVal(tx, firmId, urd.fyId, 'URD');
-      const fy = financialYearRepository.getById(tx, firmId, urd.fyId);
+      const fy = financialYearRepository.getById(tx, firmId, urd.fyId) ?? financialYearRepository.getById(tx, urd.fyId);
       if (!fy) throw new Error(ERR.FY_NOT_FOUND);
       const fyLabel = fy.label;
 
@@ -290,9 +311,11 @@ export const urdPurchaseService = {
       });
 
       auditRepository.log(tx, {
-        eventType: 'URD_PURCHASE_CONFIRMED', firmId, entityId: urdId,
+        eventType: 'URD_PURCHASE_CONFIRMED',
+        firmId,
+        entityId: urdId,
         deviceId,
-        payload: JSON.stringify({ urdId, urdNumber, totalValuePaise: urd.totalValuePaise }),
+        payload: { urdId, urdNumber, totalValuePaise: urd.totalValuePaise },
       });
 
       return { ...urd, status: 'CONFIRMED', urdNumber };

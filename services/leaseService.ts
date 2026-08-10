@@ -55,7 +55,6 @@ export const leaseService = {
    * a TypeScript error after leaseStore was fixed to use `leaseType`.
    */
   async acquire(type: string, firmId?: string): Promise<string> {
-    if (type === 'WRITE') throw new Error('WRITE_LEASE_NOT_IMPLEMENTED: LeaseType.WRITE is reserved for Phase 2. Do not acquire in Phase 1.');
     await this.assertNoActiveLease();
 
     const newId = Crypto.randomUUID();

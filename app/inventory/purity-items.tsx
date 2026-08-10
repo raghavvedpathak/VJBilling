@@ -1,4 +1,5 @@
-// app/inventory/purity-items.tsx
+// app/inventory/purity-items.tsx — Phase 2 v2.11 Canonical Screen
+
 import React, { useState, useCallback, useMemo } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
 import { FlashList } from '@shopify/flash-list';
@@ -8,13 +9,11 @@ import { TwoToneWrapper } from '../../components/TwoToneWrapper';
 import { HeaderPill } from '../../components/ui/Glass';
 import { useStore } from 'zustand';
 import { appSettingsStore } from '../../store/appSettingsStore';
-import { useFirmStore } from '../../store/firmStore';
+import { useFirmStore } from '../../store/useFirmStore';
 import { inventoryDrillDownService } from '../../services/inventoryDrillDownService';
 import { getDisplayPurity, formatSKUDisplay, formatWeightMg as formatWeight } from '../../utils/calculations';
-import { ChevronRight, Tag, Gem, MapPin, Printer, Sparkles, Coins, Package } from 'lucide-react-native';
-import { getJewelryCategoryIcon } from '../../utils/jewelryIcons';
+import { ChevronRight, Tag, MapPin, Printer, Sparkles, Package } from 'lucide-react-native';
 import type { ItemSearchResult } from '../../types/phase2.types';
-
 import { COLORS, getThemeColors } from '../../constants/theme';
 
 const SkuRow = React.memo(({
@@ -233,10 +232,6 @@ const s = StyleSheet.create({
   locationText: { color: 'rgba(92,22,35,0.5)', fontSize: 11, fontWeight: '600', textTransform: 'uppercase' },
   actionContainer: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   printBtn: { width: 44, height: 44, borderRadius: 12, backgroundColor: 'rgba(184,115,51,0.1)', justifyContent: 'center', alignItems: 'center' },
-  headerIconRow: { marginBottom: 12 },
-  headerIconCircle: { width: 52, height: 52, borderRadius: 16, backgroundColor: 'rgba(255,255,255,0.12)', justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: 'rgba(255,255,255,0.15)' },
-  headerTitle: { color: COLORS.vjBg, fontSize: 28, fontWeight: '800', letterSpacing: -0.5, marginBottom: 4 },
-  headerSubtitle: { color: 'rgba(252,251,248,0.55)', fontSize: 12, fontWeight: '600', textTransform: 'uppercase' },
   loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 12 },
   loadingText: { color: 'rgba(92,22,35,0.4)', fontSize: 14, fontWeight: '600' },
   emptyContainer: { alignItems: 'center', marginTop: 60, gap: 8 },

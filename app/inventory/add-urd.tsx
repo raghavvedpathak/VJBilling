@@ -1,14 +1,15 @@
-// app/inventory/add-urd.tsx
+// app/inventory/add-urd.tsx — Phase 2 v2.11 Canonical Screen
+
 import React, { useState, useMemo } from 'react';
 import { View, Text, ScrollView, Alert, TouchableOpacity, Modal, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { TwoToneWrapper } from '../../components/TwoToneWrapper';
 import { GlassCard, GlassInput, GlassButton } from '../../components/ui/Glass';
-import { useFirmStore } from '../../store/firmStore';
+import { useFirmStore } from '../../store/useFirmStore';
 import { urdPurchaseService } from '../../services/urdPurchaseService';
-import { getCurrencySymbol, computeURDCostBreakdown } from '../../utils/calculations';
-import { User, Scale, Banknote, CheckCircle, Trash2, Plus, Layers } from 'lucide-react-native';
+import { getCurrencySymbol, formatRupees, computeURDCostBreakdown } from '../../utils/calculations';
+import { User, Scale, Banknote, CheckCircle, Trash2, Plus } from 'lucide-react-native';
 import type { URDMetalType } from '../../types/phase2.types';
 import { COLORS } from '../../constants/theme';
 
@@ -330,7 +331,7 @@ export default function AddURDScreen() {
                   </View>
                   <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
                     <Text style={{ fontSize: 11, color: 'rgba(92,22,35,0.6)', fontWeight: '600' }}>Item Net Valuation:</Text>
-                    <Text style={{ fontSize: 13, color: COLORS.vjText, fontWeight: '800', fontFamily: 'monospace' }}>{calc.formattedTotalValue}</Text>
+                    <Text style={{ fontSize: 13, color: COLORS.vjText, fontWeight: '800', fontFamily: 'monospace' }}>{formatRupees(calc.totalValueRupees)}</Text>
                   </View>
                 </View>
               )}

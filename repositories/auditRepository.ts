@@ -36,7 +36,7 @@ export const auditRepository = {
     input: {
       firmId: string | null;
       eventType: AuditPayload['eventType'] | string;
-      payload: AuditPayload | string;
+      payload: AuditPayload | string | Record<string, any>;
       deviceId: string;
     },
     tx?: DbOrTx | null
@@ -77,7 +77,7 @@ export const auditRepository = {
       firmId: string | null;
       entityId?: string | null;
       deviceId: string;
-      payload: AuditPayload | string;
+      payload: AuditPayload | string | Record<string, any>;
     }
   ): void {
     if (

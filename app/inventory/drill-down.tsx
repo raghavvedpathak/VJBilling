@@ -1,18 +1,13 @@
-// app/inventory/drill-down.tsx
-// FEAT-DRILL-DOWN-1 (v1.65) — Screen A: Category Browse (STEP 16.1)
-// READ-ONLY | NO dual guards | NO audit write | NO lease acquisition
-// FlashList MANDATORY | estimatedItemSize defined | React.memo() rows
-// Weight: (mg / 1000).toFixed(3) + ' g' — RULE-1A-WEIGHT-DISPLAY (v1.54)
+// app/inventory/drill-down.tsx — Phase 2 v2.11 Canonical Screen
 
 import React, { useState, useCallback, memo } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
 import { FlashList } from '@shopify/flash-list';
-import { useRouter } from 'expo-router';
-import { useFocusEffect } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import { TwoToneWrapper } from '../../components/TwoToneWrapper';
-import { useFirmStore } from '../../store/firmStore';
+import { useFirmStore } from '../../store/useFirmStore';
 import { inventoryDrillDownService } from '../../services/inventoryDrillDownService';
 import { formatWeightMg as formatWeight } from '../../utils/calculations';
 import { HeaderPill } from '../../components/ui/Glass';
@@ -28,7 +23,6 @@ type CategoryRowProps = {
 };
 
 const CategoryRow = memo(({ item, onPress }: CategoryRowProps) => {
-
   return (
     <TouchableOpacity
       id={`category-row-${item.id}`}
@@ -119,7 +113,7 @@ export default function DrillDownScreen() {
             renderItem={({ item }) => (
               <CategoryRow item={item} onPress={handleCategoryPress} />
             )}
-            // @ts-ignore: estimatedItemSize is required by spec even if missing from local typedefs
+            // @ts-ignore: estimatedItemSize required by spec
             estimatedItemSize={88}
             contentContainerStyle={{paddingBottom: 100, paddingTop: 32}}
             showsVerticalScrollIndicator={false}
@@ -185,18 +179,6 @@ const s = StyleSheet.create({
     fontSize: 15,
     flexShrink: 1,
   },
-  lowStockBadge: {
-    backgroundColor: '#F59E0B', // Amber
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4,
-  },
-  lowStockText: {
-    color: '#FFFFFF',
-    fontSize: 10,
-    fontWeight: '800',
-    textTransform: 'uppercase',
-  },
   weightText: {
     color: 'rgba(92,22,35,0.5)',
     fontSize: 12,
@@ -220,33 +202,6 @@ const s = StyleSheet.create({
     fontWeight: '700',
     textTransform: 'uppercase',
     letterSpacing: 0.5,
-  },
-  headerIconRow: {
-    marginBottom: 12,
-  },
-  headerIconCircle: {
-    width: 52,
-    height: 52,
-    borderRadius: 16,
-    backgroundColor: 'rgba(255,255,255,0.12)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.15)',
-  },
-  headerTitle: {
-    color: COLORS.vjBg,
-    fontSize: 28,
-    fontWeight: '800',
-    letterSpacing: -0.5,
-    marginBottom: 4,
-  },
-  headerSubtitle: {
-    color: 'rgba(252,251,248,0.55)',
-    fontSize: 12,
-    fontWeight: '600',
-    letterSpacing: 0.3,
-    textTransform: 'uppercase',
   },
   loadingContainer: {
     flex: 1,
@@ -275,7 +230,7 @@ const s = StyleSheet.create({
   },
   fab: {
     position: 'absolute',
-    bottom: 100, // Increased to avoid OS back button
+    bottom: 100,
     right: 24,
     width: 64,
     height: 64,

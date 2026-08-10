@@ -1,3 +1,5 @@
+// services/gemstoneLotService.ts — Phase 2 v2.11 Canonical Service
+
 import { db } from '../db/client';
 import { leaseService } from './leaseService';
 import { safeModeService } from './safeModeService';
@@ -14,24 +16,21 @@ import {
   GemstoneStatus, 
   GEMSTONE_LOT_TRANSITIONS 
 } from '../types/phase2.types';
-import { ERR } from '../constants';
+import { ERR } from '../constants/errorCodes';
 
 export const gemstoneLotService = {
-  // createGemstoneLot() — Canonical Service Body (GEMSTONE-1 v1.21 + FIX-V1-2 v1.23)
+  // --- createGemstoneLot (Step 4.5 / GEMSTONE-1 v1.21 + FIX-V1-2 v1.23) ---
   async createGemstoneLot(input: CreateGemstoneLotInput, firmId: string): Promise<GemstoneLot> {
     await leaseService.assertNoActiveLease(); // GUARD 1
-    safeModeService.assertNotInSafeMode(); // GUARD 2
+    safeModeService.assertNotInSafeMode();    // GUARD 2
 
     // FIX-V1-2 (v1.23): Input validation before insert
     if (input.weightCaratX100 <= 0) throw new Error(ERR.GEMSTONE_WEIGHT_INVALID);
     if ((input.quantity ?? 1) <= 0) throw new Error(ERR.GEMSTONE_QUANTITY_INVALID);
 
-    // Hoisted async call outside transaction
     const deviceId = await getDeviceId();
 
-    // FIX-V718-1: Synchronous transaction block
     return db.transaction((tx) => {
-      // Using the synchronous stoneRepository.getById
       const stone = stoneRepository.getById(tx, input.stoneId, firmId);
       if (!stone) throw new Error(ERR.STONE_NOT_FOUND_OR_WRONG_FIRM);
 
@@ -59,41 +58,39 @@ export const gemstoneLotService = {
         firmId, 
         entityId: lot.id,
         deviceId, 
-        payload: JSON.stringify({ 
+        payload: { 
           lotId: lot.id, 
           stoneId: lot.stoneId, 
           name: lot.name,
           weightCaratX100: lot.weightCaratX100, 
           quantity: lot.quantity,
-          purchaseRatePaisePerCarat: lot.purchaseRatePaisePerCarat,
-          totalPurchaseAmountPaise: lot.totalPurchaseAmountPaise 
-        }) 
+          purchaseRatePaisePerCarat: lot.purchaseRatePaisePerCarat!,
+          totalPurchaseAmountPaise: lot.totalPurchaseAmountPaise! 
+        } 
       });
 
       return lot;
     });
   },
 
-  // updateGemstoneLotStatus() — Canonical Service Body
+  // --- updateGemstoneLotStatus (Step 4.5 / GEMSTONE-1 v1.21) ---
   async updateGemstoneLotStatus(
     lotId: string, 
     firmId: string, 
     newStatus: GemstoneStatus, 
     reason?: string
   ): Promise<void> {
-    await leaseService.assertNoActiveLease(); 
-    safeModeService.assertNotInSafeMode();
+    await leaseService.assertNoActiveLease(); // GUARD 1
+    safeModeService.assertNotInSafeMode();    // GUARD 2
 
-    // Hoisted async call outside transaction
     const deviceId = await getDeviceId();
 
-    // FIX-V718-1: Synchronous transaction block
     return db.transaction((tx) => {
       const lot = gemstoneLotRepository.getById(tx, lotId, firmId);
       if (!lot) throw new Error(ERR.GEMSTONE_LOT_NOT_FOUND_OR_WRONG_FIRM);
 
       const allowed = GEMSTONE_LOT_TRANSITIONS[lot.status as GemstoneStatus];
-      if (!allowed.includes(newStatus)) {
+      if (!allowed || !allowed.includes(newStatus)) {
         throw new Error(`${ERR.INVALID_GEMSTONE_TRANSITION}: ${lot.status} -> ${newStatus}`);
       }
 
@@ -104,12 +101,12 @@ export const gemstoneLotService = {
         firmId, 
         entityId: lotId,
         deviceId,
-        payload: JSON.stringify({ 
+        payload: { 
           lotId, 
           oldStatus: lot.status, 
           newStatus, 
           reason: reason ?? null 
-        }) 
+        } 
       });
     });
   }

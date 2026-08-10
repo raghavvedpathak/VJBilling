@@ -2,10 +2,8 @@ CREATE TABLE `categories` (
 	`id` text PRIMARY KEY NOT NULL,
 	`firm_id` text NOT NULL,
 	`name` text NOT NULL,
-	`metal` text NOT NULL,
 	`is_active` integer DEFAULT 1 NOT NULL,
 	`code` text NOT NULL,
-	`low_stock_threshold` integer,
 	`created_at` text NOT NULL,
 	`updated_at` text NOT NULL,
 	FOREIGN KEY (`firm_id`) REFERENCES `firms`(`id`) ON UPDATE no action ON DELETE no action
@@ -111,7 +109,6 @@ CREATE TABLE `items` (
 	`size_unit` text,
 	`metal_source` text DEFAULT 'SUPPLIER_PURCHASE' NOT NULL,
 	`status` text DEFAULT 'DRAFT' NOT NULL,
-	`fy_id` text NOT NULL,
 	`created_at` text NOT NULL,
 	`updated_at` text NOT NULL,
 	FOREIGN KEY (`design_id`) REFERENCES `designs`(`id`) ON UPDATE no action ON DELETE no action,

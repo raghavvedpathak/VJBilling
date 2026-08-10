@@ -1,4 +1,5 @@
-// app/inventory/index.tsx
+// app/inventory/index.tsx — Phase 2 v2.11 Canonical Screen
+
 import React from 'react';
 import { View, Text, ScrollView, TouchableOpacity } from 'react-native';
 import { useRouter } from 'expo-router';
@@ -6,7 +7,7 @@ import * as Haptics from 'expo-haptics';
 import { TwoToneWrapper } from '../../components/TwoToneWrapper';
 import { GlassCard, HeaderPill } from '../../components/ui/Glass';
 import { InventoryStockSummary } from '../../components/InventoryStockSummary';
-import { useFirmStore } from '../../store/firmStore';
+import { useFirmStore } from '../../store/useFirmStore';
 import { useStore } from 'zustand';
 import { appSettingsStore } from '../../store/appSettingsStore';
 import { 
@@ -31,7 +32,7 @@ export default function InventoryHubScreen() {
   const colors = getThemeColors(activeTheme);
 
   const inventoryHeaderPills = (
-    <View className="flex-row items-center gap-2 flex-wrap mt-1">
+    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 4, flexWrap: 'wrap' }}>
       <HeaderPill icon={<Package size={12} color={colors.vjBg} />} label="Stock Operations" />
       <HeaderPill icon={<TrendingUp size={12} color="#4ADE80" />} label="Live Valuation" variant="success" />
     </View>
@@ -43,7 +44,7 @@ export default function InventoryHubScreen() {
         
         {/* The Live Jewelry Stock Display lives here natively */}
         {activeFirmId && (
-          <View className="mb-6">
+          <View style={{ marginBottom: 24 }}>
             <InventoryStockSummary firmId={activeFirmId} />
           </View>
         )}
@@ -55,20 +56,20 @@ export default function InventoryHubScreen() {
             try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch (e) {}
             router.push('/inventory/search');
           }}
-          className="mb-4"
+          style={{ marginBottom: 16 }}
         >
           <GlassCard style={{ padding: 0 }}>
-            <View className="flex-row items-center p-4 bg-white/40 justify-between">
-              <View className="flex-row items-center flex-1 mr-2">
-                <View className="bg-amber-500/15 p-2 rounded-xl border border-amber-500/25 mr-3">
+            <View style={{ flexDirection: 'row', alignItems: 'center', padding: 16, backgroundColor: 'rgba(255,255,255,0.4)', justifyContent: 'space-between' }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1, marginRight: 8 }}>
+                <View style={{ backgroundColor: 'rgba(245,158,11,0.15)', padding: 8, borderRadius: 12, borderWidth: 1, borderColor: 'rgba(245,158,11,0.25)', marginRight: 12 }}>
                   <Search size={18} color="#D4AF37" />
                 </View>
-                <Text className="text-vj-text/60 font-semibold text-sm flex-1" numberOfLines={1}>
+                <Text style={{ color: 'rgba(92,22,35,0.6)', fontWeight: '600', fontSize: 14, flex: 1 }} numberOfLines={1}>
                   Search SKU, HUID, or Design...
                 </Text>
               </View>
-              <View className="bg-vj-text px-3 py-1.5 rounded-full border border-vj-text/20">
-                <Text className="text-white text-[10px] font-black text-center uppercase tracking-widest">
+              <View style={{ backgroundColor: COLORS.vjText, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 999, borderWidth: 1, borderColor: 'rgba(92,22,35,0.2)' }}>
+                <Text style={{ color: '#ffffff', fontSize: 10, fontWeight: '900', textAlign: 'center', textTransform: 'uppercase', letterSpacing: 1.5 }}>
                   SEARCH
                 </Text>
               </View>
@@ -77,7 +78,7 @@ export default function InventoryHubScreen() {
         </TouchableOpacity>
 
         {/* SECTION: CATALOG DEFINITIONS */}
-        <Text className="text-vj-text/60 text-xs font-black uppercase tracking-widest mb-3 ml-1">
+        <Text style={{ color: 'rgba(92,22,35,0.6)', fontSize: 12, fontWeight: '900', textTransform: 'uppercase', letterSpacing: 1.5, marginBottom: 12, marginLeft: 4 }}>
           Catalog Definitions
         </Text>
 
@@ -87,25 +88,25 @@ export default function InventoryHubScreen() {
             try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch (e) {}
             router.push('/masters');
           }} 
-          className="mb-6"
+          style={{ marginBottom: 24 }}
         >
           <GlassCard style={{ padding: 0, borderColor: 'rgba(180, 83, 9, 0.25)' }}>
-            <View className="flex-row items-center gap-4 p-4">
-              <View className="p-3 rounded-2xl border border-black/5 items-center justify-center" style={{ backgroundColor: 'rgba(180, 83, 9, 0.12)' }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 16, padding: 16 }}>
+              <View style={{ padding: 12, borderRadius: 16, borderWidth: 1, borderColor: 'rgba(0,0,0,0.05)', alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(180, 83, 9, 0.12)' }}>
                 <Database size={24} color="#B45309" />
               </View>
-              <View className="flex-1">
-                <View className="flex-row items-center gap-2 mb-0.5">
-                  <Text className="text-vj-text font-black text-lg">Metal Master</Text>
-                  <View className="px-2 py-0.5 rounded-full bg-amber-500/10 border border-amber-500/20">
-                    <Text className="text-[8px] font-black text-amber-800 uppercase tracking-wider">MASTERS</Text>
+              <View style={{ flex: 1 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 2 }}>
+                  <Text style={{ color: COLORS.vjText, fontWeight: '900', fontSize: 18 }}>Metal Master</Text>
+                  <View style={{ paddingHorizontal: 8, paddingVertical: 2, borderRadius: 999, backgroundColor: 'rgba(245,158,11,0.1)', borderWidth: 1, borderColor: 'rgba(245,158,11,0.2)' }}>
+                    <Text style={{ fontSize: 8, fontWeight: '900', color: '#92400E', textTransform: 'uppercase', letterSpacing: 1 }}>MASTERS</Text>
                   </View>
                 </View>
-                <Text className="text-vj-text/60 text-xs font-semibold">
+                <Text style={{ color: 'rgba(92,22,35,0.6)', fontSize: 12, fontWeight: '600' }}>
                   Categories, Designs, Stones & HSN Codes
                 </Text>
               </View>
-              <View className="p-2 bg-vj-text/5 rounded-full border border-vj-text/10">
+              <View style={{ padding: 8, backgroundColor: 'rgba(92,22,35,0.05)', borderRadius: 999, borderWidth: 1, borderColor: 'rgba(92,22,35,0.1)' }}>
                 <ChevronRight size={18} color={COLORS.vjText} />
               </View>
             </View>
@@ -113,11 +114,11 @@ export default function InventoryHubScreen() {
         </TouchableOpacity>
 
         {/* SECTION 1: STOCK OPERATIONS */}
-        <Text className="text-vj-text/60 text-xs font-black uppercase tracking-widest mb-4 ml-1">
+        <Text style={{ color: 'rgba(92,22,35,0.6)', fontSize: 12, fontWeight: '900', textTransform: 'uppercase', letterSpacing: 1.5, marginBottom: 16, marginLeft: 4 }}>
           Stock Operations
         </Text>
 
-        <View className="flex-row flex-wrap justify-between gap-y-4">
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', rowGap: 16 }}>
           <MenuTile 
             title="Stock Ledger" 
             subtitle="Drill-Down View" 
@@ -140,11 +141,11 @@ export default function InventoryHubScreen() {
         </View>
 
         {/* SECTION 2: STOCK INWARD ENTRY */}
-        <Text className="text-vj-text/60 text-xs font-black uppercase tracking-widest mb-4 mt-8 ml-1">
+        <Text style={{ color: 'rgba(92,22,35,0.6)', fontSize: 12, fontWeight: '900', textTransform: 'uppercase', letterSpacing: 1.5, marginBottom: 16, marginTop: 32, marginLeft: 4 }}>
           Stock Inward Entry
         </Text>
 
-        <View className="flex-row flex-wrap justify-between gap-y-4">
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', rowGap: 16 }}>
           <MenuTile 
             title="Single Item Add" 
             subtitle="Detailed Entry" 
@@ -167,11 +168,11 @@ export default function InventoryHubScreen() {
         </View>
 
         {/* SECTION 3: UNREGISTERED & STONES */}
-        <Text className="text-vj-text/60 text-xs font-black uppercase tracking-widest mb-4 mt-8 ml-1">
+        <Text style={{ color: 'rgba(92,22,35,0.6)', fontSize: 12, fontWeight: '900', textTransform: 'uppercase', letterSpacing: 1.5, marginBottom: 16, marginTop: 32, marginLeft: 4 }}>
           Unregistered & Stones
         </Text>
 
-        <View className="flex-row flex-wrap justify-between gap-y-4 mb-8">
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', rowGap: 16, marginBottom: 32 }}>
           <MenuTile 
             title="URD Purchases" 
             subtitle="Scrap & Old Gold" 
@@ -236,29 +237,26 @@ function MenuTile({
             padding: 14
           }}
         >
-          <View className="h-full justify-between">
-            {/* Top row: Icon + Badge */}
-            <View className="flex-row items-center justify-between">
+          <View style={{ height: '100%', justifyContent: 'space-between' }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
               <View 
-                className="p-2.5 rounded-2xl border border-black/5 items-center justify-center"
-                style={{ backgroundColor: iconBg }}
+                style={{ padding: 10, borderRadius: 16, borderWidth: 1, borderColor: 'rgba(0,0,0,0.05)', alignItems: 'center', justifyContent: 'center', backgroundColor: iconBg }}
               >
                 {icon}
               </View>
 
-              <View className="px-2 py-0.5 rounded-full border bg-black/5 border-black/10">
-                <Text className="text-[8px] font-black uppercase tracking-wider text-vj-text/60">
+              <View style={{ paddingHorizontal: 8, paddingVertical: 2, borderRadius: 999, borderWidth: 1, backgroundColor: 'rgba(0,0,0,0.05)', borderColor: 'rgba(0,0,0,0.1)' }}>
+                <Text style={{ fontSize: 8, fontWeight: '900', textTransform: 'uppercase', letterSpacing: 1, color: 'rgba(92,22,35,0.6)' }}>
                   {badgeText}
                 </Text>
               </View>
             </View>
 
-            {/* Bottom text */}
-            <View className="mt-2">
-              <Text className="text-vj-text font-black text-base leading-5 mb-0.5" numberOfLines={1}>
+            <View style={{ marginTop: 8 }}>
+              <Text style={{ color: COLORS.vjText, fontWeight: '900', fontSize: 16, lineHeight: 20, marginBottom: 2 }} numberOfLines={1}>
                 {title}
               </Text>
-              <Text className="text-vj-text/50 text-[10px] font-bold uppercase" numberOfLines={1}>
+              <Text style={{ color: 'rgba(92,22,35,0.5)', fontSize: 10, fontWeight: '700', textTransform: 'uppercase' }} numberOfLines={1}>
                 {subtitle}
               </Text>
             </View>

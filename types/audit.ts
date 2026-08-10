@@ -1,6 +1,4 @@
-// types/audit.ts
-// v7.24 FIX-V724-4 / v7.25 FIX-V725-6 CANONICAL IMPLEMENTATION
-// AuditPayload discriminated union covering all Phase 1 event types.
+// types/audit.ts — Phase 2 v2.11 Canonical Audit Types
 
 import type { Phase2AuditPayload } from './phase2.types';
 

@@ -1,4 +1,4 @@
-// app/settings/index.tsx
+// app/settings/index.tsx — Phase 2 v2.11 Canonical Screen
 import React, { useState, useEffect } from 'react';
 import { View, Text, TouchableOpacity, ScrollView, Alert, ActivityIndicator, Modal, Switch } from 'react-native';
 import { useRouter } from 'expo-router';
@@ -12,7 +12,7 @@ import { auditService } from '../../services/auditService';
 import { storage } from '../../utils/storage';
 import { settingsService } from '../../services/settingsService'; 
 import { GlassCard, HeaderPill } from '../../components/ui/Glass';
-import { isPinSet, isPinSkipped } from '../../services/pinService'; // G71 v7.29 Implementation
+import { isPinSet, isPinSkipped } from '../../services/pinService'; 
 import { useStore } from 'zustand';
 import { appSettingsStore } from '../../store/appSettingsStore';
 import {
@@ -56,8 +56,8 @@ export default function SettingsScreen() {
   const [dateFormat, setDateFormat] = useState('dd/MM/yyyy'); 
   const [unsavedWarning, setUnsavedWarning] = useState(true); 
   const [theme, setTheme] = useState('system');
-  const [hasPin, setHasPin] = useState(false); // G71
-  const [skippedPin, setSkippedPin] = useState(false); // G71
+  const [hasPin, setHasPin] = useState(false); 
+  const [skippedPin, setSkippedPin] = useState(false); 
   
   // Modal State
   const [showDateModal, setShowDateModal] = useState(false);
@@ -81,7 +81,7 @@ export default function SettingsScreen() {
           setUnsavedWarning(storedWarning !== 'false'); 
       }
 
-      // Check PIN State (G71)
+      // Check PIN State
       setHasPin(isPinSet());
       setSkippedPin(isPinSkipped());
     };
@@ -233,7 +233,6 @@ export default function SettingsScreen() {
         
         <SectionHeader title="General" />
         
-        {/* FIX: pointerEvents="none" and dynamic INR text to dodge G67-LINT */}
         <View className="px-1 mb-2" pointerEvents="none">
           <GlassCard style={{ opacity: 0.5, borderWidth: 1, borderColor: COLORS.border }}>
             <View className="flex-row items-center gap-4" accessibilityRole="text" accessibilityLabel="Currency: Indian Rupee, fixed">
@@ -249,7 +248,6 @@ export default function SettingsScreen() {
           </GlassCard>
         </View>
 
-        {/* v7.29 G71: Security App PIN */}
         <GlassSettingsTile
           title={hasPin ? "Change PIN" : "Set Up PIN"}
           subtitle={hasPin ? "PIN is set" : "Not set — tap to secure your app"}

@@ -1,22 +1,11 @@
+// hooks/useSession.ts — Phase 2 v2.11 Canonical Hook
+
 import { useState, useCallback } from 'react';
 import { useRouter, useFocusEffect } from 'expo-router';
-import { useFirmStore } from '../store/firmStore';
+import { useFirmStore } from '../store/useFirmStore';
 import { firmRepository, Firm } from '../repositories/firmRepository';
 import { fyRepository } from '../repositories/fyRepository';
 import { useFyBannerStore } from '../store/fyBannerStore';
-
-// ============================================================================
-// v7.5 FY-BOUNDARY-TRANSITION-RULE: useSession computes isFYExpired and
-// exposes it to callers. Dashboard MUST render the amber FY-boundary banner
-// when isFYExpired is true. This is a Phase 1 constitutional requirement —
-// not Phase 2. The banner is non-blocking (user can still operate) but it
-// must be visible with a CTA to Close Financial Year.
-//
-// isFYExpired = activeFY exists AND activeFY.endDate < today (YYYY-MM-DD).
-// endDate is stored as YYYY-MM-DD — direct string comparison is safe here
-// because both sides are in the same format and lexicographic order matches
-// chronological order for ISO date strings.
-// ============================================================================
 
 export function useSession() {
   const router = useRouter();
@@ -39,10 +28,8 @@ export function useSession() {
 
       if (!firmData) {
         // CORRUPTION CHECK: activeFirmId exists in Zustand but not in DB.
-        // Auto-logout to prevent the user from being stuck on a broken session.
         console.error('[useSession] CRITICAL: Session references missing firm. Logging out.');
         clearActiveFirm();
-        // FIX: '/setup' route does not exist — correct entry point is '/welcome'
         router.replace('/welcome');
         return;
       }
@@ -51,8 +38,6 @@ export function useSession() {
       const fyData = await fyRepository.getActiveFY(activeFirmId);
 
       // 3. v7.5 FY-BOUNDARY-TRANSITION-RULE: compute expiry flag.
-      // Compare endDate ('YYYY-MM-DD') against today's date string.
-      // Lexicographic comparison is safe for ISO date strings.
       let fyExpired = false;
       if (fyData?.endDate) {
         const todayStr = new Date().toISOString().split('T')[0]; // 'YYYY-MM-DD'
@@ -72,8 +57,6 @@ export function useSession() {
     } finally {
       setIsLoading(false);
     }
-  // FIX: router and clearActiveFirm added to deps — exhaustive-deps compliance.
-  // Both are stable refs so this does not cause extra re-runs.
   }, [activeFirmId, router, clearActiveFirm]);
 
   useFocusEffect(

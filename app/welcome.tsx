@@ -6,7 +6,7 @@ import { TwoToneWrapper } from '../components/TwoToneWrapper';
 import { GlassCard, GlassButton } from '../components/ui/Glass';
 import { restoreService } from '../services/restoreService';
 import { useSession } from '../hooks/useSession';
-import { useFirmStore } from '../store/firmStore';
+import { useFirmStore } from '../store/useFirmStore';
 import { firmRepository, Firm } from '../repositories/firmRepository';
 import { ShieldCheck, HardDriveUpload, Plus, Building2, ArrowRight, CheckCircle2 } from 'lucide-react-native';
 import { RestorePreviewModal } from '../components/RestorePreviewModal';

@@ -1,29 +1,27 @@
-// app/inventory/urd-purchases.tsx
+// app/inventory/urd-purchases.tsx — Phase 2 v2.11 Canonical Screen
+
 import React, { useState, useCallback } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Alert, Modal, ScrollView, Image } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Alert, Modal } from 'react-native';
 import { FlashList } from '@shopify/flash-list';
 import { WebView } from 'react-native-webview';
-import { useRouter } from 'expo-router';
-import { useFocusEffect } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 import * as Haptics from 'expo-haptics';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { TwoToneWrapper } from '../../components/TwoToneWrapper';
 import { GlassCard, GlassButton } from '../../components/ui/Glass';
-import { useFirmStore } from '../../store/firmStore';
+import { useFirmStore } from '../../store/useFirmStore';
 import { urdPurchaseRepository } from '../../repositories/urdPurchaseRepository';
 import { firmRepository } from '../../repositories/firmRepository';
 import { urdPurchaseService } from '../../services/urdPurchaseService';
-import { amountToWords, getCurrencySymbol, formatWeightMg as formatWeight } from '../../utils/calculations';
-import { formatDate } from '../../utils/formatDate';
+import { getCurrencySymbol, formatWeightMg as formatWeight } from '../../utils/calculations';
 import { FileDown, Plus, Scale, Banknote, ShieldAlert, CheckCircle, Printer, Trash2, Eye, X, Share2 } from 'lucide-react-native';
 import type { URDPurchase } from '../../types/phase2.types';
 import type { Firm } from '../../types/firm';
+import { COLORS } from '../../constants/theme';
 
 const FlashListAny: any = FlashList;
-
-import { COLORS } from '../../constants/theme';
 
 const formatCurrency = (paise: number) => getCurrencySymbol() + (paise / 100).toFixed(2);
 
@@ -36,12 +34,9 @@ export default function URDPurchasesScreen() {
   const [loading, setLoading] = useState(true);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
-  // Document Preview Modal State
   const [previewVisible, setPreviewVisible] = useState(false);
   const [previewTitle, setPreviewTitle] = useState('');
   const [previewHtml, setPreviewHtml] = useState<string | null>(null);
-  const [selectedUrd, setSelectedUrd] = useState<URDPurchase | null>(null);
-  const [docType, setDocType] = useState<'BILL' | 'DECLARATION'>('BILL');
 
   const loadData = useCallback(async () => {
     if (!activeFirmId) return;
@@ -93,11 +88,9 @@ export default function URDPurchasesScreen() {
   const handlePreviewBill = async (item: URDPurchase) => {
     if (!activeFirmId) return;
     try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch (e) {}
-    setSelectedUrd(item);
-    setDocType('BILL');
     setPreviewTitle('URD Purchase Bill Preview');
     setPreviewHtml(null);
-    setPreviewVisible(true); // Open modal INSTANTLY on click (0ms delay)
+    setPreviewVisible(true);
 
     try {
       const html = await urdPurchaseService.generateURDPurchaseBill(item.id, activeFirmId);
@@ -111,11 +104,9 @@ export default function URDPurchasesScreen() {
   const handlePreviewDeclaration = async (item: URDPurchase) => {
     if (!activeFirmId) return;
     try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch (e) {}
-    setSelectedUrd(item);
-    setDocType('DECLARATION');
     setPreviewTitle('घोषणापत्र / शपथपत्र Preview');
     setPreviewHtml(null);
-    setPreviewVisible(true); // Open modal INSTANTLY on click (0ms delay)
+    setPreviewVisible(true);
 
     try {
       const html = await urdPurchaseService.generateURDCustomerDeclaration(item.id, activeFirmId);
@@ -247,10 +238,6 @@ export default function URDPurchasesScreen() {
     </View>
   );
 
-  const firmTitleDisplay = firm?.name || 'रुपेश ज्वेलर्स';
-  const firmAddressDisplay = (firm?.addressLine1 ? `${firm.addressLine1}, ${firm.city || ''}` : 'सराफ लाईन, कळंब, जि. धाराशिव');
-  const firmPhoneDisplay = firm?.phone1 || '9999999999';
-
   return (
     <TwoToneWrapper title="" showBack headerContent={headerContent}>
       <View style={s.listContainer}>
@@ -273,7 +260,6 @@ export default function URDPurchasesScreen() {
         )}
       </View>
 
-      {/* FAB */}
       <TouchableOpacity
         style={[s.fab, { bottom: Math.max(insets.bottom + 24, 64) }]}
         onPress={() => router.push('/inventory/add-urd')}
@@ -282,7 +268,6 @@ export default function URDPurchasesScreen() {
         <Plus size={28} color="#ffffff" />
       </TouchableOpacity>
 
-      {/* Success Modal */}
       <Modal visible={!!successMessage} transparent animationType="fade">
         <View style={s.modalOverlayCenter}>
           <View style={s.successModalContent}>
@@ -302,7 +287,6 @@ export default function URDPurchasesScreen() {
         </View>
       </Modal>
 
-      {/* DOCUMENT PREVIEW MODAL */}
       <Modal visible={previewVisible} animationType="slide" onRequestClose={() => setPreviewVisible(false)}>
         <View style={s.previewModalContainer}>
           <View style={s.previewHeader}>
@@ -397,46 +381,9 @@ const s = StyleSheet.create({
   previewHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#8B2538', paddingHorizontal: 16, paddingTop: 48, paddingBottom: 16 },
   previewHeaderTitle: { color: '#FCFBF8', fontSize: 16, fontWeight: '700', flex: 1, marginRight: 16 },
   closeIconBtn: { padding: 4, borderRadius: 8, backgroundColor: 'rgba(255,255,255,0.15)' },
-  previewBody: { flex: 1, padding: 16 },
-  previewContent: { paddingBottom: 40 },
   previewFooter: { flexDirection: 'row', gap: 12, backgroundColor: '#FCFBF8', padding: 16, borderTopWidth: 1, borderTopColor: 'rgba(0,0,0,0.1)' },
   previewShareBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 12, borderRadius: 12, backgroundColor: 'rgba(92,22,35,0.08)' },
   previewShareBtnText: { color: COLORS.vjText, fontWeight: '700', fontSize: 14 },
   previewPrintBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 12, borderRadius: 12, backgroundColor: '#D4AF37' },
   previewPrintBtnText: { color: '#ffffff', fontWeight: '800', fontSize: 14 },
-
-  billPreviewPaper: { backgroundColor: '#ffffff', borderRadius: 12, borderWidth: 1.5, borderColor: '#000000', overflow: 'hidden', marginBottom: 20, position: 'relative' },
-  previewWatermarkContainer: { position: 'absolute', top: 0, bottom: 0, left: 0, right: 0, justifyContent: 'center', alignItems: 'center', opacity: 0.18, zIndex: 0 },
-  previewWatermarkCircle: { width: 90, height: 90, borderRadius: 45, borderWidth: 3, borderColor: '#8B2538', justifyContent: 'center', alignItems: 'center', marginBottom: 4 },
-  previewWatermarkInitial: { fontSize: 40, fontWeight: 'bold', color: '#8B2538' },
-  previewWatermarkText: { fontSize: 11, fontWeight: 'bold', color: '#8B2538', letterSpacing: 1.5 },
-  billMaroonHeader: { backgroundColor: '#8B2538', padding: 10, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  billCustGrid: { padding: 12, borderBottomWidth: 1, borderBottomColor: '#000000', flexDirection: 'row', justifyContent: 'space-between' },
-  billCustRow: { fontSize: 12, color: '#000000', marginBottom: 3 },
-  billTable: {},
-  billTableHead: { flexDirection: 'row', backgroundColor: '#E5E7EB', borderBottomWidth: 1, borderBottomColor: '#000000' },
-  billTh: { paddingVertical: 6, paddingHorizontal: 4, fontSize: 11, fontWeight: 'bold', color: '#000000', borderRightWidth: 1, borderRightColor: '#000000' },
-  billTableRow: { flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: '#E5E7EB', minHeight: 24 },
-  billTd: { paddingVertical: 4, paddingHorizontal: 4, fontSize: 11, color: '#000000', borderRightWidth: 1, borderRightColor: '#000000' },
-  billSummaryGrid: { flexDirection: 'row', borderTopWidth: 1, borderTopColor: '#000000' },
-  billPayCol: { flex: 1, borderRightWidth: 1, borderRightColor: '#000000', padding: 8 },
-  billPayRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 3, borderBottomWidth: 1, borderBottomColor: '#E5E7EB' },
-  billTotalsCol: { flex: 1, padding: 8 },
-  billTotalRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 3, borderBottomWidth: 1, borderBottomColor: '#E5E7EB' },
-  billFooterRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 12, borderTopWidth: 1, borderTopColor: '#000000', backgroundColor: '#FAFAFA' },
-
-  declPreviewPaper: { backgroundColor: '#ffffff', borderRadius: 12, borderWidth: 1.5, borderColor: '#000000', padding: 14, marginBottom: 20 },
-  declOuterBox: { gap: 8 },
-  declFirmBox: { borderWidth: 1.5, borderColor: '#000000', borderRadius: 8, padding: 8, alignItems: 'center', backgroundColor: '#FAFAFA' },
-  declFirmTitle: { fontSize: 20, fontWeight: 'bold', color: '#8B2538' },
-  declFirmSub: { fontSize: 11, color: '#333333', marginTop: 2 },
-  declMetaRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 4, borderBottomWidth: 1, borderBottomColor: '#E5E7EB' },
-  declClauseText: { fontSize: 12, color: '#111111', lineHeight: 18 },
-  declFieldRow: { fontSize: 12, color: '#000000', borderBottomWidth: 1, borderBottomColor: '#E5E7EB', paddingBottom: 4 },
-  declTable: { borderWidth: 1, borderColor: '#000000', borderRadius: 6, overflow: 'hidden', marginVertical: 6 },
-  declTableHead: { flexDirection: 'row', backgroundColor: '#F3F4F6', borderBottomWidth: 1, borderBottomColor: '#000000' },
-  declTh: { padding: 6, fontSize: 11, fontWeight: 'bold', color: '#000000', borderRightWidth: 1, borderRightColor: '#000000' },
-  declTableRow: { flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: '#E5E7EB' },
-  declTd: { padding: 6, fontSize: 11, color: '#000000', borderRightWidth: 1, borderRightColor: '#000000' },
-  declSigRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', marginTop: 32, paddingTop: 16, borderTopWidth: 1, borderTopColor: '#E5E7EB' },
-}) as any;
+});

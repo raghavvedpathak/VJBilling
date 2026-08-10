@@ -1,7 +1,7 @@
-// app/inventory/barcode-print.tsx
-// FEAT-BARCODE-LABEL-1 (v1.66) - Dumbbell Tag Layout
+// app/inventory/barcode-print.tsx — Phase 2 v2.11 Canonical Screen
+
 import React, { useState, useEffect } from 'react';
-import { View, Text, ActivityIndicator, Alert, TouchableOpacity, Modal } from 'react-native';
+import { View, Text, ActivityIndicator, Alert, TouchableOpacity, Modal, StyleSheet } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
@@ -10,12 +10,11 @@ import { TwoToneWrapper } from '../../components/TwoToneWrapper';
 import { HeaderPill, GlassCard, GlassButton } from '../../components/ui/Glass';
 import { useStore } from 'zustand';
 import { appSettingsStore } from '../../store/appSettingsStore';
-import { useFirmStore } from '../../store/firmStore';
+import { useFirmStore } from '../../store/useFirmStore';
 import { barcodeLabelService } from '../../services/barcodeLabelService';
 import { Printer, Share, CheckCircle, RefreshCcw, Tag, Scale } from 'lucide-react-native';
 import QRCode from 'react-native-qrcode-svg';
 import type { BarcodeLabel } from '../../types/phase2.types';
-
 import { COLORS, getThemeColors } from '../../constants/theme';
 
 export default function BarcodePrintScreen() {
@@ -45,11 +44,9 @@ export default function BarcodePrintScreen() {
     return () => { active = false; };
   }, [activeFirmId, itemId]);
 
-  // The perfect HTML layout matching the "Dumbbell" Jewelry Tag
   const generateTagHTML = () => {
     if (!label) return '';
     
-    // Extract numbers without the " g" suffix to match the photo's exact look
     const rawGross = label.frontSide.grossWeightDisplay.replace(' g', '');
     const rawNet = label.frontSide.netWeightDisplay.replace(' g', '');
 
@@ -65,7 +62,6 @@ export default function BarcodePrintScreen() {
         <head>
           <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
           <style>
-            /* Standard jewelry tag size: 2 inches wide by 0.5 inches tall */
             @page { size: 2in 0.5in; margin: 0; }
             body { 
               font-family: Arial, sans-serif; 
@@ -103,7 +99,6 @@ export default function BarcodePrintScreen() {
           </div>
 
           <script>
-            // Generate exact QR Code inside the div
             new QRCode(document.getElementById("qrcode"), {
               text: "${label.backSide.barcodeValue}",
               width: 48,
@@ -125,7 +120,6 @@ export default function BarcodePrintScreen() {
     try {
       const html = generateTagHTML();
       await Print.printAsync({ html });
-      
       await barcodeLabelService.logBarcodeReprint(itemId, activeFirmId);
       setSuccessMessage('Label sent to printer and audit log updated.');
     } catch (e: any) {
@@ -141,8 +135,6 @@ export default function BarcodePrintScreen() {
     setIsProcessing(true);
     try {
       const html = generateTagHTML();
-      
-      // Generate a perfectly crisp Vector PDF
       const { uri } = await Print.printToFileAsync({ html });
       
       if (!(await Sharing.isAvailableAsync())) {
@@ -150,7 +142,6 @@ export default function BarcodePrintScreen() {
         return;
       }
 
-      // Open standard OS share/save dialog
       await Sharing.shareAsync(uri, { UTI: '.pdf', mimeType: 'application/pdf' });
       await barcodeLabelService.logBarcodeReprint(itemId, activeFirmId);
 
@@ -184,14 +175,9 @@ export default function BarcodePrintScreen() {
   return (
     <TwoToneWrapper title="Print Barcode Tag" showBack headerContent={barcodeHeaderPills}>
       <View style={{ flex: 1, paddingTop: 16 }}>
-        
         <Text style={{ fontSize: 13, fontWeight: '700', color: COLORS.vjText, opacity: 0.7, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 12, marginLeft: 4 }}>Live Tag Preview</Text>
-        
         <GlassCard style={{ padding: 24, marginBottom: 24 }}>
-          {/* Virtual "Dumbbell Tag" representation */}
           <View style={{ flexDirection: 'row', backgroundColor: '#fff', borderRadius: 4, borderWidth: 1, borderColor: '#ddd', overflow: 'hidden' }}>
-            
-            {/* Front Side (Head) */}
             <View style={{ flex: 1, padding: 12, borderRightWidth: 1, borderRightColor: '#ccc', borderStyle: 'dashed', justifyContent: 'center' }}>
               <Text style={{ fontSize: 13, fontWeight: '800', color: COLORS.vjText, marginBottom: 6 }}>
                 {(() => {
@@ -209,12 +195,8 @@ export default function BarcodePrintScreen() {
                 Nt.Wt. : {label.frontSide.netWeightDisplay.replace(' g', '')}
               </Text>
             </View>
-
-            {/* Back Side (Tail) */}
             <View style={{ flex: 1, padding: 12, alignItems: 'center', justifyContent: 'center' }}>
               <Text style={{ fontSize: 11, fontWeight: '800', color: COLORS.vjText, marginBottom: 4 }}>{label.backSide.firmCode}</Text>
-              
-              {/* QR CODE PREVIEW */}
               <View style={{ marginBottom: 4, alignItems: 'center', justifyContent: 'center' }}>
                 <QRCode 
                   value={label.backSide.barcodeValue} 
@@ -224,20 +206,16 @@ export default function BarcodePrintScreen() {
                   quietZone={2}
                 />
               </View>
-
               <Text style={{ fontSize: 12, fontWeight: '800', color: COLORS.vjText, fontFamily: 'monospace' }}>{label.backSide.skuDisplay}</Text>
             </View>
-
           </View>
         </GlassCard>
-
         <View style={{ backgroundColor: 'rgba(92,22,35,0.04)', padding: 16, borderRadius: 12, marginBottom: 24, flexDirection: 'row', gap: 12, alignItems: 'flex-start' }}>
           <RefreshCcw size={20} color={COLORS.vjAccent} style={{ marginTop: 2 }} />
           <Text style={{ flex: 1, fontSize: 13, color: 'rgba(92,22,35,0.7)', lineHeight: 20 }}>
             Printing or saving this label will securely log a <Text style={{ fontWeight: '800' }}>BARCODE_REPRINTED</Text> event in the item's timeline to ensure audit traceability.
           </Text>
         </View>
-
         <View style={{ gap: 12 }}>
           <GlassButton 
             title={isProcessing ? 'Processing...' : 'Print Thermal Label'} 
@@ -245,7 +223,6 @@ export default function BarcodePrintScreen() {
             disabled={isProcessing}
             icon={!isProcessing ? <Printer size={20} color="#fff" /> : undefined}
           />
-
           <TouchableOpacity 
             onPress={handleSaveToDevice}
             disabled={isProcessing}
@@ -255,9 +232,7 @@ export default function BarcodePrintScreen() {
             <Text style={{ fontSize: 16, fontWeight: '700', color: COLORS.vjAccent, textAlign: 'center' }}>Save / Share PDF Tag</Text>
           </TouchableOpacity>
         </View>
-
       </View>
-
       <Modal visible={!!successMessage} transparent animationType="fade">
         <View style={s.modalOverlayCenter}>
           <View style={s.successModalContent}>
@@ -266,7 +241,6 @@ export default function BarcodePrintScreen() {
             </View>
             <Text style={s.successTitle}>Success!</Text>
             <Text style={s.successSubtitle}>{successMessage}</Text>
-            
             <View style={{ width: '100%', marginTop: 16 }}>
               <GlassButton 
                 title="Done" 
@@ -283,7 +257,6 @@ export default function BarcodePrintScreen() {
   );
 }
 
-import { StyleSheet } from 'react-native';
 const s = StyleSheet.create({
   modalOverlayCenter: {
     flex: 1,

@@ -1,18 +1,18 @@
-// app/settings/close-fy.tsx
+// app/settings/close-fy.tsx — Phase 2 v2.11 Canonical Screen
+
 import React, { useState, useEffect } from 'react';
 import { View, Text, ScrollView, StyleSheet, ActivityIndicator, Alert, TextInput } from 'react-native';
 import { useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { TwoToneWrapper } from '../../components/TwoToneWrapper';
 import { GlassCard, GlassButton } from '../../components/ui/Glass';
-import { useFirmStore } from '../../store/firmStore';
+import { useFirmStore } from '../../store/useFirmStore';
 import { useSession } from '../../hooks/useSession';
 import { useFyBannerStore } from '../../store/fyBannerStore';
 import { fyService } from '../../services/fyService';
 import { backupService } from '../../services/backupService';
 import { Lock, ShieldAlert, ShieldCheck, HardDriveDownload, AlertTriangle, CheckCircle2 } from 'lucide-react-native';
 import type { VerifyIssue } from '../../types/phase2.types';
-
 import { COLORS } from '../../constants/theme';
 
 export default function CloseFYWizard() {

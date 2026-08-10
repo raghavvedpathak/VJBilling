@@ -1,33 +1,31 @@
-// app/inventory/drafts.tsx
+// app/inventory/drafts.tsx — Phase 2 v2.11 Canonical Screen
+
 import React, { useState, useCallback, memo } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, Alert, Modal } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, Modal } from 'react-native';
 import { FlashList } from '@shopify/flash-list';
-import { useRouter } from 'expo-router';
-import { useFocusEffect } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { TwoToneWrapper } from '../../components/TwoToneWrapper';
 import { HeaderPill, GlassButton } from '../../components/ui/Glass';
-import { useStore } from 'zustand';
-import { appSettingsStore } from '../../store/appSettingsStore';
-import { useFirmStore } from '../../store/firmStore';
+import { useFirmStore } from '../../store/useFirmStore';
 import { inventoryDrillDownService } from '../../services/inventoryDrillDownService';
 import { itemService } from '../../services/itemService';
 import type { ItemSearchResult } from '../../types/phase2.types';
 import { getDisplayPurity, formatSKUDisplay, formatWeightMg as formatWeight } from '../../utils/calculations';
-import { Check, ClipboardList, PackageSearch, Edit3, CheckCircle, Package, Scale } from 'lucide-react-native';
-
+import { Check, PackageSearch, Edit3, CheckCircle, Package, Scale } from 'lucide-react-native';
+import { useStore } from 'zustand';
+import { appSettingsStore } from '../../store/appSettingsStore';
 import { COLORS, getThemeColors } from '../../constants/theme';
 
 type DraftRowProps = {
   item: ItemSearchResult;
   onActivate: (itemId: string, sku: string) => void;
-  onEdit: (itemId: string) => void; // <-- Added onEdit prop
+  onEdit: (itemId: string) => void;
 };
 
 const DraftRow = memo(({ item, onActivate, onEdit }: DraftRowProps) => {
   const metalColor = item.metal === 'GOLD' ? COLORS.gold : COLORS.silver;
   const purityDisplay = getDisplayPurity(item.purityPercent, item.purityKarat || 0, item.metal);
-  
   const displaySku = formatSKUDisplay(item.sku);
 
   return (
@@ -56,7 +54,6 @@ const DraftRow = memo(({ item, onActivate, onEdit }: DraftRowProps) => {
         </View>
       </View>
 
-      {/* Action Buttons Container */}
       <View style={s.actionRow}>
         <TouchableOpacity 
           style={s.editBtn} 
@@ -150,7 +147,7 @@ export default function DraftsScreen() {
               <DraftRow 
                 item={item} 
                 onActivate={handleActivate} 
-                onEdit={handleEdit} // <-- Passing handleEdit to row
+                onEdit={handleEdit}
               />
             )}
             // @ts-ignore: estimatedItemSize required by spec
@@ -168,7 +165,6 @@ export default function DraftsScreen() {
         )}
       </View>
 
-      {/* Modern Success Modal */}
       <Modal visible={!!successSku} transparent animationType="fade">
         <View style={s.modalOverlayCenter}>
           <View style={s.successModalContent}>
@@ -177,18 +173,13 @@ export default function DraftsScreen() {
             </View>
             <Text style={s.successTitle}>Activated!</Text>
             <Text style={s.successSubtitle}>{successSku} is now AVAILABLE.</Text>
-            
             <View style={{ width: '100%', marginTop: 16 }}>
-              <GlassButton 
-                title="Done" 
-                onPress={() => setSuccessSku(null)} 
-              />
+              <GlassButton title="Done" onPress={() => setSuccessSku(null)} />
             </View>
           </View>
         </View>
       </Modal>
 
-      {/* Modern Confirmation Modal */}
       <Modal visible={!!confirmActivate} transparent animationType="fade">
         <View style={s.modalOverlayCenter}>
           <View style={s.successModalContent}>
@@ -197,41 +188,32 @@ export default function DraftsScreen() {
             </View>
             <Text style={s.successTitle}>Activate Item</Text>
             <Text style={s.successSubtitle}>Are you sure you want to verify and activate {confirmActivate?.displaySku}? It will move to available stock.</Text>
-            
             <View style={{ width: '100%', marginTop: 16, flexDirection: 'row', gap: 12 }}>
               <View style={{ flex: 1 }}>
-                <GlassButton 
-                  title="Cancel" 
-                  onPress={() => setConfirmActivate(null)} 
-                  variant="secondary"
-                />
+                <GlassButton title="Cancel" onPress={() => setConfirmActivate(null)} variant="secondary" />
               </View>
               <View style={{ flex: 1 }}>
-                <GlassButton 
-                  title="Activate" 
-                  onPress={async () => {
-                    const item = confirmActivate;
-                    setConfirmActivate(null);
-                    if (!item || !activeFirmId) return;
-                    try {
-                      setLoading(true);
-                      await itemService.updateItemStatus(item.itemId, activeFirmId, 'AVAILABLE', 'Manually verified from drafts');
-                      setSuccessSku(item.displaySku);
-                      loadDrafts();
-                    } catch (error: any) {
-                      setErrorMessage(error.message);
-                    } finally {
-                      setLoading(false);
-                    }
-                  }} 
-                />
+                <GlassButton title="Activate" onPress={async () => {
+                  const item = confirmActivate;
+                  setConfirmActivate(null);
+                  if (!item || !activeFirmId) return;
+                  try {
+                    setLoading(true);
+                    await itemService.updateItemStatus(item.itemId, activeFirmId, 'AVAILABLE', 'Manually verified from drafts');
+                    setSuccessSku(item.displaySku);
+                    loadDrafts();
+                  } catch (error: any) {
+                    setErrorMessage(error.message);
+                  } finally {
+                    setLoading(false);
+                  }
+                }} />
               </View>
             </View>
           </View>
         </View>
       </Modal>
 
-      {/* Modern Error Modal */}
       <Modal visible={!!errorMessage} transparent animationType="fade">
         <View style={s.modalOverlayCenter}>
           <View style={s.successModalContent}>
@@ -240,12 +222,8 @@ export default function DraftsScreen() {
             </View>
             <Text style={s.successTitle}>Activation Failed</Text>
             <Text style={s.successSubtitle}>{errorMessage}</Text>
-            
             <View style={{ width: '100%', marginTop: 16 }}>
-              <GlassButton 
-                title="Dismiss" 
-                onPress={() => setErrorMessage(null)} 
-              />
+              <GlassButton title="Dismiss" onPress={() => setErrorMessage(null)} />
             </View>
           </View>
         </View>
@@ -256,186 +234,28 @@ export default function DraftsScreen() {
 
 const s = StyleSheet.create({
   listContainer: { flex: 1 },
-  card: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#ffffff',
-    marginBottom: 10,
-    borderRadius: 16,
-    overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: 'rgba(92,22,35,0.08)',
-    paddingRight: 12,
-    gap: 12,
-  },
-  metalStripe: {
-    width: 6,
-    alignSelf: 'stretch',
-  },
-  cardBody: {
-    flex: 1,
-    paddingVertical: 14,
-  },
-  rowTop: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 4,
-  },
-  sku: {
-    color: COLORS.vjText,
-    fontWeight: '800',
-    fontSize: 16,
-  },
-  metalPill: {
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 6,
-    borderWidth: 1,
-  },
-  metalPillText: {
-    fontSize: 10,
-    fontWeight: '800',
-    letterSpacing: 0.5,
-  },
-  designName: {
-    color: 'rgba(92,22,35,0.6)',
-    fontWeight: '600',
-    fontSize: 13,
-    marginBottom: 8,
-  },
-  metaRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  weightText: {
-    color: COLORS.vjText,
-    fontSize: 12,
-    fontWeight: '700',
-  },
-  weightDivider: {
-    color: 'rgba(92,22,35,0.3)',
-    fontSize: 10,
-  },
-  actionRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  editBtn: {
-    width: 44,
-    height: 44,
-    borderRadius: 12,
-    backgroundColor: 'rgba(184,115,51,0.1)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  activateBtn: {
-    width: 44,
-    height: 44,
-    borderRadius: 12,
-    backgroundColor: COLORS.success,
-    justifyContent: 'center',
-    alignItems: 'center',
-    shadowColor: COLORS.success,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  headerIconRow: {
-    marginBottom: 12,
-  },
-  headerIconCircle: {
-    width: 52,
-    height: 52,
-    borderRadius: 16,
-    backgroundColor: 'rgba(255,255,255,0.12)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.15)',
-  },
-  headerTitle: {
-    color: COLORS.vjBg,
-    fontSize: 28,
-    fontWeight: '800',
-    letterSpacing: -0.5,
-    marginBottom: 4,
-  },
-  headerSubtitle: {
-    color: 'rgba(252,251,248,0.55)',
-    fontSize: 12,
-    fontWeight: '600',
-    letterSpacing: 0.3,
-    textTransform: 'uppercase',
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    gap: 12,
-  },
-  loadingText: {
-    color: 'rgba(92,22,35,0.4)',
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  emptyContainer: {
-    alignItems: 'center',
-    marginTop: 60,
-    gap: 8,
-  },
-  emptyTitle: {
-    color: 'rgba(92,22,35,0.5)',
-    fontSize: 18,
-    fontWeight: '700',
-  },
-  emptySubtitle: {
-    color: 'rgba(92,22,35,0.35)',
-    fontSize: 13,
-  },
-  
-  // Success Modal Styles
-  modalOverlayCenter: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.6)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 24,
-  },
-  successModalContent: {
-    backgroundColor: COLORS.vjBg,
-    width: '100%',
-    maxWidth: 400,
-    borderRadius: 24,
-    padding: 32,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.5)',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.25,
-    shadowRadius: 20,
-    elevation: 10,
-  },
-  successIconContainer: {
-    marginBottom: 16,
-    backgroundColor: 'rgba(16, 185, 129, 0.1)',
-    padding: 16,
-    borderRadius: 50,
-  },
-  successTitle: {
-    fontSize: 24,
-    fontWeight: '800',
-    color: COLORS.vjText,
-    marginBottom: 8,
-  },
-  successSubtitle: {
-    fontSize: 14,
-    color: 'rgba(92,22,35,0.6)',
-    textAlign: 'center',
-    marginBottom: 24,
-  },
+  card: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#ffffff', marginBottom: 10, borderRadius: 16, overflow: 'hidden', borderWidth: 1, borderColor: 'rgba(92,22,35,0.08)', paddingRight: 12, gap: 12 },
+  metalStripe: { width: 6, alignSelf: 'stretch' },
+  cardBody: { flex: 1, paddingVertical: 14 },
+  rowTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 },
+  sku: { color: COLORS.vjText, fontWeight: '800', fontSize: 16 },
+  metalPill: { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6, borderWidth: 1 },
+  metalPillText: { fontSize: 10, fontWeight: '800', letterSpacing: 0.5 },
+  designName: { color: 'rgba(92,22,35,0.6)', fontWeight: '600', fontSize: 13, marginBottom: 8 },
+  metaRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  weightText: { color: COLORS.vjText, fontSize: 12, fontWeight: '700' },
+  weightDivider: { color: 'rgba(92,22,35,0.3)', fontSize: 10 },
+  actionRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  editBtn: { width: 44, height: 44, borderRadius: 12, backgroundColor: 'rgba(184,115,51,0.1)', justifyContent: 'center', alignItems: 'center' },
+  activateBtn: { width: 44, height: 44, borderRadius: 12, backgroundColor: COLORS.success, justifyContent: 'center', alignItems: 'center', shadowColor: COLORS.success, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 4 },
+  loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 12 },
+  loadingText: { color: 'rgba(92,22,35,0.4)', fontSize: 14, fontWeight: '600' },
+  emptyContainer: { alignItems: 'center', marginTop: 60, gap: 8 },
+  emptyTitle: { color: 'rgba(92,22,35,0.5)', fontSize: 18, fontWeight: '700' },
+  emptySubtitle: { color: 'rgba(92,22,35,0.35)', fontSize: 13 },
+  modalOverlayCenter: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', alignItems: 'center', padding: 24 },
+  successModalContent: { backgroundColor: COLORS.vjBg, width: '100%', maxWidth: 400, borderRadius: 24, padding: 32, alignItems: 'center', borderWidth: 1, borderColor: 'rgba(255,255,255,0.5)', shadowColor: '#000', shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.25, shadowRadius: 20, elevation: 10 },
+  successIconContainer: { marginBottom: 16, backgroundColor: 'rgba(16, 185, 129, 0.1)', padding: 16, borderRadius: 50 },
+  successTitle: { fontSize: 24, fontWeight: '800', color: COLORS.vjText, marginBottom: 8 },
+  successSubtitle: { fontSize: 14, color: 'rgba(92,22,35,0.6)', textAlign: 'center', marginBottom: 24 },
 });

@@ -1,11 +1,4 @@
-// services/restoreService.ts
-// 11-Step Restore Flow (v2.9 Canonical Skeleton + Legacy UI Wrapper)
-// SDK 54 FIX: expo-file-system/legacy required for all file reads.
-// v7.6 Step 13: Updates.reloadAsync() + MMKV logo check flag + safeModeService.clear()
-// G41: RESTORE_OLD_SCHEMA and RESTORE_COMPLETED are exempt from tx requirement.
-//
-// CONSTITUTIONAL RULES:
-//   - MUST NOT call assertNotInSafeMode(). Restore is the recovery path.
+// services/restoreService.ts — Phase 2 v2.11 Canonical Implementation
 
 import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system/legacy';
@@ -35,7 +28,8 @@ import { useLeaseStore } from '../store/leaseStore';
 import { storage } from '../utils/storage';
 import { safeModeService } from './safeModeService';
 import { now } from '../utils/now';
-import { SCHEMA_VERSION, ERR } from '../constants';
+import { SCHEMA_VERSION } from '../constants';
+import { ERR } from '../constants/errorCodes';
 import type { BackupEnvelope } from './backupService';
 
 async function decryptBackupEnvelope(parsedBlob: any, password?: string): Promise<BackupEnvelope> {
@@ -61,12 +55,9 @@ async function decryptBackupEnvelope(parsedBlob: any, password?: string): Promis
   if (parsedBlob.passwordProtected === true) {
     keySourceCandidates.push(new TextEncoder().encode(password));
   } else {
-    // Unpassworded backup — multi-tier key material resolution
-    // Tier 1: Canonical Backup Secret (for portable backups across reinstalls/devices)
     const canonicalKey = await getCanonicalBackupKeyMaterial();
     keySourceCandidates.push(canonicalKey);
 
-    // Tier 2: Envelope deviceId (for legacy backups created before reinstall)
     if (parsedBlob.deviceId && typeof parsedBlob.deviceId === 'string') {
       try {
         const envelopeDeviceKey = await getDeviceDerivedKeyMaterial(parsedBlob.deviceId);
@@ -74,7 +65,6 @@ async function decryptBackupEnvelope(parsedBlob: any, password?: string): Promis
       } catch {}
     }
 
-    // Tier 3: Current local deviceId
     try {
       const currentDeviceKey = await getDeviceDerivedKeyMaterial();
       keySourceCandidates.push(currentDeviceKey);
@@ -117,11 +107,6 @@ async function decryptBackupEnvelope(parsedBlob: any, password?: string): Promis
 }
 
 export const restoreService = {
-
-  /**
-   * Inspects and decrypts a backup file without modifying the database yet.
-   * Used by UI to render the modern RestorePreviewModal.
-   */
   async inspectBackupFile(password?: string): Promise<{ backup: BackupEnvelope; fileContent: string } | null> {
     await leaseService.assertNoActiveLease();
 
@@ -185,13 +170,10 @@ export const restoreService = {
       throw new Error(ERR.RESTORE_VALIDATION_FAILED + ': File is not valid JSON data.');
     }
 
-    // Step 3: Decrypt for Preview using multi-tier key resolution
     const backup = await decryptBackupEnvelope(parsedBlob, password);
 
-    // Step 4: Validate
     await this.validateBackupSchema(backup);
 
-    // Step 6: Dry Run Payload Checks
     const {
       firms: backupFirms,
       financialYears: backupFYs,
@@ -205,7 +187,6 @@ export const restoreService = {
       throw new Error(ERR.RESTORE_VALIDATION_FAILED + `: Backup contains ${backupFirms.length} firms. Maximum capacity is 3.`);
     }
 
-    // Step 5: Preview Alert
     const isSafeModeBackedUp = backupSmState && backupSmState.isActive === 1;
     const firmDetails = backupFirms
       .map((f: any) => {
@@ -238,14 +219,12 @@ export const restoreService = {
       );
     });
 
-    // Step 8-11: Handoff to Canonical Engine
     await this.restore(fileContent, password);
 
     return isSafeModeBackedUp ? 'COMPLETED_WITH_ISSUES' : 'COMPLETED';
   },
 
   async restore(encryptedFileContent: string, password?: string): Promise<void> {
-    
     await leaseService.assertNoActiveLease(); 
     const leaseId = await leaseService.acquire('RESTORE');
 
@@ -265,13 +244,10 @@ export const restoreService = {
       }
 
       db.transaction((tx) => {
-        // v7.13 FIX-V713-1: gate MUST be opened before this delete
         tx.update(auditDeleteGateTable).set({ gateOpen: 1 }).where(eq(auditDeleteGateTable.id, 1)).run();
         tx.delete(auditLogsTable).run();
         tx.update(auditDeleteGateTable).set({ gateOpen: 0 }).where(eq(auditDeleteGateTable.id, 1)).run();
 
-        // Phase 2 Wipe (Reverse FK dependency per STEP 12.12B)
-        // MUST happen BEFORE Phase 1 wipe so foreign keys are freed!
         tx.delete(urdPurchases).run();
         tx.delete(oldGoldLots).run();
         tx.delete(sequenceCounters).run();
@@ -284,7 +260,6 @@ export const restoreService = {
         tx.delete(stones).run();
         tx.delete(categories).run();
 
-        // Phase 1 Wipe (Reverse FK dependency)
         tx.delete(bisLogosTable).run();
         tx.delete(financialYearsTable).run();
         tx.delete(writerLeasesTable).run();
@@ -292,7 +267,6 @@ export const restoreService = {
         tx.delete(appSettingsTable).run();
         tx.delete(safeModeStateTable).run();
 
-        // INSERT Phase 1 core backup data
         if (backup.payload.firms?.length) tx.insert(firmsTable).values(backup.payload.firms).run();
         if (backup.payload.financialYears?.length) tx.insert(financialYearsTable).values(backup.payload.financialYears).run();
         if (backup.payload.settings?.length) tx.insert(appSettingsTable).values(backup.payload.settings).run();
@@ -304,7 +278,6 @@ export const restoreService = {
             .onConflictDoUpdate({ target: safeModeStateTable.id, set: backup.payload.safeModeState }).run();
         }
 
-        // INSERT Phase 2 tables (Forward FK dependency per STEP 12.12B)
         if (backup.payload.categories?.length) tx.insert(categories).values(backup.payload.categories).run();
         if (backup.payload.designs?.length) tx.insert(designs).values(backup.payload.designs).run();
         if (backup.payload.stones?.length) tx.insert(stones).values(backup.payload.stones).run();
@@ -317,28 +290,25 @@ export const restoreService = {
         if (backup.payload.oldGoldLots?.length) tx.insert(oldGoldLots).values(backup.payload.oldGoldLots).run();
         if (backup.payload.urdPurchases?.length) tx.insert(urdPurchases).values(backup.payload.urdPurchases).run();
 
-        // RESTORE_COMPLETED written here — AFTER all data inserted
         auditRepository.log(tx, { 
           eventType: 'RESTORE_COMPLETED', 
           firmId: null, 
           deviceId: currentDeviceId,
-          payload: JSON.stringify({ 
+          payload: { 
             backupSchema: backup.schemaVersion, 
             backupDate: backup.exportedAt, 
             firmCount: backup.payload.firms.length, 
             restoredAt: new Date().toISOString() 
-          }) 
+          } 
         });
       });
 
-      // INVALIDATE LEASES & CLEAR SAFE MODE
       useLeaseStore.getState().setActiveLease(null);
       await safeModeService.clear();
       try {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       } catch (e) {}
 
-      // SET LOGO CHECK FLAG + RELOAD
       await storage.setItem('vjbilling_post_restore_logo_check_pending', 'true');
 
       try {
@@ -354,7 +324,7 @@ export const restoreService = {
           auditRepository.log(tx, {
             firmId: null,
             eventType: 'RESTORE_FAILED',
-            payload: JSON.stringify({ reason: error.message }),
+            payload: { reason: error.message },
             deviceId: failDeviceId,
           });
         });
@@ -388,7 +358,6 @@ export const restoreService = {
 
     if (schemaVersion < SCHEMA_VERSION) {
       const deviceId = await getDeviceId();
-      // FIX-V718-1: Use global async DB execution directly since this is G41-exempt
       await db.insert(auditLogsTable).values({
         id: Crypto.randomUUID(),
         eventType: 'RESTORE_OLD_SCHEMA',

@@ -1,4 +1,5 @@
-// db/seed.ts
+// db/seed.ts — Phase 2 v2.11 Canonical HSN Seed Script
+
 import { db } from './client';
 import { hsnCodes } from './schema';
 import * as Crypto from 'expo-crypto';
@@ -6,7 +7,7 @@ import { now } from '../utils/now';
 
 // FIX-HSN-MASTER-1 (v1.46): Seed script for Phase 2 HSN Master table.
 // Minimum Seed Data — Chapter 71 codes for Indian jewellery.
-export async function seedHsnCodes() {
+export async function seedHsnCodes(): Promise<void> {
   const codes = [
     { code: '7113', description: 'Jewellery and parts of precious metal' },
     { code: '711311', description: 'Silver jewellery (incl. plated)' },
@@ -24,8 +25,8 @@ export async function seedHsnCodes() {
       chapter: '71',
       isActive: 1,
       createdAt: now(),
-    }).onConflictDoNothing(); // Prevent duplicate-key errors on re-install
+    }).onConflictDoNothing(); // Prevent duplicate-key errors on re-install or app launch
   }
 
-  console.log('HSN Master Codes seeded successfully.');
+  console.log('[Seed] HSN Master Codes seeded successfully.');
 }

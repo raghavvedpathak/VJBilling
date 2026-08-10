@@ -1,28 +1,33 @@
+// services/designService.ts — Phase 2 v2.11 Canonical Service
+
 import { db } from '../db/client';
 import { leaseService } from './leaseService';
 import { safeModeService } from './safeModeService';
 import { designRepository } from '../repositories/designRepository';
 import { itemRepository } from '../repositories/itemRepository';
 import { auditRepository } from '../repositories/auditRepository';
+import { designCategoryMapRepository } from '../repositories/designCategoryMapRepository';
 import { getDeviceId } from '../utils/deviceId';
 import { now } from '../utils/now';
 import { sanitizeText } from '../utils/sanitize';
-import { ERR } from '../constants';
+import { ERR } from '../constants/errorCodes';
 import 'react-native-get-random-values';
 import { v4 as uuidv4 } from 'uuid';
 import { eq, and, desc } from 'drizzle-orm';
 import { designs, designCategoryMap } from '../db/schema';
 import type { CreateDesignInput, Design, DrizzleTransaction } from '../types/phase2.types';
 
+// Step 3 / FIX-DESIGN-VALIDATE-1
 export function validateDesignName(name: string): void {
   const words = name.trim().split(' ').filter(w => w.length > 0);
   if (words.length === 0 || words.length > 2) throw new Error(ERR.DESIGN_NAME_INVALID);
   if (!words.every(w => /^[A-Za-z]+$/.test(w))) throw new Error(ERR.DESIGN_NAME_INVALID);
 }
 
+// Step 3 / FIX-MISSING-CREATE-1 (v1.95)
 function generateDesignCode(tx: DrizzleTransaction, firmId: string): string {
   const last = tx.select({ code: designs.code }).from(designs)
-    .where(eq(designs.firmId, firmId)).orderBy(desc(designs.code)).limit(1).get() as any;
+    .where(eq(designs.firmId, firmId)).orderBy(desc(designs.code)).limit(1).get();
   let nextNum = last ? parseInt(last.code.replace('DES', ''), 10) + 1 : 1;
   const MAX_CODE_RETRIES = 3;
   for (let attempt = 0; attempt < MAX_CODE_RETRIES; attempt++) {
@@ -36,16 +41,17 @@ function generateDesignCode(tx: DrizzleTransaction, firmId: string): string {
 }
 
 export const designService = {
-  async createDesign(input: CreateDesignInput, firmId: string): Promise<Design> {
+  // --- createDesign (Step 3 / FIX-MISSING-CREATE-1 v1.95) ---
+  async createDesign(input: CreateDesignInput & { categoryId?: string }, firmId: string): Promise<Design> {
     await leaseService.assertNoActiveLease(); // GUARD 1
-    safeModeService.assertNotInSafeMode(); // GUARD 2
+    safeModeService.assertNotInSafeMode();     // GUARD 2
 
-    // Hoisted async call outside transaction
     const deviceId = await getDeviceId();
 
     return db.transaction((tx) => {
-      validateDesignName(input.name); // throws DESIGN_NAME_INVALID — inside tx per createItem convention
+      validateDesignName(input.name); // throws DESIGN_NAME_INVALID
       const sanitizedName = sanitizeText(input.name);
+
       // Check if a design with the same name and metal already exists for this firm
       const existing = tx.select().from(designs)
         .where(and(
@@ -73,13 +79,11 @@ export const designService = {
 
           // Insert new design-category mapping if categoryId is provided
           if (input.categoryId) {
-            tx.insert(designCategoryMap).values({
-              id: uuidv4(),
+            designCategoryMapRepository.insert(tx, {
               designId: existing.id,
               categoryId: input.categoryId,
               firmId,
-              createdAt: now(),
-            }).run();
+            });
           }
 
           const restored = designRepository.getById(tx, firmId, existing.id)!;
@@ -89,7 +93,7 @@ export const designService = {
             firmId,
             entityId: restored.id,
             deviceId,
-            payload: JSON.stringify({ designId: restored.id, name: restored.name, code: restored.code, metal: restored.metal, restored: true })
+            payload: { designId: restored.id, name: restored.name, code: restored.code, metal: restored.metal, restored: true }
           });
 
           return restored;
@@ -113,13 +117,11 @@ export const designService = {
         });
 
         if (input.categoryId) {
-          tx.insert(designCategoryMap).values({
-            id: uuidv4(),
+          designCategoryMapRepository.insert(tx, {
             designId: design.id,
             categoryId: input.categoryId,
             firmId,
-            createdAt: now(),
-          }).run();
+          });
         }
 
         auditRepository.log(tx, {
@@ -127,7 +129,7 @@ export const designService = {
           firmId,
           entityId: design.id,
           deviceId,
-          payload: JSON.stringify({ designId: design.id, name: design.name, code: design.code, metal: design.metal })
+          payload: { designId: design.id, name: design.name, code: design.code, metal: design.metal }
         });
 
         return design;
@@ -140,21 +142,18 @@ export const designService = {
     });
   },
 
-  // 🔴 FIX-V1-3 (v1.23) — softDeleteDesign() DESIGN_HAS_ACTIVE_ITEMS Guard
+  // --- softDeleteDesign (Step 3 / FIX-V1-3 v1.23) ---
   async softDeleteDesign(designId: string, firmId: string): Promise<void> {
-    await leaseService.assertNoActiveLease();
-    safeModeService.assertNotInSafeMode();
+    await leaseService.assertNoActiveLease(); // GUARD 1
+    safeModeService.assertNotInSafeMode();     // GUARD 2
 
-    // Hoisted async call outside transaction
     const deviceId = await getDeviceId();
 
-    // FIX-V718-1: Synchronous transaction block
     return db.transaction((tx) => {
       const design = designRepository.getById(tx, firmId, designId);
       if (!design || design.firmId !== firmId) throw new Error(ERR.DESIGN_NOT_FOUND_OR_WRONG_FIRM);
 
-      // Using the synchronous itemRepository helper
-      const activeItems = itemRepository.findByDesignIdTx(tx, designId, firmId);
+      const activeItems = itemRepository.findByDesignId(tx, designId, firmId);
       
       const blocked = activeItems.filter(i =>
         ['AVAILABLE', 'DRAFT', 'SENT_TO_REFINERY', 'SENT_TO_MELT', 'SENT_TO_KARIGAR', 'DAMAGED', 'PHANTOM_AVAILABLE'].includes(i.status)
@@ -169,24 +168,22 @@ export const designService = {
         firmId,
         entityId: designId,
         deviceId,
-        payload: JSON.stringify({ designId, name: design.name })
+        payload: { designId, name: design.name }
       });
     });
   },
 
-  // 🔴 FIX-UPDATE-DES-1 (v1.44) — updateDesign() Service
+  // --- updateDesign (Step 3 / FIX-UPDATE-DES-1 v1.44) ---
   async updateDesign(
     designId: string,
     firmId: string,
     input: { name?: string; defaultHsn?: string | null; lowStockThreshold?: number | null }
   ): Promise<void> {
-    await leaseService.assertNoActiveLease();
-    safeModeService.assertNotInSafeMode();
+    await leaseService.assertNoActiveLease(); // GUARD 1
+    safeModeService.assertNotInSafeMode();     // GUARD 2
 
-    // Hoisted async call outside transaction
     const deviceId = await getDeviceId();
 
-    // FIX-V718-1: Synchronous transaction block
     return db.transaction((tx) => {
       const design = designRepository.getById(tx, firmId, designId);
       if (!design || design.firmId !== firmId) throw new Error(ERR.DESIGN_NOT_FOUND_OR_WRONG_FIRM);
@@ -194,8 +191,8 @@ export const designService = {
       const updateData: Partial<Pick<Design, 'name' | 'defaultHsn' | 'lowStockThreshold'>> = {};
 
       if (input.name !== undefined) {
-        validateDesignName(input.name); // Validate raw input first
-        updateData.name = sanitizeText(input.name); // Sanitize after validation
+        validateDesignName(input.name);
+        updateData.name = sanitizeText(input.name);
       }
       
       if (input.defaultHsn !== undefined) {
@@ -209,7 +206,6 @@ export const designService = {
       try {
         designRepository.update(tx, firmId, designId, updateData);
       } catch (e: any) {
-        // Name uniqueness: UNIQUE(name, metal, firmId) index enforces at DB level
         if (e.message?.includes('UNIQUE constraint failed') || e.code === 'SQLITE_CONSTRAINT_UNIQUE') {
           throw new Error(ERR.DESIGN_NAME_TAKEN);
         }
@@ -221,14 +217,15 @@ export const designService = {
         firmId,
         entityId: designId,
         deviceId,
-        payload: JSON.stringify({ designId, changes: input })
+        payload: { designId, changes: input }
       });
     });
   },
 
+  // --- updateDesignLowStockThreshold (v2.08 / v2.09 FIX-LOWSTOCK-UI-1) ---
   async updateDesignLowStockThreshold(designId: string, firmId: string, threshold: number | null): Promise<void> {
-    await leaseService.assertNoActiveLease();
-    safeModeService.assertNotInSafeMode();
+    await leaseService.assertNoActiveLease(); // GUARD 1
+    safeModeService.assertNotInSafeMode();     // GUARD 2
     
     if (threshold !== null && (!Number.isInteger(threshold) || threshold < 0)) {
       throw new Error(ERR.DESIGN_LOW_STOCK_THRESHOLD_INVALID);
@@ -247,7 +244,7 @@ export const designService = {
         firmId,
         entityId: designId,
         deviceId,
-        payload: JSON.stringify({ designId, oldThreshold: design.lowStockThreshold, newThreshold: threshold })
+        payload: { designId, oldThreshold: design.lowStockThreshold, newThreshold: threshold }
       });
     });
   }

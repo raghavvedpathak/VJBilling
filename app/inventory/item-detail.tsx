@@ -1,11 +1,15 @@
+// app/inventory/item-detail.tsx — Phase 2 v2.14 Canonical Screen with Full High-Performance Inline Editing & Purity Support
+
 import React, { useState, useCallback, memo, useMemo } from 'react';
-import { View, Text, ScrollView, StyleSheet, ActivityIndicator, TouchableOpacity, Modal, TextInput, Alert } from 'react-native';
-import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useFocusEffect } from 'expo-router';
+import {
+  View, Text, ScrollView, StyleSheet, ActivityIndicator,
+  TouchableOpacity, Modal, TextInput, Alert, KeyboardAvoidingView, Platform
+} from 'react-native';
+import { useLocalSearchParams, useRouter, useFocusEffect } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { useStore } from 'zustand';
 import { TwoToneWrapper } from '../../components/TwoToneWrapper';
-import { useFirmStore } from '../../store/firmStore';
+import { useFirmStore } from '../../store/useFirmStore';
 import { appSettingsStore } from '../../store/appSettingsStore';
 import { HeaderPill, GlassCard } from '../../components/ui/Glass';
 import { inventoryDrillDownService } from '../../services/inventoryDrillDownService';
@@ -13,6 +17,7 @@ import { itemService } from '../../services/itemService';
 import { COLORS, getThemeColors } from '../../constants/theme';
 import {
   getDisplayPurity,
+  percentToKarat,
   computeEffectivePricePerGram,
   computeVaultTruthGrams,
   computeCostTruthGrams,
@@ -20,19 +25,20 @@ import {
   computeAbsoluteTotalCostRupees,
   getCurrencySymbol,
   formatSKUDisplay,
-  formatWeightMg as formatWeight
+  formatWeightMg as formatWeight,
+  resolveFineWeightMg,
+  computeFineGoldChargedMg
 } from '../../utils/calculations';
 import { format, parseISO } from 'date-fns';
 import {
   Package, Tag, Scale, Gem, FileText,
   Clock, AlertTriangle, Info, AlertCircle,
   Shield, MapPin, Calculator, Tag as TagIcon,
-  Trash2, Sparkles, Coins, Percent, Crown, Award, Edit3,
+  Trash2, Coins, Percent, Crown, Award, Edit3, Check, X,
   ChevronUp, ChevronDown
 } from 'lucide-react-native';
 import type { ItemDetail, ItemTimelineEvent, UpdateableItemDraftFields, MetalSource } from '../../types/phase2.types';
 import { TERMINAL_ITEM_STATUSES } from '../../types/phase2.types';
-import { getJewelryCategoryIcon } from '../../utils/jewelryIcons';
 
 const formatCurrency = (paise: number | null): string => {
   if (paise === null || paise === undefined) return '—';
@@ -59,9 +65,7 @@ const getEventLabel = (event: ItemTimelineEvent): string => {
       else if (out === 'PARTIALLY_REPAIRED') out = 'Partially Repaired';
       return `Returned from Karigar · ${out}`;
     }
-    // Phase 3 touch point:
     case 'ITEM_SOLD' as any: return `Sold · Invoice #${event.newValue || 'Unknown'}`;
-    // Fallbacks
     case 'PHANTOM_CREATED': return 'Phantom Created';
     case 'PHANTOM_RECONCILED': return 'Phantom Reconciled';
     default: return event.eventType.replace(/_/g, ' ');
@@ -80,7 +84,7 @@ function getSeverityColor(severity: string) {
   switch (severity) {
     case 'WARNING': return COLORS.warning;
     case 'ERROR': return COLORS.error;
-    default: return COLORS.info; // neutral
+    default: return COLORS.info;
   }
 }
 
@@ -139,17 +143,17 @@ function DetailRow({ label, subLabel, value, icon, valueColor, style }: { label:
 }
 
 const MONTH_NAMES = [
-  'January', 'February', 'March', 'April', 'May', 'June',
-  'July', 'August', 'September', 'October', 'November', 'December'
+  'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+  'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
 ];
-
-const WEEK_DAYS = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
 
 // ======== MAIN SCREEN ========
 export default function ItemDetailScreen() {
   const router = useRouter();
   const { itemId } = useLocalSearchParams<{ itemId: string }>();
   const { activeFirmId } = useFirmStore();
+  const activeTheme = useStore(appSettingsStore, (st) => st.theme);
+
   const [item, setItem] = useState<ItemDetail | null>(() => {
     if (activeFirmId && itemId) {
       try {
@@ -160,181 +164,224 @@ export default function ItemDetailScreen() {
     }
     return null;
   });
-  const [loading, setLoading] = useState(false);
 
-  // Date Correction State
-  const [isDateModalVisible, setDateModalVisible] = useState(false);
-  const [dateReason, setDateReason] = useState('');
-  const [calendarYear, setCalendarYear] = useState(new Date().getFullYear());
-  const [calendarMonth, setCalendarMonth] = useState(new Date().getMonth());
-  const [selectedCalendarDate, setSelectedCalendarDate] = useState<Date>(new Date());
-  const [correctingDate, setCorrectingDate] = useState(false);
-  const { dateFormatToken } = appSettingsStore.getState();
-
-  // Add / Correct HUID State
-  const [isHuidModalVisible, setHuidModalVisible] = useState(false);
-  const [huidInput, setHuidInput] = useState('');
-  const [huidReason, setHuidReason] = useState('');
-  const [submittingHuid, setSubmittingHuid] = useState(false);
-
-  // Metal Source Correction State
-  const [isMetalSourceModalVisible, setMetalSourceModalVisible] = useState(false);
-  const [selectedMetalSource, setSelectedMetalSource] = useState<MetalSource>('SUPPLIER_PURCHASE');
-  const [metalSourceReason, setMetalSourceReason] = useState('');
-  const [correctingMetalSource, setCorrectingMetalSource] = useState(false);
-
-  // Delete Item State
-  const [isDeleteModalVisible, setDeleteModalVisible] = useState(false);
-  const [deleteReason, setDeleteReason] = useState('');
-  const [deleting, setDeleting] = useState(false);
-
-  // Edit Details Modal State (itemService.updateItem)
-  const [isEditDetailsModalVisible, setEditDetailsModalVisible] = useState(false);
+  // --- Inline Editing State (Covers ALL fields including Purity) ---
+  const [isEditing, setIsEditing] = useState(false);
+  const [editGrossGrams, setEditGrossGrams] = useState('');
+  const [editStoneGrams, setEditStoneGrams] = useState('');
+  const [editBeadsGrams, setEditBeadsGrams] = useState('');
+  const [editPurityPercent, setEditPurityPercent] = useState('');
+  const [editPurityKarat, setEditPurityKarat] = useState<number | null>(null);
+  const [editWastagePercent, setEditWastagePercent] = useState('');
+  const [editMetalSource, setEditMetalSource] = useState<MetalSource>('SUPPLIER_PURCHASE');
   const [editLocation, setEditLocation] = useState('');
   const [editMakingChargeRupees, setEditMakingChargeRupees] = useState('');
   const [editStoneCostRupees, setEditStoneCostRupees] = useState('');
   const [editPurchaseRateRupees, setEditPurchaseRateRupees] = useState('');
   const [editSizeValue, setEditSizeValue] = useState('');
   const [editSizeUnit, setEditSizeUnit] = useState<'INCH' | 'MM' | 'CM' | 'RING_SIZE' | ''>('');
-  const [updatingDetails, setUpdatingDetails] = useState(false);
+  const [editCalendarDate, setEditCalendarDate] = useState<Date>(new Date());
+  const [editReason, setEditReason] = useState('');
+  const [savingInline, setSavingInline] = useState(false);
 
-  // Adjust Weight Modal State (itemService.adjustWeight)
-  const [isAdjustWeightModalVisible, setAdjustWeightModalVisible] = useState(false);
-  const [adjustGrossGrams, setAdjustGrossGrams] = useState('');
-  const [adjustStoneGrams, setAdjustStoneGrams] = useState('');
-  const [adjustBeadsGrams, setAdjustBeadsGrams] = useState('');
-  const [adjustWastagePercent, setAdjustWastagePercent] = useState('');
-  const [adjustWeightReason, setAdjustWeightReason] = useState('');
-  const [adjustingWeight, setAdjustingWeight] = useState(false);
+  // Add / Correct HUID State (kept as Modal for strict character validation)
+  const [isHuidModalVisible, setHuidModalVisible] = useState(false);
+  const [huidInput, setHuidInput] = useState('');
+  const [huidReason, setHuidReason] = useState('');
+  const [submittingHuid, setSubmittingHuid] = useState(false);
 
-  // --- Handlers ---
-  const handleOpenDeleteModal = useCallback(() => {
-    setDeleteReason('');
-    setDeleteModalVisible(true);
+  // Delete Item State (kept as Modal for safety & typing confirm)
+  const [isDeleteModalVisible, setDeleteModalVisible] = useState(false);
+  const [deleteReason, setDeleteReason] = useState('');
+  const [deleting, setDeleting] = useState(false);
+
+  const { dateFormatToken } = appSettingsStore.getState();
+
+  // --- Start Inline Editing ---
+  const handleStartEditing = useCallback(() => {
+    if (!item) return;
+    try { Haptics.selectionAsync(); } catch {}
+    setEditGrossGrams((item.grossWeightMg / 1000).toString());
+    setEditStoneGrams(item.stoneWeightMg ? (item.stoneWeightMg / 1000).toString() : '');
+    setEditBeadsGrams(item.beadsWeightMg ? (item.beadsWeightMg / 1000).toString() : '');
+    setEditPurityPercent(item.purityPercent ? item.purityPercent.toString() : '');
+    setEditPurityKarat(item.purityKarat ?? null);
+    setEditWastagePercent(item.wastagePercent ? item.wastagePercent.toString() : '');
+    setEditMetalSource(item.metalSource as MetalSource);
+    setEditLocation(item.location || '');
+    setEditMakingChargeRupees(item.makingChargePaise !== null ? (item.makingChargePaise / 100).toString() : '');
+    setEditStoneCostRupees(item.stoneCostPaise !== null ? (item.stoneCostPaise / 100).toString() : '');
+    setEditPurchaseRateRupees(item.purchaseRatePaise !== null ? (item.purchaseRatePaise / 100).toString() : '');
+    setEditSizeValue(item.sizeValue !== null ? item.sizeValue.toString() : '');
+    setEditSizeUnit(item.sizeUnit || '');
+    try {
+      setEditCalendarDate(item.createdAt ? parseISO(item.createdAt) : new Date());
+    } catch {
+      setEditCalendarDate(new Date());
+    }
+    setEditReason('');
+    setIsEditing(true);
+  }, [item]);
+
+  const handleCancelEditing = useCallback(() => {
+    try { Haptics.selectionAsync(); } catch {}
+    setIsEditing(false);
   }, []);
 
-  const handleDeleteItem = async () => {
+  // --- Date Step Handlers for Inline Date Editing ---
+  const getMaxDaysInMonth = (year: number, month: number) => new Date(year, month + 1, 0).getDate();
+
+  const handleDayStepInline = useCallback((delta: number) => {
+    try { Haptics.selectionAsync(); } catch {}
+    setEditCalendarDate((prev) => {
+      const y = prev.getFullYear();
+      const m = prev.getMonth();
+      const maxDays = getMaxDaysInMonth(y, m);
+      let newDay = prev.getDate() + delta;
+      if (newDay < 1) newDay = maxDays;
+      if (newDay > maxDays) newDay = 1;
+      return new Date(y, m, newDay);
+    });
+  }, []);
+
+  const handleMonthStepInline = useCallback((delta: number) => {
+    try { Haptics.selectionAsync(); } catch {}
+    setEditCalendarDate((prev) => {
+      let m = prev.getMonth() + delta;
+      let y = prev.getFullYear();
+      if (m < 0) { m = 11; y -= 1; }
+      else if (m > 11) { m = 0; y += 1; }
+      const maxDays = getMaxDaysInMonth(y, m);
+      const clampedDay = Math.min(prev.getDate(), maxDays);
+      return new Date(y, m, clampedDay);
+    });
+  }, []);
+
+  const handleYearStepInline = useCallback((delta: number) => {
+    try { Haptics.selectionAsync(); } catch {}
+    setEditCalendarDate((prev) => {
+      const y = prev.getFullYear() + delta;
+      const m = prev.getMonth();
+      const maxDays = getMaxDaysInMonth(y, m);
+      const clampedDay = Math.min(prev.getDate(), maxDays);
+      return new Date(y, m, clampedDay);
+    });
+  }, []);
+
+  // --- Save All Inline Changes ---
+  const handleSaveInlineEditing = async () => {
     if (!item || !activeFirmId) return;
-    const reasonTrimmed = deleteReason.trim();
-    if (!reasonTrimmed) {
-      Alert.alert('Reason Required', 'Please enter a reason for deleting this item.');
+
+    // Validate Size Pairing
+    const hasSizeValue = editSizeValue.trim() !== '';
+    const hasSizeUnit = editSizeUnit !== '';
+    if (hasSizeValue !== hasSizeUnit) {
+      Alert.alert('Invalid Size', 'Size value and Size unit must either both be provided or both left blank.');
       return;
     }
-    setDeleting(true);
-    try {
-      await itemService.deleteItem(item.id, activeFirmId, reasonTrimmed);
-      setDeleteModalVisible(false);
-      Alert.alert('Success', 'Item deleted successfully.', [
-        { text: 'OK', onPress: () => router.back() }
-      ]);
-    } catch (e: any) {
-      Alert.alert('Error', e.message || 'Failed to delete item');
-    } finally {
-      setDeleting(false);
+
+    // Validate Purity %
+    const purPct = Number(editPurityPercent);
+    if (isNaN(purPct) || purPct <= 0 || purPct > 100) {
+      Alert.alert('Invalid Purity', 'Purity percent must be greater than 0 and up to 100%.');
+      return;
     }
-  };
 
-  const handleOpenDateModal = () => {
-    const currentDate = item?.createdAt ? parseISO(item.createdAt) : new Date();
-    setSelectedCalendarDate(currentDate);
-    setCalendarYear(currentDate.getFullYear());
-    setCalendarMonth(currentDate.getMonth());
-    setDateReason('');
-    setDateModalVisible(true);
-  };
-
-  const getMaxDaysInMonth = (year: number, month: number) => {
-    return new Date(year, month + 1, 0).getDate();
-  };
-
-  const handleDayStep = (delta: number) => {
-    try { Haptics.selectionAsync(); } catch {}
-    const currentDay = selectedCalendarDate.getDate();
-    const maxDays = getMaxDaysInMonth(calendarYear, calendarMonth);
-    let newDay = currentDay + delta;
-    if (newDay < 1) newDay = maxDays;
-    if (newDay > maxDays) newDay = 1;
-    setSelectedCalendarDate(new Date(calendarYear, calendarMonth, newDay));
-  };
-
-  const handleMonthStep = (delta: number) => {
-    try { Haptics.selectionAsync(); } catch {}
-    let newMonth = calendarMonth + delta;
-    let newYear = calendarYear;
-    if (newMonth < 0) {
-      newMonth = 11;
-      newYear -= 1;
-    } else if (newMonth > 11) {
-      newMonth = 0;
-      newYear += 1;
+    // Validate Weights
+    const grossG = Number(editGrossGrams);
+    const stoneG = editStoneGrams.trim() !== '' ? Number(editStoneGrams) : 0;
+    const beadsG = editBeadsGrams.trim() !== '' ? Number(editBeadsGrams) : 0;
+    if (isNaN(grossG) || grossG <= 0) {
+      Alert.alert('Invalid Weight', 'Gross weight must be greater than 0.');
+      return;
     }
-    setCalendarMonth(newMonth);
-    setCalendarYear(newYear);
-    const maxDays = getMaxDaysInMonth(newYear, newMonth);
-    const clampedDay = Math.min(selectedCalendarDate.getDate(), maxDays);
-    setSelectedCalendarDate(new Date(newYear, newMonth, clampedDay));
-  };
+    const netG = grossG - stoneG - beadsG;
+    if (netG <= 0) {
+      Alert.alert('Invalid Net Weight', 'Net weight (Gross - Stone - Beads) must be greater than 0.');
+      return;
+    }
 
-  const handleYearStep = (delta: number) => {
-    try { Haptics.selectionAsync(); } catch {}
-    const newYear = calendarYear + delta;
-    setCalendarYear(newYear);
-    const maxDays = getMaxDaysInMonth(newYear, calendarMonth);
-    const clampedDay = Math.min(selectedCalendarDate.getDate(), maxDays);
-    setSelectedCalendarDate(new Date(newYear, calendarMonth, clampedDay));
-  };
+    const newGrossMg = Math.round(grossG * 1000);
+    const newStoneMg = Math.round(stoneG * 1000);
+    const newBeadsMg = Math.round(beadsG * 1000);
+    const newWastage = editWastagePercent.trim() !== '' ? Number(editWastagePercent) : 0;
 
-  const handleCorrectDate = async () => {
-    if (!item || !activeFirmId) return;
+    const weightsChanged =
+      newGrossMg !== item.grossWeightMg ||
+      newStoneMg !== item.stoneWeightMg ||
+      newBeadsMg !== item.beadsWeightMg ||
+      newWastage !== (item.wastagePercent || 0);
+
+    const metalSourceChanged = editMetalSource !== item.metalSource;
+
+    const oldDateIso = item.createdAt.slice(0, 10);
+    const y = editCalendarDate.getFullYear();
+    const m = String(editCalendarDate.getMonth() + 1).padStart(2, '0');
+    const d = String(editCalendarDate.getDate()).padStart(2, '0');
+    const newDateIso = `${y}-${m}-${d}`;
+    const dateChanged = oldDateIso !== newDateIso;
+
+    const criticalChanged = weightsChanged || metalSourceChanged;
+    if (criticalChanged && !editReason.trim()) {
+      Alert.alert('Reason Required', 'Please enter a reason for adjusting weights or metal source.');
+      return;
+    }
+
+    setSavingInline(true);
     try {
-      if (!dateReason.trim()) {
-        Alert.alert('Error', 'Reason is required');
-        return;
+      const reasonText = editReason.trim() || 'Inline editing update';
+
+      // 1. Adjust Weights if changed
+      if (weightsChanged) {
+        await itemService.adjustWeight(
+          item.id,
+          activeFirmId,
+          newGrossMg,
+          newStoneMg,
+          newBeadsMg,
+          reasonText,
+          newWastage
+        );
       }
-      
-      const parsed = selectedCalendarDate;
-      const y = parsed.getFullYear();
-      const m = String(parsed.getMonth() + 1).padStart(2, '0');
-      const d = String(parsed.getDate()).padStart(2, '0');
-      const newIso = `${y}-${m}-${d}`;
-      const oldDate = item.createdAt;
-      const oldMonth = format(new Date(oldDate), 'MMyy');
-      const newMonth = format(parsed, 'MMyy');
 
-      const performCorrection = async () => {
-        setCorrectingDate(true);
-        try {
-          const oldSku = item.sku;
-          const updatedItem = await itemService.correctItemEntryDate(item.id, newIso, activeFirmId);
-          const newSku = updatedItem.sku;
-          const detail = await inventoryDrillDownService.getItemDetail(activeFirmId, item.id);
-          setItem(detail);
-          setDateModalVisible(false);
-          Alert.alert('Success', `Date corrected.${newSku !== oldSku ? `\nNew SKU: ${newSku}` : ''}`);
-        } catch (e: any) {
-          Alert.alert('Error', e.message);
-        } finally {
-          setCorrectingDate(false);
-        }
+      // 2. Correct Metal Source if changed
+      if (metalSourceChanged) {
+        await itemService.correctMetalSource(item.id, activeFirmId, editMetalSource, reasonText);
+      }
+
+      // 3. Correct Entry Date if changed
+      if (dateChanged) {
+        await itemService.correctItemEntryDate(item.id, newDateIso, activeFirmId);
+      }
+
+      // 4. Update General Fields (Location, Size, Charges, Purchase Rate, Purity)
+      const payload: UpdateableItemDraftFields = {
+        purityPercent: purPct,
+        ...(editPurityKarat !== null ? { purityKarat: editPurityKarat } : {}),
+        location: editLocation.trim() || null,
+        makingChargePaise: editMakingChargeRupees.trim() !== '' ? Math.round(Number(editMakingChargeRupees) * 100) : null,
+        stoneCostPaise: editStoneCostRupees.trim() !== '' ? Math.round(Number(editStoneCostRupees) * 100) : null,
+        purchaseRatePaise: editPurchaseRateRupees.trim() !== '' ? Math.round(Number(editPurchaseRateRupees) * 100) : null,
+        sizeValue: hasSizeValue ? Number(editSizeValue) : null,
+        sizeUnit: hasSizeUnit ? (editSizeUnit as any) : null,
       };
 
-      if (oldMonth !== newMonth) {
-        Alert.alert(
-          'Confirm SKU Change',
-          `This will change the item's SKU to match ${format(parsed, 'MMM yyyy')}. This cannot be undone.`,
-          [
-            { text: 'Cancel', style: 'cancel' },
-            { text: 'Confirm', style: 'destructive', onPress: performCorrection }
-          ]
-        );
-      } else {
-        performCorrection();
-      }
-    } catch (e) {
-      Alert.alert('Error', 'Invalid date input');
+      await itemService.updateItem(item.id, activeFirmId, payload, reasonText);
+
+      // Re-fetch detail
+      const detail = await inventoryDrillDownService.getItemDetail(activeFirmId, item.id);
+      setItem(detail);
+      setIsEditing(false);
+      try { Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success); } catch {}
+      Alert.alert('Success', 'Item details updated successfully.');
+    } catch (e: any) {
+      Alert.alert('Error', e.message || 'Failed to save item updates');
+    } finally {
+      setSavingInline(false);
     }
   };
 
+  // --- HUID & Delete Handlers ---
   const handleOpenHuidModal = useCallback(() => {
     setHuidInput(item?.huid || '');
     setHuidReason('');
@@ -373,140 +420,29 @@ export default function ItemDetailScreen() {
     }
   };
 
-  const handleOpenMetalSourceModal = useCallback(() => {
-    if (!item) return;
-    setSelectedMetalSource(item.metalSource as MetalSource);
-    setMetalSourceReason('');
-    setMetalSourceModalVisible(true);
-  }, [item]);
+  const handleOpenDeleteModal = useCallback(() => {
+    setDeleteReason('');
+    setDeleteModalVisible(true);
+  }, []);
 
-  const handleCorrectMetalSource = async () => {
+  const handleDeleteItem = async () => {
     if (!item || !activeFirmId) return;
-    if (!metalSourceReason.trim()) {
-      Alert.alert('Reason Required', 'Please enter a reason for correcting the metal source.');
+    const reasonTrimmed = deleteReason.trim();
+    if (!reasonTrimmed) {
+      Alert.alert('Reason Required', 'Please enter a reason for deleting this item.');
       return;
     }
-
-    setCorrectingMetalSource(true);
+    setDeleting(true);
     try {
-      await itemService.correctMetalSource(item.id, activeFirmId, selectedMetalSource, metalSourceReason.trim());
-      setMetalSourceModalVisible(false);
-      Alert.alert('Success', 'Metal source corrected successfully.');
-      const detail = await inventoryDrillDownService.getItemDetail(activeFirmId, item.id);
-      setItem(detail);
+      await itemService.deleteItem(item.id, activeFirmId, reasonTrimmed);
+      setDeleteModalVisible(false);
+      Alert.alert('Success', 'Item deleted successfully.', [
+        { text: 'OK', onPress: () => router.back() }
+      ]);
     } catch (e: any) {
-      Alert.alert('Error', e.message || 'Failed to correct metal source');
+      Alert.alert('Error', e.message || 'Failed to delete item');
     } finally {
-      setCorrectingMetalSource(false);
-    }
-  };
-
-  // --- Handle updateItem() ---
-  const handleOpenEditDetailsModal = useCallback(() => {
-    if (!item) return;
-    setEditLocation(item.location || '');
-    setEditMakingChargeRupees(item.makingChargePaise !== null ? (item.makingChargePaise / 100).toString() : '');
-    setEditStoneCostRupees(item.stoneCostPaise !== null ? (item.stoneCostPaise / 100).toString() : '');
-    setEditPurchaseRateRupees(item.purchaseRatePaise !== null ? (item.purchaseRatePaise / 100).toString() : '');
-    setEditSizeValue(item.sizeValue !== null ? item.sizeValue.toString() : '');
-    setEditSizeUnit(item.sizeUnit || '');
-    setEditDetailsModalVisible(true);
-  }, [item]);
-
-  const handleSaveDetails = async () => {
-    if (!item || !activeFirmId) return;
-
-    const hasSizeValue = editSizeValue.trim() !== '';
-    const hasSizeUnit = editSizeUnit !== '';
-    if (hasSizeValue !== hasSizeUnit) {
-      Alert.alert('Invalid Size', 'Size value and Size unit must either both be provided or both left blank.');
-      return;
-    }
-
-    setUpdatingDetails(true);
-    try {
-      const payload: UpdateableItemDraftFields = {
-        location: editLocation.trim() || null,
-        makingChargePaise: editMakingChargeRupees.trim() !== '' ? Math.round(Number(editMakingChargeRupees) * 100) : null,
-        stoneCostPaise: editStoneCostRupees.trim() !== '' ? Math.round(Number(editStoneCostRupees) * 100) : null,
-        purchaseRatePaise: editPurchaseRateRupees.trim() !== '' ? Math.round(Number(editPurchaseRateRupees) * 100) : null,
-        sizeValue: hasSizeValue ? Number(editSizeValue) : null,
-        sizeUnit: hasSizeUnit ? (editSizeUnit as any) : null,
-      };
-
-      await itemService.updateItem(item.id, activeFirmId, payload);
-      setEditDetailsModalVisible(false);
-
-      const detail = await inventoryDrillDownService.getItemDetail(activeFirmId, item.id);
-      setItem(detail);
-      Alert.alert('Success', 'Item details updated.');
-    } catch (e: any) {
-      Alert.alert('Error', e.message || 'Failed to update details');
-    } finally {
-      setUpdatingDetails(false);
-    }
-  };
-
-  // --- Handle adjustWeight() ---
-  const handleOpenAdjustWeightModal = useCallback(() => {
-    if (!item) return;
-    setAdjustGrossGrams((item.grossWeightMg / 1000).toString());
-    setAdjustStoneGrams((item.stoneWeightMg / 1000).toString());
-    setAdjustBeadsGrams((item.beadsWeightMg / 1000).toString());
-    setAdjustWastagePercent(item.wastagePercent ? item.wastagePercent.toString() : '');
-    setAdjustWeightReason('');
-    setAdjustWeightModalVisible(true);
-  }, [item]);
-
-  const handleSaveWeightAdjustment = async () => {
-    if (!item || !activeFirmId) return;
-
-    const grossGrams = Number(adjustGrossGrams);
-    const stoneGrams = adjustStoneGrams ? Number(adjustStoneGrams) : 0;
-    const beadsGrams = adjustBeadsGrams ? Number(adjustBeadsGrams) : 0;
-
-    if (isNaN(grossGrams) || grossGrams <= 0) {
-      Alert.alert('Invalid Weight', 'Gross weight must be greater than 0.');
-      return;
-    }
-
-    const newGrossMg = Math.round(grossGrams * 1000);
-    const newStoneMg = Math.round(stoneGrams * 1000);
-    const newBeadsMg = Math.round(beadsGrams * 1000);
-    const newNetMg = newGrossMg - newStoneMg - newBeadsMg;
-
-    if (newNetMg <= 0) {
-      Alert.alert('Invalid Net Weight', 'Net weight (Gross - Stone - Beads) must be greater than 0.');
-      return;
-    }
-
-    if (!adjustWeightReason.trim()) {
-      Alert.alert('Reason Required', 'Please enter a reason for adjusting the weight.');
-      return;
-    }
-
-    setAdjustingWeight(true);
-    try {
-      const newWastage = adjustWastagePercent.trim() !== '' ? Number(adjustWastagePercent) : undefined;
-      await itemService.adjustWeight(
-        item.id,
-        activeFirmId,
-        newGrossMg,
-        newStoneMg,
-        newBeadsMg,
-        adjustWeightReason.trim(),
-        newWastage
-      );
-
-      setAdjustWeightModalVisible(false);
-
-      const detail = await inventoryDrillDownService.getItemDetail(activeFirmId, item.id);
-      setItem(detail);
-      Alert.alert('Success', 'Weights adjusted successfully.');
-    } catch (e: any) {
-      Alert.alert('Error', e.message || 'Failed to adjust weights');
-    } finally {
-      setAdjustingWeight(false);
+      setDeleting(false);
     }
   };
 
@@ -527,7 +463,88 @@ export default function ItemDetailScreen() {
     }, [activeFirmId, itemId])
   );
 
-  if (!item) {
+  // --- High-Performance Memoized Live Calculations during Inline Editing ---
+  const liveCalculations = useMemo(() => {
+    if (!item) return null;
+
+    const gGrams = isEditing
+      ? (editGrossGrams.trim() !== '' ? Number(editGrossGrams) : (item.grossWeightMg / 1000))
+      : (item.grossWeightMg / 1000);
+
+    const sGrams = isEditing
+      ? (editStoneGrams.trim() !== '' ? Number(editStoneGrams) : (item.stoneWeightMg / 1000))
+      : (item.stoneWeightMg / 1000);
+
+    const bGrams = isEditing
+      ? (editBeadsGrams.trim() !== '' ? Number(editBeadsGrams) : (item.beadsWeightMg / 1000))
+      : (item.beadsWeightMg / 1000);
+
+    const netGrams = Math.max(0, gGrams - sGrams - bGrams);
+    const netWeightMg = Math.round(netGrams * 1000);
+
+    const livePurityPercent = isEditing
+      ? (editPurityPercent.trim() !== '' ? Number(editPurityPercent) : item.purityPercent)
+      : item.purityPercent;
+
+    const livePurityKarat = isEditing ? editPurityKarat : item.purityKarat;
+
+    const wastagePercent = isEditing
+      ? (editWastagePercent.trim() !== '' ? Number(editWastagePercent) : (item.wastagePercent || 0))
+      : (item.wastagePercent || 0);
+
+    const fineResult = resolveFineWeightMg(netWeightMg, livePurityPercent, item.metal);
+    const fineWeightMg = fineResult.fineWeightMg;
+    const fineGoldChargedMg = computeFineGoldChargedMg(netWeightMg, livePurityPercent, wastagePercent);
+
+    const vaultTruth = computeVaultTruthGrams(fineWeightMg);
+    const costTruth = computeCostTruthGrams(fineGoldChargedMg, fineWeightMg);
+    const wastageGold = computeWastageGoldGrams(costTruth, vaultTruth);
+
+    const rate = isEditing
+      ? (editPurchaseRateRupees.trim() !== '' ? Number(editPurchaseRateRupees) : 0)
+      : (item.purchaseRatePaise ? item.purchaseRatePaise / 100 : 0);
+
+    const making = isEditing
+      ? (editMakingChargeRupees.trim() !== '' ? Number(editMakingChargeRupees) : 0)
+      : (item.makingChargePaise ? item.makingChargePaise / 100 : 0);
+
+    const stoneC = isEditing
+      ? (editStoneCostRupees.trim() !== '' ? Number(editStoneCostRupees) : 0)
+      : (item.stoneCostPaise ? item.stoneCostPaise / 100 : 0);
+
+    const effectivePricePerGram = computeEffectivePricePerGram(rate, livePurityPercent, wastagePercent);
+    const hasCostData = rate > 0 || making > 0 || stoneC > 0;
+    const totalAmount = computeAbsoluteTotalCostRupees(costTruth, rate, making, stoneC);
+
+    const purityDisplayStr = getDisplayPurity(livePurityPercent, livePurityKarat, item.metal);
+
+    return {
+      grossMg: Math.round(gGrams * 1000),
+      stoneMg: Math.round(sGrams * 1000),
+      beadsMg: Math.round(bGrams * 1000),
+      netMg: netWeightMg,
+      fineMg: fineWeightMg,
+      purityPercent: livePurityPercent,
+      purityKarat: livePurityKarat,
+      purityDisplay: purityDisplayStr,
+      wastagePercent,
+      vaultTruth,
+      costTruth,
+      wastageGold,
+      rate,
+      making,
+      stoneC,
+      effectivePricePerGram,
+      hasCostData,
+      totalAmount,
+    };
+  }, [
+    item, isEditing,
+    editGrossGrams, editStoneGrams, editBeadsGrams, editPurityPercent, editPurityKarat, editWastagePercent,
+    editPurchaseRateRupees, editMakingChargeRupees, editStoneCostRupees
+  ]);
+
+  if (!item || !liveCalculations) {
     return (
       <TwoToneWrapper title="" showBack>
         <View style={s.loadingContainer}>
@@ -539,7 +556,6 @@ export default function ItemDetailScreen() {
   }
 
   const metalColor = item.metal === 'GOLD' ? COLORS.gold : COLORS.silver;
-  const purityDisplay = getDisplayPurity(item.purityPercent, item.purityKarat, item.metal);
 
   const dateToken = dateFormatToken || 'dd/MM/yyyy';
   let createdAtFormatted = item.createdAt;
@@ -554,44 +570,7 @@ export default function ItemDetailScreen() {
     } catch {}
   }
 
-  let selectedCalendarDateFormatted = '';
-  try {
-    if (selectedCalendarDate && !isNaN(selectedCalendarDate.getTime())) {
-      selectedCalendarDateFormatted = format(selectedCalendarDate, dateToken);
-    } else {
-      selectedCalendarDateFormatted = format(new Date(), dateToken);
-    }
-  } catch {
-    try {
-      selectedCalendarDateFormatted = format(new Date(), 'dd/MM/yyyy');
-    } catch {}
-  }
-
-  const daysInMonth = new Date(calendarYear, calendarMonth + 1, 0).getDate();
-  const firstDayIndex = new Date(calendarYear, calendarMonth, 1).getDay();
-  
-  const cells: (number | null)[] = [];
-  for (let i = 0; i < firstDayIndex; i++) cells.push(null);
-  for (let i = 1; i <= daysInMonth; i++) cells.push(i);
-  
-  const rows: (number | null)[][] = [];
-  for (let i = 0; i < cells.length; i += 7) rows.push(cells.slice(i, i + 7));
-
-  const vaultTruth = computeVaultTruthGrams(item.fineWeightMg);
-  const costTruth = computeCostTruthGrams(item.fineGoldChargedMg, item.fineWeightMg);
-  const wastageGold = computeWastageGoldGrams(costTruth, vaultTruth);
-
-  const rate = item.purchaseRatePaise ? item.purchaseRatePaise / 100 : 0;
-  const making = item.makingChargePaise ? item.makingChargePaise / 100 : 0;
-  const stoneC = item.stoneCostPaise ? item.stoneCostPaise / 100 : 0;
-
-  const effectivePricePerGram = computeEffectivePricePerGram(rate, item.purityPercent, item.wastagePercent || 0, item.metal);
-  const hasCostData = rate > 0 || making > 0 || stoneC > 0;
-  const totalAmount = computeAbsoluteTotalCostRupees(costTruth, rate, making, stoneC);
-
   const isEditable = !TERMINAL_ITEM_STATUSES.includes(item.status);
-  const isDraft = item.status === 'DRAFT';
-  const activeTheme = useStore(appSettingsStore, (s) => s.theme);
   const colors = getThemeColors(activeTheme);
 
   const detailHeaderPills = (
@@ -603,7 +582,70 @@ export default function ItemDetailScreen() {
 
   return (
     <TwoToneWrapper title="Item Detail" showBack headerContent={detailHeaderPills}>
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingTop: 32, paddingBottom: 350 }}>
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+        contentContainerStyle={{ paddingTop: 16, paddingBottom: 350 }}
+      >
+        {/* === TOP ACTION BAR (EDIT INLINE & DELETE BUTTONS AT THE VERY TOP) === */}
+        {isEditable && (
+          <View style={s.topActionContainer}>
+            {isEditing ? (
+              <GlassCard style={s.topEditingBannerCard}>
+                <View style={s.topEditingBannerHeader}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                    <Edit3 size={16} color={COLORS.vjAccent} />
+                    <Text style={s.topEditingTitle}>Editing All Fields</Text>
+                  </View>
+                  <View style={{ flexDirection: 'row', gap: 8 }}>
+                    <TouchableOpacity
+                      style={s.topCancelBtn}
+                      onPress={handleCancelEditing}
+                      disabled={savingInline}
+                    >
+                      <X size={14} color={COLORS.vjText} />
+                      <Text style={s.topCancelText}>Cancel</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={s.topSaveBtn}
+                      onPress={handleSaveInlineEditing}
+                      disabled={savingInline}
+                    >
+                      {savingInline ? (
+                        <ActivityIndicator size="small" color="#fff" />
+                      ) : (
+                        <>
+                          <Check size={14} color="#fff" />
+                          <Text style={s.topSaveText}>Save Changes</Text>
+                        </>
+                      )}
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              </GlassCard>
+            ) : (
+              <View style={s.topPrimaryActionRow}>
+                <TouchableOpacity
+                  style={s.topEditInlineBtn}
+                  activeOpacity={0.7}
+                  onPress={handleStartEditing}
+                >
+                  <Edit3 size={15} color="#ffffff" />
+                  <Text style={s.topEditInlineBtnText}>Edit Item Details Inline</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={s.topDeleteBtn}
+                  activeOpacity={0.7}
+                  onPress={handleOpenDeleteModal}
+                >
+                  <Trash2 size={15} color={COLORS.error} />
+                  <Text style={s.topDeleteBtnText}>Delete</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+          </View>
+        )}
 
         {/* === DETAILS CARD === */}
         <View style={s.section}>
@@ -613,60 +655,195 @@ export default function ItemDetailScreen() {
             <DetailRow label="Metal" value={item.metal.charAt(0) + item.metal.slice(1).toLowerCase()} valueColor={metalColor} icon={<Coins size={14} color={metalColor} />} />
             
             <View style={s.divider} />
+            <Text style={[s.sectionTitle, { marginTop: 8, marginLeft: 14 }]}>Weight & Purity</Text>
             
+            {/* GROSS WEIGHT */}
             <View style={s.detailRow}>
               <View style={s.detailLabelRow}>
                 <Scale size={14} color={COLORS.vjAccent} />
-                <Text style={s.detailLabel}>Gross Weight</Text>
-                {isEditable && (
-                  <TouchableOpacity activeOpacity={0.7} onPress={handleOpenAdjustWeightModal} style={{ marginLeft: 6 }}>
-                    <Text style={{ color: COLORS.vjAccent, fontSize: 13, fontWeight: '700' }}>✎ Adjust</Text>
-                  </TouchableOpacity>
-                )}
+                <Text style={s.detailLabel}>Gross Weight (g)</Text>
               </View>
-              <Text style={s.detailValue}>{formatWeight(item.grossWeightMg)}</Text>
+              {isEditing ? (
+                <TextInput
+                  style={s.inlineInput}
+                  value={editGrossGrams}
+                  onChangeText={setEditGrossGrams}
+                  placeholder="e.g. 12.500"
+                  keyboardType="numeric"
+                  placeholderTextColor="rgba(92,22,35,0.35)"
+                />
+              ) : (
+                <Text style={s.detailValue}>{formatWeight(liveCalculations.grossMg)}</Text>
+              )}
             </View>
 
+            {/* STONE WEIGHT */}
             <View style={s.detailRow}>
               <View style={s.detailLabelRow}>
                 <Gem size={14} color={COLORS.vjAccent} />
-                <Text style={s.detailLabel}>Stone Weight</Text>
-                {isEditable && (
-                  <TouchableOpacity activeOpacity={0.7} onPress={handleOpenAdjustWeightModal} style={{ marginLeft: 6 }}>
-                    <Text style={{ color: COLORS.vjAccent, fontSize: 13, fontWeight: '700' }}>✎ Adjust</Text>
-                  </TouchableOpacity>
-                )}
+                <Text style={s.detailLabel}>Stone Weight (g)</Text>
               </View>
-              <Text style={s.detailValue}>{formatWeight(item.stoneWeightMg)}</Text>
+              {isEditing ? (
+                <TextInput
+                  style={s.inlineInput}
+                  value={editStoneGrams}
+                  onChangeText={setEditStoneGrams}
+                  placeholder="e.g. 0.500"
+                  keyboardType="numeric"
+                  placeholderTextColor="rgba(92,22,35,0.35)"
+                />
+              ) : (
+                <Text style={s.detailValue}>{formatWeight(liveCalculations.stoneMg)}</Text>
+              )}
             </View>
 
+            {/* BEADS WEIGHT */}
             <View style={s.detailRow}>
               <View style={s.detailLabelRow}>
                 <Package size={14} color={COLORS.vjAccent} />
-                <Text style={s.detailLabel}>Beads Weight</Text>
-                {isEditable && (
-                  <TouchableOpacity activeOpacity={0.7} onPress={handleOpenAdjustWeightModal} style={{ marginLeft: 6 }}>
-                    <Text style={{ color: COLORS.vjAccent, fontSize: 13, fontWeight: '700' }}>✎ Adjust</Text>
-                  </TouchableOpacity>
-                )}
+                <Text style={s.detailLabel}>Beads Weight (g)</Text>
               </View>
-              <Text style={s.detailValue}>{formatWeight(item.beadsWeightMg)}</Text>
+              {isEditing ? (
+                <TextInput
+                  style={s.inlineInput}
+                  value={editBeadsGrams}
+                  onChangeText={setEditBeadsGrams}
+                  placeholder="e.g. 0.200"
+                  keyboardType="numeric"
+                  placeholderTextColor="rgba(92,22,35,0.35)"
+                />
+              ) : (
+                <Text style={s.detailValue}>{formatWeight(liveCalculations.beadsMg)}</Text>
+              )}
             </View>
 
-            <DetailRow label="Net Weight" value={formatWeight(item.netWeightMg)} icon={<Scale size={14} color={COLORS.vjAccent} />} />
-            <DetailRow label="Purity" value={purityDisplay} icon={<Percent size={14} color={COLORS.vjAccent} />} />
-            <DetailRow label="Fine Weight" value={formatWeight(item.fineWeightMg)} icon={<Award size={14} color={COLORS.vjAccent} />} />
-            <DetailRow label="Vault Truth (Fine)" subLabel={`= ${(item.netWeightMg / 1000).toFixed(3)} g × ${item.purityPercent.toFixed(2)}%`} value={vaultTruth.toFixed(3) + ' g'} valueColor="#047857" style={s.highlightGreenRow} icon={<Shield size={14} color="#047857" />} />
-            <DetailRow label="Wastage %" value={item.wastagePercent ? item.wastagePercent.toFixed(2) + '%' : '0.00%'} icon={<Percent size={14} color={COLORS.vjAccent} />} />
-            <DetailRow label={item.metal === 'GOLD' ? 'Wastage Gold' : 'Wastage Silver'} subLabel={`= ${(item.netWeightMg / 1000).toFixed(3)} g × ${(item.wastagePercent || 0).toFixed(2)}%`} value={wastageGold.toFixed(3) + ' g'} valueColor="#B91C1C" style={s.highlightRedRow} icon={<Coins size={14} color="#B91C1C" />} />
-            <DetailRow label="Cost Truth (Fine)" subLabel={`= ${(item.netWeightMg / 1000).toFixed(3)} g × ${(item.purityPercent + (item.wastagePercent || 0)).toFixed(2)}%`} value={costTruth.toFixed(3) + ' g'} valueColor="#B45309" style={s.highlightOrangeRow} icon={<Calculator size={14} color="#B45309" />} />
+            {/* LIVE COMPUTED NET WEIGHT */}
+            <DetailRow label="Net Weight" value={formatWeight(liveCalculations.netMg)} icon={<Scale size={14} color={COLORS.vjAccent} />} />
+            
+            {/* EDITABLE PURITY ROW */}
+            <View style={[s.detailRow, isEditing && { flexDirection: 'column', alignItems: 'flex-start', gap: 8 }]}>
+              <View style={s.detailLabelRow}>
+                <Percent size={14} color={COLORS.vjAccent} />
+                <Text style={s.detailLabel}>Purity Grade</Text>
+              </View>
+              {isEditing ? (
+                <View style={{ width: '100%', gap: 8 }}>
+                  <TextInput
+                    style={s.inlineInputFull}
+                    value={editPurityPercent}
+                    onChangeText={(val) => {
+                      setEditPurityPercent(val);
+                      const num = Number(val);
+                      if (!isNaN(num) && num > 0) {
+                        setEditPurityKarat(percentToKarat(num));
+                      }
+                    }}
+                    placeholder="Purity % (e.g. 91.6, 75.0, 92.5)"
+                    keyboardType="numeric"
+                    placeholderTextColor="rgba(92,22,35,0.35)"
+                  />
+                  <View style={s.unitSelectorRow}>
+                    {(item.metal === 'GOLD'
+                      ? [
+                          { label: '22K (91.6%)', pct: '91.6', k: 22 },
+                          { label: '18K (75.0%)', pct: '75.0', k: 18 },
+                          { label: '24K (99.9%)', pct: '99.9', k: 24 },
+                          { label: '14K (58.3%)', pct: '58.3', k: 14 },
+                          { label: '20K (83.3%)', pct: '83.3', k: 20 },
+                        ]
+                      : [
+                          { label: '92.5%', pct: '92.5', k: null },
+                          { label: '99.9%', pct: '99.9', k: null },
+                          { label: '90.0%', pct: '90.0', k: null },
+                          { label: '80.0%', pct: '80.0', k: null },
+                        ]
+                    ).map((chip) => (
+                      <TouchableOpacity
+                        key={chip.label}
+                        style={[s.unitChip, editPurityPercent === chip.pct && s.unitChipSelected]}
+                        onPress={() => {
+                          setEditPurityPercent(chip.pct);
+                          setEditPurityKarat(chip.k);
+                        }}
+                      >
+                        <Text style={[s.unitChipText, editPurityPercent === chip.pct && s.unitChipTextSelected]}>
+                          {chip.label}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                </View>
+              ) : (
+                <Text style={s.detailValue}>{liveCalculations.purityDisplay}</Text>
+              )}
+            </View>
+
+            {/* LIVE COMPUTED FINE WEIGHT & TRUTH */}
+            <DetailRow label="Fine Weight" value={formatWeight(liveCalculations.fineMg)} icon={<Award size={14} color={COLORS.vjAccent} />} />
+            <DetailRow label="Vault Truth (Fine)" subLabel={`= ${(liveCalculations.netMg / 1000).toFixed(3)} g × ${liveCalculations.purityPercent.toFixed(2)}%`} value={liveCalculations.vaultTruth.toFixed(3) + ' g'} valueColor="#047857" style={s.highlightGreenRow} icon={<Shield size={14} color="#047857" />} />
+            
+            {/* WASTAGE % */}
+            <View style={s.detailRow}>
+              <View style={s.detailLabelRow}>
+                <Percent size={14} color={COLORS.vjAccent} />
+                <Text style={s.detailLabel}>Supplier Wastage %</Text>
+              </View>
+              {isEditing ? (
+                <TextInput
+                  style={s.inlineInput}
+                  value={editWastagePercent}
+                  onChangeText={setEditWastagePercent}
+                  placeholder="e.g. 5.0"
+                  keyboardType="numeric"
+                  placeholderTextColor="rgba(92,22,35,0.35)"
+                />
+              ) : (
+                <Text style={s.detailValue}>{liveCalculations.wastagePercent.toFixed(2) + '%'}</Text>
+              )}
+            </View>
+
+            <DetailRow label={item.metal === 'GOLD' ? 'Wastage Gold' : 'Wastage Silver'} subLabel={`= ${(liveCalculations.netMg / 1000).toFixed(3)} g × ${liveCalculations.wastagePercent.toFixed(2)}%`} value={liveCalculations.wastageGold.toFixed(3) + ' g'} valueColor="#B91C1C" style={s.highlightRedRow} icon={<Coins size={14} color="#B91C1C" />} />
+            <DetailRow label="Cost Truth (Fine)" subLabel={`= ${(liveCalculations.netMg / 1000).toFixed(3)} g × ${(liveCalculations.purityPercent + liveCalculations.wastagePercent).toFixed(2)}%`} value={liveCalculations.costTruth.toFixed(3) + ' g'} valueColor="#B45309" style={s.highlightOrangeRow} icon={<Calculator size={14} color="#B45309" />} />
             
             <View style={s.divider} />
-            
-            <DetailRow label="Size" value={item.sizeValue !== null ? `${item.sizeValue} ${item.sizeUnit}` : '—'} icon={<TagIcon size={14} color={COLORS.vjAccent} />} />
+            <Text style={[s.sectionTitle, { marginTop: 8, marginLeft: 14 }]}>Item Identity & Attributes</Text>
 
-            <View style={s.divider} />
+            {/* SIZE & UNIT */}
+            <View style={[s.detailRow, isEditing && { flexDirection: 'column', alignItems: 'flex-start', gap: 8 }]}>
+              <View style={s.detailLabelRow}>
+                <TagIcon size={14} color={COLORS.vjAccent} />
+                <Text style={s.detailLabel}>Size & Unit</Text>
+              </View>
+              {isEditing ? (
+                <View style={{ width: '100%', gap: 8 }}>
+                  <TextInput
+                    style={s.inlineInputFull}
+                    value={editSizeValue}
+                    onChangeText={setEditSizeValue}
+                    placeholder="Size Value (e.g. 2.4, 12, 18)"
+                    keyboardType="numeric"
+                    placeholderTextColor="rgba(92,22,35,0.35)"
+                  />
+                  <View style={s.unitSelectorRow}>
+                    {(['INCH', 'MM', 'CM', 'RING_SIZE', ''] as const).map((unit) => (
+                      <TouchableOpacity
+                        key={unit}
+                        style={[s.unitChip, editSizeUnit === unit && s.unitChipSelected]}
+                        onPress={() => setEditSizeUnit(unit)}
+                      >
+                        <Text style={[s.unitChipText, editSizeUnit === unit && s.unitChipTextSelected]}>
+                          {unit === '' ? 'None' : unit}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                </View>
+              ) : (
+                <Text style={s.detailValue}>{item.sizeValue !== null ? `${item.sizeValue} ${item.sizeUnit}` : '—'}</Text>
+              )}
+            </View>
 
+            {/* HUID */}
             <View style={s.detailRow}>
               <View style={s.detailLabelRow}>
                 <View style={s.detailIcon}><Shield size={14} color={COLORS.vjAccent} /></View>
@@ -688,61 +865,203 @@ export default function ItemDetailScreen() {
             
             <View style={s.divider} />
 
-            <DetailRow 
-              label="Location" 
-              value={item.location || '—'} 
-              icon={<MapPin size={14} color={COLORS.vjAccent} />} 
-            />
+            {/* LOCATION */}
+            <View style={s.detailRow}>
+              <View style={s.detailLabelRow}>
+                <MapPin size={14} color={COLORS.vjAccent} />
+                <Text style={s.detailLabel}>Location</Text>
+              </View>
+              {isEditing ? (
+                <TextInput
+                  style={s.inlineInput}
+                  value={editLocation}
+                  onChangeText={setEditLocation}
+                  placeholder="e.g. SHOP, LOCKER"
+                  placeholderTextColor="rgba(92,22,35,0.35)"
+                />
+              ) : (
+                <Text style={s.detailValue}>{item.location || '—'}</Text>
+              )}
+            </View>
+
             <DetailRow label="Status" value={item.status.replace(/_/g, ' ')} icon={<Info size={14} color={COLORS.vjAccent} />} />
             
-            <View style={s.detailRow}>
+            {/* METAL SOURCE */}
+            <View style={[s.detailRow, isEditing && { flexDirection: 'column', alignItems: 'flex-start', gap: 8 }]}>
               <View style={s.detailLabelRow}>
                 <Package size={14} color={COLORS.vjAccent} />
                 <Text style={s.detailLabel}>Metal Source</Text>
-                {isEditable && (
-                  <TouchableOpacity activeOpacity={0.7} onPress={handleOpenMetalSourceModal} style={{ marginLeft: 6 }}>
-                    <Text style={{ color: COLORS.vjAccent, fontSize: 13, fontWeight: '700' }}>✎ Correct</Text>
-                  </TouchableOpacity>
-                )}
               </View>
-              <Text style={s.detailValue}>{item.metalSource.replace(/_/g, ' ')}</Text>
+              {isEditing ? (
+                <View style={s.unitSelectorRow}>
+                  {(['SUPPLIER_PURCHASE', 'CUSTOMER_OLD_GOLD', 'EXCHANGE', 'KARIGAR', 'MELT_OUTPUT', 'OPENING_BALANCE'] as MetalSource[]).map((src) => (
+                    <TouchableOpacity
+                      key={src}
+                      style={[s.unitChip, editMetalSource === src && s.unitChipSelected]}
+                      onPress={() => setEditMetalSource(src)}
+                    >
+                      <Text style={[s.unitChipText, editMetalSource === src && s.unitChipTextSelected]}>
+                        {src.replace(/_/g, ' ')}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              ) : (
+                <Text style={s.detailValue}>{item.metalSource.replace(/_/g, ' ')}</Text>
+              )}
             </View>
 
             <DetailRow label="HSN Code" value={item.hsnCode} icon={<FileText size={14} color={COLORS.vjAccent} />} />
             
-            <View style={s.detailRow}>
+            {/* ADDED ON DATE */}
+            <View style={[s.detailRow, isEditing && { flexDirection: 'column', alignItems: 'flex-start', gap: 10 }]}>
               <View style={s.detailLabelRow}>
                 <View style={s.detailIcon}><Clock size={14} color={COLORS.vjAccent} /></View>
                 <Text style={s.detailLabel}>Added On</Text>
-                {isEditable && (
-                  <TouchableOpacity activeOpacity={0.7} onPress={handleOpenDateModal} style={{ marginLeft: 6 }}>
-                     <Text style={{color: COLORS.vjAccent, fontSize: 13, fontWeight: 'bold'}}>✎ Edit</Text>
-                  </TouchableOpacity>
-                )}
               </View>
-              <Text style={s.detailValue}>{createdAtFormatted}</Text>
+              {isEditing ? (
+                <View style={s.inlineDateEditorCard}>
+                  <View style={s.inlineDateCol}>
+                    <Text style={s.inlineDateColLabel}>DAY</Text>
+                    <TouchableOpacity style={s.inlineDateStepBtn} onPress={() => handleDayStepInline(1)}>
+                      <ChevronUp size={16} color="#5C1623" />
+                    </TouchableOpacity>
+                    <Text style={s.inlineDateValText}>{String(editCalendarDate.getDate()).padStart(2, '0')}</Text>
+                    <TouchableOpacity style={s.inlineDateStepBtn} onPress={() => handleDayStepInline(-1)}>
+                      <ChevronDown size={16} color="#5C1623" />
+                    </TouchableOpacity>
+                  </View>
+
+                  <View style={[s.inlineDateCol, { flex: 1.3 }]}>
+                    <Text style={s.inlineDateColLabel}>MONTH</Text>
+                    <TouchableOpacity style={s.inlineDateStepBtn} onPress={() => handleMonthStepInline(1)}>
+                      <ChevronUp size={16} color="#5C1623" />
+                    </TouchableOpacity>
+                    <Text style={s.inlineDateValText}>{MONTH_NAMES[editCalendarDate.getMonth()]}</Text>
+                    <TouchableOpacity style={s.inlineDateStepBtn} onPress={() => handleMonthStepInline(-1)}>
+                      <ChevronDown size={16} color="#5C1623" />
+                    </TouchableOpacity>
+                  </View>
+
+                  <View style={s.inlineDateCol}>
+                    <Text style={s.inlineDateColLabel}>YEAR</Text>
+                    <TouchableOpacity style={s.inlineDateStepBtn} onPress={() => handleYearStepInline(1)}>
+                      <ChevronUp size={16} color="#5C1623" />
+                    </TouchableOpacity>
+                    <Text style={s.inlineDateValText}>{editCalendarDate.getFullYear()}</Text>
+                    <TouchableOpacity style={s.inlineDateStepBtn} onPress={() => handleYearStepInline(-1)}>
+                      <ChevronDown size={16} color="#5C1623" />
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              ) : (
+                <Text style={s.detailValue}>{createdAtFormatted}</Text>
+              )}
             </View>
 
-            {/* === COST FIELDS === */}
-            {(item.purchaseRatePaise !== null || item.makingChargePaise !== null || item.stoneCostPaise !== null) && (
+            {/* === FINANCIAL CHARGES & PRICING === */}
+            <View style={s.divider} />
+            <Text style={[s.sectionTitle, { marginTop: 8, marginLeft: 14 }]}>Pricing & Financial Charges</Text>
+            
+            {/* Purchase Rate */}
+            <View style={s.detailRow}>
+              <View style={s.detailLabelRow}>
+                <Calculator size={14} color={COLORS.vjAccent} />
+                <Text style={s.detailLabel}>Purchase Rate (₹/g)</Text>
+              </View>
+              {isEditing ? (
+                <TextInput
+                  style={s.inlineInput}
+                  value={editPurchaseRateRupees}
+                  onChangeText={setEditPurchaseRateRupees}
+                  placeholder="e.g. 6250.50"
+                  keyboardType="numeric"
+                  placeholderTextColor="rgba(92,22,35,0.35)"
+                />
+              ) : (
+                <Text style={s.detailValue}>
+                  {item.purchaseRatePaise !== null ? formatCurrency(item.purchaseRatePaise) + ' /g' : '—'}
+                </Text>
+              )}
+            </View>
+
+            {/* Making Charge */}
+            <View style={s.detailRow}>
+              <View style={s.detailLabelRow}>
+                <Calculator size={14} color={COLORS.vjAccent} />
+                <Text style={s.detailLabel}>Making Charge (₹)</Text>
+              </View>
+              {isEditing ? (
+                <TextInput
+                  style={s.inlineInput}
+                  value={editMakingChargeRupees}
+                  onChangeText={setEditMakingChargeRupees}
+                  placeholder="e.g. 500"
+                  keyboardType="numeric"
+                  placeholderTextColor="rgba(92,22,35,0.35)"
+                />
+              ) : (
+                <Text style={s.detailValue}>
+                  {item.makingChargePaise !== null ? formatCurrency(item.makingChargePaise) : '—'}
+                </Text>
+              )}
+            </View>
+
+            {/* Stone Cost */}
+            <View style={s.detailRow}>
+              <View style={s.detailLabelRow}>
+                <Gem size={14} color={COLORS.vjAccent} />
+                <Text style={s.detailLabel}>Stone Cost (₹)</Text>
+              </View>
+              {isEditing ? (
+                <TextInput
+                  style={s.inlineInput}
+                  value={editStoneCostRupees}
+                  onChangeText={setEditStoneCostRupees}
+                  placeholder="e.g. 1200"
+                  keyboardType="numeric"
+                  placeholderTextColor="rgba(92,22,35,0.35)"
+                />
+              ) : (
+                <Text style={s.detailValue}>
+                  {item.stoneCostPaise !== null ? formatCurrency(item.stoneCostPaise) : '—'}
+                </Text>
+              )}
+            </View>
+
+            {/* Dynamic Calculated Cards (Updates Live in Edit Mode!) */}
+            {liveCalculations.hasCostData && (
               <>
-                <View style={s.divider} />
-                {item.purchaseRatePaise !== null && (
-                  <DetailRow label="Purchase Rate" value={formatCurrency(item.purchaseRatePaise) + ' /g'} icon={<Calculator size={14} color={COLORS.vjAccent} />} />
-                )}
-                {item.makingChargePaise !== null && (
-                  <DetailRow label="Making Charge" value={formatCurrency(item.makingChargePaise)} icon={<Calculator size={14} color={COLORS.vjAccent} />} />
-                )}
-                {item.stoneCostPaise !== null && (
-                  <DetailRow label="Stone Cost" value={formatCurrency(item.stoneCostPaise)} icon={<Gem size={14} color={COLORS.vjAccent} />} />
-                )}
-                {hasCostData && (
-                  <>
-                    <DetailRow label="Effective Price/g" subLabel={`= ${getCurrencySymbol()}${rate.toFixed(2)} × ${(item.purityPercent + (item.wastagePercent || 0)).toFixed(2)}%`} value={getCurrencySymbol() + ' ' + effectivePricePerGram.toLocaleString('en-IN', { maximumFractionDigits: 2 })} style={s.highlightGoldRow} icon={<Calculator size={14} color={COLORS.vjAccent} />} />
-                    <DetailRow label="Est. Total Cost" subLabel={`= ${(item.netWeightMg / 1000).toFixed(3)} g × ${getCurrencySymbol()}${effectivePricePerGram.toFixed(2)}${making > 0 ? ' + ' + getCurrencySymbol() + making.toFixed(2) : ''}${stoneC > 0 ? ' + ' + getCurrencySymbol() + stoneC.toFixed(2) : ''}`} value={getCurrencySymbol() + ' ' + totalAmount.toLocaleString('en-IN', { maximumFractionDigits: 2 })} valueColor="#78350F" style={s.highlightGoldRow} icon={<Calculator size={14} color="#78350F" />} />
-                  </>
-                )}
+                <DetailRow
+                  label="Effective Price/g"
+                  subLabel={`= ${getCurrencySymbol()}${liveCalculations.rate.toFixed(2)} × ${(liveCalculations.purityPercent + liveCalculations.wastagePercent).toFixed(2)}%`}
+                  value={getCurrencySymbol() + ' ' + liveCalculations.effectivePricePerGram.toLocaleString('en-IN', { maximumFractionDigits: 2 })}
+                  style={s.highlightGoldRow}
+                  icon={<Calculator size={14} color={COLORS.vjAccent} />}
+                />
+                <DetailRow
+                  label="Est. Total Cost"
+                  subLabel={`= ${(liveCalculations.netMg / 1000).toFixed(3)} g × ${getCurrencySymbol()}${liveCalculations.effectivePricePerGram.toFixed(2)}${liveCalculations.making > 0 ? ' + ' + getCurrencySymbol() + liveCalculations.making.toFixed(2) : ''}${liveCalculations.stoneC > 0 ? ' + ' + getCurrencySymbol() + liveCalculations.stoneC.toFixed(2) : ''}`}
+                  value={getCurrencySymbol() + ' ' + liveCalculations.totalAmount.toLocaleString('en-IN', { maximumFractionDigits: 2 })}
+                  valueColor="#78350F"
+                  style={s.highlightGoldRow}
+                  icon={<Calculator size={14} color="#78350F" />}
+                />
               </>
+            )}
+
+            {/* REASON INPUT BOX WHEN EDITING */}
+            {isEditing && (
+              <View style={s.inlineReasonContainer}>
+                <Text style={s.inlineReasonLabel}>Reason for Changes (Audit Log) *</Text>
+                <TextInput
+                  style={s.inlineReasonInput}
+                  value={editReason}
+                  onChangeText={setEditReason}
+                  placeholder="e.g. Re-weighed item & updated purity/location/pricing"
+                  placeholderTextColor="rgba(92,22,35,0.35)"
+                />
+              </View>
             )}
 
             <View style={s.divider} />
@@ -758,29 +1077,6 @@ export default function ItemDetailScreen() {
               </TouchableOpacity>
             ) : (
               <DetailRow label="Sale Invoice" value="—" icon={<FileText size={14} color={COLORS.vjAccent} />} />
-            )}
-
-            {/* EDIT & DELETE ACTION BUTTONS */}
-            {isEditable && (
-              <View style={s.cardActionRow}>
-                <TouchableOpacity
-                  style={s.editActionBtn}
-                  activeOpacity={0.7}
-                  onPress={handleOpenEditDetailsModal}
-                >
-                  <Edit3 size={15} color={COLORS.vjAccent} />
-                  <Text style={s.editActionBtnText}>Edit Location, Size & Charges</Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={s.deleteCardBtn}
-                  activeOpacity={0.7}
-                  onPress={handleOpenDeleteModal}
-                >
-                  <Trash2 size={15} color={COLORS.error} />
-                  <Text style={s.deleteCardBtnText}>Delete Item</Text>
-                </TouchableOpacity>
-              </View>
             )}
 
           </View>
@@ -816,362 +1112,81 @@ export default function ItemDetailScreen() {
 
       </ScrollView>
 
-      {/* Edit Details Modal (updateItem) */}
-      <Modal visible={isEditDetailsModalVisible} transparent animationType="fade">
-        <View style={s.modalOverlay}>
-          <ScrollView contentContainerStyle={s.modalScrollContent}>
-            <View style={s.modalContent}>
-              <Text style={s.modalTitle}>Edit Item Details</Text>
-              
-              <Text style={s.modalLabel}>Location</Text>
-              <TextInput 
-                style={s.modalInput}
-                value={editLocation}
-                onChangeText={setEditLocation}
-                placeholder="e.g. SHOP, LOCKER, KARIGAR"
-                editable={!updatingDetails}
-              />
-
-              <Text style={s.modalLabel}>Size Value</Text>
-              <TextInput 
-                style={s.modalInput}
-                value={editSizeValue}
-                onChangeText={setEditSizeValue}
-                placeholder="e.g. 2.4, 12, 18"
-                keyboardType="numeric"
-                editable={!updatingDetails}
-              />
-
-              <Text style={s.modalLabel}>Size Unit</Text>
-              <View style={s.unitSelectorRow}>
-                {(['INCH', 'MM', 'CM', 'RING_SIZE', ''] as const).map((unit) => (
-                  <TouchableOpacity
-                    key={unit}
-                    style={[s.unitChip, editSizeUnit === unit && s.unitChipSelected]}
-                    onPress={() => setEditSizeUnit(unit)}
-                    disabled={updatingDetails}
-                  >
-                    <Text style={[s.unitChipText, editSizeUnit === unit && s.unitChipTextSelected]}>
-                      {unit === '' ? 'None' : unit}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-
-              <Text style={s.modalLabel}>Purchase Rate (₹ / gram)</Text>
-              <TextInput 
-                style={s.modalInput}
-                value={editPurchaseRateRupees}
-                onChangeText={setEditPurchaseRateRupees}
-                placeholder="e.g. 6250.50"
-                keyboardType="numeric"
-                editable={!updatingDetails}
-              />
-
-              <Text style={s.modalLabel}>Making Charge (₹)</Text>
-              <TextInput 
-                style={s.modalInput}
-                value={editMakingChargeRupees}
-                onChangeText={setEditMakingChargeRupees}
-                placeholder="e.g. 500"
-                keyboardType="numeric"
-                editable={!updatingDetails}
-              />
-
-              <Text style={s.modalLabel}>Stone Cost (₹)</Text>
-              <TextInput 
-                style={s.modalInput}
-                value={editStoneCostRupees}
-                onChangeText={setEditStoneCostRupees}
-                placeholder="e.g. 1200"
-                keyboardType="numeric"
-                editable={!updatingDetails}
-              />
-
-              <View style={s.modalActions}>
-                <TouchableOpacity style={s.modalBtnSecondary} onPress={() => setEditDetailsModalVisible(false)} disabled={updatingDetails}>
-                  <Text style={s.modalBtnTextSecondary}>Cancel</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={s.modalBtnPrimary} onPress={handleSaveDetails} disabled={updatingDetails}>
-                  {updatingDetails ? <ActivityIndicator color="#fff" /> : <Text style={s.modalBtnTextPrimary}>Save Changes</Text>}
-                </TouchableOpacity>
-              </View>
-            </View>
-          </ScrollView>
-        </View>
-      </Modal>
-
-      {/* Adjust Weight Modal (adjustWeight) */}
-      <Modal visible={isAdjustWeightModalVisible} transparent animationType="fade">
-        <View style={s.modalOverlay}>
-          <ScrollView contentContainerStyle={s.modalScrollContent}>
-            <View style={s.modalContent}>
-              <Text style={s.modalTitle}>Adjust Item Weights</Text>
-              
-              <Text style={s.modalLabel}>Gross Weight (grams) *</Text>
-              <TextInput 
-                style={s.modalInput}
-                value={adjustGrossGrams}
-                onChangeText={setAdjustGrossGrams}
-                placeholder="e.g. 12.500"
-                keyboardType="numeric"
-                editable={!adjustingWeight}
-              />
-
-              <Text style={s.modalLabel}>Stone Weight (grams)</Text>
-              <TextInput 
-                style={s.modalInput}
-                value={adjustStoneGrams}
-                onChangeText={setAdjustStoneGrams}
-                placeholder="e.g. 0.500"
-                keyboardType="numeric"
-                editable={!adjustingWeight}
-              />
-
-              <Text style={s.modalLabel}>Beads Weight (grams)</Text>
-              <TextInput 
-                style={s.modalInput}
-                value={adjustBeadsGrams}
-                onChangeText={setAdjustBeadsGrams}
-                placeholder="e.g. 0.200"
-                keyboardType="numeric"
-                editable={!adjustingWeight}
-              />
-
-              <Text style={s.modalLabel}>Supplier Wastage %</Text>
-              <TextInput 
-                style={s.modalInput}
-                value={adjustWastagePercent}
-                onChangeText={setAdjustWastagePercent}
-                placeholder="e.g. 5.0"
-                keyboardType="numeric"
-                editable={!adjustingWeight}
-              />
-
-              <Text style={s.modalLabel}>Reason for Adjustment *</Text>
-              <TextInput 
-                style={s.modalInput}
-                value={adjustWeightReason}
-                onChangeText={setAdjustWeightReason}
-                placeholder="e.g. Re-weighed after polishing"
-                editable={!adjustingWeight}
-              />
-
-              <View style={s.modalActions}>
-                <TouchableOpacity style={s.modalBtnSecondary} onPress={() => setAdjustWeightModalVisible(false)} disabled={adjustingWeight}>
-                  <Text style={s.modalBtnTextSecondary}>Cancel</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={s.modalBtnPrimary} onPress={handleSaveWeightAdjustment} disabled={adjustingWeight}>
-                  {adjustingWeight ? <ActivityIndicator color="#fff" /> : <Text style={s.modalBtnTextPrimary}>Adjust Weight</Text>}
-                </TouchableOpacity>
-              </View>
-            </View>
-          </ScrollView>
-        </View>
-      </Modal>
-
       {/* Add / Correct HUID Modal */}
       <Modal visible={isHuidModalVisible} transparent animationType="fade">
-        <View style={s.modalOverlay}>
-          <View style={s.modalContent}>
-            <Text style={s.modalTitle}>{item.huid === null ? 'Add HUID' : 'Correct HUID'}</Text>
-            
-            <Text style={s.modalLabel}>HUID (6 uppercase chars) *</Text>
-            <TextInput 
-              style={s.modalInput}
-              value={huidInput}
-              onChangeText={setHuidInput}
-              placeholder="e.g. A1B2C3"
-              autoCapitalize="characters"
-              maxLength={6}
-              editable={!submittingHuid}
-            />
-
-            {item.huid !== null && (
-              <>
-                <Text style={s.modalLabel}>Reason for Correction *</Text>
-                <TextInput 
-                  style={s.modalInput}
-                  value={huidReason}
-                  onChangeText={setHuidReason}
-                  placeholder="e.g. Transposition typo on initial entry"
-                  editable={!submittingHuid}
-                />
-              </>
-            )}
-
-            <View style={s.modalActions}>
-              <TouchableOpacity style={s.modalBtnSecondary} onPress={() => setHuidModalVisible(false)} disabled={submittingHuid}>
-                <Text style={s.modalBtnTextSecondary}>Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={s.modalBtnPrimary} onPress={handleSaveHuid} disabled={submittingHuid}>
-                {submittingHuid ? <ActivityIndicator color="#fff" /> : <Text style={s.modalBtnTextPrimary}>Save</Text>}
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
-
-      {/* Correct Metal Source Modal */}
-      <Modal visible={isMetalSourceModalVisible} transparent animationType="fade">
-        <View style={s.modalOverlay}>
-          <View style={s.modalContent}>
-            <Text style={s.modalTitle}>Correct Metal Source</Text>
-            
-            <Text style={s.modalLabel}>Select Source *</Text>
-            <View style={s.unitSelectorRow}>
-              {(['SUPPLIER_PURCHASE', 'CUSTOMER_OLD_GOLD', 'EXCHANGE', 'KARIGAR', 'MELT_OUTPUT', 'OPENING_BALANCE'] as MetalSource[]).map((src) => (
-                <TouchableOpacity
-                  key={src}
-                  style={[s.unitChip, selectedMetalSource === src && s.unitChipSelected]}
-                  onPress={() => setSelectedMetalSource(src)}
-                  disabled={correctingMetalSource}
-                >
-                  <Text style={[s.unitChipText, selectedMetalSource === src && s.unitChipTextSelected]}>
-                    {src.replace(/_/g, ' ')}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-
-            <Text style={s.modalLabel}>Reason for Correction *</Text>
-            <TextInput 
-              style={s.modalInput}
-              value={metalSourceReason}
-              onChangeText={setMetalSourceReason}
-              placeholder="e.g. Mistakenly entered as supplier purchase"
-              editable={!correctingMetalSource}
-            />
-
-            <View style={s.modalActions}>
-              <TouchableOpacity style={s.modalBtnSecondary} onPress={() => setMetalSourceModalVisible(false)} disabled={correctingMetalSource}>
-                <Text style={s.modalBtnTextSecondary}>Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={s.modalBtnPrimary} onPress={handleCorrectMetalSource} disabled={correctingMetalSource}>
-                {correctingMetalSource ? <ActivityIndicator color="#fff" /> : <Text style={s.modalBtnTextPrimary}>Save</Text>}
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
-
-      {/* Date Correction Modal */}
-      <Modal visible={isDateModalVisible} transparent animationType="fade">
-        <View style={s.modalOverlay}>
-          <ScrollView contentContainerStyle={s.modalScrollContent}>
-            <View style={[s.modalContent, { borderRadius: 20, borderWidth: 1, borderColor: 'rgba(212,175,55,0.3)' }]}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 16 }}>
-                <Clock size={20} color={COLORS.vjAccent} />
-                <Text style={[s.modalTitle, { marginBottom: 0 }]}>Correct Added Date</Text>
-              </View>
-
-              <Text style={s.modalLabel}>Select Date (Day / Month / Year)</Text>
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={s.modalOverlay}>
+          <ScrollView contentContainerStyle={s.modalScrollContent} keyboardShouldPersistTaps="handled">
+            <View style={s.modalContent}>
+              <Text style={s.modalTitle}>{item.huid === null ? 'Add HUID' : 'Correct HUID'}</Text>
               
-              {/* 3-Column Spacious Glass Wheel Spinner */}
-              <View style={s.picker3ColumnRow}>
-                
-                {/* Column 1: DAY */}
-                <View style={s.pickerColumnCard}>
-                  <Text style={s.pickerColumnLabel}>DAY</Text>
-                  <TouchableOpacity activeOpacity={0.7} style={s.pickerStepBtnVertical} onPress={() => handleDayStep(1)}>
-                    <ChevronUp size={20} color="#5C1623" />
-                  </TouchableOpacity>
-                  <View style={s.pickerValueCapsule}>
-                    <Text style={s.pickerValueText}>{String(selectedCalendarDate.getDate()).padStart(2, '0')}</Text>
-                  </View>
-                  <TouchableOpacity activeOpacity={0.7} style={s.pickerStepBtnVertical} onPress={() => handleDayStep(-1)}>
-                    <ChevronDown size={20} color="#5C1623" />
-                  </TouchableOpacity>
-                </View>
-
-                {/* Column 2: MONTH */}
-                <View style={[s.pickerColumnCard, { flex: 1.3 }]}>
-                  <Text style={s.pickerColumnLabel}>MONTH</Text>
-                  <TouchableOpacity activeOpacity={0.7} style={s.pickerStepBtnVertical} onPress={() => handleMonthStep(1)}>
-                    <ChevronUp size={20} color="#5C1623" />
-                  </TouchableOpacity>
-                  <View style={s.pickerValueCapsule}>
-                    <Text style={s.pickerValueText}>{MONTH_NAMES[calendarMonth].substring(0, 3)}</Text>
-                  </View>
-                  <TouchableOpacity activeOpacity={0.7} style={s.pickerStepBtnVertical} onPress={() => handleMonthStep(-1)}>
-                    <ChevronDown size={20} color="#5C1623" />
-                  </TouchableOpacity>
-                </View>
-
-                {/* Column 3: YEAR */}
-                <View style={s.pickerColumnCard}>
-                  <Text style={s.pickerColumnLabel}>YEAR</Text>
-                  <TouchableOpacity activeOpacity={0.7} style={s.pickerStepBtnVertical} onPress={() => handleYearStep(1)}>
-                    <ChevronUp size={20} color="#5C1623" />
-                  </TouchableOpacity>
-                  <View style={s.pickerValueCapsule}>
-                    <Text style={s.pickerValueText}>{calendarYear}</Text>
-                  </View>
-                  <TouchableOpacity activeOpacity={0.7} style={s.pickerStepBtnVertical} onPress={() => handleYearStep(-1)}>
-                    <ChevronDown size={20} color="#5C1623" />
-                  </TouchableOpacity>
-                </View>
-
-              </View>
-
-              {/* Selected Date Capsule */}
-              <View style={s.selectedDateBadgeCapsule}>
-                <Text style={s.selectedDateLabel}>
-                  📅 Selected Date: {selectedCalendarDateFormatted}
-                </Text>
-              </View>
-
-              <Text style={s.modalLabel}>Reason for Correction *</Text>
+              <Text style={s.modalLabel}>HUID (6 uppercase chars) *</Text>
               <TextInput 
                 style={s.modalInput}
-                value={dateReason}
-                onChangeText={setDateReason}
-                placeholder="e.g. Typo in entry date"
-                editable={!correctingDate}
+                value={huidInput}
+                onChangeText={setHuidInput}
+                placeholder="e.g. A1B2C3"
+                autoCapitalize="characters"
+                maxLength={6}
+                editable={!submittingHuid}
               />
 
+              {item.huid !== null && (
+                <>
+                  <Text style={s.modalLabel}>Reason for Correction *</Text>
+                  <TextInput 
+                    style={s.modalInput}
+                    value={huidReason}
+                    onChangeText={setHuidReason}
+                    placeholder="e.g. Transposition typo on initial entry"
+                    editable={!submittingHuid}
+                  />
+                </>
+              )}
+
               <View style={s.modalActions}>
-                <TouchableOpacity style={s.modalBtnSecondary} onPress={() => setDateModalVisible(false)} disabled={correctingDate}>
+                <TouchableOpacity style={s.modalBtnSecondary} onPress={() => setHuidModalVisible(false)} disabled={submittingHuid}>
                   <Text style={s.modalBtnTextSecondary}>Cancel</Text>
                 </TouchableOpacity>
-                <TouchableOpacity style={s.modalBtnPrimary} onPress={handleCorrectDate} disabled={correctingDate}>
-                  {correctingDate ? <ActivityIndicator color="#fff" /> : <Text style={s.modalBtnTextPrimary}>Save Date</Text>}
+                <TouchableOpacity style={s.modalBtnPrimary} onPress={handleSaveHuid} disabled={submittingHuid}>
+                  {submittingHuid ? <ActivityIndicator color="#fff" /> : <Text style={s.modalBtnTextPrimary}>Save</Text>}
                 </TouchableOpacity>
               </View>
             </View>
           </ScrollView>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
 
       {/* Delete Item Modal */}
       <Modal visible={isDeleteModalVisible} transparent animationType="fade">
-        <View style={s.modalOverlay}>
-          <View style={s.modalContent}>
-            <Text style={[s.modalTitle, { color: COLORS.error }]}>Delete Item</Text>
-            
-            <Text style={{ fontSize: 13, color: '#4B5563', marginBottom: 16 }}>
-              Are you sure you want to delete SKU <Text style={{ fontWeight: 'bold' }}>{formatSKUDisplay(item.sku)}</Text>? This action is permanent and will remove the item from inventory.
-            </Text>
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={s.modalOverlay}>
+          <ScrollView contentContainerStyle={s.modalScrollContent} keyboardShouldPersistTaps="handled">
+            <View style={s.modalContent}>
+              <Text style={[s.modalTitle, { color: COLORS.error }]}>Delete Item</Text>
+              
+              <Text style={{ fontSize: 13, color: '#4B5563', marginBottom: 16 }}>
+                Are you sure you want to delete SKU <Text style={{ fontWeight: 'bold' }}>{formatSKUDisplay(item.sku)}</Text>? This action is permanent and will remove the item from inventory.
+              </Text>
 
-            <Text style={s.modalLabel}>Reason for Deletion *</Text>
-            <TextInput 
-              style={s.modalInput}
-              value={deleteReason}
-              onChangeText={setDeleteReason}
-              placeholder="e.g. Duplicate entry / Incorrect data"
-              editable={!deleting}
-            />
+              <Text style={s.modalLabel}>Reason for Deletion *</Text>
+              <TextInput 
+                style={s.modalInput}
+                value={deleteReason}
+                onChangeText={setDeleteReason}
+                placeholder="e.g. Duplicate entry / Incorrect data"
+                editable={!deleting}
+              />
 
-            <View style={s.modalActions}>
-              <TouchableOpacity style={s.modalBtnSecondary} onPress={() => setDeleteModalVisible(false)} disabled={deleting}>
-                <Text style={s.modalBtnTextSecondary}>Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={[s.modalBtnPrimary, { backgroundColor: COLORS.error }]} onPress={handleDeleteItem} disabled={deleting}>
-                {deleting ? <ActivityIndicator color="#fff" /> : <Text style={s.modalBtnTextPrimary}>Delete</Text>}
-              </TouchableOpacity>
+              <View style={s.modalActions}>
+                <TouchableOpacity style={s.modalBtnSecondary} onPress={() => setDeleteModalVisible(false)} disabled={deleting}>
+                  <Text style={s.modalBtnTextSecondary}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={[s.modalBtnPrimary, { backgroundColor: COLORS.error }]} onPress={handleDeleteItem} disabled={deleting}>
+                  {deleting ? <ActivityIndicator color="#fff" /> : <Text style={s.modalBtnTextPrimary}>Delete</Text>}
+                </TouchableOpacity>
+              </View>
             </View>
-          </View>
-        </View>
+          </ScrollView>
+        </KeyboardAvoidingView>
       </Modal>
     </TwoToneWrapper>
   );
@@ -1184,27 +1199,186 @@ const s = StyleSheet.create({
   emptyContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 8 },
   emptyTitle: { color: 'rgba(92,22,35,0.5)', fontSize: 18, fontWeight: '700' },
 
-  // --- Header ---
-  headerContainer: { width: '100%' },
-  headerTopRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 },
-  deleteHeaderBtn: {
-    padding: 8,
-    backgroundColor: 'rgba(239, 68, 68, 0.15)',
-    borderRadius: 10,
+  // --- Top Action Bar ---
+  topActionContainer: {
+    marginBottom: 14,
+  },
+  topPrimaryActionRow: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  topEditInlineBtn: {
+    flex: 3,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: COLORS.vjAccent,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+  },
+  topEditInlineBtnText: {
+    color: '#ffffff',
+    fontSize: 14,
+    fontWeight: '800',
+  },
+  topDeleteBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    backgroundColor: 'rgba(239, 68, 68, 0.1)',
     borderWidth: 1,
-    borderColor: 'rgba(239, 68, 68, 0.3)',
+    borderColor: 'rgba(239, 68, 68, 0.25)',
+    paddingVertical: 12,
+    paddingHorizontal: 12,
+    borderRadius: 12,
   },
-  headerMetalBadge: {
-    width: 48, height: 48, borderRadius: 14,
-    backgroundColor: 'rgba(255,255,255,0.6)',
-    justifyContent: 'center', alignItems: 'center', borderWidth: 1.5,
+  topDeleteBtnText: {
+    color: COLORS.error,
+    fontSize: 13,
+    fontWeight: '700',
   },
-  headerPhantomBadge: {
-    backgroundColor: 'rgba(124,58,237,0.2)', paddingHorizontal: 10, paddingVertical: 4,
-    borderRadius: 6, borderWidth: 1, borderColor: 'rgba(124,58,237,0.3)',
+  topEditingBannerCard: {
+    backgroundColor: 'rgba(255, 253, 249, 0.98)',
+    borderColor: COLORS.vjAccent,
+    borderWidth: 1.5,
+    padding: 10,
+    borderRadius: 14,
   },
-  headerPhantomText: { color: '#C4B5FD', fontSize: 10, fontWeight: '800', letterSpacing: 1 },
-  headerSku: { color: COLORS.vjBg, fontSize: 24, fontWeight: '800', letterSpacing: 0.5, fontFamily: 'monospace', marginBottom: 4 },
+  topEditingBannerHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  topEditingTitle: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: COLORS.vjText,
+  },
+  topCancelBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 8,
+    backgroundColor: 'rgba(92,22,35,0.06)',
+  },
+  topCancelText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: COLORS.vjText,
+  },
+  topSaveBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    backgroundColor: COLORS.vjAccent,
+  },
+  topSaveText: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#ffffff',
+  },
+
+  // --- Inline Inputs ---
+  inlineInput: {
+    backgroundColor: '#ffffff',
+    borderWidth: 1,
+    borderColor: 'rgba(212,175,55,0.4)',
+    borderRadius: 8,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    fontSize: 13,
+    fontWeight: '700',
+    color: COLORS.vjText,
+    minWidth: 120,
+    textAlign: 'right',
+  },
+  inlineInputFull: {
+    backgroundColor: '#ffffff',
+    borderWidth: 1,
+    borderColor: 'rgba(212,175,55,0.4)',
+    borderRadius: 8,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    fontSize: 13,
+    fontWeight: '700',
+    color: COLORS.vjText,
+    width: '100%',
+  },
+
+  // --- Inline Date Editor ---
+  inlineDateEditorCard: {
+    flexDirection: 'row',
+    gap: 8,
+    width: '100%',
+    backgroundColor: 'rgba(212,175,55,0.08)',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(212,175,55,0.25)',
+    padding: 8,
+    justifyContent: 'space-around',
+    alignItems: 'center',
+  },
+  inlineDateCol: {
+    alignItems: 'center',
+    paddingHorizontal: 6,
+  },
+  inlineDateColLabel: {
+    fontSize: 10,
+    fontWeight: '900',
+    color: '#92400E',
+    letterSpacing: 0.5,
+    marginBottom: 2,
+  },
+  inlineDateStepBtn: {
+    padding: 2,
+  },
+  inlineDateValText: {
+    fontSize: 14,
+    fontWeight: '900',
+    color: '#5C1623',
+  },
+
+  // --- Inline Reason Input ---
+  inlineReasonContainer: {
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    backgroundColor: 'rgba(212,175,55,0.05)',
+    borderRadius: 10,
+    marginHorizontal: 10,
+    marginTop: 10,
+    marginBottom: 6,
+    borderWidth: 1,
+    borderColor: 'rgba(212,175,55,0.2)',
+  },
+  inlineReasonLabel: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: COLORS.vjText,
+    marginBottom: 4,
+  },
+  inlineReasonInput: {
+    backgroundColor: '#ffffff',
+    borderWidth: 1,
+    borderColor: 'rgba(212,175,55,0.3)',
+    borderRadius: 8,
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    fontSize: 13,
+    color: COLORS.vjText,
+  },
 
   // --- Sections ---
   section: { marginBottom: 24 },
@@ -1258,50 +1432,6 @@ const s = StyleSheet.create({
     paddingLeft: 11,
   },
 
-  // --- Card Action Buttons ---
-  cardActionRow: {
-    flexDirection: 'row',
-    gap: 8,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-  },
-  editActionBtn: {
-    flex: 2,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-    backgroundColor: 'rgba(184,115,51,0.1)',
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: 'rgba(184,115,51,0.25)',
-  },
-  editActionBtnText: {
-    color: COLORS.vjAccent,
-    fontSize: 12,
-    fontWeight: '700',
-  },
-  deleteCardBtn: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-    backgroundColor: 'rgba(239,68,68,0.08)',
-    paddingVertical: 10,
-    paddingHorizontal: 10,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: 'rgba(239,68,68,0.25)',
-  },
-  deleteCardBtnText: {
-    color: COLORS.error,
-    fontSize: 12,
-    fontWeight: '700',
-  },
-
   // --- Timeline ---
   timelineTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 14, marginLeft: 2 },
   timelineCountBadge: { backgroundColor: 'rgba(92,22,35,0.06)', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 8 },
@@ -1328,111 +1458,14 @@ const s = StyleSheet.create({
   modalTitle: { fontSize: 18, fontWeight: '700', color: COLORS.vjText, marginBottom: 16 },
   modalLabel: { fontSize: 13, fontWeight: '600', color: 'rgba(92,22,35,0.6)', marginBottom: 6 },
   modalInput: { borderWidth: 1, borderColor: '#e5e7eb', borderRadius: 8, padding: 12, marginBottom: 16, fontSize: 15, color: '#1f2937' },
-  unitSelectorRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 16 },
+  unitSelectorRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 8 },
   unitChip: { paddingVertical: 6, paddingHorizontal: 12, borderRadius: 8, backgroundColor: '#f3f4f6', borderWidth: 1, borderColor: '#e5e7eb' },
   unitChipSelected: { backgroundColor: COLORS.vjAccent, borderColor: COLORS.vjAccent },
   unitChipText: { fontSize: 12, fontWeight: '600', color: '#4b5563' },
   unitChipTextSelected: { color: '#ffffff', fontWeight: '700' },
-  presetChipsRow: {
-    flexDirection: 'row',
-    gap: 8,
-    marginBottom: 14,
-    flexWrap: 'wrap',
-  },
-  presetChip: {
-    paddingVertical: 7,
-    paddingHorizontal: 12,
-    borderRadius: 10,
-    backgroundColor: 'rgba(212,175,55,0.12)',
-    borderWidth: 1,
-    borderColor: 'rgba(212,175,55,0.3)',
-  },
-  presetChipText: {
-    fontSize: 12,
-    fontWeight: '800',
-    color: '#78350F',
-  },
   modalActions: { flexDirection: 'row', justifyContent: 'flex-end', gap: 12, marginTop: 8 },
   modalBtnSecondary: { paddingVertical: 10, paddingHorizontal: 16, borderRadius: 8, backgroundColor: '#f3f4f6' },
   modalBtnTextSecondary: { color: '#4b5563', fontWeight: '600' },
   modalBtnPrimary: { paddingVertical: 10, paddingHorizontal: 16, borderRadius: 8, backgroundColor: COLORS.vjAccent, minWidth: 80, alignItems: 'center' },
   modalBtnTextPrimary: { color: '#fff', fontWeight: '600' },
-
-  // --- Live Cost Breakdown ---
-  costItemRow: { flexDirection: 'row', justifyContent: 'space-between', borderBottomWidth: 1, borderBottomColor: 'rgba(0,0,0,0.05)', paddingVertical: 8 },
-  costItemRowComplex: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', borderBottomWidth: 1, borderBottomColor: 'rgba(0,0,0,0.05)', paddingVertical: 8 },
-  costItemLabel: { fontSize: 12, color: 'rgba(92,22,35,0.6)', fontWeight: '600' },
-  costItemValue: { fontSize: 12, color: COLORS.vjText, fontWeight: '700', fontFamily: 'monospace' },
-  costItemValueLarge: { fontSize: 14, color: COLORS.vjText, fontWeight: '900', fontFamily: 'monospace' },
-  costPillContainer: { backgroundColor: 'rgba(212,175,55,0.1)', alignSelf: 'flex-start', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 10, marginTop: 4 },
-  costPillText: { fontSize: 10, color: COLORS.vjAccent, fontWeight: '700' },
-  costTotalRow: { flexDirection: 'row', justifyContent: 'space-between', paddingTop: 10, marginTop: 4 },
-  costBreakdownTotalLabel: { fontSize: 14, color: COLORS.vjText, fontWeight: '900' },
-  costBreakdownTotalValue: { fontSize: 14, color: '#78350F', fontWeight: '900', fontFamily: 'monospace' },
-
-  // --- 3-Column Spacious Glass Wheel Spinner ---
-  picker3ColumnRow: {
-    flexDirection: 'row',
-    gap: 12,
-    alignItems: 'center',
-    marginBottom: 18,
-    marginTop: 4,
-  },
-  pickerColumnCard: {
-    flex: 1,
-    backgroundColor: '#FFFDF9',
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: 'rgba(212,175,55,0.35)',
-    paddingVertical: 10,
-    paddingHorizontal: 6,
-    alignItems: 'center',
-    shadowColor: '#5C1623',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.04,
-    shadowRadius: 3,
-  },
-  pickerColumnLabel: {
-    fontSize: 11,
-    fontWeight: '900',
-    color: '#92400E',
-    letterSpacing: 0.8,
-    marginBottom: 8,
-  },
-  pickerStepBtnVertical: {
-    width: '100%',
-    height: 34,
-    borderRadius: 10,
-    backgroundColor: 'rgba(92,22,35,0.06)',
-    borderWidth: 1,
-    borderColor: 'rgba(92,22,35,0.08)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  pickerValueCapsule: {
-    paddingVertical: 8,
-    paddingHorizontal: 4,
-  },
-  pickerValueText: {
-    fontSize: 17,
-    fontWeight: '900',
-    color: '#5C1623',
-    textAlign: 'center',
-  },
-  selectedDateBadgeCapsule: {
-    backgroundColor: 'rgba(212,175,55,0.1)',
-    borderWidth: 1,
-    borderColor: 'rgba(212,175,55,0.3)',
-    borderRadius: 10,
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    alignSelf: 'center',
-    marginBottom: 14,
-  },
-  selectedDateLabel: {
-    fontSize: 12,
-    color: '#78350F',
-    fontWeight: '800',
-    textAlign: 'center',
-  },
 });

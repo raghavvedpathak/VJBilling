@@ -1,23 +1,24 @@
-// ================================================================ 
-// v7.24 FIX-V724-2 — utils/sanitize.ts CANONICAL IMPLEMENTATION 
-// Strips HTML tags and ASCII control characters from all free-text 
-// service-layer string inputs before DB persistence (FIX-VSEC-7). 
-// Called by: createFirm(), updateFirm(), updateSettings() 
-// ================================================================ 
+// utils/sanitize.ts — Phase 2 v2.11 Canonical Text Sanitization
 
-import { ERR } from '../constants'; 
+import { ERR } from '../constants/errorCodes';
 
-export function sanitizeText(input: string): string { 
-  if (typeof input !== 'string') throw new Error(ERR.INVALID_TEXT_CONTENT + ': input must be a string'); 
-  
-  const stripped = input 
-    .replace(/<[^>]*>/g, '') // strip HTML tags 
-    .replace(/[\x00-\x1F\x7F]/g, '') // strip ASCII control characters 
-    .trim(); 
-    
-  if (stripped.length === 0 && input.trim().length > 0) { 
-    throw new Error(ERR.INVALID_TEXT_CONTENT + ': input reduced to empty after sanitization'); 
-  } 
-  
-  return stripped; 
+/**
+ * Strips HTML tags and ASCII control characters from free-text service inputs before persistence.
+ * Throws INVALID_TEXT_CONTENT if input is not a string or if sanitization strips all characters.
+ */
+export function sanitizeText(input: string): string {
+  if (typeof input !== 'string') {
+    throw new Error(ERR.INVALID_TEXT_CONTENT + ': input must be a string');
+  }
+
+  const stripped = input
+    .replace(/<[^>]*>/g, '')         // Strip HTML tags
+    .replace(/[\x00-\x1F\x7F]/g, '') // Strip ASCII control characters
+    .trim();
+
+  if (stripped.length === 0 && input.trim().length > 0) {
+    throw new Error(ERR.INVALID_TEXT_CONTENT + ': input reduced to empty after sanitization');
+  }
+
+  return stripped;
 }

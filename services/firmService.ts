@@ -14,7 +14,7 @@ import { bisLogoRepository } from '../repositories/bisLogoRepository';
 import { leaseService } from './leaseService';
 import { safeModeService } from './safeModeService';
 import { db } from '../db/client';
-import { useFirmStore } from '../store/firmStore';
+import { useFirmStore } from '../store/useFirmStore';
 import { validateGSTIN } from '../utils/validateGSTIN';
 import { validateFirmCode } from '../utils/validateFirmCode';
 import { validatePincode } from '../utils/validatePincode';

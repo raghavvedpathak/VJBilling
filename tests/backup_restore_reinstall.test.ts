@@ -76,13 +76,13 @@ beforeAll(async () => {
     archived_at TEXT, archived_reason TEXT, created_at TEXT NOT NULL
   )`);
   await _rawClient.execute(`CREATE TABLE IF NOT EXISTS categories (
-    id TEXT PRIMARY KEY, firm_id TEXT NOT NULL, name TEXT NOT NULL, code TEXT NOT NULL DEFAULT '', description TEXT, metal TEXT NOT NULL DEFAULT 'GOLD', is_active INTEGER NOT NULL DEFAULT 1, created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+    id TEXT PRIMARY KEY, firm_id TEXT NOT NULL, name TEXT NOT NULL, code TEXT NOT NULL DEFAULT '', description TEXT, is_active INTEGER NOT NULL DEFAULT 1, created_at TEXT NOT NULL, updated_at TEXT NOT NULL
   )`);
   await _rawClient.execute(`CREATE TABLE IF NOT EXISTS designs (
     id TEXT PRIMARY KEY, firm_id TEXT NOT NULL, name TEXT NOT NULL, code TEXT NOT NULL DEFAULT '', description TEXT, default_hsn TEXT, metal TEXT NOT NULL, low_stock_threshold INTEGER, is_active INTEGER NOT NULL DEFAULT 1, created_at TEXT NOT NULL, updated_at TEXT NOT NULL
   )`);
   await _rawClient.execute(`CREATE TABLE IF NOT EXISTS items (
-    id TEXT PRIMARY KEY, firm_id TEXT NOT NULL, fy_id TEXT NOT NULL, sku TEXT NOT NULL, barcode TEXT NOT NULL, huid TEXT, design_id TEXT NOT NULL, category_id TEXT NOT NULL DEFAULT '', hsn_code TEXT NOT NULL DEFAULT '',
+    id TEXT PRIMARY KEY, firm_id TEXT NOT NULL, sku TEXT NOT NULL, barcode TEXT NOT NULL, huid TEXT, design_id TEXT NOT NULL, category_id TEXT NOT NULL DEFAULT '', hsn_code TEXT NOT NULL DEFAULT '',
     metal TEXT NOT NULL, purity_percent REAL NOT NULL, purity_karat INTEGER NOT NULL,
     gross_weight_mg INTEGER NOT NULL, stone_weight_mg INTEGER NOT NULL DEFAULT 0, beads_weight_mg INTEGER NOT NULL DEFAULT 0, net_weight_mg INTEGER NOT NULL,
     fine_weight_mg INTEGER NOT NULL, wastage_percent REAL NOT NULL DEFAULT 0, fine_gold_charged_mg INTEGER, purchase_rate_paise INTEGER, making_charge_paise INTEGER, stone_cost_paise INTEGER, purity_rounding_delta_mg INTEGER NOT NULL DEFAULT 0,

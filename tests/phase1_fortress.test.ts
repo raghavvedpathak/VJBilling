@@ -338,10 +338,11 @@ describe('Writer Lease Concurrency Guard', () => {
     await expect(leaseService.assertNoActiveLease()).resolves.not.toThrow();
   });
 
-  it('rejects acquisition of LeaseType.WRITE in Phase 1', async () => {
+  it('allows acquisition of LeaseType.WRITE in Phase 2', async () => {
     await db.delete(writerLeases);
-    await expect(leaseService.acquire('WRITE'))
-      .rejects.toThrow('WRITE_LEASE_NOT_IMPLEMENTED');
+    const leaseId = await leaseService.acquire('WRITE');
+    expect(leaseId).toBeTruthy();
+    await leaseService.release(leaseId);
   });
 });
 

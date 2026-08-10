@@ -1,17 +1,17 @@
-// app/dashboard.tsx
+// app/dashboard.tsx — Phase 2 v2.11 Canonical Screen
+
 import React, { useState } from 'react';
 import { View, Text, TouchableOpacity, Image, ScrollView, Modal } from 'react-native';
 import { useRouter } from 'expo-router';
-import * as Haptics from 'expo-haptics';
 import { TwoToneWrapper } from '../components/TwoToneWrapper'; 
 import { useSession } from '../hooks/useSession';
-import { useFirmStore } from '../store/firmStore';
+import { useFirmStore } from '../store/useFirmStore';
 import { GlassCard, GlassButton, HeaderPill } from '../components/ui/Glass'; 
 import { LeaseStatusBanner } from '../components/LeaseStatusBanner'; 
 import { FYEndBanner } from '../components/FYEndBanner'; 
 import { 
   LogOut, Settings, ShieldCheck, FileText, Package, TrendingUp, 
-  ChevronRight, Gem, Landmark, CalendarClock, CheckCircle2, Sparkles
+  ChevronRight, Gem, Landmark, CalendarClock, CheckCircle2
 } from 'lucide-react-native';
 import { COLORS } from '../constants/theme';
 
@@ -86,7 +86,6 @@ export default function Dashboard() {
           </TouchableOpacity>
         </View>
 
-        {/* Header Pills */}
         <View className="flex-row gap-2 flex-wrap items-center">
           <HeaderPill 
             icon={<CalendarClock size={12} color={COLORS.vjBg} />} 
@@ -113,7 +112,6 @@ export default function Dashboard() {
     <TwoToneWrapper title="" headerContent={dashboardHeader}>
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingTop: 24, paddingBottom: 100 }}>
 
-        {/* SECTION 1: CORE MODULES */}
         <View className="mb-4 px-1">
           <Text className="text-vj-text/60 text-xs font-black uppercase tracking-widest">
             Core Modules
@@ -122,7 +120,6 @@ export default function Dashboard() {
 
         <View className="flex-row flex-wrap justify-between gap-y-4 mb-8">
           
-          {/* Tile 1: Inventory & Stock (Phase 2 Layer - Active) */}
           <ModernMenuTile 
             title="Inventory & Stock" 
             subtitle="Phase 2 Layer" 
@@ -132,7 +129,6 @@ export default function Dashboard() {
             onPress={() => router.push('/inventory')} 
           />
 
-          {/* Tile 2: Billing & Sales (Phase 3 Layer - Disabled) */}
           <ModernMenuTile 
             title="Billing & Sales" 
             subtitle="Phase 3 Layer" 
@@ -143,7 +139,6 @@ export default function Dashboard() {
             disabled 
           />
 
-          {/* Tile 3: Vault & Refinery (Phase 4 Layer - Disabled) */}
           <ModernMenuTile 
             title="Vault & Refinery" 
             subtitle="Phase 4 Layer" 
@@ -154,7 +149,6 @@ export default function Dashboard() {
             disabled 
           />
 
-          {/* Tile 4: Business Reports (Phase 6 Layer - Disabled) */}
           <ModernMenuTile 
             title="Business Reports" 
             subtitle="Phase 6 Layer" 
@@ -166,7 +160,6 @@ export default function Dashboard() {
           />
         </View>
 
-        {/* SECTION 2: SYSTEM SETTINGS */}
         <Text className="text-vj-text/60 text-xs font-black uppercase tracking-widest mb-4 ml-1">
           System Settings
         </Text>
@@ -190,7 +183,6 @@ export default function Dashboard() {
           </GlassCard>
         </TouchableOpacity>
 
-        {/* FOOTER */}
         <View className="mt-12 items-center opacity-40 mb-4">
           <Gem size={20} color={COLORS.vjText} />
           <Text className="text-[10px] font-black text-vj-text mt-2 tracking-widest">
@@ -200,7 +192,6 @@ export default function Dashboard() {
 
       </ScrollView>
 
-      {/* LOGOUT CONFIRMATION MODAL */}
       <Modal animationType="fade" transparent={true} visible={showLogoutModal}>
         <View className="flex-1 bg-black/60 justify-center items-center px-6">
           <View className="w-full bg-vj-bg rounded-3xl p-6 items-center border border-white/50 shadow-2xl">
@@ -249,11 +240,7 @@ function ModernMenuTile({
       <TouchableOpacity 
         disabled={disabled} 
         onPress={() => {
-          try {
-            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-          } catch (e) {}
           if (onPress) onPress();
-          else alert("Feature coming in Phase 3+");
         }} 
         activeOpacity={0.8}
       >
@@ -267,7 +254,6 @@ function ModernMenuTile({
           }}
         >
           <View className="h-full justify-between">
-            {/* Top row: Icon + Badge */}
             <View className="flex-row items-center justify-between">
               <View 
                 className="p-2.5 rounded-2xl border border-black/5 items-center justify-center"
@@ -295,7 +281,6 @@ function ModernMenuTile({
               ) : null}
             </View>
 
-            {/* Bottom text */}
             <View className="mt-2">
               <Text className="text-vj-text font-black text-base leading-5 mb-0.5" numberOfLines={1}>
                 {title}

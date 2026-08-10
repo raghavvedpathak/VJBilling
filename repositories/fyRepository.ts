@@ -23,7 +23,33 @@ type DbOrTx = any;
 
 export type NewFY = typeof financialYears.$inferInsert;
 
-export const fyRepository = {
+export interface FYRepository {
+  create(
+    input: Omit<NewFY, 'id' | 'createdAt' | 'status'>,
+    tx?: DbOrTx
+  ): any;
+
+  createInitialFY(firmId: string, tx?: DbOrTx): any;
+
+  getActiveFY(firmId: string, tx?: DbOrTx): any;
+
+  getById(id: string): Promise<FinancialYear | null>;
+  getById(tx: DrizzleTransaction, id: string): FinancialYear | null;
+  getById(tx: DrizzleTransaction, firmId: string, id: string): FinancialYear | null;
+
+  closeFY(firmId: string, fyId: string, tx?: DbOrTx): void;
+
+  updateStatus(tx: DrizzleTransaction, firmId: string, fyId: string, status: string): void;
+  updateStatus(firmId: string, fyId: string, status?: string): void;
+
+  resolveTransactionFyId(
+    firmId: string,
+    entryDate: string,
+    tx?: DbOrTx
+  ): string;
+}
+
+export const fyRepository: FYRepository = {
 
   /**
    * Creates a financial year row. Status is always ACTIVE on creation.
@@ -115,14 +141,31 @@ export const fyRepository = {
    * Called by fyService.closeFY() to read the FY label for the audit_archive_index row.
    * Returns null if the FY does not exist — callers must guard with ! assert.
    */
-  // FIX-V718-1: Synchronous execution using .get()
-  getById(tx: DrizzleTransaction, firmId: string, id: string): FinancialYear | null {
+  getById(
+    first: DrizzleTransaction | string,
+    second?: string,
+    third?: string
+  ): any {
+    if (typeof first === 'string') {
+      return db.select().from(financialYears).where(eq(financialYears.id, first)).limit(1).then(r => r[0] || null);
+    }
+    const tx = first as DrizzleTransaction;
+    if (third !== undefined) {
+      // 3-arg call: getById(tx, firmId, id)
+      const fy = tx
+        .select()
+        .from(financialYears)
+        .where(and(eq(financialYears.id, third), eq(financialYears.firmId, second!)))
+        .get();
+      return (fy as FinancialYear) ?? null;
+    }
+    // 2-arg call: getById(tx, id)
     const fy = tx
       .select()
       .from(financialYears)
-      .where(and(eq(financialYears.id, id), eq(financialYears.firmId, firmId)))
+      .where(eq(financialYears.id, second!))
       .get();
-    return (fy as unknown as FinancialYear) ?? null;
+    return (fy as FinancialYear) ?? null;
   },
 
   /**
@@ -148,6 +191,39 @@ export const fyRepository = {
         and(
           eq(financialYears.id, fyId),
           eq(financialYears.firmId, firmId) // firm isolation: cross-firm close structurally impossible
+        )
+      )
+      .run();
+  },
+
+  updateStatus(
+    first: DrizzleTransaction | string,
+    second: string,
+    third?: string,
+    fourth?: string
+  ): void {
+    let tx: DbOrTx = db;
+    let firmId = '';
+    let fyId = '';
+    let status = 'CLOSED';
+
+    if (typeof first === 'string') {
+      firmId = first;
+      fyId = second;
+      status = third ?? 'CLOSED';
+    } else {
+      tx = first;
+      firmId = second;
+      fyId = third!;
+      status = fourth ?? 'CLOSED';
+    }
+
+    tx.update(financialYears)
+      .set({ status })
+      .where(
+        and(
+          eq(financialYears.id, fyId),
+          eq(financialYears.firmId, firmId)
         )
       )
       .run();

@@ -1,20 +1,18 @@
+// app/inventory/category-items.tsx — Phase 2 v2.11 Canonical Screen
+
 import React, { useState, useCallback, memo } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, Modal, TextInput } from 'react-native';
 import { FlashList } from '@shopify/flash-list';
-import { useRouter, useLocalSearchParams } from 'expo-router';
-import { useFocusEffect } from 'expo-router';
+import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { TwoToneWrapper } from '../../components/TwoToneWrapper';
-import { db } from '../../db/client';
-import { designs as designsTable } from '../../db/schema';
-import { eq, and } from 'drizzle-orm';
 import { HeaderPill, GlassButton } from '../../components/ui/Glass';
-import { useFirmStore } from '../../store/firmStore';
+import { useFirmStore } from '../../store/useFirmStore';
 import { inventoryDrillDownService } from '../../services/inventoryDrillDownService';
 import { designService } from '../../services/designService';
+import { designRepository } from '../../repositories/designRepository';
 import type { DesignCategoryStockResult } from '../../types/phase2.types';
 import { getDisplayPurity, formatWeightMg as formatWeight } from '../../utils/calculations';
-import { getJewelryCategoryIcon } from '../../utils/jewelryIcons';
 import { useStore } from 'zustand';
 import { appSettingsStore } from '../../store/appSettingsStore';
 import { COLORS, getThemeColors } from '../../constants/theme';
@@ -98,7 +96,6 @@ export default function CategoryItemsScreen() {
   const [designThresholds, setDesignThresholds] = useState<Record<string, number | null>>({});
   const [loading, setLoading] = useState(true);
 
-  // Modal State
   const [selectedDesign, setSelectedDesign] = useState<{ id: string; name: string; threshold: number | null } | null>(null);
   const [thresholdInput, setThresholdInput] = useState('');
   const [inputError, setInputError] = useState<string | null>(null);
@@ -108,20 +105,18 @@ export default function CategoryItemsScreen() {
     if (!activeFirmId || !categoryId) return;
     setLoading(true);
     try {
-      const [results, lowStockList, thresholdsRows] = await Promise.all([
+      const [results, lowStockList, allDesigns] = await Promise.all([
         inventoryDrillDownService.getDesignsByCategory(activeFirmId, categoryId),
         inventoryDrillDownService.getLowStockDesigns(activeFirmId),
-        db.select({ id: designsTable.id, threshold: designsTable.lowStockThreshold })
-          .from(designsTable)
-          .where(and(eq(designsTable.firmId, activeFirmId), eq(designsTable.isActive, 1)))
+        designRepository.findByFirmId(activeFirmId)
       ]);
 
       setData(results);
       setLowStockDesignIds(new Set(lowStockList.map(d => d.id)));
 
       const threshMap: Record<string, number | null> = {};
-      thresholdsRows.forEach(r => {
-        threshMap[r.id] = r.threshold;
+      allDesigns.forEach(d => {
+        threshMap[d.id] = d.lowStockThreshold ?? null;
       });
       setDesignThresholds(threshMap);
     } catch (e) {
@@ -243,7 +238,6 @@ export default function CategoryItemsScreen() {
         )}
       </View>
 
-      {/* Set Low Stock Alert Modal */}
       <Modal visible={!!selectedDesign} transparent animationType="fade">
         <View style={s.modalOverlay}>
           <View style={s.modalCard}>
@@ -312,12 +306,12 @@ const s = StyleSheet.create({
   card: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(255,255,255,0.6)', // Pseudo-glass
+    backgroundColor: 'rgba(255,255,255,0.6)',
     marginBottom: 10,
     borderRadius: 16,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.5)', // Pseudo-glass border
+    borderColor: 'rgba(255, 255, 255, 0.5)',
     paddingRight: 16,
     gap: 12,
   },
@@ -399,33 +393,6 @@ const s = StyleSheet.create({
     fontWeight: '700',
     textTransform: 'uppercase',
     letterSpacing: 0.5,
-  },
-  headerIconRow: {
-    marginBottom: 12,
-  },
-  headerIconCircle: {
-    width: 52,
-    height: 52,
-    borderRadius: 16,
-    backgroundColor: 'rgba(255,255,255,0.12)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.15)',
-  },
-  headerTitle: {
-    color: COLORS.vjBg,
-    fontSize: 28,
-    fontWeight: '800',
-    letterSpacing: -0.5,
-    marginBottom: 4,
-  },
-  headerSubtitle: {
-    color: 'rgba(252,251,248,0.55)',
-    fontSize: 12,
-    fontWeight: '600',
-    letterSpacing: 0.3,
-    textTransform: 'uppercase',
   },
   loadingContainer: {
     flex: 1,

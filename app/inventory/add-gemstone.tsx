@@ -1,51 +1,22 @@
-// app/inventory/add-gemstone.tsx
-import React, { useState, useMemo, useEffect } from 'react';
-import { View, Text, ScrollView, Alert, TouchableOpacity, Modal, TextInput } from 'react-native';
+// app/inventory/add-gemstone.tsx — Phase 2 v2.11 Canonical Screen
+
+import React, { useState, useMemo } from 'react';
+import { View, Text, ScrollView, Alert, Modal, StyleSheet } from 'react-native';
 import { useRouter, useFocusEffect } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { TwoToneWrapper } from '../../components/TwoToneWrapper';
 import { GlassCard, GlassInput, GlassButton, GlassSmartSearch } from '../../components/ui/Glass';
-import { useFirmStore } from '../../store/firmStore';
+import { useFirmStore } from '../../store/useFirmStore';
 import { gemstoneLotService } from '../../services/gemstoneLotService';
 import { stoneRepository } from '../../repositories/stoneRepository';
 import { 
-  getCurrencySymbol, 
   caratsToCaratX100, 
-  rupeesToPaise, 
   computeGemstoneTotalPaise 
-} from '../../utils/calculations';
-import { Gem, Diamond, Banknote, X, CheckCircle } from 'lucide-react-native';
+} from '../../utils/purity.constants';
+import { getCurrencySymbol, rupeesToPaise } from '../../utils/currency';
+import { Gem, Diamond, Banknote, CheckCircle } from 'lucide-react-native';
 import type { Stone } from '../../types/phase2.types';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { COLORS } from '../../constants/theme';
-
-const SelectModal = ({ visible, title, options, onSelect, onClose }: any) => {
-  const insets = useSafeAreaInsets();
-  return (
-    <Modal visible={visible} animationType="slide" transparent>
-      <View className="flex-1 bg-black/50 justify-end">
-        <View className="bg-vj-bg w-full rounded-t-3xl p-6" style={{ paddingBottom: Math.max(insets.bottom, 24), maxHeight: '60%' }}>
-          <Text className="text-xl font-bold text-vj-text mb-4">{title}</Text>
-          <ScrollView className="flex-1">
-            {options.map((opt: any) => (
-              <TouchableOpacity 
-                key={opt.id} 
-                onPress={() => { onSelect(opt); onClose(); }}
-                className="py-4 border-b border-gray-200"
-              >
-                <Text className="text-lg font-semibold text-vj-text">{opt.label}</Text>
-                <Text className="text-xs text-vj-text/60 mt-1 font-bold">{opt.sublabel}</Text>
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
-          <View className="mt-4">
-            <GlassButton title="Cancel" variant="secondary" onPress={onClose} />
-          </View>
-        </View>
-      </View>
-    </Modal>
-  );
-};
 
 export default function AddGemstoneScreen() {
   const router = useRouter();
@@ -53,7 +24,6 @@ export default function AddGemstoneScreen() {
 
   const [stones, setStones] = useState<Stone[]>([]);
   const [selectedStone, setSelectedStone] = useState<Stone | null>(null);
-  const [showStoneModal, setShowStoneModal] = useState(false);
 
   const [lotName, setLotName] = useState('');
   const [carats, setCarats] = useState('');
@@ -73,18 +43,16 @@ export default function AddGemstoneScreen() {
           const results = await stoneRepository.findByFirmId(activeFirmId);
           setStones(results);
         } catch (e) {
-          console.error(e);
+          console.error('[AddGemstoneScreen] Failed to fetch stones:', e);
         }
       };
       fetchStones();
     }, [activeFirmId])
   );
 
-  // Preview totals: carats * rate
   const previewData = useMemo(() => {
     const c = parseFloat(carats) || 0;
     const r = parseFloat(ratePerCarat) || 0;
-    // Math logic matching backend: (weightCaratX100 / 100) * ratePaise
     const totalRupees = c * r; 
     return { total: Math.round(totalRupees) };
   }, [carats, ratePerCarat]);
@@ -128,7 +96,7 @@ export default function AddGemstoneScreen() {
 
   return (
     <TwoToneWrapper title="New Gemstone Lot" showBack>
-      <ScrollView contentContainerStyle={{ paddingTop: 32, paddingBottom: 350 }} showsVerticalScrollIndicator={false}>
+      <ScrollView contentContainerStyle={{ paddingTop: 32, paddingBottom: 150 }} showsVerticalScrollIndicator={false}>
         
         <GlassCard style={{ marginBottom: 16, zIndex: 50, overflow: 'visible' }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 16 }}>
@@ -182,21 +150,15 @@ export default function AddGemstoneScreen() {
           
           <View style={{ backgroundColor: COLORS.vjText, padding: 16, borderRadius: 12, marginTop: 8 }}>
             <Text style={{ fontSize: 12, color: 'rgba(255,255,255,0.7)', textTransform: 'uppercase', fontWeight: '700', marginBottom: 4 }}>Total Lot Value</Text>
-            <Text style={{ fontSize: 28, fontWeight: '800', color: '#FCFBF8', fontFamily: 'monospace' }}>{getCurrencySymbol()}{previewData.total.toLocaleString('en-IN')}</Text>
+            <Text style={{ fontSize: 28, fontWeight: '800', color: '#FCFBF8', fontFamily: 'monospace' }}>
+              {getCurrencySymbol()}{previewData.total.toLocaleString('en-IN')}
+            </Text>
           </View>
         </GlassCard>
 
         <GlassButton title="Add to Inventory" onPress={handleSubmit} loading={loading} />
 
       </ScrollView>
-
-      <SelectModal 
-        visible={showStoneModal} 
-        title="Select Stone Master"
-        options={stones.map(s => ({ id: s.id, label: s.name, sublabel: s.type }))}
-        onSelect={(opt: any) => setSelectedStone(stones.find(s => s.id === opt.id)!)}
-        onClose={() => setShowStoneModal(false)}
-      />
 
       <Modal visible={!!successMessage} transparent animationType="fade">
         <View style={s.modalOverlayCenter}>
@@ -223,7 +185,6 @@ export default function AddGemstoneScreen() {
   );
 }
 
-import { StyleSheet } from 'react-native';
 const s = StyleSheet.create({
   modalOverlayCenter: {
     flex: 1,

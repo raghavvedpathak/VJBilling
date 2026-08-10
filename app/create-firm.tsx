@@ -16,7 +16,7 @@ import * as FileSystem from 'expo-file-system/legacy';
 import { TwoToneWrapper } from '../components/TwoToneWrapper';
 import { GlassCard, GlassInput, GlassButton } from '../components/ui/Glass';
 import { firmService } from '../services/firmService';
-import { useFirmStore } from '../store/firmStore';
+import { useFirmStore } from '../store/useFirmStore';
 import { INDIAN_STATES } from '../utils/indianStates';
 import { useUnsavedChangesGuard } from '../hooks/useUnsavedChangesGuard'; // G69: REQUIRED
 import {

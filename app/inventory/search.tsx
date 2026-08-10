@@ -1,17 +1,15 @@
-// app/inventory/search.tsx
+// app/inventory/search.tsx — Phase 2 v2.11 Canonical Screen
 import React, { useState, useEffect, useCallback, memo } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator, Modal, Alert } from 'react-native';
 import { FlashList } from '@shopify/flash-list';
 import { useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { CameraView, useCameraPermissions } from 'expo-camera';
-import { Search, ArrowLeft, PackageSearch, Ghost, Hash, Sparkles, Coins, ScanLine, X, Camera } from 'lucide-react-native';
+import { Search, PackageSearch, Ghost, Hash, Sparkles, Coins, ScanLine, X } from 'lucide-react-native';
 import { inventorySearchService } from '../../services/inventorySearchService';
 import { formatWeightMg as formatWeight } from '../../utils/calculations';
 import type { ItemSearchResult } from '../../types/phase2.types';
-
-import { useFirmStore } from '../../store/firmStore';
-
+import { useFirmStore } from '../../store/useFirmStore';
 import { TwoToneWrapper } from '../../components/TwoToneWrapper';
 import { HeaderPill } from '../../components/ui/Glass';
 import { useStore } from 'zustand';
@@ -20,10 +18,9 @@ import { COLORS as CENTRAL_COLORS, getThemeColors } from '../../constants/theme'
 
 const COLORS = {
   ...CENTRAL_COLORS,
-  highlight: 'rgba(212, 175, 55, 0.22)', // Soft Gold Highlight
+  highlight: 'rgba(212, 175, 55, 0.22)',
 };
 
-// --- Custom Component: Smart Text Highlighter ---
 const HighlightText = memo(({ text, query, style }: { text?: string | null, query: string, style: any }) => {
   if (!text) return null;
   if (!query) return <Text style={style}>{text}</Text>;
@@ -127,7 +124,6 @@ export default function InventorySearchScreen() {
   const [showScanner, setShowScanner] = useState(false);
   const [permission, requestPermission] = useCameraPermissions();
 
-  // Ultra-Fast Debounced Search Effect (80ms)
   useEffect(() => {
     const trimmedQuery = query.trim();
     
@@ -207,7 +203,7 @@ export default function InventorySearchScreen() {
   const colors = getThemeColors(activeTheme);
 
   const searchHeaderPills = (
-    <View className="flex-row items-center gap-2 flex-wrap mt-1">
+    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 4, flexWrap: 'wrap' }}>
       <HeaderPill icon={<Search size={12} color={colors.vjBg} />} label="Instant SKU & HUID Lookup" />
       <HeaderPill icon={<ScanLine size={12} color="#4ADE80" />} label="Barcode Auto-Scan" variant="success" />
     </View>
@@ -216,7 +212,6 @@ export default function InventorySearchScreen() {
   return (
     <TwoToneWrapper title="Stock Search" showBack headerContent={searchHeaderPills}>
       
-      {/* TOP ANCHORED SEARCH BAR */}
       <View style={s.topSearchSection}>
         <View style={s.searchBox}>
           <Search size={18} color="#D4AF37" style={s.searchIcon} />
@@ -251,7 +246,6 @@ export default function InventorySearchScreen() {
         </View>
       </View>
 
-      {/* Results Area */}
       <View style={s.listContainer}>
         {query.trim().length === 0 ? (
           <View style={s.emptyState}>
@@ -290,7 +284,6 @@ export default function InventorySearchScreen() {
         )}
       </View>
 
-      {/* LIVE CAMERA BARCODE SCANNER MODAL */}
       <Modal
         visible={showScanner}
         animationType="slide"
@@ -306,7 +299,6 @@ export default function InventorySearchScreen() {
             onBarcodeScanned={handleBarcodeScanned}
           />
 
-          {/* Viewfinder Overlay */}
           <View style={s.overlay}>
             <View style={s.scannerHeader}>
               <TouchableOpacity
@@ -334,7 +326,6 @@ export default function InventorySearchScreen() {
           </View>
         </View>
       </Modal>
-
     </TwoToneWrapper>
   );
 }
@@ -356,7 +347,7 @@ const s = StyleSheet.create({
     paddingHorizontal: 14,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
+    shadowOpacity: 0.04,
     shadowRadius: 6,
   },
   searchIcon: {

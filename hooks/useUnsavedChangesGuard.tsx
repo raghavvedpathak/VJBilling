@@ -1,4 +1,5 @@
-// hooks/useUnsavedChangesGuard.tsx
+// hooks/useUnsavedChangesGuard.tsx — Phase 2 v2.11 Canonical Hook
+
 import { useEffect } from 'react';
 import { Alert } from 'react-native';
 import { useNavigation } from 'expo-router';

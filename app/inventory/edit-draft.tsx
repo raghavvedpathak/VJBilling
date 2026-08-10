@@ -1,11 +1,10 @@
-/* eslint-disable no-restricted-imports */
-import { db } from '../../db/client';
+// app/inventory/edit-draft.tsx — Phase 2 v2.11 Canonical Screen
 import React, { useState, useEffect, useMemo } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator, Alert, ScrollView, Modal } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator, ScrollView, Modal } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { TwoToneWrapper } from '../../components/TwoToneWrapper';
-import { useFirmStore } from '../../store/firmStore';
+import { useFirmStore } from '../../store/useFirmStore';
 import { itemRepository } from '../../repositories/itemRepository';
 import { itemService } from '../../services/itemService';
 import { 
@@ -60,8 +59,8 @@ export default function EditDraftScreen() {
     const loadItem = async () => {
       if (!activeFirmId || !itemId) return;
       try {
-        const item = await itemRepository.getById(db as any, activeFirmId, itemId);
-        if (active && item) {
+        const item = await itemRepository.getById(itemId);
+        if (active && item && item.firmId === activeFirmId) {
           if (item.status !== 'DRAFT') {
             setErrorMessage('Only DRAFT items can be edited here.');
             return;
@@ -110,10 +109,10 @@ export default function EditDraftScreen() {
     const { fineWeightMg } = resolveFineWeightMg(netWeightMg, purity, metal);
     const vaultTruth = computeVaultTruthGrams(fineWeightMg);
 
-    const fineGoldChargedMg = computeFineGoldChargedMg(netWeightMg, purity, wastage, metal);
+    const fineGoldChargedMg = computeFineGoldChargedMg(netWeightMg, purity, wastage);
     const costTruth = computeCostTruthGrams(fineGoldChargedMg, fineWeightMg);
     
-    const effectivePricePerGram = computeEffectivePricePerGram(rate, purity, wastage, metal);
+    const effectivePricePerGram = computeEffectivePricePerGram(rate, purity, wastage);
     const absoluteTotalCost = computeAbsoluteTotalCostRupees(netWeightG, effectivePricePerGram, making, stoneC);
 
     return {
@@ -168,7 +167,6 @@ export default function EditDraftScreen() {
       const newMakingPaise = rupeesToPaise(makingCharge);
       const newStoneCostPaise = rupeesToPaise(stoneCost);
 
-      // 1. Weight adjustment (must happen via adjustWeight)
       await itemService.adjustWeight(
         itemId,
         activeFirmId,
@@ -178,7 +176,6 @@ export default function EditDraftScreen() {
         reason
       );
 
-      // 2. Non-weight field updates
       await itemService.updateItem(
         itemId, 
         activeFirmId, 
@@ -195,12 +192,10 @@ export default function EditDraftScreen() {
         reason
       );
 
-      // 3. HUID assignment (write-once)
       if (huidUpper) {
          try {
            await itemService.addHUID(itemId, activeFirmId, huidUpper);
          } catch (e: any) {
-           // We just let it bubble up if it's an error.
            if (e.message !== 'HUID_ALREADY_SET') {
              throw e;
            }
@@ -266,7 +261,6 @@ export default function EditDraftScreen() {
                 <TextInput style={s.input} value={wastagePercent} onChangeText={setWastagePercent} keyboardType="numeric" />
               </View>
             </View>
-            {/* Quick Purity Preset Chips */}
             <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 4, marginBottom: 12 }}>
               {(metal || 'GOLD') === 'GOLD' ? (
                 [
@@ -382,7 +376,6 @@ export default function EditDraftScreen() {
             </View>
           </View>
 
-          {/* Mandated UI Display — Live Cost Preview */}
           {liveWastageSeparation.isValid && (
             <View className="mb-5 mt-2">
               <View style={[s.card, { backgroundColor: 'rgba(92,22,35, 0.04)', borderColor: '#D4AF37', marginBottom: 0 }]}>
@@ -470,7 +463,6 @@ export default function EditDraftScreen() {
                 title="Dismiss" 
                 onPress={() => {
                   setErrorMessage(null);
-                  // If it's the "Only DRAFT items" or "Failed to load" error, go back
                   if (errorMessage === 'Only DRAFT items can be edited here.' || errorMessage === 'Failed to load item details.') {
                     router.back();
                   }

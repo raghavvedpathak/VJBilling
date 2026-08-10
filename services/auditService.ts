@@ -1,14 +1,14 @@
-// services/auditService.ts
+// services/auditService.ts — Phase 2 v2.11 Canonical Service
+
 import { auditRepository } from '../repositories/auditRepository';
 import { getDeviceId } from '../utils/deviceId';
 import type { AuditPayload } from '../types/audit';
 
-// v2.0 Hardened: Expanded Event Types aligned with db/schema.ts
 export type AuditEventType =
   | 'FIRM_CREATED'
   | 'FIRM_UPDATED'
   | 'FIRM_SWITCHED'
-  | 'FIRM_CODE_SET'                  // Review Item 11
+  | 'FIRM_CODE_SET'
   | 'FY_CREATED'
   | 'FY_CLOSED'
   | 'FY_CLOCK_SKEW'
@@ -19,12 +19,11 @@ export type AuditEventType =
   | 'SAFE_MODE_ACTIVATED'
   | 'SAFE_MODE_CLEARED'
   | 'DEVICE_ID_GENERATED'
-  | 'PRE_MIGRATION_SNAPSHOT_FAILED'  // Review Item 10
-  | 'BIS_LOGO_ARCHIVED'              // FIX: was missing — firmService emits this event
+  | 'PRE_MIGRATION_SNAPSHOT_FAILED'
+  | 'BIS_LOGO_ARCHIVED'
   | 'SETTINGS_CHANGED'
   | 'URD_PURCHASE_CREATED'
   | 'URD_PURCHASE_CONFIRMED'
-  // Phase 2 Inventory Events (STEP R)
   | 'CATEGORY_CREATED'
   | 'CATEGORY_UPDATED'
   | 'CATEGORY_SOFT_DELETED'
@@ -51,7 +50,6 @@ export type AuditEventType =
   | 'ITEM_RETURNED_FROM_KARIGAR';
 
 export const auditService = {
-
   /**
    * Logs a critical system event.
    * G41-compliant: passes tx through to auditRepository.
@@ -70,13 +68,12 @@ export const auditService = {
     await auditRepository.create({
       firmId,
       eventType: eventType as string,
-      payload: JSON.stringify(payload),
+      payload: typeof payload === 'string' ? JSON.parse(payload) : payload,
       deviceId,
     }, activeTx);
   },
 
   /**
-   * STEP 6 HARDENING: FIRM ISOLATION
    * Returns firm-scoped logs + device-level system logs, sorted newest first.
    */
   async getEvents(firmId: string) {
@@ -88,7 +85,7 @@ export const auditService = {
     const systemLogs = await auditRepository.getSystemLogs(50);
 
     return [...firmLogs, ...systemLogs].sort(
-      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+      (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
     );
   },
 };

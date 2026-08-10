@@ -1,22 +1,7 @@
-// services/verifyService.ts
-// v6.0 G63 — Canonical Implementation
-// v6.7 FIX-V67-4 — firmId param (optional) for firm-scoped filtering
-// v7.7 VERIFY-BOOT-CACHE — 30-minute MMKV cache eliminates 9-query boot scan
-// v7.8 FIX-V78-5 — VerifyFinding.firmId?: string structural field (replaces string-matching)
-// v7.9 FIX-CLEAN-INSTALL-HANG — Skip safeModeService.clear() on clean install (no firms).
-//   On Expo Go (AsyncStorage fallback), db.transaction() in clear() hangs when called
-//   immediately after bootstrap on a fresh DB with no audit log rows written yet.
-//   Safe to skip: if no firms exist, Safe Mode cannot be active from a prior session.
-//
-// CONSTITUTIONAL RULES:
-//   - MUST NOT call assertNotInSafeMode() — verify runs when Safe Mode is active.
-//   - MUST NOT call assertNoActiveLease() — it is read-only.
-//   - Cache logic is INTERNAL to runVerify(). Callers pass NO cache flags.
-//   - safeModeService.clear() is called ONLY when status === 'HEALTHY' (PATH 1 resolution).
-//   - storage API: getItem / setItem / removeItem (StorageService interface — NOT MMKV direct).
+// services/verifyService.ts — Phase 2 v2.11 Canonical Implementation
 
 import { db } from '../db/client';
-import { eq, lt, and, isNotNull, notInArray, sum } from 'drizzle-orm';
+import { eq, lt, and, isNotNull, notInArray, sum, gt, isNull, inArray } from 'drizzle-orm';
 import {
   firms,
   financialYears,
@@ -24,12 +9,17 @@ import {
   auditLogs,
   schemaVersion,
   oldGoldLots,
+  items,
+  designs,
+  categories
 } from '../db/schema';
 import { safeModeService } from './safeModeService';
 import { verifyStore } from '../store/verifyStore';
 import { storage } from '../utils/storage';
 import { now } from '../utils/now';
 import { SCHEMA_VERSION } from '../constants';
+import { ERR } from '../constants/errorCodes';
+import type { VerifyIssue } from '../types/phase2.types';
 
 const CACHE_KEY_STATUS = 'vjbilling_last_verify_status';
 const CACHE_KEY_AT     = 'vjbilling_last_verify_at';
@@ -50,10 +40,7 @@ export interface VerifyResult {
 }
 
 export const verifyService = {
-
   async runVerify(firmId?: string): Promise<VerifyResult> {
-
-    // v7.7 VERIFY-BOOT-CACHE: only applies on global scan (no firmId)
     if (!firmId) {
       try {
         const cachedStatus = await storage.getItem(CACHE_KEY_STATUS);
@@ -75,15 +62,10 @@ export const verifyService = {
 
     const findings: VerifyFinding[] = [];
 
-    console.log('[Verify] Check 1: Fetching all firms...');
     const allFirmRows = await db.select({ id: firms.id }).from(firms);
-    console.log('[Verify] Check 1: Got', allFirmRows.length, 'firms');
     const allFirmIds  = allFirmRows.map(r => r.id);
     const knownFirmIdSet = new Set(allFirmIds);
 
-    // ✅ FIX-CLEAN-INSTALL-HANG: On clean install with no firms, skip all checks
-    // and return HEALTHY immediately. Safe Mode cannot be active with no firms.
-    // ✅ DRIZZLE GUARD: This early return mathematically guarantees notInArray([]) is never called.
     if (allFirmIds.length === 0) {
       console.log('[Verify] Clean install detected — no firms. Skipping all checks, returning HEALTHY.');
       verifyStore.getState().setScanResults([]);
@@ -100,8 +82,7 @@ export const verifyService = {
       return { status: 'HEALTHY', findings: [] };
     }
 
-    // Check 1: Orphan FY
-    console.log('[Verify] Check 1b: Orphan FY check...');
+    // Check 1b: Orphan FY
     const orphanFYs = await db
       .select({ id: financialYears.id, firmId: financialYears.firmId })
       .from(financialYears)
@@ -115,10 +96,8 @@ export const verifyService = {
         firmId: row.firmId ?? undefined,
       });
     }
-    console.log('[Verify] Check 1b done:', orphanFYs.length, 'orphans');
 
-    // Check 2 + 3: Missing FY / Multiple Active FY per active firm
-    console.log('[Verify] Check 2+3: Active firm FY check...');
+    // Check 2 + 3: Missing FY / Multiple Active FY
     const activeFirmRows = await db
       .select({ id: firms.id })
       .from(firms)
@@ -146,10 +125,8 @@ export const verifyService = {
         });
       }
     }
-    console.log('[Verify] Check 2+3 done');
 
-    // Check 4: Firm isolation — FY rows referencing unknown firmId
-    console.log('[Verify] Check 4: Firm isolation...');
+    // Check 4: Firm isolation
     const fyFirmIds = (await db
       .select({ firmId: financialYears.firmId })
       .from(financialYears)).map(r => r.firmId);
@@ -162,10 +139,8 @@ export const verifyService = {
         detail: `${isolationViolations.length} record(s) reference unknown firmId — firm isolation violated.`,
       });
     }
-    console.log('[Verify] Check 4 done');
 
-    // Check 5: Audit log timestamp continuity
-    console.log('[Verify] Check 5: Audit log continuity...');
+    // Check 5: Audit log timestamp continuity (uses auditLogs.createdAt)
     const auditRows = await db
       .select({ firmId: auditLogs.firmId, createdAt: auditLogs.createdAt })
       .from(auditLogs)
@@ -191,10 +166,8 @@ export const verifyService = {
         detail: `${continuityViolations} audit log timestamp inversion(s) detected.`,
       });
     }
-    console.log('[Verify] Check 5 done');
 
     // Check 6: Orphan audit logs
-    console.log('[Verify] Check 6: Orphan audit logs...');
     const orphanAudit = await db
       .select({ id: auditLogs.id })
       .from(auditLogs)
@@ -207,10 +180,8 @@ export const verifyService = {
         detail: `${orphanAudit.length} audit log(s) reference non-existent firms. Data isolation breach detected.`,
       });
     }
-    console.log('[Verify] Check 6 done');
 
-    // Check 7: Expired writer leases still in DB
-    console.log('[Verify] Check 7: Expired leases...');
+    // Check 7: Expired writer leases
     const expiredLeases = await db
       .select({ id: writerLeases.id })
       .from(writerLeases)
@@ -223,13 +194,10 @@ export const verifyService = {
         detail: `${expiredLeases.length} expired writer lease(s) found. Database lock mechanism may be stalling.`,
       });
     }
-    console.log('[Verify] Check 7 done');
 
     // Check 8: Schema version mismatch
-    console.log('[Verify] Check 8: Schema version...');
     try {
       const svRow = await db.select().from(schemaVersion).limit(1);
-      console.log('[Verify] Check 8: svRow=', JSON.stringify(svRow), 'SCHEMA_VERSION=', SCHEMA_VERSION);
       if (!svRow.length || svRow[0].currentVersion !== SCHEMA_VERSION) {
         findings.push({
           severity: 'CRITICAL',
@@ -244,16 +212,11 @@ export const verifyService = {
         detail: 'Database schema version table missing or unreadable.',
       });
     }
-    console.log('[Verify] Check 8 done');
 
-    // Determine overall status
     let status: VerifyStatus = 'HEALTHY';
     if (findings.some(f => f.severity === 'CRITICAL')) status = 'CRITICAL';
     else if (findings.some(f => f.severity === 'WARNING')) status = 'WARNING';
 
-    console.log('[Verify] Overall status:', status);
-
-    // PATH 1 RESOLUTION
     if (status === 'CRITICAL') {
       console.error('[Verify] Critical Integrity Failure Detected. Activating Safe Mode.');
       await safeModeService.activate('VERIFY_CRITICAL_ISSUE');
@@ -263,7 +226,6 @@ export const verifyService = {
       console.log('[Verify] Safe Mode cleared.');
     }
 
-    // Write cache after every full global scan
     if (!firmId) {
       try {
         await storage.setItem(CACHE_KEY_STATUS, status);
@@ -275,7 +237,6 @@ export const verifyService = {
 
     verifyStore.getState().setScanResults(findings);
 
-    // v7.8 FIX-V78-5: structural firmId filtering
     const filteredFindings = firmId
       ? findings.filter(f => f.firmId === undefined || f.firmId === firmId)
       : findings;
@@ -293,11 +254,6 @@ export const verifyService = {
     }
   },
 };
-
-// --- APPENDED PHASE 2 INVENTORY VERIFY ---
-import { items, designs, categories } from '../db/schema';
-import { inArray, isNull, gt } from 'drizzle-orm';
-import type { VerifyIssue } from '../types/phase2.types';
 
 export const phase2VerifyService = {
   async runVerify(firmId: string): Promise<VerifyIssue[]> {

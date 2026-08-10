@@ -5,7 +5,7 @@ import * as Device from 'expo-device';
 import * as Haptics from 'expo-haptics';
 import { TwoToneWrapper } from '../../components/TwoToneWrapper';
 import { auditRepository } from '../../repositories/auditRepository';
-import { useFirmStore } from '../../store/firmStore';
+import { useFirmStore } from '../../store/useFirmStore';
 import { useStore } from 'zustand';
 import { appSettingsStore } from '../../store/appSettingsStore';
 import { getDeviceId } from '../../utils/deviceId';

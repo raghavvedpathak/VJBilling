@@ -1,12 +1,13 @@
+// app/database-error.tsx — Phase 2 v2.11 Canonical Screen
+
 import React, { useEffect, useState } from 'react';
-import { View, Text, TouchableOpacity, ActivityIndicator, Alert, TextInput } from 'react-native';
+import { View, Text, Alert } from 'react-native';
 import * as FileSystem from 'expo-file-system';
 import { STORAGE_PATHS } from '../constants/storagePaths';
 import { ScreenWrapper } from '../components/ScreenWrapper';
 import { AlertTriangle, Database, Trash2, Mail } from 'lucide-react-native';
 import * as Updates from 'expo-updates';
 import { GlassCard, GlassButton, GlassInput } from '../components/ui/Glass';
-import { COLORS } from '../constants/theme';
 
 export default function DatabaseErrorScreen() {
   const [snapshotAvailable, setSnapshotAvailable] = useState(false);
@@ -16,7 +17,6 @@ export default function DatabaseErrorScreen() {
 
   const checkSnapshot = async () => {
     try {
-      // RULE 3: Check file existence via getInfoAsync()
       const info = await FileSystem.getInfoAsync(STORAGE_PATHS.PRE_MIGRATION_SNAPSHOT);
       setSnapshotAvailable(info.exists);
     } catch (e) {
@@ -35,7 +35,6 @@ export default function DatabaseErrorScreen() {
   };
 
   const handleContactSupport = () => {
-    // Show support contact flow
     Alert.alert('Contact Support', 'Migration error details have been copied to clipboard (simulation). Please email support@vjbilling.com.');
   };
 

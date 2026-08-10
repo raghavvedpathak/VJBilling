@@ -1,5 +1,7 @@
+// app/masters/edit-category.tsx — Phase 2 v2.11 Canonical Screen
+
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TextInput, Alert, Modal, KeyboardAvoidingView, ScrollView, Platform } from 'react-native';
+import { View, Text, StyleSheet, Alert, Modal, ScrollView } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { TwoToneWrapper } from '../../components/TwoToneWrapper';
@@ -7,18 +9,14 @@ import { HeaderPill, GlassButton, GlassInput, GlassMetalBadge } from '../../comp
 import { useStore } from 'zustand';
 import { appSettingsStore } from '../../store/appSettingsStore';
 import { Edit2, CheckCircle, ShieldCheck } from 'lucide-react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useFirmStore } from '../../store/firmStore';
+import { useFirmStore } from '../../store/useFirmStore';
 import { categoryService } from '../../services/categoryService';
-
 import { COLORS, getThemeColors } from '../../constants/theme';
 
 export default function EditCategoryScreen() {
   const router = useRouter();
   const { activeFirmId } = useFirmStore();
-  const insets = useSafeAreaInsets();
   
-  // Get initial params from routing
   const { id, initialName, initialMetal } = useLocalSearchParams<{ id: string; initialName: string; initialMetal?: 'GOLD' | 'SILVER' }>();
   
   const [newName, setNewName] = useState(initialName || '');
@@ -93,7 +91,6 @@ export default function EditCategoryScreen() {
         </View>
       </View>
 
-      {/* Modern Success Modal */}
       <Modal visible={!!successMessage} transparent animationType="fade">
         <View style={s.modalOverlayCenter}>
           <View style={s.successModalContent}>
@@ -118,21 +115,6 @@ export default function EditCategoryScreen() {
 
 const s = StyleSheet.create({
   container: { flex: 1, paddingTop: 16 },
-  headerIconRow: { marginBottom: 12 },
-  headerIconCircle: {
-    width: 52, height: 52, borderRadius: 16,
-    backgroundColor: 'rgba(255,255,255,0.12)',
-    justifyContent: 'center', alignItems: 'center',
-    borderWidth: 1, borderColor: 'rgba(255,255,255,0.15)',
-  },
-  headerTitle: {
-    color: COLORS.vjBg, fontSize: 28, fontWeight: '800',
-    letterSpacing: -0.5, marginBottom: 4,
-  },
-  headerSubtitle: {
-    color: 'rgba(252,251,248,0.55)', fontSize: 12, fontWeight: '600',
-    letterSpacing: 0.3, textTransform: 'uppercase',
-  },
   card: {
     backgroundColor: 'rgba(255,255,255,0.6)',
     borderRadius: 24,
@@ -142,9 +124,6 @@ const s = StyleSheet.create({
   },
   formGroup: { marginBottom: 24 },
   label: { fontSize: 12, fontWeight: '700', color: 'rgba(92,22,35,0.6)', textTransform: 'uppercase', marginBottom: 8 },
-  input: { backgroundColor: '#fff', borderRadius: 12, padding: 16, fontSize: 16, color: COLORS.vjText, borderWidth: 1, borderColor: 'rgba(92,22,35,0.3)' },
-  
-  // Success Modal Styles
   modalOverlayCenter: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.6)',

@@ -1,5 +1,4 @@
-// types/firm.ts
-// v5.0 G46 + v7.0 G70 CreateFirmInput definition
+// types/firm.ts — Phase 2 v2.11 Canonical Firm Types
 import type { firms } from '../db/schema';
 
 export type Firm = typeof firms.$inferSelect;

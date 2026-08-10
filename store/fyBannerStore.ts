@@ -1,4 +1,5 @@
-// store/fyBannerStore.ts
+// store/fyBannerStore.ts — Phase 2 v2.11 Canonical Store
+
 import { create } from 'zustand';
 
 interface FyBannerState {

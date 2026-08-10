@@ -7,7 +7,7 @@ import { manipulateAsync, SaveFormat } from 'expo-image-manipulator';
 import * as FileSystem from 'expo-file-system/legacy';
 import { TwoToneWrapper } from '../../components/TwoToneWrapper';
 import { firmService } from '../../services/firmService';
-import { useFirmStore } from '../../store/firmStore';
+import { useFirmStore } from '../../store/useFirmStore';
 import { INDIAN_STATES } from '../../utils/indianStates'; 
 import { GlassCard, GlassInput, GlassButton } from '../../components/ui/Glass';
 import { Save, Building2, User, MapPin, Hash, Phone, ShieldCheck, ImagePlus, Tag, CheckCircle2, ArrowLeft, ChevronDown, X, Lock } from 'lucide-react-native';
@@ -47,7 +47,7 @@ export default function EditFirmScreen() {
 
   useEffect(() => {
     if (id && firms.length > 0) {
-      const firmToEdit = firms.find(f => f.id === id);
+      const firmToEdit = firms.find((f: any) => f.id === id);
       if (firmToEdit) {
         setOriginalFirm(firmToEdit);
         setForm({

@@ -1,3 +1,5 @@
+// services/barcodeLabelService.ts — Phase 2 v2.11 Canonical Service
+
 import { db } from '../db/client';
 import { leaseService } from './leaseService';
 import { safeModeService } from './safeModeService';
@@ -7,14 +9,16 @@ import { itemRepository } from '../repositories/itemRepository';
 import { itemEventRepository } from '../repositories/itemEventRepository';
 import { auditRepository } from '../repositories/auditRepository';
 import { getDeviceId } from '../utils/deviceId';
-import { getDisplayPurity, formatSKUDisplay, formatWeightMg } from '../utils/calculations';
+import { getDisplayPurity, formatWeightMg } from '../utils/purity.constants';
+import { formatSKUDisplay } from './skuEngine';
 import { now } from '../utils/now';
 import * as Crypto from 'expo-crypto';
 import type { BarcodeLabel } from '../types/phase2.types';
-import { ERR } from '../constants';
+import { ERR } from '../constants/errorCodes';
 
 export const barcodeLabelService = {
-  // Read-only, safely async
+  // --- generateBarcodeLabel (Step 5.1 / FEAT-BARCODE-LABEL-1 v1.66) ---
+  // Read-only, safely async. No transaction, no lease, no audit write, no state change.
   async generateBarcodeLabel(itemId: string, firmId: string): Promise<BarcodeLabel> {
     const row = await barcodeLabelRepository.getItemWithDesignName(itemId, firmId);
     if (!row) throw new Error(ERR.ITEM_NOT_FOUND_OR_WRONG_FIRM);
@@ -37,14 +41,13 @@ export const barcodeLabelService = {
     };
   },
 
+  // --- logBarcodeReprint (Step 5.1 / FEAT-BARCODE-LABEL-1 v1.66) ---
   async logBarcodeReprint(itemId: string, firmId: string): Promise<void> {
-    await leaseService.assertNoActiveLease();
-    safeModeService.assertNotInSafeMode();
+    await leaseService.assertNoActiveLease(); // GUARD 1
+    safeModeService.assertNotInSafeMode();    // GUARD 2
 
-    // Hoist async call
     const deviceId = await getDeviceId();
 
-    // FIX-V718-1: Synchronous transaction block
     return db.transaction((tx) => {
       const item = itemRepository.getById(tx, firmId, itemId);
       if (!item || item.firmId !== firmId) throw new Error(ERR.ITEM_NOT_FOUND_OR_WRONG_FIRM);
@@ -52,6 +55,7 @@ export const barcodeLabelService = {
       itemRepository.updateBarcodeReprintFlag(tx, firmId, itemId, false);
 
       itemEventRepository.insert(tx, {
+        id: Crypto.randomUUID(),
         itemId,
         firmId,
         eventType: 'BARCODE_REPRINTED',
@@ -68,7 +72,7 @@ export const barcodeLabelService = {
         entityId: itemId,
         eventType: 'BARCODE_REPRINTED',
         deviceId,
-        payload: JSON.stringify({ itemId, sku: item.sku }),
+        payload: { itemId, sku: item.sku },
       });
     });
   }
