@@ -4,16 +4,16 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, ScrollView, StyleSheet, ActivityIndicator, Alert, TextInput } from 'react-native';
 import { useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
-import { TwoToneWrapper } from '../../components/TwoToneWrapper';
-import { GlassCard, GlassButton } from '../../components/ui/Glass';
-import { useFirmStore } from '../../store/useFirmStore';
-import { useSession } from '../../hooks/useSession';
-import { useFyBannerStore } from '../../store/fyBannerStore';
-import { fyService } from '../../services/fyService';
-import { backupService } from '../../services/backupService';
+import { TwoToneWrapper } from '@/components/TwoToneWrapper';
+import { GlassCard, GlassButton } from '@/components/ui/Glass';
+import { useFirmStore } from '@/store/phase1/useFirmStore';
+import { useSession } from '@/hooks/useSession';
+import { useFyBannerStore } from '@/store/phase1/fyBannerStore';
+import { fyService } from '@/services/phase1/fyService';
+import { backupService } from '@/services/phase1/backupService';
 import { Lock, ShieldAlert, ShieldCheck, HardDriveDownload, AlertTriangle, CheckCircle2 } from 'lucide-react-native';
-import type { VerifyIssue } from '../../types/phase2.types';
-import { COLORS } from '../../constants/theme';
+import type { VerifyIssue } from '@/types/phase2/phase2.types';
+import { COLORS } from '@/constants/theme';
 
 export default function CloseFYWizard() {
   const router = useRouter();
@@ -78,7 +78,7 @@ export default function CloseFYWizard() {
     try {
       await fyService.closeFY(activeFY.id, activeFirmId);
       
-      // FIX-BANNER-SETSTATE-1 (v1.83): clear banner state outside tx, after success
+      // Clear banner state outside transaction, after success
       useFyBannerStore.getState().setBannerVisible(false);
 
       await refreshSession();

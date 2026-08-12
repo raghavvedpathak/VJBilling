@@ -4,19 +4,19 @@ import React, { useState, useMemo } from 'react';
 import { View, Text, ScrollView, Alert, Modal, StyleSheet } from 'react-native';
 import { useRouter, useFocusEffect } from 'expo-router';
 import * as Haptics from 'expo-haptics';
-import { TwoToneWrapper } from '../../components/TwoToneWrapper';
-import { GlassCard, GlassInput, GlassButton, GlassSmartSearch } from '../../components/ui/Glass';
-import { useFirmStore } from '../../store/useFirmStore';
-import { gemstoneLotService } from '../../services/gemstoneLotService';
-import { stoneRepository } from '../../repositories/stoneRepository';
+import { TwoToneWrapper } from '@/components/TwoToneWrapper';
+import { GlassCard, GlassInput, GlassButton, GlassSmartSearch } from '@/components/ui/Glass';
+import { useFirmStore } from '@/store/phase1/useFirmStore';
+import { gemstoneLotService } from '@/services/phase2/gemstoneLotService';
+import { stoneRepository } from '@/repositories/phase2/stoneRepository';
 import { 
   caratsToCaratX100, 
   computeGemstoneTotalPaise 
-} from '../../utils/purity.constants';
-import { getCurrencySymbol, rupeesToPaise } from '../../utils/currency';
+} from '@/utils/purity.constants';
+import { getCurrencySymbol, rupeesToPaise } from '@/utils/currency';
 import { Gem, Diamond, Banknote, CheckCircle } from 'lucide-react-native';
-import type { Stone } from '../../types/phase2.types';
-import { COLORS } from '../../constants/theme';
+import type { Stone } from '@/types/phase2/phase2.types';
+import { COLORS } from '@/constants/theme';
 
 export default function AddGemstoneScreen() {
   const router = useRouter();

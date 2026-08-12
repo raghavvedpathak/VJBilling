@@ -6,16 +6,15 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 import * as Haptics from 'expo-haptics';
-import { TwoToneWrapper } from '../../components/TwoToneWrapper';
-import { HeaderPill, GlassCard, GlassButton } from '../../components/ui/Glass';
-import { useStore } from 'zustand';
-import { appSettingsStore } from '../../store/appSettingsStore';
-import { useFirmStore } from '../../store/useFirmStore';
-import { barcodeLabelService } from '../../services/barcodeLabelService';
+import { TwoToneWrapper } from '@/components/TwoToneWrapper';
+import { HeaderPill, GlassCard, GlassButton } from '@/components/ui/Glass';
+import { appSettingsStore } from '@/store/phase1/appSettingsStore';
+import { useFirmStore } from '@/store/phase1/useFirmStore';
+import { barcodeLabelService } from '@/services/phase2/barcodeLabelService';
 import { Printer, Share, CheckCircle, RefreshCcw, Tag, Scale } from 'lucide-react-native';
 import QRCode from 'react-native-qrcode-svg';
-import type { BarcodeLabel } from '../../types/phase2.types';
-import { COLORS, getThemeColors } from '../../constants/theme';
+import type { BarcodeLabel } from '@/types/phase2/phase2.types';
+import { COLORS, getThemeColors } from '@/constants/theme';
 
 export default function BarcodePrintScreen() {
   const router = useRouter();
@@ -60,49 +59,145 @@ export default function BarcodePrintScreen() {
       <!DOCTYPE html>
       <html>
         <head>
+          <meta charset="utf-8">
           <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
           <style>
-            @page { size: 2in 0.5in; margin: 0; }
+            @page {
+              size: 50mm 12mm;
+              margin: 0;
+            }
+            @media print {
+              html, body {
+                width: 50mm !important;
+                height: 12mm !important;
+                margin: 0 !important;
+                padding: 0 !important;
+                overflow: hidden !important;
+                -webkit-print-color-adjust: exact !important;
+                print-color-adjust: exact !important;
+              }
+              .dumbbell-tag {
+                page-break-inside: avoid !important;
+                page-break-after: avoid !important;
+              }
+            }
+            * {
+              box-sizing: border-box;
+              margin: 0;
+              padding: 0;
+            }
             body { 
-              font-family: Arial, sans-serif; 
-              margin: 0; padding: 0; 
-              width: 2in; height: 0.5in; 
-              display: flex; flex-direction: row; 
+              font-family: Arial, Helvetica, sans-serif; 
+              width: 50mm;
+              height: 12mm; 
               background-color: white; 
+              overflow: hidden;
             }
-            .head { 
-              width: 50%; height: 100%; 
-              padding: 2px 4px; box-sizing: border-box; 
-              display: flex; flex-direction: column; justify-content: center; 
+            .dumbbell-tag {
+              width: 50mm;
+              height: 12mm;
+              display: flex;
+              flex-direction: row;
+              align-items: center;
+              justify-content: space-between;
+              padding: 0.5mm 1mm;
             }
-            .tail { 
-              width: 50%; height: 100%; 
-              padding: 2px 0; box-sizing: border-box; 
-              display: flex; flex-direction: column; justify-content: center; align-items: center; 
+            .wing {
+              width: 22mm;
+              height: 11mm;
+              display: flex;
+              flex-direction: column;
+              justify-content: center;
+              overflow: hidden;
             }
-            .text-line { font-size: 8px; font-weight: bold; margin: 1.5px 0; color: black; line-height: 1; }
-            .sku-text { font-size: 8px; font-weight: bold; color: black; margin-top: 2px; margin-bottom: 2px; }
-            #qrcode { margin: 1px 0; display: flex; justify-content: center; align-items: center; padding: 2px; background: #ffffff; }
+            .left-wing {
+              padding-left: 1mm;
+              align-items: flex-start;
+            }
+            .center-stem {
+              width: 4mm;
+              height: 11mm;
+              display: flex;
+              align-items: center;
+              justify-content: center;
+            }
+            .stem-line {
+              width: 100%;
+              border-top: 1px dashed #ccc;
+            }
+            .right-wing {
+              padding-right: 1mm;
+              align-items: center;
+              text-align: center;
+            }
+            .text-title {
+              font-size: 7.5px;
+              font-weight: 900;
+              color: #000;
+              line-height: 1;
+              white-space: nowrap;
+              overflow: hidden;
+              text-overflow: ellipsis;
+              margin-bottom: 1px;
+            }
+            .text-line {
+              font-size: 7px;
+              font-weight: 800;
+              color: #000;
+              line-height: 1;
+              margin-top: 1px;
+            }
+            .firm-code {
+              font-size: 7px;
+              font-weight: 900;
+              color: #000;
+              line-height: 1;
+              margin-bottom: 0.5px;
+            }
+            .sku-text {
+              font-size: 7px;
+              font-weight: 900;
+              font-family: monospace;
+              color: #000;
+              line-height: 1;
+              margin-top: 0.5px;
+            }
+            #qrcode {
+              display: flex;
+              justify-content: center;
+              align-items: center;
+              padding: 0.5px;
+              background: #ffffff;
+            }
           </style>
         </head>
         <body>
-          <div class="head">
-            <div class="text-line">${topRowText}</div>
-            <div class="text-line">Gr.Wt. : ${rawGross}</div>
-            <div class="text-line">Nt.Wt. : ${rawNet}</div>
-          </div>
-          
-          <div class="tail">
-            <div class="sku-text">${label.backSide.firmCode}</div>
-            <div id="qrcode"></div>
-            <div class="sku-text">${label.backSide.skuDisplay}</div>
+          <div class="dumbbell-tag">
+            <!-- LEFT WING (DETAILS LOBE) -->
+            <div class="wing left-wing">
+              <div class="text-title">${topRowText}</div>
+              <div class="text-line">Gr.Wt : ${rawGross}g</div>
+              <div class="text-line">Nt.Wt : ${rawNet}g</div>
+            </div>
+
+            <!-- CENTER DUMBBELL STEM (TAIL BRIDGE) -->
+            <div class="center-stem">
+              <div class="stem-line"></div>
+            </div>
+
+            <!-- RIGHT WING (BARCODE LOBE) -->
+            <div class="wing right-wing">
+              <div class="firm-code">${label.backSide.firmCode}</div>
+              <div id="qrcode"></div>
+              <div class="sku-text">${label.backSide.skuDisplay}</div>
+            </div>
           </div>
 
           <script>
             new QRCode(document.getElementById("qrcode"), {
               text: "${label.backSide.barcodeValue}",
-              width: 48,
-              height: 48,
+              width: 32,
+              height: 32,
               colorDark : "#000000",
               colorLight : "#ffffff",
               correctLevel : QRCode.CorrectLevel.L
@@ -152,7 +247,7 @@ export default function BarcodePrintScreen() {
     }
   };
 
-  const activeTheme = useStore(appSettingsStore, (s) => s.theme);
+  const activeTheme = appSettingsStore((s: any) => s.theme);
   const colors = getThemeColors(activeTheme);
 
   const barcodeHeaderPills = label ? (
@@ -175,11 +270,14 @@ export default function BarcodePrintScreen() {
   return (
     <TwoToneWrapper title="Print Barcode Tag" showBack headerContent={barcodeHeaderPills}>
       <View style={{ flex: 1, paddingTop: 16 }}>
-        <Text style={{ fontSize: 13, fontWeight: '700', color: COLORS.vjText, opacity: 0.7, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 12, marginLeft: 4 }}>Live Tag Preview</Text>
-        <GlassCard style={{ padding: 24, marginBottom: 24 }}>
-          <View style={{ flexDirection: 'row', backgroundColor: '#fff', borderRadius: 4, borderWidth: 1, borderColor: '#ddd', overflow: 'hidden' }}>
-            <View style={{ flex: 1, padding: 12, borderRightWidth: 1, borderRightColor: '#ccc', borderStyle: 'dashed', justifyContent: 'center' }}>
-              <Text style={{ fontSize: 13, fontWeight: '800', color: COLORS.vjText, marginBottom: 6 }}>
+        <Text style={{ fontSize: 13, fontWeight: '700', color: COLORS.vjText, opacity: 0.7, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 12, marginLeft: 4 }}>Dumbbell Tag Live Preview (50mm × 12mm)</Text>
+        <GlassCard style={{ padding: 18, marginBottom: 24 }}>
+          {/* DUMBBELL SHAPED JEWELRY TAG SILHOUETTE PREVIEW */}
+          <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#F8FAFC', borderRadius: 12, borderWidth: 1, borderColor: '#E2E8F0', padding: 10, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 2 }}>
+            
+            {/* LEFT WING (DETAILS) */}
+            <View style={{ flex: 1, backgroundColor: '#FFFFFF', borderRadius: 10, borderWidth: 1, borderColor: '#CBD5E1', padding: 10, justifyContent: 'center' }}>
+              <Text style={{ fontSize: 13, fontWeight: '900', color: COLORS.vjText, marginBottom: 4 }}>
                 {(() => {
                   const km = label.frontSide.purityDisplay.match(/(\d+K)/);
                   const ko = km ? km[1] : '';
@@ -188,16 +286,26 @@ export default function BarcodePrintScreen() {
                     : label.frontSide.designName.toUpperCase();
                 })()}
               </Text>
-              <Text style={{ fontSize: 13, fontWeight: '700', color: COLORS.vjText, marginBottom: 4 }}>
-                Gr.Wt. : {label.frontSide.grossWeightDisplay.replace(' g', '')}
+              <Text style={{ fontSize: 12, fontWeight: '700', color: '#334155', marginBottom: 2 }}>
+                Gr.Wt : {label.frontSide.grossWeightDisplay.replace(' g', '')}g
               </Text>
-              <Text style={{ fontSize: 13, fontWeight: '700', color: COLORS.vjText }}>
-                Nt.Wt. : {label.frontSide.netWeightDisplay.replace(' g', '')}
+              <Text style={{ fontSize: 12, fontWeight: '800', color: COLORS.vjAccent }}>
+                Nt.Wt : {label.frontSide.netWeightDisplay.replace(' g', '')}g
               </Text>
             </View>
-            <View style={{ flex: 1, padding: 12, alignItems: 'center', justifyContent: 'center' }}>
-              <Text style={{ fontSize: 11, fontWeight: '800', color: COLORS.vjText, marginBottom: 4 }}>{label.backSide.firmCode}</Text>
-              <View style={{ marginBottom: 4, alignItems: 'center', justifyContent: 'center' }}>
+
+            {/* DUMBBELL CENTER TAIL STEM */}
+            <View style={{ width: 28, height: 40, justifyContent: 'center', alignItems: 'center' }}>
+              <View style={{ width: '100%', height: 2, borderStyle: 'dashed', borderWidth: 1, borderColor: '#94A3B8' }} />
+              <View style={{ position: 'absolute', backgroundColor: '#94A3B8', borderRadius: 6, paddingHorizontal: 4, paddingVertical: 1 }}>
+                <Text style={{ fontSize: 8, fontWeight: '900', color: '#FFFFFF' }}>STEM</Text>
+              </View>
+            </View>
+
+            {/* RIGHT WING (BARCODE / QR) */}
+            <View style={{ flex: 1, backgroundColor: '#FFFFFF', borderRadius: 10, borderWidth: 1, borderColor: '#CBD5E1', padding: 10, alignItems: 'center', justifyContent: 'center' }}>
+              <Text style={{ fontSize: 11, fontWeight: '900', color: COLORS.vjText, marginBottom: 4 }}>{label.backSide.firmCode}</Text>
+              <View style={{ marginBottom: 4, alignItems: 'center', justifyContent: 'center', backgroundColor: '#FFFFFF', padding: 2 }}>
                 <QRCode 
                   value={label.backSide.barcodeValue} 
                   size={42} 
@@ -206,8 +314,9 @@ export default function BarcodePrintScreen() {
                   quietZone={2}
                 />
               </View>
-              <Text style={{ fontSize: 12, fontWeight: '800', color: COLORS.vjText, fontFamily: 'monospace' }}>{label.backSide.skuDisplay}</Text>
+              <Text style={{ fontSize: 12, fontWeight: '900', color: COLORS.vjText, fontFamily: 'monospace' }}>{label.backSide.skuDisplay}</Text>
             </View>
+
           </View>
         </GlassCard>
         <View style={{ backgroundColor: 'rgba(92,22,35,0.04)', padding: 16, borderRadius: 12, marginBottom: 24, flexDirection: 'row', gap: 12, alignItems: 'flex-start' }}>

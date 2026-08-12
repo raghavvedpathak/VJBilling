@@ -1,11 +1,12 @@
+// app/settings/pin.tsx — Phase 2 v2.11 Canonical Screen
+
 import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, TouchableOpacity, ScrollView, TextInput, Keyboard, Alert } from 'react-native';
 import { useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
-import { TwoToneWrapper } from '../../components/TwoToneWrapper';
-import { HeaderPill, GlassCard } from '../../components/ui/Glass';
-import { useStore } from 'zustand';
-import { appSettingsStore } from '../../store/appSettingsStore';
+import { TwoToneWrapper } from '@/components/TwoToneWrapper';
+import { HeaderPill, GlassCard } from '@/components/ui/Glass';
+import { appSettingsStore } from '@/store/phase1/appSettingsStore';
 import { KeyRound, ShieldAlert, CheckCircle2, Lock, X, ShieldCheck } from 'lucide-react-native';
 import {
   isPinSet,
@@ -14,8 +15,8 @@ import {
   removePin,
   verifyPin,
   getPinLength
-} from '../../services/pinService';
-import { COLORS, getThemeColors } from '../../constants/theme';
+} from '@/services/phase1/pinService';
+import { COLORS, getThemeColors } from '@/constants/theme';
 
 type FlowState = 'MENU' | 'TURN_ON_NEW' | 'TURN_ON_CONFIRM' | 'TURN_OFF_CURRENT' | 'CHANGE_CURRENT' | 'CHANGE_NEW' | 'CHANGE_CONFIRM';
 
@@ -33,7 +34,7 @@ export default function PinSettingsScreen() {
 
   const inputRef = useRef<TextInput>(null);
 
-  const activeTheme = useStore(appSettingsStore, (s) => s.theme);
+  const activeTheme = appSettingsStore((s) => s.theme);
   const colors = getThemeColors(activeTheme);
 
   useEffect(() => {
@@ -226,14 +227,18 @@ export default function PinSettingsScreen() {
             </View>
 
             <View className="w-full items-center" pointerEvents="box-none">
-              <View className="flex-row gap-4 mb-8">
+              <TouchableOpacity 
+                activeOpacity={1} 
+                onPress={() => inputRef.current?.focus()}
+                className="flex-row gap-4 mb-8"
+              >
                 {Array.from({ length: targetLength }).map((_, i) => (
                   <View 
                     key={i} 
                     className={`w-5 h-5 rounded-full ${pinInput.length > i ? 'bg-vj-text' : 'bg-vj-text/20 border border-vj-text/30'}`} 
                   />
                 ))}
-              </View>
+              </TouchableOpacity>
               
               <TextInput
                 ref={inputRef}
@@ -243,8 +248,7 @@ export default function PinSettingsScreen() {
                 maxLength={targetLength}
                 secureTextEntry
                 autoFocus
-                className="absolute w-full h-full opacity-0"
-                style={{ width: '100%', height: '100%', position: 'absolute', opacity: 0 }}
+                style={{ width: 1, height: 1, opacity: 0, position: 'absolute' }}
               />
 
               {error && (

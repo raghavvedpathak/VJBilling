@@ -3,10 +3,10 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator, ScrollView, Modal } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
-import { TwoToneWrapper } from '../../components/TwoToneWrapper';
-import { useFirmStore } from '../../store/useFirmStore';
-import { itemRepository } from '../../repositories/itemRepository';
-import { itemService } from '../../services/itemService';
+import { TwoToneWrapper } from '@/components/TwoToneWrapper';
+import { useFirmStore } from '@/store/phase1/useFirmStore';
+import { itemRepository } from '@/repositories/phase2/itemRepository';
+import { itemService } from '@/services/phase2/itemService';
 import { 
   formatSKUDisplay, 
   percentToKarat, 
@@ -18,10 +18,10 @@ import {
   computeAbsoluteTotalCostRupees,
   rupeesToPaise,
   getCurrencySymbol 
-} from '../../utils/calculations';
+} from '@/utils/calculations';
 import { Edit3, Save, Calculator, CheckCircle } from 'lucide-react-native';
-import { GlassButton, GlassSmartSearch } from '../../components/ui/Glass';
-import { COLORS } from '../../constants/theme';
+import { GlassButton, GlassSmartSearch } from '@/components/ui/Glass';
+import { COLORS } from '@/constants/theme';
 
 export default function EditDraftScreen() {
   const router = useRouter();

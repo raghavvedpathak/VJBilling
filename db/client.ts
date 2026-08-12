@@ -44,10 +44,10 @@ export function useDatabase() {
         await migrate(db, migrations);
         console.log('[DB Client] Migrations complete.');
 
-        // Self-healing schema check for designs.low_stock_threshold (FIX-LOWSTOCK-DESIGN-1 v2.08)
+        // Self-healing schema check for designs.low_stock_threshold (Phase 2 preserved)
         try {
           const designCols = expoDb.getAllSync<{ name: string }>('PRAGMA table_info(designs)');
-          if (!designCols.some(c => c.name === 'low_stock_threshold')) {
+          if (designCols.length > 0 && !designCols.some(c => c.name === 'low_stock_threshold')) {
             console.log('[DB Client] Self-healing: Adding low_stock_threshold column to designs table...');
             expoDb.execSync('ALTER TABLE designs ADD COLUMN low_stock_threshold INTEGER;');
           }
@@ -56,15 +56,7 @@ export function useDatabase() {
         }
 
         // -----------------------------------------------------------------------
-        // HARDENING TRIGGERS REMOVED FROM CLIENT.TS
-        // -----------------------------------------------------------------------
-        // Triggers (prevent_firm_code_update, prevent_audit_update, prevent_audit_delete,
-        // safe_mode_row_guard, prevent_phantom_stock_id_update) are now STRICTLY 
-        // maintained inside the migration SQL file (0000_curious_wind_dancer.sql).
-        // Executing DDL here creates dangerous race conditions with future migrations.
-
-        // -----------------------------------------------------------------------
-        // MIGRATION ZERO SEED FALLBACK (NPE Safe)
+        // MIGRATION ZERO SEED FALLBACK (NPE Safe & Complete)
         // -----------------------------------------------------------------------
         const seedCheck = expoDb.getFirstSync<{ count: number }>(
           'SELECT count(*) as count FROM schema_version'
@@ -78,6 +70,7 @@ export function useDatabase() {
           // ASCII-only rows — execSync() is safe
           expoDb.execSync(`INSERT OR IGNORE INTO safe_mode_state (id, is_active) VALUES (1, 0);`);
           expoDb.execSync(`INSERT OR IGNORE INTO schema_version (id, current_version) VALUES (1, 1);`);
+          expoDb.execSync(`INSERT OR IGNORE INTO audit_delete_gate (id, gate_open) VALUES (1, 0);`);
 
           // app_settings row — parameterized runSync() for ₹ symbol to prevent JNI crash
           expoDb.runSync(
@@ -89,9 +82,9 @@ export function useDatabase() {
             [
               'dd/MM/yyyy',
               'system',
-              30, // Updated to 30 matching v7.10 requirement
+              30,
               'INR',
-              '\u20B9', // ₹ symbol
+              '\u20B9',
               2,
               1,
               isoNow,
@@ -103,7 +96,6 @@ export function useDatabase() {
       })();
     }
 
-    // Wait for the global promise to resolve, then update React state
     initPromise
       .then(() => {
         isDbInitialized = true;
@@ -113,7 +105,6 @@ export function useDatabase() {
         console.error('[DB Client] Failed to apply migrations or PRAGMAs:', e);
         setTriggerError(e as Error);
       });
-      
   }, []);
 
   return {
@@ -121,3 +112,5 @@ export function useDatabase() {
     error: triggerError,
   };
 }
+
+export default db;

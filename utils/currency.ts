@@ -1,6 +1,6 @@
 // utils/currency.ts — Phase 2 v2.11 Canonical Currency & Number-to-Words
 
-import { appSettingsStore } from '../store/appSettingsStore';
+import { appSettingsStore } from '@/store/phase1/appSettingsStore';
 
 const ONES = [
   '', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine',
@@ -106,6 +106,7 @@ export function paiseToRupees(paise: number | null | undefined): number {
 }
 
 export function formatRupees(paise: number | null | undefined): string {
-  if (paise === null || paise === undefined || isNaN(paise)) return '₹0.00';
-  return '₹' + (paise / 100).toFixed(2);
+  const symbol = getCurrencySymbol();
+  if (paise === null || paise === undefined || isNaN(paise)) return `${symbol}0.00`;
+  return symbol + (paise / 100).toFixed(2);
 }

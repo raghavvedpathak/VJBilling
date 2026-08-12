@@ -34,15 +34,15 @@ jest.mock('../db/client', () => {
 
 // ─── IMPORTS — after mock registration ───────────────────────────────────────
 
-import { firmService } from '../services/firmService';
-import { leaseService } from '../services/leaseService';
-import { safeModeService, bootstrapComplete } from '../services/safeModeService';
-import { verifyService } from '../services/verifyService';
-import { auditRepository } from '../repositories/auditRepository';
+import { firmService } from '@/services/phase1/firmService';
+import { leaseService } from '@/services/phase1/leaseService';
+import { safeModeService, bootstrapComplete } from '@/services/phase1/safeModeService';
+import { verifyService } from '@/services/phase1/verifyService';
+import { auditRepository } from '@/repositories/phase1/auditRepository';
 // FIX: Using compliant store name
-import { safeModeStore } from '../store/safeModeStore';
-import { db } from '../db/client';
-import { firms, writerLeases, auditLogs, safeModeState, financialYears } from '../db/schema';
+import { safeModeStore } from '@/store/phase1/safeModeStore';
+import { db } from '@/db/client';
+import { firms, writerLeases, auditLogs, safeModeState, financialYears } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 
 // ─── SCHEMA SETUP & TEARDOWN ──────────────────────────────────────────────────

@@ -5,17 +5,16 @@ import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, Modal } fr
 import { FlashList } from '@shopify/flash-list';
 import { useRouter, useFocusEffect } from 'expo-router';
 import * as Haptics from 'expo-haptics';
-import { TwoToneWrapper } from '../../components/TwoToneWrapper';
-import { HeaderPill, GlassButton } from '../../components/ui/Glass';
-import { useFirmStore } from '../../store/useFirmStore';
-import { inventoryDrillDownService } from '../../services/inventoryDrillDownService';
-import { itemService } from '../../services/itemService';
-import type { ItemSearchResult } from '../../types/phase2.types';
-import { getDisplayPurity, formatSKUDisplay, formatWeightMg as formatWeight } from '../../utils/calculations';
+import { TwoToneWrapper } from '@/components/TwoToneWrapper';
+import { HeaderPill, GlassButton } from '@/components/ui/Glass';
+import { useFirmStore } from '@/store/phase1/useFirmStore';
+import { inventoryDrillDownService } from '@/services/phase2/inventoryDrillDownService';
+import { itemService } from '@/services/phase2/itemService';
+import type { ItemSearchResult } from '@/types/phase2/phase2.types';
+import { getDisplayPurity, formatSKUDisplay, formatWeightMg as formatWeight } from '@/utils/calculations';
 import { Check, PackageSearch, Edit3, CheckCircle, Package, Scale } from 'lucide-react-native';
-import { useStore } from 'zustand';
-import { appSettingsStore } from '../../store/appSettingsStore';
-import { COLORS, getThemeColors } from '../../constants/theme';
+import { appSettingsStore } from '@/store/phase1/appSettingsStore';
+import { COLORS, getThemeColors } from '@/constants/theme';
 
 type DraftRowProps = {
   item: ItemSearchResult;
@@ -121,7 +120,7 @@ export default function DraftsScreen() {
 
   const totalItems = data.length;
   const totalWeightMg = data.reduce((acc, curr) => acc + (curr.netWeightMg ?? curr.grossWeightMg ?? 0), 0);
-  const activeTheme = useStore(appSettingsStore, (s) => s.theme);
+  const activeTheme = appSettingsStore((s: any) => s.theme);
   const colors = getThemeColors(activeTheme);
 
   const draftsHeaderPills = (

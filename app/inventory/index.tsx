@@ -4,12 +4,11 @@ import React from 'react';
 import { View, Text, ScrollView, TouchableOpacity } from 'react-native';
 import { useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
-import { TwoToneWrapper } from '../../components/TwoToneWrapper';
-import { GlassCard, HeaderPill } from '../../components/ui/Glass';
-import { InventoryStockSummary } from '../../components/InventoryStockSummary';
-import { useFirmStore } from '../../store/useFirmStore';
-import { useStore } from 'zustand';
-import { appSettingsStore } from '../../store/appSettingsStore';
+import { TwoToneWrapper } from '@/components/TwoToneWrapper';
+import { GlassCard, HeaderPill } from '@/components/ui/Glass';
+import { InventoryStockSummary } from '@/components/InventoryStockSummary';
+import { useFirmStore } from '@/store/phase1/useFirmStore';
+import { appSettingsStore } from '@/store/phase1/appSettingsStore';
 import { 
   PackageSearch, 
   Layers, 
@@ -28,7 +27,7 @@ import { COLORS, getThemeColors } from '../../constants/theme';
 export default function InventoryHubScreen() {
   const router = useRouter();
   const { activeFirmId } = useFirmStore();
-  const activeTheme = useStore(appSettingsStore, (s) => s.theme);
+  const activeTheme = appSettingsStore((s: any) => s.theme);
   const colors = getThemeColors(activeTheme);
 
   const inventoryHeaderPills = (

@@ -1,3 +1,5 @@
+// app/safe-mode.tsx — Phase 2 v2.11 Canonical Safe Mode Screen
+
 import React, { useState } from 'react';
 import {
   View,
@@ -5,33 +7,26 @@ import {
   TouchableOpacity,
   ScrollView,
   Alert,
-  TextInput,
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
 import { ShieldAlert, Unlock, HardDriveUpload, RefreshCw, X } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
-// FIX: Imported useStore from zustand and the specific store instance
-import { useStore } from 'zustand';
-import { safeModeStore } from '../store/safeModeStore';
-import { safeModeService } from '../services/safeModeService';
-import { bootstrapService } from '../services/bootstrapService';
-import { GlassCard, GlassButton, GlassInput } from '../components/ui/Glass';
-import { COLORS } from '../constants/theme';
+import { safeModeStore } from '@/store/phase1/safeModeStore';
+import { safeModeService } from '@/services/phase1/safeModeService';
+import { bootstrapService } from '@/services/phase1/bootstrapService';
+import { GlassCard, GlassButton, GlassInput } from '@/components/ui/Glass';
 
 export default function SafeModeScreen() {
   const router = useRouter();
-  // FIX: Adapted to React hook pattern for Zustand non-hook stores
-  const { reason, activatedAt } = useStore(safeModeStore);
+  const reason = safeModeStore((s: any) => s.reason);
+  const activatedAt = safeModeStore((s: any) => s.activatedAt);
+
   const [showUnlock, setShowUnlock] = useState(false);
   const [unlockCode, setUnlockCode] = useState('');
   const [retrying, setRetrying] = useState(false);
 
-  // -------------------------------------------------------------------------
   // RETRY — Runs the full bootstrap sequence again.
-  // initApp() result MUST drive the navigation outcome.
-  // Previously this ignored the result and always routed to /dashboard — fixed.
-  // -------------------------------------------------------------------------
   const handleRetry = async () => {
     try {
       setRetrying(true);
@@ -46,14 +41,12 @@ export default function SafeModeScreen() {
           router.replace('/welcome');
           break;
         case 'SAFE_MODE':
-          // Still in Safe Mode — show feedback and stay on this screen
           Alert.alert(
             'Still Unsafe',
             'The system detected the same integrity issues. Retry failed.'
           );
           break;
         case 'DATABASE_ERROR':
-          // Bubble to layout's error surface — replace to root which will re-evaluate
           router.replace('/');
           break;
       }
@@ -64,16 +57,7 @@ export default function SafeModeScreen() {
     }
   };
 
-  // -------------------------------------------------------------------------
-  // ADMIN OVERRIDE — Phase 1 placeholder code "0000".
-  //
-  // ARCHITECTURE NOTE: safeModeService.clear() is marked INTERNAL ONLY in the
-  // spec (called only by verifyService or restoreService in normal flow).
-  // The admin override is the documented escape-path exception — it bypasses
-  // integrity checks by design. This is a Phase 1 escape valve, not normal flow.
-  // The override code must be replaced with a proper admin key mechanism in
-  // a future security phase.
-  // -------------------------------------------------------------------------
+  // ADMIN OVERRIDE — Phase 1 emergency bypass code "0000".
   const submitUnlock = async () => {
     if (unlockCode === '0000') {
       await safeModeService.clear();

@@ -1,5 +1,6 @@
 /* eslint-disable no-restricted-imports */
-// app/_layout.tsx
+// app/_layout.tsx — Phase 2 v2.11 Canonical Layout & Bootloader
+
 import { useEffect, useState } from "react";
 import { Stack, router } from "expo-router";
 import { SafeAreaProvider } from "react-native-safe-area-context";
@@ -20,20 +21,19 @@ import {
 import * as FileSystem from "expo-file-system/legacy";
 import * as Sharing from "expo-sharing";
 
-import { useDatabase } from "../db/client";
-import { bootstrapService, PRE_MIGRATION_SNAPSHOT_PATH } from "../services/bootstrapService";
-import { getDeviceDerivedKeyMaterial } from "../utils/deviceId";
-import { STORAGE_PATHS, COLORS } from "../constants";
+import { useDatabase } from "@/db/client";
+import { bootstrapService, PRE_MIGRATION_SNAPSHOT_PATH } from "@/services/phase1/bootstrapService";
+import { getDeviceDerivedKeyMaterial } from "@/utils/deviceId";
+import { STORAGE_PATHS } from "@/constants";
 import "./global.css";
 import { AlertTriangle, Download, LifeBuoy, Trash2 } from "lucide-react-native";
 
 import { ThemeProvider, DefaultTheme } from "@react-navigation/native";
-import { PinGate } from "../components/PinGate";
-import { isPinSet, isPinSkipped } from "../services/pinService"; // v7.29 evaluation helpers
+import { PinGate } from "@/components/PinGate";
+import { isPinSet, isPinSkipped } from "@/services/phase1/pinService";
 
-import { useStore } from "zustand";
-import { appSettingsStore } from "../store/appSettingsStore";
-import { getThemeColors } from "../constants/theme";
+import { appSettingsStore } from "@/store/phase1/appSettingsStore";
+import { getThemeColors } from "@/constants/theme";
 
 LogBox.ignoreLogs(["SafeAreaView has been deprecated", "SafeAreaView"]);
 
@@ -48,7 +48,7 @@ type BootstrapResult =
   | null;
 
 export default function RootLayout() {
-  const activeTheme = useStore(appSettingsStore, (s) => s.theme);
+  const activeTheme = appSettingsStore((s: any) => s.theme);
   const colors = getThemeColors(activeTheme);
 
   const vjTheme = {
@@ -81,7 +81,7 @@ function RootBootloader({ colors }: { colors: any }) {
     setHasMounted(true);
   }, []);
 
-  // 0. PRE-MIGRATION SNAPSHOT & v7.29 PIN BYPASS EVALUATION
+  // 0. PRE-MIGRATION SNAPSHOT & PIN BYPASS EVALUATION
   useEffect(() => {
     const runSnapshot = async () => {
       await bootstrapService.takePreMigrationSnapshot();
@@ -150,7 +150,7 @@ function RootBootloader({ colors }: { colors: any }) {
     <>
       <StatusBar barStyle="dark-content" backgroundColor={colors.vjBg} />
       
-      {/* 1. ALWAYS mount Stack so React 19 Fiber hooks are never interrupted or reordered */}
+      {/* 1. ALWAYS mount Stack so React Fiber hooks are never interrupted or reordered */}
       <View style={StyleSheet.absoluteFill}>
         <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.vjBg }, animation: 'slide_from_right' }}>
           <Stack.Screen name="index" options={{ headerShown: false }} />
@@ -160,7 +160,7 @@ function RootBootloader({ colors }: { colors: any }) {
         </Stack>
       </View>
 
-      {/* 2. OVERLAY our Bootstrap / PinGate / Error screens ON TOP of the Stack */}
+      {/* 2. OVERLAY Bootstrap / PinGate / Error screens ON TOP of the Stack */}
       {showOverlay && (
         <View style={[StyleSheet.absoluteFill, { backgroundColor: colors.vjBg, zIndex: 99999, elevation: 99999 }]}>
           <OverlayContainer
@@ -261,10 +261,10 @@ function DatabaseErrorScreen({ title, message }: { title: string; message: strin
     if (!snapshotExists) return;
     try {
       setIsExporting(true);
-      const fileContent = await FileSystem.readAsStringAsync(PRE_MIGRATION_SNAPSHOT_PATH, { encoding: 'utf8' });
+      const fileContent = await FileSystem.readAsStringAsync(PRE_MIGRATION_SNAPSHOT_PATH, { encoding: FileSystem.EncodingType.UTF8 });
       const parsedBlob = JSON.parse(fileContent);
 
-      const fromBase64 = (b64: string) => Uint8Array.from(atob(b64), c => c.charCodeAt(0));
+      const fromBase64 = (b64: string) => Uint8Array.from(atob(b64.trim()), c => c.charCodeAt(0));
       const saltBytes = fromBase64(parsedBlob.salt);
       const ivBytes = fromBase64(parsedBlob.iv);
       const cipherBytes = fromBase64(parsedBlob.ciphertext);
@@ -281,7 +281,8 @@ function DatabaseErrorScreen({ title, message }: { title: string; message: strin
       const decrypted = await globalCrypto.subtle.decrypt({ name: 'AES-GCM', iv: ivBytes }, key, cipherBytes);
       const decryptedStr = new TextDecoder().decode(decrypted);
 
-      const tempPath = FileSystem.cacheDirectory + 'vjbilling_premigration_decrypted.json';
+      const fsAny = FileSystem as any;
+      const tempPath = (fsAny.cacheDirectory ?? fsAny.documentDirectory ?? '') + 'vjbilling_premigration_decrypted.json';
       await FileSystem.writeAsStringAsync(tempPath, decryptedStr, { encoding: FileSystem.EncodingType.UTF8 });
 
       const canShare = await Sharing.isAvailableAsync();

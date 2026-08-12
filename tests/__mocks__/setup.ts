@@ -95,7 +95,21 @@ jest.mock('expo-file-system', () => ({
   documentDirectory: '/tmp/vjbilling-test/',
   cacheDirectory: '/tmp/vjbilling-test/',
   getInfoAsync: async () => ({ exists: false }),
+  writeAsStringAsync: async (uri: string, content: string) => {
+    (global as any).__mockWriteFileUri = uri;
+    (global as any).__mockWriteFileContent = content;
+  },
+  readAsStringAsync: async (uri: string) => {
+    if (uri === (global as any).__mockWriteFileUri) {
+      return (global as any).__mockWriteFileContent;
+    }
+    return '{}';
+  },
   deleteAsync: async () => {},
+  makeDirectoryAsync: async () => {},
+  EncodingType: {
+    UTF8: 'utf8',
+  },
 }));
 
 // ─── 6. MOCK: @react-native-async-storage/async-storage ──────────────────────

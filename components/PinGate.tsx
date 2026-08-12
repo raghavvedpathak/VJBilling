@@ -1,23 +1,24 @@
-// components/PinGate.tsx
+// components/PinGate.tsx — Phase 2 v2.11 Canonical Component
+
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, Keyboard, Image, ScrollView } from 'react-native';
-import { BlurView } from 'expo-blur';
+import { View, Text, TextInput, TouchableOpacity, Keyboard, ScrollView } from 'react-native';
 import * as Haptics from 'expo-haptics';
-import { Lock, ShieldAlert, CheckCircle2, Diamond, Eye, EyeOff } from 'lucide-react-native';
+import { Lock, Eye, EyeOff } from 'lucide-react-native';
 import { 
   isPinSet, 
   setPin, 
   verifyPin, 
-  incrementFailedAttempts, 
-  getFailedAttempts, 
-  isLockedOut, 
-  resetFailedAttempts,
   getPinLength,
+  getFailedAttempts,
+  incrementFailedAttempts,
+  isLockedOut,
+  resetFailedAttempts,
+  isPinSkipped,
   setPinSkipped
-} from '../services/pinService';
+} from '@/services/phase1/pinService';
 import { TwoToneWrapper } from './TwoToneWrapper';
-import { storage } from '../utils/storage';
-import { COLORS } from '../constants/theme';
+import { storage } from '@/utils/storage';
+import { COLORS } from '@/constants/theme';
 
 type PinMode = 'LOADING' | 'SETUP_STEP_1' | 'SETUP_STEP_2' | 'VERIFY' | 'LOCKED';
 
@@ -25,40 +26,44 @@ export function PinGate({ onSuccess }: { onSuccess: () => void }) {
   const [mode, setMode] = useState<PinMode>('LOADING');
   const [pin, setPinInput] = useState('');
   const [firstPin, setFirstPin] = useState('');
-  const [targetLength, setTargetLength] = useState<4 | 6>(6); // v7.29 user selection
+  const [targetLength, setTargetLength] = useState<4 | 6>(6);
   const [error, setError] = useState<string | null>(null);
   const [lockoutSecs, setLockoutSecs] = useState(0);
   const [isPinVisible, setIsPinVisible] = useState(false);
-  
+
   const inputRef = useRef<TextInput>(null);
+  const lockoutTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   const checkInitialState = () => {
     if (isLockedOut()) {
       startLockoutTimer();
       return;
     }
-    
+
     if (isPinSet()) {
-      setTargetLength(getPinLength()); // Sync saved length constraint
+      setTargetLength(getPinLength());
       setMode('VERIFY');
     } else {
       setMode('SETUP_STEP_1');
     }
-    
+
     setTimeout(() => inputRef.current?.focus(), 500);
   };
 
   useEffect(() => {
     checkInitialState();
+    return () => {
+      if (lockoutTimerRef.current) clearTimeout(lockoutTimerRef.current);
+    };
   }, []);
 
   const startLockoutTimer = () => {
     setMode('LOCKED');
     const untilStr = storage.getString('vjbilling_pin_lockout_until');
     if (!untilStr) return;
-    
+
     const until = new Date(untilStr).getTime();
-    
+
     const tick = () => {
       const remaining = Math.ceil((until - Date.now()) / 1000);
       if (remaining <= 0) {
@@ -70,7 +75,7 @@ export function PinGate({ onSuccess }: { onSuccess: () => void }) {
         setTimeout(() => inputRef.current?.focus(), 500);
       } else {
         setLockoutSecs(remaining);
-        setTimeout(tick, 1000);
+        lockoutTimerRef.current = setTimeout(tick, 1000);
       }
     };
     tick();
@@ -79,7 +84,7 @@ export function PinGate({ onSuccess }: { onSuccess: () => void }) {
   const handlePinChange = async (val: string) => {
     const cleanVal = val.replace(/[^0-9]/g, '');
     if (cleanVal.length > targetLength) return;
-    
+
     try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch (e) {}
     setPinInput(cleanVal);
     setError(null);
@@ -96,7 +101,7 @@ export function PinGate({ onSuccess }: { onSuccess: () => void }) {
       setPinInput('');
       setMode('SETUP_STEP_2');
       setTimeout(() => inputRef.current?.focus(), 500);
-      
+
     } else if (mode === 'SETUP_STEP_2') {
       if (completedPin === firstPin) {
         await setPin(completedPin);
@@ -108,7 +113,7 @@ export function PinGate({ onSuccess }: { onSuccess: () => void }) {
         setMode('SETUP_STEP_1');
         setTimeout(() => inputRef.current?.focus(), 500);
       }
-      
+
     } else if (mode === 'VERIFY') {
       const isValid = await verifyPin(completedPin);
       if (isValid) {
@@ -129,7 +134,7 @@ export function PinGate({ onSuccess }: { onSuccess: () => void }) {
   };
 
   const handleSkip = () => {
-    setPinSkipped(); // Write v7.29 skipped preference
+    setPinSkipped();
     onSuccess();
   };
 
@@ -171,7 +176,6 @@ export function PinGate({ onSuccess }: { onSuccess: () => void }) {
              `Enter your ${targetLength}-digit PIN to access VJ Billing.`}
           </Text>
 
-          {/* v7.29 Length Toggle Selection inside Setup Step 1 */}
           {mode === 'SETUP_STEP_1' && (
             <View style={{ flexDirection: 'row', marginTop: 16, backgroundColor: 'rgba(255,255,255,0.4)', borderWidth: 1, borderColor: 'rgba(92,22,35,0.1)', borderRadius: 12, padding: 4 }}>
               <TouchableOpacity 
@@ -196,8 +200,12 @@ export function PinGate({ onSuccess }: { onSuccess: () => void }) {
             <Text style={{ color: '#ef4444', fontSize: 36, fontWeight: '900', fontFamily: 'monospace' }}>{lockoutSecs}s</Text>
           </View>
         ) : (
-          <View style={{ width: '100%', alignItems: 'center' }} pointerEvents="box-none">
-            <View style={{ flexDirection: 'row', gap: 12, marginBottom: 16 }}>
+          <View style={{ width: '100%', alignItems: 'center' }}>
+            <TouchableOpacity 
+              activeOpacity={1}
+              onPress={() => inputRef.current?.focus()}
+              style={{ flexDirection: 'row', gap: 12, marginBottom: 16 }}
+            >
               {Array.from({ length: targetLength }).map((_, i) => {
                 const hasDigit = pin.length > i;
                 return (
@@ -218,8 +226,8 @@ export function PinGate({ onSuccess }: { onSuccess: () => void }) {
                   </View>
                 );
               })}
-            </View>
-            
+            </TouchableOpacity>
+
             <TouchableOpacity 
               onPress={() => setIsPinVisible(!isPinVisible)}
               style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 24, backgroundColor: 'rgba(255,255,255,0.5)', paddingHorizontal: 16, paddingVertical: 8, borderRadius: 999, borderWidth: 1, borderColor: 'rgba(92,22,35,0.1)', zIndex: 10 }}
@@ -228,7 +236,7 @@ export function PinGate({ onSuccess }: { onSuccess: () => void }) {
               {isPinVisible ? <EyeOff size={16} color={COLORS.vjText} /> : <Eye size={16} color={COLORS.vjText} />}
               <Text style={{ color: COLORS.vjText, fontWeight: '700', fontSize: 12 }}>{isPinVisible ? 'Hide PIN' : 'Show PIN'}</Text>
             </TouchableOpacity>
-            
+
             <TextInput
               ref={inputRef}
               value={pin}
@@ -237,7 +245,7 @@ export function PinGate({ onSuccess }: { onSuccess: () => void }) {
               maxLength={targetLength}
               secureTextEntry
               autoFocus
-              style={{ width: '100%', height: '100%', position: 'absolute', opacity: 0 }}
+              style={{ width: 1, height: 1, opacity: 0, position: 'absolute' }}
             />
 
             {error && (
@@ -246,7 +254,6 @@ export function PinGate({ onSuccess }: { onSuccess: () => void }) {
               </Text>
             )}
 
-            {/* v7.29 Skip Setup Action */}
             {mode.startsWith('SETUP') && (
               <TouchableOpacity 
                 onPress={handleSkip}

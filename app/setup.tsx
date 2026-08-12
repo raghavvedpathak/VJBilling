@@ -1,9 +1,11 @@
+// app/setup.tsx — Phase 2 v2.11 Canonical Screen
+
 import React, { useEffect, useState } from 'react';
-import { View, Text, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { View, Text, TouchableOpacity, ActivityIndicator, Alert } from 'react-native';
 import { useRouter } from 'expo-router';
-import * as FileSystem from 'expo-file-system';
-import { ScreenWrapper } from '../components/ScreenWrapper';
-import { GlassCard } from '../components/ui/Glass'; // <--- Using Glass Factory
+import * as FileSystem from 'expo-file-system/legacy';
+import { ScreenWrapper } from '@/components/ScreenWrapper';
+import { GlassCard } from '@/components/ui/Glass';
 import { 
   ArrowRight, 
   ShieldCheck, 
@@ -11,7 +13,7 @@ import {
   HardDriveDownload, 
   Gem
 } from 'lucide-react-native';
-import { COLORS } from '../constants/theme';
+import { COLORS } from '@/constants/theme';
 
 export default function SetupScreen() {
   const router = useRouter();
@@ -20,10 +22,8 @@ export default function SetupScreen() {
   useEffect(() => {
     const checkBackups = async () => {
       try {
-        // Fix for Expo SDK 52+ missing type definitions (Same as backupService)
-        const fs = FileSystem as any;
-        const dir = fs.documentDirectory || fs.cacheDirectory;
-        
+        const fsAny = FileSystem as any;
+        const dir = fsAny.documentDirectory ?? fsAny.cacheDirectory ?? '';
         if (!dir) {
           setHasBackup(false);
           return;
@@ -78,11 +78,11 @@ export default function SetupScreen() {
             <ActivityIndicator size="large" color={COLORS.vjAccent} className="mt-4" />
           ) : (
             <>
-              {/* STEP 16 SPEC: Show Restore FIRST if Backup Detected */}
+              {/* Show Restore FIRST if Backup Detected */}
               {hasBackup && (
                 <TouchableOpacity 
                   activeOpacity={0.8}
-                  onPress={() => alert("Restore logic is available in Settings after setup.")}
+                  onPress={() => Alert.alert("Restore Backup", "Please use the 'Restore Backup' option on the welcome screen or in Settings.")}
                 >
                   <GlassCard style={{ padding: 20, marginBottom: 0, borderColor: COLORS.vjAccent, borderWidth: 2 }}>
                     <View className="flex-row items-center gap-5">

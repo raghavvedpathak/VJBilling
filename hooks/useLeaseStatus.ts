@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { AppState } from 'react-native';
-import { leaseRepository } from '../repositories/leaseRepository';
+import { leaseRepository } from '@/repositories/phase1/leaseRepository';
 
 const POLL_INTERVAL_MS = 5000;
 
@@ -10,9 +10,9 @@ export function useLeaseStatus() {
   const [activeLease, setActiveLease] = useState<any>(null);
   const [isChecking, setIsChecking] = useState(true);
 
-  const pollDB = useCallback(async () => {
+  const pollDB = useCallback(() => {
     try {
-      const lease = await leaseRepository.getActiveLease();
+      const lease = leaseRepository.getActiveLease();
       setActiveLease(lease ?? null);
     } catch (error) {
       console.error('[useLeaseStatus] Lease poll failed:', error);
@@ -25,10 +25,10 @@ export function useLeaseStatus() {
   useEffect(() => {
     pollDB();
 
-    // Poll every 5 seconds while in foreground (STEP 18)
+    // Poll every 5 seconds while in foreground
     const interval = setInterval(pollDB, POLL_INTERVAL_MS);
 
-    // Re-check immediately on app resume (STEP 18)
+    // Re-check immediately on app resume
     const subscription = AppState.addEventListener('change', (nextState) => {
       if (nextState === 'active') {
         setIsChecking(true);

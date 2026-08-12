@@ -1,14 +1,14 @@
+// components/ScreenWrapper.tsx — Phase 2 v2.11 Canonical Component
+
 import React from 'react';
 import { View, Text, StatusBar, TouchableOpacity } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { ChevronLeft } from 'lucide-react-native';
-import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
-import { DynamicBackground } from './ui/DynamicBackground';
-import { getThemeColors } from '../constants/theme';
-import { useStore } from 'zustand';
-import { appSettingsStore } from '../store/appSettingsStore';
+import { DynamicBackground } from '@/components/ui/DynamicBackground';
+import { getThemeColors } from '@/constants/theme';
+import { appSettingsStore } from '@/store/phase1/appSettingsStore';
 
 interface ScreenWrapperProps {
   title?: string;
@@ -29,7 +29,7 @@ export function ScreenWrapper({
 }: ScreenWrapperProps) {
   const router = useRouter();
   // Reactive subscription ensures component re-renders instantly on theme change from Settings
-  const activeTheme = useStore(appSettingsStore, (s) => s.theme);
+  const activeTheme = appSettingsStore((s) => s.theme);
   const colors = getThemeColors(activeTheme);
 
   const handleBack = () => {

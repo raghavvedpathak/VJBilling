@@ -4,16 +4,15 @@ import React, { useState, useCallback } from 'react';
 import { View, Text, StyleSheet, TextInput, Alert, Modal, ScrollView } from 'react-native';
 import { useRouter, useFocusEffect } from 'expo-router';
 import * as Haptics from 'expo-haptics';
-import { TwoToneWrapper } from '../../components/TwoToneWrapper';
-import { HeaderPill, GlassButton, GlassSmartSearch, GlassMetalSelector } from '../../components/ui/Glass';
-import { useStore } from 'zustand';
-import { appSettingsStore } from '../../store/appSettingsStore';
+import { TwoToneWrapper } from '@/components/TwoToneWrapper';
+import { HeaderPill, GlassButton, GlassSmartSearch, GlassMetalSelector } from '@/components/ui/Glass';
+import { appSettingsStore } from '@/store/phase1/appSettingsStore';
 import { Tag, CheckCircle, ShieldCheck } from 'lucide-react-native';
-import { useFirmStore } from '../../store/useFirmStore';
-import { categoryRepository } from '../../repositories/categoryRepository';
-import { designService } from '../../services/designService';
-import type { Category } from '../../types/phase2.types';
-import { COLORS, getThemeColors } from '../../constants/theme';
+import { useFirmStore } from '@/store/phase1/useFirmStore';
+import { categoryRepository } from '@/repositories/phase2/categoryRepository';
+import { designService } from '@/services/phase2/designService';
+import type { Category } from '@/types/phase2/phase2.types';
+import { COLORS, getThemeColors } from '@/constants/theme';
 
 export default function CreateDesignScreen() {
   const router = useRouter();
@@ -81,7 +80,7 @@ export default function CreateDesignScreen() {
     router.back();
   };
 
-  const activeTheme = useStore(appSettingsStore, (s) => s.theme);
+  const activeTheme = appSettingsStore((s: any) => s.theme);
   const colors = getThemeColors(activeTheme);
 
   const createDesignHeaderPills = (

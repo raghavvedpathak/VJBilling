@@ -5,16 +5,15 @@ import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator } from 'rea
 import { FlashList } from '@shopify/flash-list';
 import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import * as Haptics from 'expo-haptics';
-import { TwoToneWrapper } from '../../components/TwoToneWrapper';
-import { HeaderPill } from '../../components/ui/Glass';
-import { useStore } from 'zustand';
-import { appSettingsStore } from '../../store/appSettingsStore';
-import { useFirmStore } from '../../store/useFirmStore';
-import { inventoryDrillDownService } from '../../services/inventoryDrillDownService';
-import { getDisplayPurity, formatSKUDisplay, formatWeightMg as formatWeight } from '../../utils/calculations';
+import { TwoToneWrapper } from '@/components/TwoToneWrapper';
+import { HeaderPill } from '@/components/ui/Glass';
+import { appSettingsStore } from '@/store/phase1/appSettingsStore';
+import { useFirmStore } from '@/store/phase1/useFirmStore';
+import { inventoryDrillDownService } from '@/services/phase2/inventoryDrillDownService';
+import { getDisplayPurity, formatSKUDisplay, formatWeightMg as formatWeight } from '@/utils/calculations';
 import { ChevronRight, Tag, MapPin, Printer, Sparkles, Package } from 'lucide-react-native';
-import type { ItemSearchResult } from '../../types/phase2.types';
-import { COLORS, getThemeColors } from '../../constants/theme';
+import type { ItemSearchResult } from '@/types/phase2/phase2.types';
+import { COLORS, getThemeColors } from '@/constants/theme';
 
 const SkuRow = React.memo(({
   item,
@@ -149,7 +148,7 @@ export default function PurityItemsScreen() {
     router.push({ pathname: '/inventory/barcode-print', params: { itemId } });
   }, [router]);
 
-  const activeTheme = useStore(appSettingsStore, (s) => s.theme);
+  const activeTheme = appSettingsStore((s: any) => s.theme);
   const colors = getThemeColors(activeTheme);
 
   const purityHeaderPills = useMemo(() => {

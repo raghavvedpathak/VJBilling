@@ -6,15 +6,14 @@ import { useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { Search, PackageSearch, Ghost, Hash, Sparkles, Coins, ScanLine, X } from 'lucide-react-native';
-import { inventorySearchService } from '../../services/inventorySearchService';
-import { formatWeightMg as formatWeight } from '../../utils/calculations';
-import type { ItemSearchResult } from '../../types/phase2.types';
-import { useFirmStore } from '../../store/useFirmStore';
-import { TwoToneWrapper } from '../../components/TwoToneWrapper';
-import { HeaderPill } from '../../components/ui/Glass';
-import { useStore } from 'zustand';
-import { appSettingsStore } from '../../store/appSettingsStore';
-import { COLORS as CENTRAL_COLORS, getThemeColors } from '../../constants/theme';
+import { inventorySearchService } from '@/services/phase2/inventorySearchService';
+import { formatWeightMg as formatWeight } from '@/utils/calculations';
+import type { ItemSearchResult } from '@/types/phase2/phase2.types';
+import { useFirmStore } from '@/store/phase1/useFirmStore';
+import { TwoToneWrapper } from '@/components/TwoToneWrapper';
+import { HeaderPill } from '@/components/ui/Glass';
+import { appSettingsStore } from '@/store/phase1/appSettingsStore';
+import { COLORS as CENTRAL_COLORS, getThemeColors } from '@/constants/theme';
 
 const COLORS = {
   ...CENTRAL_COLORS,
@@ -107,8 +106,14 @@ const SearchResultRow = memo(({ item, query, onPress }: SearchResultRowProps) =>
         </View>
         
         <View style={s.weightDetails}>
-          <Text style={s.weightLabel}>NET WT</Text>
-          <HighlightText text={formatWeight(item.netWeightMg)} query={activeQuery} style={s.weightValue} />
+          <View style={{ alignItems: 'flex-end', marginRight: 12 }}>
+            <Text style={s.weightLabel}>GROSS</Text>
+            <Text style={s.weightValue}>{formatWeight(item.grossWeightMg)}</Text>
+          </View>
+          <View style={{ alignItems: 'flex-end' }}>
+            <Text style={s.weightLabel}>NET WT</Text>
+            <HighlightText text={formatWeight(item.netWeightMg)} query={activeQuery} style={s.weightValue} />
+          </View>
         </View>
       </View>
     </TouchableOpacity>
@@ -199,7 +204,7 @@ export default function InventorySearchScreen() {
     }
   }, [activeFirmId, router]);
 
-  const activeTheme = useStore(appSettingsStore, (s) => s.theme);
+  const activeTheme = appSettingsStore((s: any) => s.theme);
   const colors = getThemeColors(activeTheme);
 
   const searchHeaderPills = (

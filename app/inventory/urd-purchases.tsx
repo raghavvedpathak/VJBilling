@@ -9,17 +9,17 @@ import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 import * as Haptics from 'expo-haptics';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { TwoToneWrapper } from '../../components/TwoToneWrapper';
-import { GlassCard, GlassButton } from '../../components/ui/Glass';
-import { useFirmStore } from '../../store/useFirmStore';
-import { urdPurchaseRepository } from '../../repositories/urdPurchaseRepository';
-import { firmRepository } from '../../repositories/firmRepository';
-import { urdPurchaseService } from '../../services/urdPurchaseService';
-import { getCurrencySymbol, formatWeightMg as formatWeight } from '../../utils/calculations';
+import { TwoToneWrapper } from '@/components/TwoToneWrapper';
+import { GlassCard, GlassButton } from '@/components/ui/Glass';
+import { useFirmStore } from '@/store/phase1/useFirmStore';
+import { urdPurchaseRepository } from '@/repositories/phase2/urdPurchaseRepository';
+import { firmRepository } from '@/repositories/phase1/firmRepository';
+import { urdPurchaseService } from '@/services/phase2/urdPurchaseService';
+import { getCurrencySymbol, formatWeightMg as formatWeight } from '@/utils/calculations';
 import { FileDown, Plus, Scale, Banknote, ShieldAlert, CheckCircle, Printer, Trash2, Eye, X, Share2, Edit3 } from 'lucide-react-native';
-import type { URDPurchase } from '../../types/phase2.types';
-import type { Firm } from '../../types/firm';
-import { COLORS } from '../../constants/theme';
+import type { URDPurchase } from '@/types/phase2/phase2.types';
+import type { Firm } from '@/types/phase1/firm';
+import { COLORS } from '@/constants/theme';
 
 const FlashListAny: any = FlashList;
 

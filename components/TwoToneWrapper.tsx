@@ -1,13 +1,14 @@
+// components/TwoToneWrapper.tsx — Phase 2 v2.11 Canonical Component
+
 import React from 'react';
 import { View, Text, StatusBar, TouchableOpacity, KeyboardAvoidingView, Platform } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { router } from 'expo-router';
+import { useRouter } from 'expo-router';
 import { ChevronLeft } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
-import { DynamicBackground } from './ui/DynamicBackground';
-import { getThemeColors } from '../constants/theme';
-import { useStore } from 'zustand';
-import { appSettingsStore } from '../store/appSettingsStore';
+import { DynamicBackground } from '@/components/ui/DynamicBackground';
+import { getThemeColors } from '@/constants/theme';
+import { appSettingsStore } from '@/store/phase1/appSettingsStore';
 
 interface TwoToneWrapperProps {
   title?: string;
@@ -19,9 +20,10 @@ interface TwoToneWrapperProps {
 }
 
 export function TwoToneWrapper({ title, children, showBack, actionIcon, onAction, headerContent }: TwoToneWrapperProps) {
+  const router = useRouter();
   const insets = useSafeAreaInsets();
   // Reactive subscription ensures component re-renders instantly on theme change from Settings
-  const activeTheme = useStore(appSettingsStore, (s) => s.theme);
+  const activeTheme = appSettingsStore((s) => s.theme);
   const colors = getThemeColors(activeTheme);
 
   const handleBack = () => {
@@ -74,7 +76,6 @@ export function TwoToneWrapper({ title, children, showBack, actionIcon, onAction
         </View>
 
         {/* === LOWER ZONE (LIGHT WITH ROUNDED CORNERS) === */}
-        {/* ARCHITECT FIX: Clean rounded top panel without shadow seam strip */}
         <View className="flex-1 rounded-t-[32px] overflow-hidden" style={{ backgroundColor: colors.vjBg }}>
           <DynamicBackground />
           <KeyboardAvoidingView

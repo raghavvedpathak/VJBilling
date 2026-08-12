@@ -5,18 +5,17 @@ import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Modal, ActivityIn
 import { useRouter, useFocusEffect } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Haptics from 'expo-haptics';
-import { TwoToneWrapper } from '../../components/TwoToneWrapper';
-import { HeaderPill, GlassCard, GlassButton, GlassMetalBadge } from '../../components/ui/Glass';
-import { useStore } from 'zustand';
-import { appSettingsStore } from '../../store/appSettingsStore';
+import { TwoToneWrapper } from '@/components/TwoToneWrapper';
+import { HeaderPill, GlassCard, GlassButton, GlassMetalBadge } from '@/components/ui/Glass';
+import { appSettingsStore } from '@/store/phase1/appSettingsStore';
 import { Tag, Plus, Edit2, Trash2, LayoutGrid, List as ListIcon, CheckCircle, ShieldCheck } from 'lucide-react-native';
-import { useFirmStore } from '../../store/useFirmStore';
-import { designRepository } from '../../repositories/designRepository';
-import { categoryRepository } from '../../repositories/categoryRepository';
-import { designCategoryMapRepository } from '../../repositories/designCategoryMapRepository';
-import { designService } from '../../services/designService';
-import type { Design, Category } from '../../types/phase2.types';
-import { COLORS, getThemeColors } from '../../constants/theme';
+import { useFirmStore } from '@/store/phase1/useFirmStore';
+import { designRepository } from '@/repositories/phase2/designRepository';
+import { categoryRepository } from '@/repositories/phase2/categoryRepository';
+import { designCategoryMapRepository } from '@/repositories/phase2/designCategoryMapRepository';
+import { designService } from '@/services/phase2/designService';
+import type { Design, Category } from '@/types/phase2/phase2.types';
+import { COLORS, getThemeColors } from '@/constants/theme';
 
 type DesignWithCategory = Design & { categoryName: string | null };
 
@@ -58,12 +57,12 @@ export default function DesignsScreen() {
       ]);
       
       const formattedDesigns: DesignWithCategory[] = await Promise.all(
-        rawDesigns.map(async (d) => {
+        rawDesigns.map(async (d: Design) => {
           let categoryName: string | null = null;
           try {
             const maps = await designCategoryMapRepository.findByDesignId(d.id, activeFirmId);
             if (maps.length > 0) {
-              const cat = cRes.find((c) => c.id === maps[0].categoryId);
+              const cat = cRes.find((c: Category) => c.id === maps[0].categoryId);
               if (cat) categoryName = cat.name;
             }
           } catch {}
@@ -102,7 +101,7 @@ export default function DesignsScreen() {
     });
   };
 
-  const activeTheme = useStore(appSettingsStore, (s) => s.theme);
+  const activeTheme = appSettingsStore((s: any) => s.theme);
   const colors = getThemeColors(activeTheme);
 
   const designHeaderPills = (

@@ -31,6 +31,15 @@ export function renderURDTemplate1(params: URDTemplateParams): string {
     upiAmt,
   } = params;
 
+  const fullFirmAddress = [
+    firm.addressLine1,
+    firm.addressLine2,
+    firm.city,
+    firm.stateName ? (firm.pincode ? `${firm.stateName} - ${firm.pincode}` : firm.stateName) : firm.pincode,
+  ]
+    .filter((p) => p && String(p).trim().length > 0)
+    .join(', ');
+
   return `
 <!DOCTYPE html>
 <html lang="mr">
@@ -297,7 +306,7 @@ export function renderURDTemplate1(params: URDTemplateParams): string {
       <div class="banner-center">
         <div class="voucher-title">URD PURCHASE BILL</div>
         <div class="firm-name-dev">${firm.name}</div>
-        <div class="firm-addr" style="color: #f7d273; font-size: 10px; font-weight: 500; margin-top: 2px;">${firm.addressLine1 || ''}, ${firm.city || ''}, ${firm.stateName || ''}</div>
+        <div class="firm-addr" style="color: #f7d273; font-size: 10px; font-weight: 500; margin-top: 2px;">${fullFirmAddress}</div>
       </div>
       <div class="banner-right">
         <div style="font-weight: bold; font-size: 10.5px; color: #f7d273;">प्रोप्रा. ${firm.proprietor || firm.name}</div>

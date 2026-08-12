@@ -1,15 +1,16 @@
+// app/settings/verify.tsx — Phase 2 v2.11 Canonical Screen
+
 import React, { useState, useEffect, memo } from 'react';
-import { View, Text } from 'react-native';
+import { View, Text, Alert } from 'react-native';
 import { FlashList } from '@shopify/flash-list';
 import * as Haptics from 'expo-haptics';
-import { TwoToneWrapper } from '../../components/TwoToneWrapper';
-import { verifyService, VerifyFinding } from '../../services/verifyService';
-import { verifyStore } from '../../store/verifyStore';
-import { HeaderPill, GlassCard, GlassButton } from '../../components/ui/Glass'; 
-import { useStore } from 'zustand';
-import { appSettingsStore } from '../../store/appSettingsStore';
+import { TwoToneWrapper } from '@/components/TwoToneWrapper';
+import { verifyService, VerifyFinding } from '@/services/phase1/verifyService';
+import { verifyStore } from '@/store/phase1/verifyStore';
+import { HeaderPill, GlassCard, GlassButton } from '@/components/ui/Glass'; 
+import { appSettingsStore } from '@/store/phase1/appSettingsStore';
 import { ShieldCheck, AlertTriangle, CheckCircle, XCircle, Activity, Database } from 'lucide-react-native';
-import { COLORS, getThemeColors } from '../../constants/theme';
+import { COLORS, getThemeColors } from '@/constants/theme';
 
 const VerifyFindingRow = memo(({ item }: { item: VerifyFinding }) => {
   return (
@@ -55,7 +56,7 @@ export default function VerifyDataScreen() {
 
   const { lastScanIssues, markWarningsViewed } = verifyStore();
 
-  const activeTheme = useStore(appSettingsStore, (s) => s.theme);
+  const activeTheme = appSettingsStore((s) => s.theme);
   const colors = getThemeColors(activeTheme);
 
   useEffect(() => {
@@ -75,16 +76,15 @@ export default function VerifyDataScreen() {
     setStatus('IDLE');
 
     try {
-      const { status: scanStatus, findings } = await verifyService.runVerify();
+      const { findings } = await verifyService.runVerify();
       setResults(findings);
       setStatus(findings.length > 0 ? 'ISSUES' : 'CLEAN');
     } catch (e) {
-      alert("Scan Failed: " + (e as Error).message);
+      Alert.alert("Scan Failed", (e as Error).message);
     } finally {
       setScanning(false);
     }
   };
-
 
   const verifyHeaderPills = (
     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginTop: 4 }}>
@@ -100,7 +100,7 @@ export default function VerifyDataScreen() {
           title={scanning ? "Scanning Deep Layers..." : "Run Deep Scan"}
           onPress={runScan}
           loading={scanning}
-          icon={!scanning && <Activity size={20} color="#FCFBF8" />}
+          icon={!scanning ? <Activity size={20} color="#FCFBF8" /> : undefined}
         />
       </View>
 

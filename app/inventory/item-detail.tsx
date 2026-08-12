@@ -8,13 +8,13 @@ import {
 import { useLocalSearchParams, useRouter, useFocusEffect } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { useStore } from 'zustand';
-import { TwoToneWrapper } from '../../components/TwoToneWrapper';
-import { useFirmStore } from '../../store/useFirmStore';
-import { appSettingsStore } from '../../store/appSettingsStore';
-import { HeaderPill, GlassCard } from '../../components/ui/Glass';
-import { inventoryDrillDownService } from '../../services/inventoryDrillDownService';
-import { itemService } from '../../services/itemService';
-import { COLORS, getThemeColors } from '../../constants/theme';
+import { TwoToneWrapper } from '@/components/TwoToneWrapper';
+import { useFirmStore } from '@/store/phase1/useFirmStore';
+import { appSettingsStore } from '@/store/phase1/appSettingsStore';
+import { HeaderPill, GlassCard } from '@/components/ui/Glass';
+import { inventoryDrillDownService } from '@/services/phase2/inventoryDrillDownService';
+import { itemService } from '@/services/phase2/itemService';
+import { COLORS, getThemeColors } from '@/constants/theme';
 import {
   getDisplayPurity,
   percentToKarat,
@@ -28,7 +28,7 @@ import {
   formatWeightMg as formatWeight,
   resolveFineWeightMg,
   computeFineGoldChargedMg
-} from '../../utils/calculations';
+} from '@/utils/calculations';
 import { format, parseISO } from 'date-fns';
 import {
   Package, Tag, Scale, Gem, FileText,
@@ -37,8 +37,8 @@ import {
   Trash2, Coins, Percent, Crown, Award, Edit3, Check, X,
   ChevronUp, ChevronDown
 } from 'lucide-react-native';
-import type { ItemDetail, ItemTimelineEvent, UpdateableItemDraftFields, MetalSource } from '../../types/phase2.types';
-import { TERMINAL_ITEM_STATUSES } from '../../types/phase2.types';
+import type { ItemDetail, ItemTimelineEvent, UpdateableItemDraftFields, MetalSource } from '@/types/phase2/phase2.types';
+import { TERMINAL_ITEM_STATUSES } from '@/types/phase2/phase2.types';
 
 const formatCurrency = (paise: number | null): string => {
   if (paise === null || paise === undefined) return '—';

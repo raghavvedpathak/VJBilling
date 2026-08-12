@@ -1,19 +1,17 @@
+// components/SafeModeBanner.tsx — Phase 2 v2.11 Canonical Component
+
 import React from 'react';
 import { View, Text } from 'react-native';
-// FIX: Imported useStore from zustand and the specific store instance
-import { useStore } from 'zustand';
-import { safeModeStore, SafeModeTrigger } from '../store/safeModeStore';
+import { safeModeStore, SafeModeTrigger } from '@/store/phase1/safeModeStore';
 import { ShieldAlert } from 'lucide-react-native';
-import { COLORS } from '../constants/theme';
 
 export function SafeModeBanner() {
-  // FIX: Adapted to React hook pattern
-  const { isActive, reason } = useStore(safeModeStore);
+  const isActive = safeModeStore((s) => s.isActive);
+  const reason = safeModeStore((s) => s.reason);
 
   if (!isActive) return null;
 
   return (
-    // GLOBALLY STYLED: bg-vj-danger
     <View className="bg-vj-danger px-4 py-3 pb-4 shadow-xl z-50">
       <View className="flex-row items-center gap-3 mb-1">
         <View className="bg-white/20 p-1.5 rounded-full">
@@ -49,7 +47,6 @@ function getHumanMessage(reason: SafeModeTrigger | null): string {
       return "Security Alert: The backup file has been tampered with. Checksum verification failed.";
     case 'MIGRATION_FAILED':
       return "Database update failed. The app version does not match the database version.";
-    // ARCHITECT FIX: Added specific message for our new bootstrap row guard
     case 'STORAGE_CORRUPTION_DETECTED':
       return "Storage corruption detected. Critical system configuration is missing. Operations locked to prevent data loss.";
     default:

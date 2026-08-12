@@ -1,20 +1,14 @@
-import * as FileSystem from 'expo-file-system';
-import * as LegacyFileSystem from 'expo-file-system/legacy';
+import * as FileSystem from 'expo-file-system/legacy';
 
-// Safe extraction to bypass strict SDK 54 TypeScript definitions and missing runtime properties
 const getSafeDir = () => {
-  const modernFs = FileSystem as any;
-  const legacyFs = LegacyFileSystem as any;
+  const fs = FileSystem as any;
 
-  // Try to find the document directory in either the modern or legacy object
-  const dir = modernFs.documentDirectory || legacyFs.documentDirectory || modernFs.cacheDirectory || legacyFs.cacheDirectory;
+  const dir = fs.documentDirectory || fs.cacheDirectory;
   
   if (dir && typeof dir === 'string') {
-    // Ensure trailing slash for safe path concatenation
     return dir.endsWith('/') ? dir : `${dir}/`;
   }
   
-  // Absolute physical fallback for Android if Expo APIs are fully unavailable
   return 'file:///data/user/0/com.vjbilling/files/'; 
 };
 

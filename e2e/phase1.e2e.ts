@@ -1,28 +1,28 @@
-// e2e/phase1.e2e.ts
-import { by, device, element, expect } from 'detox';
+// e2e/phase1.e2e.ts — Phase 1 Hardware & Route Verification E2E Spec
+
+import { by, device, element, expect, waitFor } from 'detox';
 
 describe('Phase 1: Real Device Hardware Integration', () => {
   beforeAll(async () => {
     await device.launchApp({
       newInstance: true,
-      launchArgs: { detoxPrintUpdates: 'YES' }
+      launchArgs: { detoxPrintUpdates: 'YES' },
     });
   });
 
-  // ✅ FIXED: Remove reloadReactNative() from beforeEach entirely.
-  // It disconnects the app because Metro must serve the new bundle,
-  // which either isn't running or isn't ready yet.
-  // launchApp() in beforeAll already gives us a clean state.
-
-  it('GATE 1: Absolute First Boot bypasses Safe Mode (0.3 Gap)', async () => {
+  it('GATE 1: Absolute First Boot bypasses Safe Mode', async () => {
     await expect(element(by.id('safe-mode-screen'))).not.toExist();
   });
 
   it('GATE 2: App successfully routes to Setup or Dashboard', async () => {
     try {
-      await expect(element(by.id('setup-screen'))).toExist();
+      await waitFor(element(by.id('setup-screen')))
+        .toBeVisible()
+        .withTimeout(5000);
     } catch {
-      await expect(element(by.id('dashboard-screen'))).toExist();
+      await waitFor(element(by.id('dashboard-screen')))
+        .toBeVisible()
+        .withTimeout(5000);
     }
   });
 

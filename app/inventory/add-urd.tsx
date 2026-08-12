@@ -4,14 +4,14 @@ import React, { useState, useMemo } from 'react';
 import { View, Text, ScrollView, Alert, TouchableOpacity, Modal, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
-import { TwoToneWrapper } from '../../components/TwoToneWrapper';
-import { GlassCard, GlassInput, GlassButton } from '../../components/ui/Glass';
-import { useFirmStore } from '../../store/useFirmStore';
-import { urdPurchaseService } from '../../services/urdPurchaseService';
-import { getCurrencySymbol, formatRupees, computeURDCostBreakdown, parseCleanFloat } from '../../utils/calculations';
+import { TwoToneWrapper } from '@/components/TwoToneWrapper';
+import { GlassCard, GlassInput, GlassButton } from '@/components/ui/Glass';
+import { useFirmStore } from '@/store/phase1/useFirmStore';
+import { urdPurchaseService } from '@/services/phase2/urdPurchaseService';
+import { getCurrencySymbol, formatRupees, computeURDCostBreakdown, parseCleanFloat } from '@/utils/calculations';
 import { User, Scale, Banknote, CheckCircle, Trash2, Plus } from 'lucide-react-native';
-import type { URDMetalType } from '../../types/phase2.types';
-import { COLORS } from '../../constants/theme';
+import type { URDMetalType } from '@/types/phase2/phase2.types';
+import { COLORS } from '@/constants/theme';
 
 export interface URDItemRow {
   id: string;

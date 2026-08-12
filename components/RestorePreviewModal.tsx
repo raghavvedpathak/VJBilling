@@ -1,8 +1,9 @@
-// components/RestorePreviewModal.tsx
+// components/RestorePreviewModal.tsx — Phase 2 v2.11 Canonical Component
+
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, Modal, TouchableOpacity, ScrollView } from 'react-native';
 import * as Haptics from 'expo-haptics';
-import { GlassCard, GlassButton, GlassInput } from './ui/Glass';
+import { GlassCard, GlassButton, GlassInput } from '@/components/ui/Glass';
 import { 
   DatabaseBackup, 
   ShieldAlert, 
@@ -19,13 +20,13 @@ import {
   Lock,
   ImageOff
 } from 'lucide-react-native';
-import { COLORS } from '../constants/theme';
-import { BackupEnvelope } from '../services/backupService';
+import { COLORS } from '@/constants/theme';
+import { BackupEnvelope } from '@/services/phase1/backupService';
 
 export interface RestorePreviewModalProps {
   visible: boolean;
   backup: BackupEnvelope | null;
-  fileContent: string | null;
+  fileContent?: string | null;
   isRestoring?: boolean;
   onConfirm: (password?: string) => void;
   onCancel: () => void;
@@ -192,7 +193,7 @@ export function RestorePreviewModal({
                 </View>
               </View>
 
-              {/* CONDITIONAL BACKUP PASSWORD FIELD (v7.26 FIX-V726-3) */}
+              {/* CONDITIONAL BACKUP PASSWORD FIELD */}
               {isPasswordProtected && (
                 <View style={s.passwordContainer}>
                   <GlassInput
@@ -206,7 +207,7 @@ export function RestorePreviewModal({
                 </View>
               )}
 
-              {/* G60/G61 LOGO EXCLUSION NOTICE */}
+              {/* LOGO EXCLUSION NOTICE */}
               <View style={s.logoNoticeCard}>
                 <ImageOff size={16} color="#D97706" />
                 <Text style={s.logoNoticeText}>

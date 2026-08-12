@@ -5,16 +5,15 @@ import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator } from 'rea
 import { FlashList } from '@shopify/flash-list';
 import { useRouter, useFocusEffect } from 'expo-router';
 import * as Haptics from 'expo-haptics';
-import { TwoToneWrapper } from '../../components/TwoToneWrapper';
-import { HeaderPill, GlassCard } from '../../components/ui/Glass';
-import { useStore } from 'zustand';
-import { appSettingsStore } from '../../store/appSettingsStore';
-import { useFirmStore } from '../../store/useFirmStore';
-import { gemstoneLotRepository } from '../../repositories/gemstoneLotRepository';
-import { getCurrencySymbol } from '../../utils/calculations';
+import { TwoToneWrapper } from '@/components/TwoToneWrapper';
+import { HeaderPill, GlassCard } from '@/components/ui/Glass';
+import { appSettingsStore } from '@/store/phase1/appSettingsStore';
+import { useFirmStore } from '@/store/phase1/useFirmStore';
+import { gemstoneLotRepository } from '@/repositories/phase2/gemstoneLotRepository';
+import { getCurrencySymbol } from '@/utils/calculations';
 import { Gem, Plus, Diamond, Banknote, ShieldAlert, CheckCircle, Sparkles } from 'lucide-react-native';
-import type { GemstoneLot } from '../../types/phase2.types';
-import { COLORS, getThemeColors } from '../../constants/theme';
+import type { GemstoneLot } from '@/types/phase2/phase2.types';
+import { COLORS, getThemeColors } from '@/constants/theme';
 
 const formatCarats = (caratsX100: number) => (caratsX100 / 100).toFixed(2) + ' ct';
 const formatCurrency = (paise: number | null) => paise === null ? '—' : getCurrencySymbol() + (paise / 100).toFixed(2);
@@ -90,7 +89,7 @@ export default function GemstonesInventoryScreen() {
     }, [activeFirmId])
   );
 
-  const activeTheme = useStore(appSettingsStore, (s) => s.theme);
+  const activeTheme = appSettingsStore((s: any) => s.theme);
   const colors = getThemeColors(activeTheme);
 
   const gemstoneHeaderPills = (

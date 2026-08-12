@@ -1,20 +1,11 @@
-import React, { useEffect, useState, useCallback, useRef } from 'react';
+// components/LeaseStatusBanner.tsx — Phase 2 v2.11 Canonical Component
+
+import React, { useEffect, useState, useCallback } from 'react';
 import { View, Text, AppState, ActivityIndicator, Animated } from 'react-native';
 import { ShieldCheck, Lock } from 'lucide-react-native';
-// FIX: Constitutional Rule — Lease queries must route through leaseService to ensure top-level DB isolation.
-import { leaseService } from '../services/leaseService';
-import { now } from '../utils/now';
-import { COLORS } from '../constants/theme';
+import { leaseService } from '@/services/phase1/leaseService';
+import { now } from '@/utils/now';
 
-// ============================================================================
-// POLLING INTERVAL — 5 seconds.
-// Previously 1000ms (1 second), which fired a DB query 60×/minute on the
-// UI thread. On Android SQLite this causes measurable jank and battery drain.
-// The AppState 'active' listener handles the "user returns to app" case
-// instantly — the interval only exists for in-app lease expiry detection.
-// 5 seconds is the correct balance: fast enough to detect lease release,
-// slow enough to not impact rendering.
-// ============================================================================
 const POLL_INTERVAL_MS = 5000;
 
 const formatElapsed = (totalSeconds: number) => {
@@ -35,7 +26,6 @@ export function LeaseStatusBanner() {
     elapsedSeconds: 0,
   });
 
-  // Modern Pulse Animation for Active State
   const [pulseAnim] = useState(() => new Animated.Value(1));
 
   useEffect(() => {
@@ -43,7 +33,7 @@ export function LeaseStatusBanner() {
       Animated.loop(
         Animated.sequence([
           Animated.timing(pulseAnim, { toValue: 0.4, duration: 800, useNativeDriver: true }),
-          Animated.timing(pulseAnim, { toValue: 1, duration: 800, useNativeDriver: true })
+          Animated.timing(pulseAnim, { toValue: 1, duration: 800, useNativeDriver: true }),
         ])
       ).start();
     } else {
@@ -53,8 +43,6 @@ export function LeaseStatusBanner() {
 
   const checkLease = useCallback(async () => {
     try {
-      // FIX: leaseService.getActiveLease() handles the gt(expiresAt, now()) filter
-      // ensuring top-level db execution.
       const currentLease = await leaseService.getActiveLease();
 
       if (!currentLease) {
@@ -62,9 +50,6 @@ export function LeaseStatusBanner() {
         return;
       }
 
-      // Use now() for the current time — consistent with the centralized time
-      // utility used everywhere else in the app. Prevents subtle clock drift
-      // inconsistencies if the time utility is ever patched for test overrides.
       const currentMs = new Date(now()).getTime();
       const acquiredMs = new Date(currentLease.acquiredAt).getTime();
       const elapsed = Math.floor((currentMs - acquiredMs) / 1000);
@@ -75,15 +60,11 @@ export function LeaseStatusBanner() {
         elapsedSeconds: Math.max(0, elapsed),
       });
     } catch (e) {
-      // FAIL-OPEN: On DB error, show FREE state rather than spinning 'CHECKING'
-      // forever. A component that can't read the lease table should not block
-      // the dashboard UI. The error is logged for diagnostics.
       console.warn('[LeaseStatusBanner] Failed to read lease state:', e);
       setLeaseState({ status: 'FREE', leaseType: null, elapsedSeconds: 0 });
     }
   }, []);
 
-  // Re-check immediately when app returns to foreground
   useEffect(() => {
     const subscription = AppState.addEventListener('change', (nextAppState) => {
       if (appState.match(/inactive|background/) && nextAppState === 'active') {
@@ -95,7 +76,6 @@ export function LeaseStatusBanner() {
     return () => subscription.remove();
   }, [appState, checkLease]);
 
-  // Initial check + 5-second polling interval
   useEffect(() => {
     checkLease();
     const interval = setInterval(checkLease, POLL_INTERVAL_MS);

@@ -4,14 +4,13 @@ import React, { useState } from 'react';
 import { View, Text, StyleSheet, Alert, Modal, ScrollView } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import * as Haptics from 'expo-haptics';
-import { TwoToneWrapper } from '../../components/TwoToneWrapper';
-import { HeaderPill, GlassButton, GlassInput, GlassMetalBadge } from '../../components/ui/Glass';
-import { useStore } from 'zustand';
-import { appSettingsStore } from '../../store/appSettingsStore';
+import { TwoToneWrapper } from '@/components/TwoToneWrapper';
+import { HeaderPill, GlassButton, GlassInput, GlassMetalBadge } from '@/components/ui/Glass';
+import { appSettingsStore } from '@/store/phase1/appSettingsStore';
 import { Edit2, CheckCircle, ShieldCheck } from 'lucide-react-native';
-import { useFirmStore } from '../../store/useFirmStore';
-import { categoryService } from '../../services/categoryService';
-import { COLORS, getThemeColors } from '../../constants/theme';
+import { useFirmStore } from '@/store/phase1/useFirmStore';
+import { categoryService } from '@/services/phase2/categoryService';
+import { COLORS, getThemeColors } from '@/constants/theme';
 
 export default function EditCategoryScreen() {
   const router = useRouter();
@@ -47,7 +46,7 @@ export default function EditCategoryScreen() {
     router.back();
   };
 
-  const activeTheme = useStore(appSettingsStore, (s) => s.theme);
+  const activeTheme = appSettingsStore((s: any) => s.theme);
   const colors = getThemeColors(activeTheme);
 
   const editCategoryHeaderPills = (

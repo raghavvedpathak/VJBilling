@@ -24,6 +24,15 @@ export function renderURDCustomerDeclaration(params: URDCustomerDeclarationParam
     idProofNumber,
   } = params;
 
+  const fullFirmAddress = [
+    firm.addressLine1,
+    firm.addressLine2,
+    firm.city,
+    firm.stateName ? (firm.pincode ? `${firm.stateName} - ${firm.pincode}` : firm.stateName) : firm.pincode,
+  ]
+    .filter((p) => p && String(p).trim().length > 0)
+    .join(', ');
+
   return `
 <!DOCTYPE html>
 <html lang="mr">
@@ -219,7 +228,7 @@ export function renderURDCustomerDeclaration(params: URDCustomerDeclarationParam
         ${firmLogoUri ? `<img src="${firmLogoUri}" alt="Firm Logo" style="max-height: 50px; max-width: 85px; object-fit: contain;" />` : ''}
         <div style="text-align: center;">
           <div class="firm-title">${firm.name}</div>
-          <div class="firm-sub">${firm.addressLine1 || ''}, ${firm.city || ''}, ${firm.stateName || ''} | मो. ${firm.phone1}</div>
+          <div class="firm-sub">${fullFirmAddress} | मो. ${firm.phone1}</div>
         </div>
       </div>
 

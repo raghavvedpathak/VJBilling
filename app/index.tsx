@@ -1,10 +1,10 @@
-import { View, ActivityIndicator, Text } from "react-native";
-import { TwoToneWrapper } from "../components/TwoToneWrapper";
-import { COLORS } from "../constants/theme";
+// app/index.tsx — Phase 2 v2.11 Canonical Index Screen
 
-// ============================================================================
-// app/index.tsx — LOADING SHELL ONLY
-// ============================================================================
+import React from "react";
+import { View, ActivityIndicator, Text } from "react-native";
+import { TwoToneWrapper } from "@/components/TwoToneWrapper";
+import { COLORS } from "@/constants/theme";
+
 export default function Index() {
   return (
     <TwoToneWrapper title="">

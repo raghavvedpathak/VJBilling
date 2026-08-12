@@ -34,6 +34,15 @@ export function renderURDTemplate2(params: URDTemplateParams): string {
 
   const receiptNo = urd.urdNumber || 'DRAFT';
 
+  const fullFirmAddress = [
+    firm?.addressLine1,
+    firm?.addressLine2,
+    firm?.city,
+    firm?.stateName ? (firm?.pincode ? `${firm.stateName} - ${firm.pincode}` : firm.stateName) : firm?.pincode,
+  ]
+    .filter((p) => p && String(p).trim().length > 0)
+    .join(', ');
+
   return `
 <!DOCTYPE html>
 <html lang="en">
@@ -181,6 +190,12 @@ export function renderURDTemplate2(params: URDTemplateParams): string {
 
   <!-- PAGE 1 -->
   <div class="page page-break">
+    ${firm ? `
+      <div style="text-align: center; border-bottom: 2px solid #8b2538; padding-bottom: 8px; margin-bottom: 12px;">
+        <div style="font-size: 20px; font-weight: 800; color: #8b2538; text-transform: uppercase;">${firm.name}</div>
+        <div style="font-size: 11px; font-weight: 600; color: #333; margin-top: 2px;">${fullFirmAddress}${firm.phone1 ? ` | Phone: ${firm.phone1}` : ''}</div>
+      </div>
+    ` : ''}
     <div class="header-title">DECLARATION / AFFIDAVIT</div>
     <div class="header-subtitle">Regarding Ownership and Sale of Old / Used Gold Jewellery</div>
 

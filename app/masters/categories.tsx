@@ -5,16 +5,15 @@ import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Modal, ActivityIn
 import { useRouter, useFocusEffect } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Haptics from 'expo-haptics';
-import { TwoToneWrapper } from '../../components/TwoToneWrapper';
-import { HeaderPill, GlassCard, GlassButton } from '../../components/ui/Glass';
-import { useStore } from 'zustand';
-import { appSettingsStore } from '../../store/appSettingsStore';
+import { TwoToneWrapper } from '@/components/TwoToneWrapper';
+import { HeaderPill, GlassCard, GlassButton } from '@/components/ui/Glass';
+import { appSettingsStore } from '@/store/phase1/appSettingsStore';
 import { Layers, Plus, Edit2, Trash2, LayoutGrid, List as ListIcon, CheckCircle, ShieldCheck } from 'lucide-react-native';
-import { useFirmStore } from '../../store/useFirmStore';
-import { categoryRepository } from '../../repositories/categoryRepository';
-import { categoryService } from '../../services/categoryService';
-import type { Category } from '../../types/phase2.types';
-import { COLORS, getThemeColors } from '../../constants/theme';
+import { useFirmStore } from '@/store/phase1/useFirmStore';
+import { categoryRepository } from '@/repositories/phase2/categoryRepository';
+import { categoryService } from '@/services/phase2/categoryService';
+import type { Category } from '@/types/phase2/phase2.types';
+import { COLORS, getThemeColors } from '@/constants/theme';
 
 export default function CategoriesScreen() {
   const router = useRouter();
@@ -75,7 +74,7 @@ export default function CategoriesScreen() {
     });
   };
 
-  const activeTheme = useStore(appSettingsStore, (s) => s.theme);
+  const activeTheme = appSettingsStore((s: any) => s.theme);
   const colors = getThemeColors(activeTheme);
 
   const categoryHeaderPills = (

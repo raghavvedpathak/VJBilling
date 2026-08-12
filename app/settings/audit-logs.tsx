@@ -1,23 +1,22 @@
-// app/settings/audit-logs.tsx
+// app/settings/audit-logs.tsx — Phase 2 v2.11 Canonical Screen
+
 import React, { useState, useEffect, useMemo, memo, useRef } from 'react';
-import { View, Text, FlatList, TouchableOpacity, Share, ScrollView, StyleSheet } from 'react-native';
+import { View, Text, FlatList, TouchableOpacity, Share, ScrollView } from 'react-native';
 import * as Device from 'expo-device';
 import * as Haptics from 'expo-haptics';
-import { TwoToneWrapper } from '../../components/TwoToneWrapper';
-import { auditRepository } from '../../repositories/auditRepository';
-import { useFirmStore } from '../../store/useFirmStore';
-import { useStore } from 'zustand';
-import { appSettingsStore } from '../../store/appSettingsStore';
-import { getDeviceId } from '../../utils/deviceId';
+import { TwoToneWrapper } from '@/components/TwoToneWrapper';
+import { auditRepository } from '@/repositories/phase1/auditRepository';
+import { useFirmStore } from '@/store/phase1/useFirmStore';
+import { appSettingsStore } from '@/store/phase1/appSettingsStore';
+import { getDeviceId } from '@/utils/deviceId';
 import { 
   FileText, Smartphone, Calendar, ChevronDown, ChevronUp, Share2, Filter, 
-  CalendarClock, ShieldCheck, HardDriveUpload, ShieldAlert, Building2, 
-  Package, Settings, KeyRound, ShoppingBag, Tag, AlertTriangle, CheckCircle2,
-  RefreshCw, Layers
+  CalendarClock, ShieldAlert, Building2, 
+  Package, KeyRound, HardDriveUpload
 } from 'lucide-react-native';
 import { format, parseISO } from 'date-fns';
-import { COLORS } from '../../constants/theme';
-import { HeaderPill, GlassCard } from '../../components/ui/Glass';
+import { COLORS } from '@/constants/theme';
+import { HeaderPill, GlassCard } from '@/components/ui/Glass';
 
 const ToggleHandlerRef = React.createContext<React.MutableRefObject<(id: string) => void> | null>(null);
 
@@ -474,7 +473,7 @@ export default function AuditLogScreen() {
   const [categoryFilter, setCategoryFilter] = useState<string>('ALL');
 
   const { activeFirmId } = useFirmStore();
-  const dateFormatToken = useStore(appSettingsStore, (s: any) => s.dateFormatToken);
+  const dateFormatToken = appSettingsStore((s: any) => s.dateFormatToken);
 
   const toggleHandlerRef = useRef<(id: string) => void>(() => {});
   useEffect(() => {
@@ -491,8 +490,8 @@ export default function AuditLogScreen() {
     const id = await getDeviceId();
     setCurrentDeviceId(id);
     if (!activeFirmId) return;
-    const firmLogs = await auditRepository.getByFirmId(activeFirmId);
-    const systemLogs = await auditRepository.getSystemLogs();
+    const firmLogs = auditRepository.getByFirmId(activeFirmId);
+    const systemLogs = auditRepository.getSystemLogs();
     const combined = [...firmLogs, ...systemLogs].sort((a, b) =>
       new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
     );

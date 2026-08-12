@@ -2,10 +2,10 @@
 
 import { useState, useCallback } from 'react';
 import { useRouter, useFocusEffect } from 'expo-router';
-import { useFirmStore } from '../store/useFirmStore';
-import { firmRepository, Firm } from '../repositories/firmRepository';
-import { fyRepository } from '../repositories/fyRepository';
-import { useFyBannerStore } from '../store/fyBannerStore';
+import { useFirmStore } from '@/store/phase1/useFirmStore';
+import { firmRepository, Firm } from '@/repositories/phase1/firmRepository';
+import { fyRepository } from '@/repositories/phase1/fyRepository';
+import { useFyBannerStore } from '@/store/phase1/fyBannerStore';
 
 export function useSession() {
   const router = useRouter();
@@ -16,15 +16,15 @@ export function useSession() {
   const [isFYExpired, setIsFYExpired] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
 
-  const refreshSession = useCallback(async () => {
+  const refreshSession = useCallback(() => {
     if (!activeFirmId) {
       setIsLoading(false);
       return;
     }
 
     try {
-      // 1. Fetch Firm Identity
-      const firmData = await firmRepository.getById(activeFirmId);
+      // 1. Fetch Firm Identity (Synchronous JSI)
+      const firmData = firmRepository.getById(activeFirmId);
 
       if (!firmData) {
         // CORRUPTION CHECK: activeFirmId exists in Zustand but not in DB.
@@ -34,21 +34,26 @@ export function useSession() {
         return;
       }
 
-      // 2. Fetch Active Financial Year
-      const fyData = await fyRepository.getActiveFY(activeFirmId);
+      // 2. Fetch Active Financial Year (Synchronous JSI)
+      const fyData = fyRepository.getActiveFY(activeFirmId);
 
-      // 3. v7.5 FY-BOUNDARY-TRANSITION-RULE: compute expiry flag.
+      // 3. Timezone-Safe Date Comparison (IST Compatible YYYY-MM-DD)
       let fyExpired = false;
       if (fyData?.endDate) {
-        const todayStr = new Date().toISOString().split('T')[0]; // 'YYYY-MM-DD'
+        const now = new Date();
+        const year = now.getFullYear();
+        const month = String(now.getMonth() + 1).padStart(2, '0');
+        const day = String(now.getDate()).padStart(2, '0');
+        const todayStr = `${year}-${month}-${day}`;
+
         fyExpired = fyData.endDate < todayStr;
       }
 
       setFirm(firmData);
       setActiveFY(fyData);
       setIsFYExpired(fyExpired);
-      
-      // STEP 5.5 (ALIGN-P1-V75): set bannerVisible in zustand store
+
+      // 4. Update banner state in Zustand store
       if (fyExpired) {
         useFyBannerStore.getState().setBannerVisible(true);
       }
@@ -68,7 +73,7 @@ export function useSession() {
   return {
     firm,
     activeFY,
-    isFYExpired, // v7.5: Dashboard must show amber FY-boundary banner when true
+    isFYExpired, // Dashboard shows amber FY-boundary banner when true
     isLoading,
     refreshSession,
   };

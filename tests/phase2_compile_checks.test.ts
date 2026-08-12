@@ -1,8 +1,8 @@
 // tests/phase2_compile_checks.test.ts
 
-import { itemRepository } from '../repositories/itemRepository';
-import { itemService } from '../services/itemService';
-import { db } from '../db/client';
+import { itemRepository } from '@/repositories/phase2/itemRepository';
+import { itemService } from '@/services/phase2/itemService';
+import { db } from '@/db/client';
 
 // TEST 5: Weight Immutability & metalSource Immutability (TypeScript static analysis proofs)
 // This file is tested by running `npx tsc --noEmit` and via Jest.

@@ -1,19 +1,19 @@
 // app/dashboard.tsx — Phase 2 v2.11 Canonical Screen
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, TouchableOpacity, Image, ScrollView, Modal } from 'react-native';
 import { useRouter } from 'expo-router';
-import { TwoToneWrapper } from '../components/TwoToneWrapper'; 
-import { useSession } from '../hooks/useSession';
-import { useFirmStore } from '../store/useFirmStore';
-import { GlassCard, GlassButton, HeaderPill } from '../components/ui/Glass'; 
-import { LeaseStatusBanner } from '../components/LeaseStatusBanner'; 
-import { FYEndBanner } from '../components/FYEndBanner'; 
+import { TwoToneWrapper } from '@/components/TwoToneWrapper'; 
+import { useSession } from '@/hooks/useSession';
+import { useFirmStore } from '@/store/phase1/useFirmStore';
+import { GlassCard, GlassButton, HeaderPill } from '@/components/ui/Glass'; 
+import { LeaseStatusBanner } from '@/components/LeaseStatusBanner'; 
+import { FYEndBanner } from '@/components/FYEndBanner'; 
 import { 
   LogOut, Settings, ShieldCheck, FileText, Package, TrendingUp, 
   ChevronRight, Gem, Landmark, CalendarClock, CheckCircle2
 } from 'lucide-react-native';
-import { COLORS } from '../constants/theme';
+import { COLORS } from '@/constants/theme';
 
 export default function Dashboard() {
   const router = useRouter();
@@ -28,7 +28,7 @@ export default function Dashboard() {
     router.replace('/welcome'); 
   };
 
-  React.useEffect(() => {
+  useEffect(() => {
     if (!isLoading && !firm) {
       router.replace('/welcome');
     }
@@ -49,8 +49,8 @@ export default function Dashboard() {
   const dashboardHeader = (
     <View>
       <View className="mb-4">
-         <LeaseStatusBanner />
-         <FYEndBanner />
+        <LeaseStatusBanner />
+        <FYEndBanner />
       </View>
 
       <View className="py-2">

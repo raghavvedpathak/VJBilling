@@ -6,16 +6,15 @@ import { FlashList } from '@shopify/flash-list';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
-import { TwoToneWrapper } from '../../components/TwoToneWrapper';
-import { useFirmStore } from '../../store/useFirmStore';
-import { inventoryDrillDownService } from '../../services/inventoryDrillDownService';
-import { formatWeightMg as formatWeight } from '../../utils/calculations';
-import { HeaderPill } from '../../components/ui/Glass';
-import { useStore } from 'zustand';
-import { appSettingsStore } from '../../store/appSettingsStore';
-import { COLORS, getThemeColors } from '../../constants/theme';
+import { TwoToneWrapper } from '@/components/TwoToneWrapper';
+import { useFirmStore } from '@/store/phase1/useFirmStore';
+import { inventoryDrillDownService } from '@/services/phase2/inventoryDrillDownService';
+import { formatWeightMg as formatWeight } from '@/utils/calculations';
+import { HeaderPill } from '@/components/ui/Glass';
+import { appSettingsStore } from '@/store/phase1/appSettingsStore';
+import { COLORS, getThemeColors } from '@/constants/theme';
 import { ChevronRight, Package, Plus, Scale } from 'lucide-react-native';
-import { getJewelryCategoryIcon } from '../../utils/jewelryIcons';
+import { getJewelryCategoryIcon } from '@/utils/jewelryIcons';
 
 type CategoryRowProps = {
   item: { id: string; name: string; availableCount: number; totalNetWeightMg: number };
@@ -31,14 +30,18 @@ const CategoryRow = memo(({ item, onPress }: CategoryRowProps) => {
       style={s.card}
     >
       <View style={s.metalBadge}>
-        {getJewelryCategoryIcon(item.name, undefined, undefined, 20, COLORS.vjAccent)}
+        {getJewelryCategoryIcon(item.name, undefined, undefined, 24, COLORS.vjAccent)}
       </View>
 
       <View style={s.cardBody}>
         <View style={s.titleRow}>
           <Text style={s.categoryName} numberOfLines={1}>{item.name}</Text>
         </View>
-        <Text style={s.weightText}>{formatWeight(item.totalNetWeightMg)}</Text>
+        
+        <View style={s.weightBadge}>
+          <Scale size={11} color={COLORS.vjAccent} />
+          <Text style={s.weightText}>Net: {formatWeight(item.totalNetWeightMg)}</Text>
+        </View>
       </View>
 
       <View style={s.countBadge}>
@@ -57,7 +60,7 @@ export default function DrillDownScreen() {
   const { activeFirmId } = useFirmStore();
   const [data, setData] = useState<{ id: string; name: string; availableCount: number; totalNetWeightMg: number }[]>([]);
   const [loading, setLoading] = useState(true);
-  const activeTheme = useStore(appSettingsStore, (s) => s.theme);
+  const activeTheme = appSettingsStore((s: any) => s.theme);
   const colors = getThemeColors(activeTheme);
 
   useFocusEffect(
@@ -146,21 +149,26 @@ const s = StyleSheet.create({
   card: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(255,255,255,0.6)',
-    marginBottom: 10,
+    backgroundColor: '#FFFFFF',
+    marginBottom: 12,
     borderRadius: 16,
-    padding: 16,
+    padding: 14,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.5)',
+    borderColor: 'rgba(92, 22, 35, 0.08)',
     gap: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 6,
+    elevation: 2,
   },
   metalBadge: {
-    width: 44,
-    height: 44,
+    width: 46,
+    height: 46,
     borderRadius: 14,
-    backgroundColor: 'rgba(212,175,55,0.12)',
+    backgroundColor: 'rgba(212,175,55,0.14)',
     borderWidth: 1,
-    borderColor: 'rgba(212,175,55,0.3)',
+    borderColor: 'rgba(212,175,55,0.35)',
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -171,33 +179,47 @@ const s = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    marginBottom: 4,
+    marginBottom: 6,
   },
   categoryName: {
     color: COLORS.vjText,
-    fontWeight: '700',
+    fontWeight: '800',
     fontSize: 15,
     flexShrink: 1,
   },
+  weightBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+    backgroundColor: 'rgba(212,175,55,0.1)',
+    borderWidth: 1,
+    borderColor: 'rgba(212,175,55,0.25)',
+  },
   weightText: {
-    color: 'rgba(92,22,35,0.5)',
-    fontSize: 12,
-    fontWeight: '600',
+    color: COLORS.vjText,
+    fontSize: 11,
+    fontWeight: '800',
   },
   countBadge: {
     alignItems: 'center',
-    backgroundColor: 'rgba(92,22,35,0.04)',
+    backgroundColor: 'rgba(255,255,255,0.7)',
     paddingHorizontal: 10,
     paddingVertical: 6,
     borderRadius: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(212,175,55,0.25)',
   },
   countText: {
     color: COLORS.vjText,
     fontSize: 16,
-    fontWeight: '800',
+    fontWeight: '900',
   },
   countLabel: {
-    color: 'rgba(92,22,35,0.4)',
+    color: 'rgba(92,22,35,0.45)',
     fontSize: 9,
     fontWeight: '700',
     textTransform: 'uppercase',

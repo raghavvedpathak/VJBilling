@@ -4,16 +4,15 @@ import React, { useState, useCallback } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Modal, TextInput, Alert, ActivityIndicator, KeyboardAvoidingView, Platform } from 'react-native';
 import { useRouter, useFocusEffect } from 'expo-router';
 import * as Haptics from 'expo-haptics';
-import { TwoToneWrapper } from '../../components/TwoToneWrapper';
-import { HeaderPill, GlassCard, GlassButton } from '../../components/ui/Glass';
-import { useStore } from 'zustand';
-import { appSettingsStore } from '../../store/appSettingsStore';
+import { TwoToneWrapper } from '@/components/TwoToneWrapper';
+import { HeaderPill, GlassCard, GlassButton } from '@/components/ui/Glass';
+import { appSettingsStore } from '@/store/phase1/appSettingsStore';
 import { Gem, Plus, X, Trash2, LayoutGrid, List as ListIcon, CheckCircle, ShieldCheck } from 'lucide-react-native';
-import { useFirmStore } from '../../store/useFirmStore';
-import { stoneRepository } from '../../repositories/stoneRepository';
-import { stoneService } from '../../services/stoneService';
-import type { Stone } from '../../types/phase2.types';
-import { COLORS, getThemeColors } from '../../constants/theme';
+import { useFirmStore } from '@/store/phase1/useFirmStore';
+import { stoneRepository } from '@/repositories/phase2/stoneRepository';
+import { stoneService } from '@/services/phase2/stoneService';
+import type { Stone } from '@/types/phase2/phase2.types';
+import { COLORS, getThemeColors } from '@/constants/theme';
 
 type StoneType = 'DIAMOND' | 'RUBY' | 'EMERALD' | 'SAPPHIRE';
 const STONE_TYPES: StoneType[] = ['DIAMOND', 'RUBY', 'EMERALD', 'SAPPHIRE'];
@@ -98,7 +97,7 @@ export default function StonesScreen() {
     ]);
   };
 
-  const activeTheme = useStore(appSettingsStore, (s) => s.theme);
+  const activeTheme = appSettingsStore((s: any) => s.theme);
   const colors = getThemeColors(activeTheme);
 
   const stoneHeaderPills = (

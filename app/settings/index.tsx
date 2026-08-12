@@ -4,17 +4,16 @@ import { View, Text, TouchableOpacity, ScrollView, Alert, ActivityIndicator, Mod
 import { useRouter } from 'expo-router';
 import * as Device from 'expo-device';
 import * as Haptics from 'expo-haptics';
-import { TwoToneWrapper } from '../../components/TwoToneWrapper';
-import { useSession } from '../../hooks/useSession';
-import { backupService } from '../../services/backupService';
-import { restoreService } from '../../services/restoreService';
-import { auditService } from '../../services/auditService';
-import { storage } from '../../utils/storage';
-import { settingsService } from '../../services/settingsService'; 
-import { GlassCard, HeaderPill } from '../../components/ui/Glass';
-import { isPinSet, isPinSkipped } from '../../services/pinService'; 
-import { useStore } from 'zustand';
-import { appSettingsStore } from '../../store/appSettingsStore';
+import { TwoToneWrapper } from '@/components/TwoToneWrapper';
+import { useSession } from '@/hooks/useSession';
+import { backupService } from '@/services/phase1/backupService';
+import { restoreService } from '@/services/phase1/restoreService';
+import { auditService } from '@/services/phase1/auditService';
+import { storage } from '@/utils/storage';
+import { settingsService } from '@/services/phase1/settingsService'; 
+import { GlassCard, HeaderPill } from '@/components/ui/Glass';
+import { isPinSet, isPinSkipped } from '@/services/phase1/pinService'; 
+import { appSettingsStore } from '@/store/phase1/appSettingsStore';
 import {
   Building2,
   HardDriveDownload,
@@ -37,9 +36,9 @@ import {
   KeyRound,
   ShieldCheck
 } from 'lucide-react-native';
-import { RestorePreviewModal } from '../../components/RestorePreviewModal';
-import { BackupEnvelope } from '../../services/backupService';
-import { COLORS, THEME_PRESETS, getThemeColors } from '../../constants/theme';
+import { RestorePreviewModal } from '@/components/RestorePreviewModal';
+import { BackupEnvelope } from '@/services/phase1/backupService';
+import { COLORS, THEME_PRESETS, getThemeColors } from '@/constants/theme';
 
 export default function SettingsScreen() {
   const router = useRouter();
@@ -105,7 +104,7 @@ export default function SettingsScreen() {
     }
   };
 
-  const activeStoreTheme = useStore(appSettingsStore, (s) => s.theme);
+  const activeStoreTheme = appSettingsStore((s) => s.theme);
 
   const getThemeLabel = (t: string) => {
     const currentTheme = t && t !== 'system' ? t : activeStoreTheme;
@@ -381,7 +380,7 @@ export default function SettingsScreen() {
             Firm Code: {firm?.firmCode || 'N/A'}
           </Text>
           <Text className="text-[10px] text-vj-text mt-1">
-            Device: {Device.modelName || 'Unknown'} ({Device.osName})
+            Device: {Device.modelName || Device.deviceName || 'Unknown'}
           </Text>
         </View>
 

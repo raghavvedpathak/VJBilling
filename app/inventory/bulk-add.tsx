@@ -4,17 +4,17 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { View, Text, ScrollView, Alert, Modal, TouchableOpacity, StyleSheet } from 'react-native';
 import { useRouter, useFocusEffect } from 'expo-router';
 import * as Haptics from 'expo-haptics';
-import { TwoToneWrapper } from '../../components/TwoToneWrapper';
-import { GlassCard, GlassInput, GlassButton, GlassSmartSearch } from '../../components/ui/Glass';
-import { useFirmStore } from '../../store/useFirmStore';
-import { itemService } from '../../services/itemService';
-import { designRepository } from '../../repositories/designRepository';
-import { categoryRepository } from '../../repositories/categoryRepository';
-import { hsnMasterRepository } from '../../repositories/hsnMasterRepository';
-import { stoneRepository } from '../../repositories/stoneRepository';
-import { itemRepository } from '../../repositories/itemRepository';
-import { designCategoryMapRepository } from '../../repositories/designCategoryMapRepository';
-import type { Design, Category, HsnCode, Stone } from '../../types/phase2.types';
+import { TwoToneWrapper } from '@/components/TwoToneWrapper';
+import { GlassCard, GlassInput, GlassButton, GlassSmartSearch } from '@/components/ui/Glass';
+import { useFirmStore } from '@/store/phase1/useFirmStore';
+import { itemService } from '@/services/phase2/itemService';
+import { designRepository } from '@/repositories/phase2/designRepository';
+import { categoryRepository } from '@/repositories/phase2/categoryRepository';
+import { hsnMasterRepository } from '@/repositories/phase2/hsnMasterRepository';
+import { stoneRepository } from '@/repositories/phase2/stoneRepository';
+import { itemRepository } from '@/repositories/phase2/itemRepository';
+import { designCategoryMapRepository } from '@/repositories/phase2/designCategoryMapRepository';
+import type { Design, Category, HsnCode, Stone } from '@/types/phase2/phase2.types';
 import { Package, Plus, Trash2, Calculator, Layers, CheckCircle } from 'lucide-react-native';
 import { 
   PURITY_MAP,
@@ -27,7 +27,7 @@ import {
   computeAbsoluteTotalCostRupees,
   rupeesToPaise,
   getCurrencySymbol 
-} from '../../utils/calculations';
+} from '@/utils/calculations';
 
 import { COLORS } from '../../constants/theme';
 

@@ -5,15 +5,15 @@ import { BlurView } from 'expo-blur';
 import * as ImagePicker from 'expo-image-picker';
 import { manipulateAsync, SaveFormat } from 'expo-image-manipulator';
 import * as FileSystem from 'expo-file-system/legacy';
-import { TwoToneWrapper } from '../../components/TwoToneWrapper';
-import { firmService } from '../../services/firmService';
-import { useFirmStore } from '../../store/useFirmStore';
-import { INDIAN_STATES } from '../../utils/indianStates'; 
-import { GlassCard, GlassInput, GlassButton } from '../../components/ui/Glass';
+import { TwoToneWrapper } from '@/components/TwoToneWrapper';
+import { firmService } from '@/services/phase1/firmService';
+import { useFirmStore } from '@/store/phase1/useFirmStore';
+import { INDIAN_STATES } from '@/utils/indianStates'; 
+import { GlassCard, GlassInput, GlassButton } from '@/components/ui/Glass';
 import { Save, Building2, User, MapPin, Hash, Phone, ShieldCheck, ImagePlus, Tag, CheckCircle2, ArrowLeft, ChevronDown, X, Lock } from 'lucide-react-native';
-import { validateGSTIN } from '../../utils/validateGSTIN';
-import { useUnsavedChangesGuard } from '../../hooks/useUnsavedChangesGuard';
-import { COLORS } from '../../constants/theme';
+import { validateGSTIN } from '@/utils/validateGSTIN';
+import { useUnsavedChangesGuard } from '@/hooks/useUnsavedChangesGuard';
+import { COLORS } from '@/constants/theme';
 
 export default function EditFirmScreen() {
   const router = useRouter();
@@ -147,7 +147,9 @@ export default function EditFirmScreen() {
         return;
       }
 
-      const logosDir = FileSystem.documentDirectory + 'logos/';
+      const fsAny = FileSystem as any;
+      const docDir = fsAny.documentDirectory ?? fsAny.cacheDirectory ?? '';
+      const logosDir = docDir + 'logos/';
       await FileSystem.makeDirectoryAsync(logosDir, { intermediates: true });
       
       const timeStamp = Date.now();
@@ -225,6 +227,7 @@ export default function EditFirmScreen() {
           }
         }
 
+        if (!id) return;
         await firmService.updateFirm(id, updatePayload);
         setShowSuccessModal(true);
       } catch (error: any) {
@@ -254,7 +257,7 @@ export default function EditFirmScreen() {
       <TouchableOpacity
         onPress={() => pickImage('logoUri')}
         activeOpacity={0.8}
-        className="h-28 w-28 rounded-3xl justify-center items-center overflow-hidden border-2 border-white/40 shadow-sm mb-2 bg-vj-glass"
+        className="h-28 w-28 rounded-3xl justify-center items-center overflow-hidden border-2 border-white/30 shadow-sm mb-2 bg-white/10"
       >
         {form.logoUri ? (
           <Image 
@@ -267,14 +270,14 @@ export default function EditFirmScreen() {
             }} 
           />
         ) : (
-          <BlurView intensity={20} tint="light" className="w-full h-full justify-center items-center">
+          <View className="w-full h-full justify-center items-center bg-black/20">
             <View className="items-center justify-center">
               <ImagePlus size={26} color="#FCFBF8" />
-              <Text className="text-[9px] text-vj-bg font-black tracking-widest uppercase mt-1 text-center px-1">
+              <Text className="text-[9px] text-white/80 font-black tracking-widest uppercase mt-1 text-center px-1">
                 NO LOGO
               </Text>
             </View>
-          </BlurView>
+          </View>
         )}
       </TouchableOpacity>
       

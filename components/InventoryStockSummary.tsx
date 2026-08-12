@@ -1,16 +1,14 @@
-// components/InventoryStockSummary.tsx
-// Phase 2 v1.73 — Canonical Implementation
+// components/InventoryStockSummary.tsx — Phase 2 v1.73 Canonical Implementation
 // Enforces Phantom Debt visibility, Phase 3 Rate Engine boundary, and Purchase Cost Aggregation.
 
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import * as Haptics from 'expo-haptics';
-import { GlassCard } from './ui/Glass';
-import { itemRepository } from '../repositories/itemRepository';
-import { getCurrencySymbol } from '../utils/calculations';
+import { GlassCard } from '@/components/ui/Glass';
+import { itemRepository } from '@/repositories/phase2/itemRepository';
+import { getCurrencySymbol } from '@/utils/calculations';
 import { Scale, AlertCircle, Wallet, TrendingUp, ShieldCheck } from 'lucide-react-native';
-
-import { COLORS } from '../constants/theme';
+import { COLORS } from '@/constants/theme';
 
 interface StockWeightSummary {
   goldNetWeightMg: number;
@@ -207,7 +205,7 @@ export function InventoryStockSummary({ firmId, goldRatePerGramPaise, silverRate
     const fetchSummary = async () => {
       try {
         const data = await itemRepository.getStockWeightSummary(firmId);
-        if (isActive) setSummary(data);
+        if (isActive && data) setSummary(data);
       } catch (error) {
         console.error('[InventoryStockSummary] Failed to fetch summary:', error);
       }
@@ -257,23 +255,6 @@ const s = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-  },
-  badgePillRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 2,
-  },
-  metalTag: {
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 999,
-    borderWidth: 1,
-  },
-  metalTagText: {
-    fontSize: 9,
-    fontWeight: '900',
-    letterSpacing: 0.6,
-    textTransform: 'uppercase',
   },
   metalTitle: {
     fontSize: 16,

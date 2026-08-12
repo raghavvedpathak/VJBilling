@@ -27,7 +27,7 @@ jest.mock('../db/client', () => {
   };
 });
 
-jest.mock('../services/safeModeService', () => ({
+jest.mock('@/services/phase1/safeModeService', () => ({
   safeModeService: {
     assertNotInSafeMode: jest.fn(),
     clear: jest.fn()
@@ -41,25 +41,25 @@ import {
   categories, designs, items, itemEvents, sequenceCounters, oldGoldLots,
   gemstoneLots, stones, hsnCodes, urdPurchases, auditLogs, auditArchiveIndex, designCategoryMap,
   financialYears, firms, appSettings, safeModeState, bisLogos, auditDeleteGate
-} from '../db/schema';
-import { generateDesignPrefix } from '../services/skuEngine';
-import { ERR } from '../constants';
-import { formatSKUDisplay, isStandardPurityGrade, resolveFineWeightMg, computeEffectivePricePaisePerGram, computeEstTotalCostPaise } from '../utils/calculations';
-import { gemstoneLotService } from '../services/gemstoneLotService';
-import { oldGoldLotService } from '../services/oldGoldLotService';
-import { backupService } from '../services/backupService';
-import { restoreService } from '../services/restoreService';
-import { inventorySearchService } from '../services/inventorySearchService';
-import { inventoryDrillDownService } from '../services/inventoryDrillDownService';
-import { itemService } from '../services/itemService';
-import { designService } from '../services/designService';
-import { karigarService } from '../services/karigarService';
-import { categoryService } from '../services/categoryService';
-import { barcodeLabelService } from '../services/barcodeLabelService';
-import { itemRepository } from '../repositories/itemRepository';
-import { oldGoldLotRepository } from '../repositories/oldGoldLotRepository';
-import { fyService } from '../services/fyService';
-import { auditRepository } from '../repositories/auditRepository';
+} from '@/db/schema';
+import { generateDesignPrefix } from '@/services/phase2/skuEngine';
+import { ERR } from '@/constants';
+import { formatSKUDisplay, isStandardPurityGrade, resolveFineWeightMg, computeEffectivePricePaisePerGram, computeEstTotalCostPaise } from '@/utils/calculations';
+import { gemstoneLotService } from '@/services/phase2/gemstoneLotService';
+import { oldGoldLotService } from '@/services/phase2/oldGoldLotService';
+import { backupService } from '@/services/phase1/backupService';
+import { restoreService } from '@/services/phase1/restoreService';
+import { inventorySearchService } from '@/services/phase2/inventorySearchService';
+import { inventoryDrillDownService } from '@/services/phase2/inventoryDrillDownService';
+import { itemService } from '@/services/phase2/itemService';
+import { designService } from '@/services/phase2/designService';
+import { karigarService } from '@/services/phase2/karigarService';
+import { categoryService } from '@/services/phase2/categoryService';
+import { barcodeLabelService } from '@/services/phase2/barcodeLabelService';
+import { itemRepository } from '@/repositories/phase2/itemRepository';
+import { oldGoldLotRepository } from '@/repositories/phase2/oldGoldLotRepository';
+import { fyService } from '@/services/phase1/fyService';
+import { auditRepository } from '@/repositories/phase1/auditRepository';
 
 // ─── SETUP & TEARDOWN ──────────────────────────────────────────────────
 beforeAll(async () => {
@@ -719,8 +719,8 @@ describe('Size Pairing Validation', () => {
 // ============================================================================
 // TEST 17: URD Purchases
 // ============================================================================
-import { urdPurchaseService } from '../services/urdPurchaseService';
-import { urdPurchaseRepository } from '../repositories/urdPurchaseRepository';
+import { urdPurchaseService } from '@/services/phase2/urdPurchaseService';
+import { urdPurchaseRepository } from '@/repositories/phase2/urdPurchaseRepository';
 
 describe('URD Purchases', () => {
   it('creates and confirms URD purchase with correct sequence numbering', async () => {

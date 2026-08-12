@@ -1,17 +1,19 @@
+// app/welcome.tsx — Phase 2 v2.11 Canonical Welcome Screen
+
 import React, { useEffect, useState } from 'react';
 import { View, Text, ActivityIndicator, Alert, Image, ScrollView } from 'react-native';
 import { useRouter } from 'expo-router';
 import * as FileSystem from 'expo-file-system/legacy';
-import { TwoToneWrapper } from '../components/TwoToneWrapper';
-import { GlassCard, GlassButton } from '../components/ui/Glass';
-import { restoreService } from '../services/restoreService';
-import { useSession } from '../hooks/useSession';
-import { useFirmStore } from '../store/useFirmStore';
-import { firmRepository, Firm } from '../repositories/firmRepository';
+import { TwoToneWrapper } from '@/components/TwoToneWrapper';
+import { GlassCard, GlassButton } from '@/components/ui/Glass';
+import { restoreService } from '@/services/phase1/restoreService';
+import { useSession } from '@/hooks/useSession';
+import { useFirmStore } from '@/store/phase1/useFirmStore';
+import { firmRepository, Firm } from '@/repositories/phase1/firmRepository';
 import { ShieldCheck, HardDriveUpload, Plus, Building2, ArrowRight, CheckCircle2 } from 'lucide-react-native';
-import { RestorePreviewModal } from '../components/RestorePreviewModal';
-import { BackupEnvelope } from '../services/backupService';
-import { COLORS } from '../constants/theme';
+import { RestorePreviewModal } from '@/components/RestorePreviewModal';
+import { BackupEnvelope } from '@/services/phase1/backupService';
+import { COLORS } from '@/constants/theme';
 
 export default function WelcomeScreen() {
   const router = useRouter();
@@ -29,16 +31,16 @@ export default function WelcomeScreen() {
   const [previewBackup, setPreviewBackup] = useState<BackupEnvelope | null>(null);
   const [previewFileContent, setPreviewFileContent] = useState<string | null>(null);
 
-  // Scan for existing store profiles in DB & backup files on boot
   useEffect(() => {
     const initWelcome = async () => {
       try {
-        const allFirms = await firmRepository.getAll();
+        const allFirms = firmRepository.getAll();
         const activeFirms = allFirms.filter(f => !f.isArchived);
         setExistingFirms(activeFirms);
         setFirms(allFirms);
 
-        const dir = FileSystem.documentDirectory;
+        const fsAny = FileSystem as any;
+        const dir = fsAny.documentDirectory ?? fsAny.cacheDirectory ?? '';
         if (dir) {
           const files = await FileSystem.readDirectoryAsync(dir);
           const vjbFiles = files.filter(f => f.endsWith('.vjb'));
@@ -112,17 +114,14 @@ export default function WelcomeScreen() {
   // Smooth Clean Hero Header
   const welcomeHeader = (
     <View className="items-center pb-3 pt-2">
-      {/* Smooth Rounded Brand Icon Badge */}
       <View className="bg-white/15 p-4 rounded-full mb-3 border border-white/20 shadow-sm items-center justify-center">
         <ShieldCheck size={48} color="#FCFBF8" />
       </View>
       
-      {/* Smooth Bold Title (Clean, no glass box around name) */}
       <Text className="text-4xl font-black text-vj-bg text-center tracking-tight mb-2">
         VJ Billing
       </Text>
 
-      {/* Smooth Glass Pill Badge for Author Tagline */}
       <View className="bg-white/10 px-4 py-1.5 rounded-full border border-white/20 shadow-xs">
         <Text className="text-[#FDBA74] text-center font-black tracking-widest text-[10px] uppercase">
           By Raghav Ramdas Vedpathak

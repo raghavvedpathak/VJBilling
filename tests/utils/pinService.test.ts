@@ -40,8 +40,8 @@ import {
   isPinSkipped,
   setPinSkipped,
   changePin
-} from '../../services/pinService';
-import { storage } from '../../utils/storage';
+} from '@/services/phase1/pinService';
+import { storage } from '@/utils/storage';
 
 // ─── TEST SETUP ──────────────────────────────────────────────────────────────
 beforeEach(() => {

@@ -1,20 +1,24 @@
-// components/FYEndBanner.tsx
-import React, { useMemo } from 'react';
+// components/FYEndBanner.tsx — Phase 2 v2.11 Canonical Component
+
+import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
-import { useSession } from '../hooks/useSession';
-import { useFyBannerStore } from '../store/fyBannerStore';
-import { AlertTriangle, X, ChevronRight } from 'lucide-react-native';
-import { COLORS } from '../constants/theme';
+import { useSession } from '@/hooks/useSession';
+import { useFyBannerStore } from '@/store/phase1/fyBannerStore';
+import { AlertTriangle, ChevronRight } from 'lucide-react-native';
+import { COLORS } from '@/constants/theme';
 
 interface FYEndBannerProps {
   activeFY?: any;
 }
 
-export function FYEndBanner({ activeFY }: FYEndBannerProps = {}) {
+export function FYEndBanner({ activeFY: propActiveFY }: FYEndBannerProps = {}) {
   const router = useRouter();
+  const { activeFY: sessionActiveFY } = useSession();
   const bannerVisible = useFyBannerStore((s) => s.bannerVisible);
+
+  const activeFY = propActiveFY ?? sessionActiveFY;
 
   if (!bannerVisible) {
     return null;
@@ -28,7 +32,7 @@ export function FYEndBanner({ activeFY }: FYEndBannerProps = {}) {
       <View style={s.textContainer}>
         <Text style={s.title}>Financial Year Ended</Text>
         <Text style={s.message}>
-          {activeFY?.label} ended on {activeFY?.endDate}. You must close the year to carry forward opening balances.
+          {activeFY?.label ? `${activeFY.label} ended` : 'Current financial year ended'} on {activeFY?.endDate ?? 'period boundary'}. You must close the year to carry forward opening balances.
         </Text>
         <TouchableOpacity 
           style={s.actionBtn} 
@@ -98,9 +102,5 @@ const s = StyleSheet.create({
     fontSize: 13,
     fontWeight: '800',
     color: '#B45309',
-  },
-  closeBtn: {
-    padding: 4,
-    marginLeft: 8,
   },
 });

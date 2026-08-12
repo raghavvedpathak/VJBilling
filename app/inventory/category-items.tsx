@@ -5,30 +5,35 @@ import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, Modal, Tex
 import { FlashList } from '@shopify/flash-list';
 import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import * as Haptics from 'expo-haptics';
-import { TwoToneWrapper } from '../../components/TwoToneWrapper';
-import { HeaderPill, GlassButton } from '../../components/ui/Glass';
-import { useFirmStore } from '../../store/useFirmStore';
-import { inventoryDrillDownService } from '../../services/inventoryDrillDownService';
-import { designService } from '../../services/designService';
-import { designRepository } from '../../repositories/designRepository';
-import type { DesignCategoryStockResult } from '../../types/phase2.types';
-import { getDisplayPurity, formatWeightMg as formatWeight } from '../../utils/calculations';
-import { useStore } from 'zustand';
-import { appSettingsStore } from '../../store/appSettingsStore';
-import { COLORS, getThemeColors } from '../../constants/theme';
+import { TwoToneWrapper } from '@/components/TwoToneWrapper';
+import { HeaderPill, GlassButton } from '@/components/ui/Glass';
+import { useFirmStore } from '@/store/phase1/useFirmStore';
+import { inventoryDrillDownService } from '@/services/phase2/inventoryDrillDownService';
+import { designService } from '@/services/phase2/designService';
+import { designRepository } from '@/repositories/phase2/designRepository';
+import type { DesignCategoryStockResult } from '@/types/phase2/phase2.types';
+import { getDisplayPurity, formatWeightMg as formatWeight } from '@/utils/calculations';
+import { appSettingsStore } from '@/store/phase1/appSettingsStore';
+import { COLORS, getThemeColors } from '@/constants/theme';
 import { ChevronRight, Layers, Bell, X, AlertTriangle, Scale, Package } from 'lucide-react-native';
+import { getJewelryCategoryIcon } from '@/utils/jewelryIcons';
 
 type DesignRowProps = {
   item: DesignCategoryStockResult;
+  categoryName?: string;
   isLowStock: boolean;
   currentThreshold: number | null;
   onPress: (designId: string, designName: string, purityPercent: number) => void;
   onOpenLowStockModal: (designId: string, designName: string, currentThreshold: number | null) => void;
 };
 
-const DesignRow = memo(({ item, isLowStock, currentThreshold, onPress, onOpenLowStockModal }: DesignRowProps) => {
+const DesignRow = memo(({ item, categoryName, isLowStock, currentThreshold, onPress, onOpenLowStockModal }: DesignRowProps) => {
   const metalColor = item.metal === 'GOLD' ? COLORS.gold : COLORS.silver;
-  const purityDisplay = getDisplayPurity(item.purityPercent, item.purityKarat, item.metal);
+
+  // Format Purity in both Karat and Percentage: e.g. "22K (91.6%)" or "92.5%"
+  const purityFull = item.purityKarat 
+    ? `${item.purityKarat}K (${item.purityPercent.toFixed(1)}%)`
+    : `${item.purityPercent.toFixed(1)}%`;
 
   return (
     <TouchableOpacity
@@ -42,21 +47,26 @@ const DesignRow = memo(({ item, isLowStock, currentThreshold, onPress, onOpenLow
     >
       <View style={[s.metalStripe, { backgroundColor: metalColor }]} />
 
+      {/* SVG JEWELRY ICON BADGE CONTAINER (MATCHING DRILL DOWN) */}
+      <View style={s.metalBadge}>
+        {getJewelryCategoryIcon(categoryName, item.designName, item.metal, 22, COLORS.vjAccent)}
+      </View>
+
       <View style={s.cardBody}>
+        {/* TOP ROW: DESIGN NAME & PURITY BADGE (KARAT + PERCENTAGE IN FRONT OF NAME) */}
         <View style={s.titleRow}>
           <Text style={s.designName} numberOfLines={1}>{item.designName}</Text>
-          {isLowStock && (
-            <View style={s.lowStockBadge}>
-              <Text style={s.lowStockText}>Low Stock</Text>
-            </View>
-          )}
+          <View style={[s.metalPill, { borderColor: metalColor, backgroundColor: `${metalColor}12` }]}>
+            <Text style={[s.metalPillText, { color: metalColor }]}>{purityFull}</Text>
+          </View>
         </View>
 
+        {/* METRICS ROW: NET WEIGHT & LOW STOCK BELL PILL (SIDE BY SIDE) */}
         <View style={s.metaRow}>
-          <View style={[s.metalPill, { borderColor: metalColor }]}>
-            <Text style={[s.metalPillText, { color: metalColor }]}>{purityDisplay}</Text>
+          <View style={s.weightBadge}>
+            <Scale size={11} color={COLORS.vjAccent} />
+            <Text style={s.weightText}>Net: {formatWeight(item.totalNetWeightMg)}</Text>
           </View>
-          <Text style={s.weightText}>{formatWeight(item.totalNetWeightMg)}</Text>
 
           <TouchableOpacity
             id={`low-stock-bell-${item.designId}`}
@@ -65,14 +75,23 @@ const DesignRow = memo(({ item, isLowStock, currentThreshold, onPress, onOpenLow
               try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch (err) {}
               onOpenLowStockModal(item.designId, item.designName, currentThreshold);
             }}
-            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-            style={s.bellButton}
+            activeOpacity={0.7}
+            style={[
+              s.lowStockPill,
+              isLowStock && s.lowStockPillActive,
+            ]}
           >
             <Bell 
-              size={15} 
-              color={currentThreshold !== null ? '#F59E0B' : 'rgba(92,22,35,0.3)'} 
-              fill={currentThreshold !== null ? 'rgba(245,158,11,0.2)' : 'none'}
+              size={12} 
+              color={isLowStock ? '#D97706' : (currentThreshold !== null ? '#B45309' : 'rgba(92,22,35,0.4)')} 
+              fill={isLowStock ? '#F59E0B' : (currentThreshold !== null ? 'rgba(245,158,11,0.2)' : 'none')}
             />
+            <Text style={[
+              s.lowStockPillText,
+              isLowStock && s.lowStockPillTextActive,
+            ]}>
+              {isLowStock ? 'Low Stock' : (currentThreshold !== null ? `Min: ${currentThreshold}` : 'Limit')}
+            </Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -192,7 +211,7 @@ export default function CategoryItemsScreen() {
   const totalItems = data.reduce((sum, i) => sum + i.availableCount, 0);
   const totalWeightMg = data.reduce((sum, i) => sum + i.totalNetWeightMg, 0);
 
-  const activeTheme = useStore(appSettingsStore, (s) => s.theme);
+  const activeTheme = appSettingsStore((s: any) => s.theme);
   const colors = getThemeColors(activeTheme);
 
   const categoryHeaderPills = (
@@ -217,6 +236,7 @@ export default function CategoryItemsScreen() {
             renderItem={({ item }) => (
               <DesignRow 
                 item={item} 
+                categoryName={categoryName}
                 isLowStock={lowStockDesignIds.has(item.designId)}
                 currentThreshold={designThresholds[item.designId] ?? null}
                 onPress={handleDesignPress} 
@@ -306,62 +326,86 @@ const s = StyleSheet.create({
   card: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(255,255,255,0.6)',
-    marginBottom: 10,
+    backgroundColor: '#FFFFFF',
+    marginBottom: 12,
     borderRadius: 16,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.5)',
-    paddingRight: 16,
-    gap: 12,
+    borderColor: 'rgba(92, 22, 35, 0.08)',
+    paddingRight: 14,
+    gap: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 6,
+    elevation: 2,
   },
   metalStripe: {
     width: 6,
     alignSelf: 'stretch',
   },
+  metalBadge: {
+    width: 42,
+    height: 42,
+    borderRadius: 12,
+    backgroundColor: 'rgba(212,175,55,0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(212,175,55,0.3)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
   cardBody: {
     flex: 1,
-    paddingVertical: 16,
+    paddingVertical: 14,
   },
   designName: {
     color: COLORS.vjText,
-    fontWeight: '700',
+    fontWeight: '800',
     fontSize: 15,
   },
   titleRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    gap: 8,
     marginBottom: 6,
-    paddingRight: 8,
+    paddingRight: 6,
   },
-  lowStockBadge: {
-    backgroundColor: 'rgba(245, 158, 11, 0.15)',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
+  lowStockPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: 'rgba(92,22,35,0.04)',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
     borderRadius: 6,
     borderWidth: 1,
-    borderColor: 'rgba(245, 158, 11, 0.3)',
+    borderColor: 'rgba(92,22,35,0.12)',
   },
-  lowStockText: {
-    color: '#D97706',
+  lowStockPillActive: {
+    backgroundColor: 'rgba(245, 158, 11, 0.15)',
+    borderColor: 'rgba(245, 158, 11, 0.4)',
+  },
+  lowStockPillText: {
+    color: 'rgba(92,22,35,0.6)',
     fontSize: 10,
-    fontWeight: '800',
-    letterSpacing: 0.5,
-    textTransform: 'uppercase',
+    fontWeight: '700',
+    letterSpacing: 0.3,
   },
-  bellButton: {
-    padding: 4,
-    marginLeft: 4,
+  lowStockPillTextActive: {
+    color: '#D97706',
+    fontWeight: '800',
+    textTransform: 'uppercase',
   },
   metaRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    justifyContent: 'space-between',
+    paddingRight: 6,
+    marginTop: 2,
   },
   metalPill: {
     paddingHorizontal: 8,
-    paddingVertical: 2,
+    paddingVertical: 3,
     borderRadius: 6,
     borderWidth: 1,
   },
@@ -370,25 +414,38 @@ const s = StyleSheet.create({
     fontWeight: '800',
     letterSpacing: 0.5,
   },
+  weightBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 9,
+    paddingVertical: 3,
+    borderRadius: 6,
+    backgroundColor: 'rgba(212,175,55,0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(212,175,55,0.28)',
+  },
   weightText: {
-    color: 'rgba(92,22,35,0.5)',
-    fontSize: 12,
-    fontWeight: '600',
+    color: COLORS.vjText,
+    fontSize: 11,
+    fontWeight: '800',
   },
   countBadge: {
     alignItems: 'center',
-    backgroundColor: 'rgba(92,22,35,0.04)',
+    backgroundColor: 'rgba(255,255,255,0.7)',
     paddingHorizontal: 10,
     paddingVertical: 6,
     borderRadius: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(212,175,55,0.25)',
   },
   countText: {
     color: COLORS.vjText,
     fontSize: 16,
-    fontWeight: '800',
+    fontWeight: '900',
   },
   countLabel: {
-    color: 'rgba(92,22,35,0.4)',
+    color: 'rgba(92,22,35,0.45)',
     fontSize: 9,
     fontWeight: '700',
     textTransform: 'uppercase',

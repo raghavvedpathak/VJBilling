@@ -25,12 +25,12 @@ jest.mock('../db/client', () => {
   };
 });
 
-import { backupService } from '../services/backupService';
-import { restoreService } from '../services/restoreService';
-import { getDeviceId, getOrGenerateDeviceId } from '../utils/deviceId';
-import { storage } from '../utils/storage';
-import { db } from '../db/client';
-import { firms } from '../db/schema';
+import { backupService } from '@/services/phase1/backupService';
+import { restoreService } from '@/services/phase1/restoreService';
+import { getDeviceId, getOrGenerateDeviceId } from '@/utils/deviceId';
+import { storage } from '@/utils/storage';
+import { db } from '@/db/client';
+import { firms } from '@/db/schema';
 import * as FileSystem from 'expo-file-system/legacy';
 
 beforeAll(async () => {

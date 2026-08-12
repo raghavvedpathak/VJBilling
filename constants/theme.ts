@@ -37,7 +37,7 @@ export const THEME_PRESETS = {
   },
 } as const;
 
-import { appSettingsStore } from '../store/appSettingsStore';
+import { appSettingsStore } from '@/store/phase1/appSettingsStore';
 
 export function getThemeColors(themeKey?: string) {
   const currentStoreTheme = appSettingsStore ? appSettingsStore.getState()?.theme : null;

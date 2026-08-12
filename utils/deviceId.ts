@@ -1,26 +1,22 @@
-// utils/deviceId.ts
-// Stable device identity — two-phase initialization.
-// Phase A: generate + persist to MMKV (no audit log — called before DB is ready)
-// Phase B: write DEVICE_ID_GENERATED audit event (called after DB + repos are ready)
-// v7.26 FIX-VSEC-14: getDeviceDerivedKeyMaterial added for AES backup key derivation.
+// utils/deviceId.ts — Phase 2 v2.11 Canonical Device Identity
 
 import { storage } from './storage';
 import * as Crypto from 'expo-crypto';
 import * as Device from 'expo-device';
-import { auditRepository } from '../repositories/auditRepository';
+import { auditRepository } from '@/repositories/phase1/auditRepository';
 import { now } from './now';
 
 const DEVICE_ID_KEY = 'vjbilling_device_id';
 
-// Phase 2: Exposed unique ID generator for database entities
+// Exposed unique ID generator for database entities
 export const generateId = () => Crypto.randomUUID();
 
 /**
- * Returns the persisted device ID from MMKV/AsyncStorage.
- * Throws if not initialized according to Hardening 5.
+ * Returns the persisted device ID from MMKV.
+ * Throws if not initialized.
  */
 export async function getDeviceId(): Promise<string> {
-  const deviceId = await storage.getItem(DEVICE_ID_KEY);
+  const deviceId = storage.getString(DEVICE_ID_KEY);
   if (!deviceId) throw new Error('DEVICE_ID_NOT_INITIALIZED');
   return deviceId;
 }
@@ -31,11 +27,11 @@ export async function getDeviceId(): Promise<string> {
  * Safe from circular dependencies (does not touch auditRepository).
  */
 export async function getOrGenerateDeviceId(): Promise<string> {
-  const existingId = await storage.getItem(DEVICE_ID_KEY);
+  const existingId = storage.getString(DEVICE_ID_KEY);
 
   if (!existingId) {
     const newId = Crypto.randomUUID();
-    await storage.setItem(DEVICE_ID_KEY, newId);
+    storage.set(DEVICE_ID_KEY, newId);
     console.log('[DeviceID] Phase A: New Stable Identity Generated:', newId);
     return newId;
   }
@@ -48,22 +44,18 @@ export async function getOrGenerateDeviceId(): Promise<string> {
  * Called after DB and repositories are fully initialized (bootstrap Step 7).
  * Handles reinstalls correctly — checks DB directly, not MMKV flag.
  * Non-fatal: errors are caught and logged, never bubble up to crash bootstrap.
- *
- * G41 CONTRACT: DEVICE_ID_GENERATED is one of the 3 exempt events — tx not required.
  */
 export async function auditDeviceIdIfNew(): Promise<void> {
   try {
-    // FIX: Added 'await' to properly resolve the boolean instead of a truthy Promise
-    const hasEvent = await auditRepository.hasEvent('DEVICE_ID_GENERATED');
+    const hasEvent = auditRepository.hasEvent('DEVICE_ID_GENERATED');
 
     if (!hasEvent) {
       console.log('[DeviceID] Phase B: Detected un-audited device identity. Logging now.');
-      const deviceId = await getDeviceId(); // This remains async (MMKV read)
+      const deviceId = await getDeviceId();
       const deviceName = Device.modelName || 'Unknown Device';
       const osName = Device.osName || 'Unknown OS';
 
-      // FIX: Added 'await' to ensure the event is fully committed
-      await auditRepository.create({
+      auditRepository.create({
         firmId: null,
         eventType: 'DEVICE_ID_GENERATED',
         payload: JSON.stringify({
@@ -93,7 +85,6 @@ export async function getCanonicalBackupKeyMaterial(): Promise<Uint8Array> {
 }
 
 /**
- * v7.26 FIX-VSEC-14: Backup Crypto Fallback
  * Derives a consistent Uint8Array from the Device ID (or provided overrideDeviceId) for use as 
  * raw key material when an automated backup runs without a user password.
  */

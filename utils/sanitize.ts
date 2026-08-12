@@ -1,6 +1,6 @@
 // utils/sanitize.ts — Phase 2 v2.11 Canonical Text Sanitization
 
-import { ERR } from '../constants/errorCodes';
+import { ERR } from '@/constants/errorCodes';
 
 /**
  * Strips HTML tags and ASCII control characters from free-text service inputs before persistence.

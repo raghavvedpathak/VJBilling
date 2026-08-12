@@ -1,15 +1,16 @@
+// app/settings/firms.tsx — Phase 2 v2.11 Canonical Screen
+
 import React, { useState } from 'react';
 import { View, Text, TouchableOpacity, ScrollView, ActivityIndicator, Image, Modal } from 'react-native';
 import { useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
-import { TwoToneWrapper } from '../../components/TwoToneWrapper';
-import { useFirmStore } from '../../store/useFirmStore';
-import { firmService } from '../../services/firmService';
-import { GlassCard, GlassButton, HeaderPill } from '../../components/ui/Glass'; 
+import { TwoToneWrapper } from '@/components/TwoToneWrapper';
+import { useFirmStore } from '@/store/phase1/useFirmStore';
+import { firmService } from '@/services/phase1/firmService';
+import { GlassCard, GlassButton, HeaderPill } from '@/components/ui/Glass'; 
 import { Building2, Plus, Pencil, Archive, ArchiveRestore, AlertTriangle, ShieldCheck } from 'lucide-react-native';
-import { useStore } from 'zustand';
-import { appSettingsStore } from '../../store/appSettingsStore';
-import { getThemeColors } from '../../constants/theme';
+import { appSettingsStore } from '@/store/phase1/appSettingsStore';
+import { getThemeColors } from '@/constants/theme';
 
 type DialogState = {
   visible: boolean;
@@ -24,7 +25,7 @@ export default function FirmManagerScreen() {
   const router = useRouter();
   const { firms, activeFirmId } = useFirmStore();
   const [loadingId, setLoadingId] = useState<string | null>(null);
-  const activeTheme = useStore(appSettingsStore, (s) => s.theme);
+  const activeTheme = appSettingsStore((s) => s.theme);
   const colors = getThemeColors(activeTheme);
   
   // MODERN MODAL STATE

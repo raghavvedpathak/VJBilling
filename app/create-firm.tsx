@@ -1,3 +1,5 @@
+// app/create-firm.tsx — Phase 2 v2.11 Canonical Firm Creation Screen
+
 import React, { useState, useMemo } from 'react';
 import {
   View,
@@ -13,12 +15,12 @@ import { BlurView } from 'expo-blur';
 import * as ImagePicker from 'expo-image-picker';
 import { manipulateAsync, SaveFormat } from 'expo-image-manipulator';
 import * as FileSystem from 'expo-file-system/legacy';
-import { TwoToneWrapper } from '../components/TwoToneWrapper';
-import { GlassCard, GlassInput, GlassButton } from '../components/ui/Glass';
-import { firmService } from '../services/firmService';
-import { useFirmStore } from '../store/useFirmStore';
-import { INDIAN_STATES } from '../utils/indianStates';
-import { useUnsavedChangesGuard } from '../hooks/useUnsavedChangesGuard'; // G69: REQUIRED
+import { TwoToneWrapper } from '@/components/TwoToneWrapper';
+import { GlassCard, GlassInput, GlassButton } from '@/components/ui/Glass';
+import { firmService } from '@/services/phase1/firmService';
+import { useFirmStore } from '@/store/phase1/useFirmStore';
+import { INDIAN_STATES } from '@/utils/indianStates';
+import { useUnsavedChangesGuard } from '@/hooks/useUnsavedChangesGuard';
 import {
   Save,
   Building2,
@@ -35,12 +37,12 @@ import {
   X,
   AlertTriangle,
 } from 'lucide-react-native';
-import { COLORS } from '../constants/theme';
+import { COLORS } from '@/constants/theme';
 
 // ============================================================================
 // G58 SPEC CONSTANTS — DO NOT change these values.
-// spec: max 1024×1024, max 2MB, quality 0.8, free crop (aspect: undefined),
-// saved to DocumentDirectory/logos/firm_{firmId}.jpg (deterministic path).
+// max 1024×1024, max 2MB, quality 0.8
+// saved to DocumentDirectory/logos/firm_{firmId}.jpg
 // ============================================================================
 const LOGO_MAX_DIMENSION = 1024;
 const LOGO_MAX_BYTES = 2 * 1024 * 1024; // 2MB
@@ -71,7 +73,7 @@ async function processAndSaveLogoToPath(
     );
 
     const fileInfo = await FileSystem.getInfoAsync(manipulated.uri);
-    if (fileInfo.exists && 'size' in fileInfo && fileInfo.size > LOGO_MAX_BYTES) {
+    if (fileInfo.exists && 'size' in fileInfo && fileInfo.size && fileInfo.size > LOGO_MAX_BYTES) {
       Alert.alert(
         'Image Too Large',
         'Please choose a smaller image. Maximum size is 2MB after processing.'
@@ -79,7 +81,9 @@ async function processAndSaveLogoToPath(
       return null;
     }
 
-    const logosDir = `${FileSystem.documentDirectory}logos/`;
+    const fsAny = FileSystem as any;
+    const docDir = fsAny.documentDirectory ?? fsAny.cacheDirectory ?? '';
+    const logosDir = `${docDir}logos/`;
     await FileSystem.makeDirectoryAsync(logosDir, { intermediates: true });
 
     const targetPath = `${logosDir}firm_${firmId}.jpg`;
@@ -230,7 +234,7 @@ export default function CreateFirmScreen() {
       <TouchableOpacity
         onPress={() => pickImage('firmLogoUri')}
         activeOpacity={0.8}
-        className="h-28 w-28 rounded-3xl justify-center items-center overflow-hidden border-2 border-white/40 shadow-sm mb-2 bg-vj-glass"
+        className="h-28 w-28 rounded-3xl justify-center items-center overflow-hidden border-2 border-white/30 shadow-sm mb-2 bg-white/10"
       >
         {form.firmLogoUri ? (
           <Image
@@ -243,14 +247,14 @@ export default function CreateFirmScreen() {
             }}
           />
         ) : (
-          <BlurView intensity={20} tint="light" className="w-full h-full justify-center items-center">
+          <View className="w-full h-full justify-center items-center bg-black/20">
             <View className="items-center justify-center">
               <ImagePlus size={26} color="#FCFBF8" />
-              <Text className="text-[9px] text-vj-bg font-black tracking-widest uppercase mt-1 text-center px-1">
+              <Text className="text-[9px] text-white/80 font-black tracking-widest uppercase mt-1 text-center px-1">
                 STORE LOGO
               </Text>
             </View>
-          </BlurView>
+          </View>
         )}
       </TouchableOpacity>
 

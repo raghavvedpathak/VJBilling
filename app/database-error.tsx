@@ -2,12 +2,12 @@
 
 import React, { useEffect, useState } from 'react';
 import { View, Text, Alert } from 'react-native';
-import * as FileSystem from 'expo-file-system';
-import { STORAGE_PATHS } from '../constants/storagePaths';
-import { ScreenWrapper } from '../components/ScreenWrapper';
+import * as FileSystem from 'expo-file-system/legacy';
+import { STORAGE_PATHS } from '@/constants/storagePaths';
+import { ScreenWrapper } from '@/components/ScreenWrapper';
 import { AlertTriangle, Database, Trash2, Mail } from 'lucide-react-native';
 import * as Updates from 'expo-updates';
-import { GlassCard, GlassButton, GlassInput } from '../components/ui/Glass';
+import { GlassCard, GlassButton, GlassInput } from '@/components/ui/Glass';
 
 export default function DatabaseErrorScreen() {
   const [snapshotAvailable, setSnapshotAvailable] = useState(false);
@@ -31,11 +31,11 @@ export default function DatabaseErrorScreen() {
   }, []);
 
   const handleExportRaw = async () => {
-    alert("Raw data export will be wired up in Phase 2.");
+    Alert.alert("Export", "Raw data export will be handled via the bootloader emergency recovery console.");
   };
 
   const handleContactSupport = () => {
-    Alert.alert('Contact Support', 'Migration error details have been copied to clipboard (simulation). Please email support@vjbilling.com.');
+    Alert.alert('Contact Support', 'Please email support@vjbilling.com with your migration error details.');
   };
 
   const handleFactoryReset = async () => {

@@ -3,16 +3,15 @@ import React from 'react';
 import { View, Text, ScrollView, TouchableOpacity, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
-import { TwoToneWrapper } from '../../components/TwoToneWrapper';
-import { GlassCard, HeaderPill } from '../../components/ui/Glass';
+import { TwoToneWrapper } from '@/components/TwoToneWrapper';
+import { GlassCard, HeaderPill } from '@/components/ui/Glass';
 import { Layers, Tag, ChevronRight, Gem, ShieldCheck, LayoutGrid } from 'lucide-react-native';
-import { useStore } from 'zustand';
-import { appSettingsStore } from '../../store/appSettingsStore';
-import { COLORS, getThemeColors } from '../../constants/theme';
+import { appSettingsStore } from '@/store/phase1/appSettingsStore';
+import { COLORS, getThemeColors } from '@/constants/theme';
 
 export default function MastersIndexScreen() {
   const router = useRouter();
-  const activeTheme = useStore(appSettingsStore, (s) => s.theme);
+  const activeTheme = appSettingsStore((s: any) => s.theme);
   const colors = getThemeColors(activeTheme);
 
   const mastersHeaderPills = (

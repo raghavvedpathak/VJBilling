@@ -5,9 +5,9 @@
 
 ---
 
-## ACTION 1 — Table Order Verification (FIX-V72-3 / v7.5 UQ)
+## ACTION 1 — Table Order Verification (FIX-V72-3 / v7.5 UQ / v7.12 FIX-V712-2)
 
-Open generated migration zero SQL. Verify table CREATE order EXACTLY matches:
+Open generated migration zero SQL. Verify table CREATE order EXACTLY matches (15 tables total):
 
 ```
 safe_mode_state
@@ -16,6 +16,7 @@ firms
 financial_years
 writer_leases
 audit_logs
+audit_delete_gate
 bis_logos
 schema_version
 tax_rates
@@ -27,10 +28,11 @@ audit_archive_index
 ```
 
 **Rules:**
+- `audit_delete_gate` MUST appear immediately after `audit_logs` (v7.12 FIX-V712-2).
 - `tax_group_components` MUST appear AFTER both `tax_rates` AND `tax_groups` (FK dependency).
 - `sync_devices`, `sync_log`, `audit_archive_index` have no FK references to other Phase 1 tables — they safely append at end.
 
-- [ ] Table order verified. `tax_group_components` appears AFTER both `tax_rates` and `tax_groups`.
+- [ ] Table order verified. `audit_delete_gate` appears immediately after `audit_logs` and `tax_group_components` appears AFTER both `tax_rates` and `tax_groups`.
 
 ---
 
@@ -124,7 +126,10 @@ END;
 CREATE TRIGGER prevent_audit_delete
 BEFORE DELETE ON audit_logs
 BEGIN
-  SELECT RAISE(ABORT, 'AUDIT_LOG_IMMUTABLE: audit_logs rows cannot be deleted');
+  SELECT CASE
+    WHEN (SELECT gate_open FROM audit_delete_gate WHERE id = 1) = 0
+    THEN RAISE(ABORT, 'AUDIT_LOG_IMMUTABLE: audit logs cannot be deleted outside the retention job')
+  END;
 END;
 
 -- Firm code immutability (FIRM_CODE_SET is a permanent record — firm_code cannot change after assignment)

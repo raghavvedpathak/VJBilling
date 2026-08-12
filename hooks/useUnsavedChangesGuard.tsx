@@ -3,14 +3,13 @@
 import { useEffect } from 'react';
 import { Alert } from 'react-native';
 import { useNavigation } from 'expo-router';
-import { useStore } from 'zustand';
-import { appSettingsStore } from '../store/appSettingsStore';
+import { appSettingsStore } from '@/store/phase1/appSettingsStore';
 
 export function useUnsavedChangesGuard(isDirty: boolean) {
   const navigation = useNavigation();
   
   // Reactively bind to the store so it updates instantly if toggled in Settings
-  const warnUnsavedChanges = useStore(appSettingsStore, (s) => s.warnUnsavedChanges);
+  const warnUnsavedChanges = appSettingsStore((s) => s.warnUnsavedChanges);
   const warnEnabled = warnUnsavedChanges === 1;
 
   useEffect(() => {
