@@ -23,7 +23,7 @@ import * as Sharing from "expo-sharing";
 
 import { useDatabase } from "@/db/client";
 import { bootstrapService, PRE_MIGRATION_SNAPSHOT_PATH } from "@/services/phase1/bootstrapService";
-import { getDeviceDerivedKeyMaterial } from "@/utils/deviceId";
+import { getDeviceDerivedKeyMaterial } from "@/utils/deviceKey";
 import { STORAGE_PATHS } from "@/constants";
 import "./global.css";
 import { AlertTriangle, Download, LifeBuoy, Trash2 } from "lucide-react-native";

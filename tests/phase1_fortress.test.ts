@@ -39,11 +39,11 @@ import { leaseService } from '@/services/phase1/leaseService';
 import { safeModeService, bootstrapComplete } from '@/services/phase1/safeModeService';
 import { verifyService } from '@/services/phase1/verifyService';
 import { auditRepository } from '@/repositories/phase1/auditRepository';
-// FIX: Using compliant store name
 import { safeModeStore } from '@/store/phase1/safeModeStore';
 import { db } from '@/db/client';
 import { firms, writerLeases, auditLogs, safeModeState, financialYears } from '@/db/schema';
 import { eq } from 'drizzle-orm';
+import { ERR } from '@/constants/errorCodes';
 
 // ─── SCHEMA SETUP & TEARDOWN ──────────────────────────────────────────────────
 
@@ -112,7 +112,7 @@ beforeAll(async () => {
     created_at TEXT NOT NULL
   )`);
 
-  // FIX: Inject SQLite trigger so we can test Review Item 11 DB-level enforcement
+  // Inject SQLite trigger so we can test Review Item 11 DB-level enforcement
   await _rawClient.execute(`
     CREATE TRIGGER IF NOT EXISTS prevent_firm_code_update BEFORE UPDATE OF firm_code ON firms
     BEGIN SELECT RAISE(ABORT, 'FIRM_CODE_IMMUTABLE: firmCode cannot be changed after creation'); END;
@@ -135,7 +135,6 @@ beforeEach(async () => {
     .set({ isActive: 0, reason: null, activatedAt: null, clearedAt: null })
     .where(eq(safeModeState.id, 1));
 
-  // FIX: Using compliant store name
   safeModeStore.setState({ isActive: false, reason: null, activatedAt: null });
 });
 
@@ -207,8 +206,6 @@ describe('Firm Limits', () => {
     const f2 = await firmService.createFirm(makeFirm('F2', 'F2') as any);
     await db.delete(writerLeases);
 
-    // FIX: The business logic blocks archiving the active firm.
-    // We explicitly demote f1 and promote f2 to active to satisfy the guard.
     await db.update(firms).set({ isActive: 0 }).where(eq(firms.id, f1.id));
     await db.update(firms).set({ isActive: 1 }).where(eq(firms.id, f2.id));
 
@@ -250,7 +247,6 @@ describe('firmCode Immutability', () => {
       .rejects.toThrow('Firm Code is immutable');
   });
 
-  // FIX: Review Item 11 Addition 3a — Test direct raw SQLite DB Trigger validation
   it('throws when updating firm_code directly via raw SQLite (DB Trigger validation)', async () => {
     const firm = await firmService.createFirm(makeFirm('TriggerFirm', 'TRIG1') as any);
     await db.delete(writerLeases);
@@ -279,7 +275,7 @@ describe('firmCode Immutability', () => {
 // 5. STATUTORY SIGNAL LOCKING (STEP 4)
 // =============================================================================
 describe('Statutory Signal Locking & GSTIN Immutability', () => {
-  it('throws GSTIN_IMMUTABLE when attempting to change GSTIN on updateFirm', async () => {
+  it('throws GSTIN_ALREADY_SET when attempting to change GSTIN on updateFirm', async () => {
     const firm = await firmService.createFirm({
       ...makeFirm('GSTFirm', 'GST1'),
       gstin: '27AAPFU0939F1ZV',
@@ -289,7 +285,7 @@ describe('Statutory Signal Locking & GSTIN Immutability', () => {
     await db.delete(writerLeases);
 
     await expect(firmService.updateFirm(firm.id, { gstin: '27AAPFU0939F1ZW' } as any))
-      .rejects.toThrow('GSTIN_IMMUTABLE');
+      .rejects.toThrow('GSTIN_ALREADY_SET');
   });
 
   it('throws GSTIN_STATE_UPDATE_BLOCKED when changing stateCode on GST-registered firm', async () => {
@@ -338,11 +334,11 @@ describe('Writer Lease Concurrency Guard', () => {
     await expect(leaseService.assertNoActiveLease()).resolves.not.toThrow();
   });
 
-  it('allows acquisition of LeaseType.WRITE in Phase 2', async () => {
+  it('rejects acquisition of LeaseType.WRITE with WRITE_LEASE_NOT_IMPLEMENTED', async () => {
+    // v6.5 GAP 5: LeaseType.WRITE is prohibited in Phase 1
     await db.delete(writerLeases);
-    const leaseId = await leaseService.acquire('WRITE');
-    expect(leaseId).toBeTruthy();
-    await leaseService.release(leaseId);
+    await expect(leaseService.acquire('WRITE'))
+      .rejects.toThrow(ERR.WRITE_LEASE_NOT_IMPLEMENTED);
   });
 });
 
@@ -369,7 +365,6 @@ describe('Safe Mode Fail-Safe Shield', () => {
   });
 
   it('triggers STORAGE_CORRUPTION_DETECTED when safe_mode_state row is missing after migration zero', async () => {
-    // Simulates STORAGE_CORRUPTION_DETECTED when safe_mode_state is missing
     await safeModeService.activate('STORAGE_CORRUPTION_DETECTED', { missingTable: 'safe_mode_state', schemaVersionConfirmed: true });
     expect(safeModeStore.getState().isActive).toBeTruthy();
     expect(safeModeStore.getState().reason).toBe('STORAGE_CORRUPTION_DETECTED');

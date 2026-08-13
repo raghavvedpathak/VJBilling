@@ -137,12 +137,40 @@ export const fyRepository = {
   },
 
   /**
-   * Fetches FY by UUID — supports (tx, id), (id, tx), or (tx, firmId, id).
+   * Fetches FY by UUID — supports (tx, fyId), (fyId, tx), (firmId, fyId), or (tx, firmId, fyId).
    */
   findById(first: any, second?: any, third?: any): FinancialYear | null {
-    const targetTx = typeof first === 'string' ? getDb() : getDb(first);
-    const fyId = typeof first === 'string' ? first : (third !== undefined ? third : second!);
-    const firmId = typeof first === 'string' ? undefined : (third !== undefined ? second : undefined);
+    let targetTx: DbOrTx = db;
+    let firmId: string | undefined = undefined;
+    let fyId: string = '';
+
+    if (typeof first === 'string' && typeof second === 'string') {
+      // (firmId, fyId) or (fyId, unusedString)
+      if (third && typeof third === 'object' && 'select' in third) {
+        targetTx = third;
+        firmId = first;
+        fyId = second;
+      } else {
+        targetTx = getDb(third);
+        firmId = first;
+        fyId = second;
+      }
+    } else if (typeof first === 'string') {
+      // (fyId, tx?)
+      fyId = first;
+      targetTx = getDb(second);
+    } else {
+      // (tx, firmId, fyId) or (tx, fyId)
+      targetTx = getDb(first);
+      if (typeof second === 'string' && typeof third === 'string') {
+        firmId = second;
+        fyId = third;
+      } else if (typeof second === 'string') {
+        fyId = second;
+      }
+    }
+
+    if (!fyId) return null;
 
     const fy = targetTx
       .select()

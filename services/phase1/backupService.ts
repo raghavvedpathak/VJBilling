@@ -1,5 +1,5 @@
-// services/backupService.ts
-// v2.9 Canonical Implementation (AES-256-GCM Encryption + Optional Password)
+// services/phase1/backupService.ts
+// v2.9 Canonical Implementation (AES-256-GCM WebCrypto Encryption + Optional Password)
 // v7.28 FIX-V728-1: BackupEnvelope explicit declaration using Drizzle inferred types
 // v7.33 FIX-V733-5: BackupResult includes mirroredToPublicStorage
 //
@@ -13,8 +13,6 @@ import * as Sharing from 'expo-sharing';
 import * as Haptics from 'expo-haptics';
 import { Platform } from 'react-native';
 import { storage } from '@/utils/storage';
-import CryptoJS from 'crypto-js';
-import * as Crypto from 'expo-crypto';
 import { db } from '@/db/client';
 import { 
   firms, financialYears, auditLogs, safeModeState, appSettings, bisLogos,
@@ -23,7 +21,7 @@ import {
 } from '@/db/schema';
 import { leaseService } from '@/services/phase1/leaseService';
 import { auditRepository } from '@/repositories/phase1/auditRepository';
-import { getDeviceId, getDeviceDerivedKeyMaterial, getCanonicalBackupKeyMaterial } from '@/utils/deviceId';
+import { getDeviceId, getCanonicalBackupKeyMaterial } from '@/utils/deviceId';
 import { SCHEMA_VERSION, APP_VERSION } from '@/constants';
 
 const fsAny = FileSystem as any;
@@ -96,7 +94,7 @@ async function getOrCreateSAFDirectory(parentUri: string, folderName: string): P
 export const backupService = {
 
   /**
-   * Generates an AES-256-GCM encrypted backup file.
+   * Generates an AES-256-GCM encrypted backup file using WebCrypto.
    * Locked by 'BACKUP' lease. Deliberately exempt from Safe Mode checks.
    */
   async createBackup(password?: string): Promise<BackupResult> {
@@ -104,7 +102,7 @@ export const backupService = {
     const leaseId = await leaseService.acquire('BACKUP');
 
     try {
-      // v7.16 FIX-V716-5: Synchronous transaction callback reads
+      // Synchronous transaction callback reads
       const payload = db.transaction((tx) => {
         const firmsRows = tx.select().from(firms).all();
         const financialYearsRows = tx.select().from(financialYears).all();
@@ -162,79 +160,45 @@ export const backupService = {
       const enc = new TextEncoder();
       const keySourceMaterial = password ? enc.encode(password) : await getCanonicalBackupKeyMaterial();
 
-      // Convert Uint8Array key source to CryptoJS WordArray
-      const toWordArray = (u8: Uint8Array) => {
-        const words: number[] = [];
-        for (let i = 0; i < u8.length; i += 4) {
-          words.push(
-            (u8[i] << 24) |
-            ((u8[i + 1] ?? 0) << 16) |
-            ((u8[i + 2] ?? 0) << 8) |
-            (u8[i + 3] ?? 0)
-          );
+      // WebCrypto AES-256-GCM Key Derivation & Encryption
+      const saltBytes = crypto.getRandomValues(new Uint8Array(16));
+      const ivBytes = crypto.getRandomValues(new Uint8Array(12)); // 12-byte IV for AES-GCM
+
+      const keyMaterial = await crypto.subtle.importKey(
+        'raw',
+        keySourceMaterial as any,
+        'PBKDF2',
+        false,
+        ['deriveKey']
+      );
+
+      const key = await crypto.subtle.deriveKey(
+        { name: 'PBKDF2', salt: saltBytes, iterations: 100000, hash: 'SHA-256' },
+        keyMaterial,
+        { name: 'AES-GCM', length: 256 },
+        false,
+        ['encrypt']
+      );
+
+      const cipherBuffer = await crypto.subtle.encrypt(
+        { name: 'AES-GCM', iv: ivBytes },
+        key,
+        enc.encode(payloadStr)
+      );
+
+      const toBase64 = (u8: Uint8Array) => {
+        let binary = '';
+        for (let i = 0; i < u8.length; i++) {
+          binary += String.fromCharCode(u8[i]);
         }
-        return CryptoJS.lib.WordArray.create(words, u8.length);
+        return btoa(binary);
       };
-
-      const getRandomBytes = (nBytes: number): Uint8Array => {
-        // Tier 1: Try native Expo Crypto module
-        try {
-          if (Crypto && typeof Crypto.getRandomBytes === 'function') {
-            return Crypto.getRandomBytes(nBytes);
-          }
-        } catch {}
-
-        // Tier 2: Try Web Crypto API (if running in Node/Jest or browsers)
-        try {
-          const webCrypto = global.crypto || (global as any).msCrypto;
-          if (webCrypto && typeof webCrypto.getRandomValues === 'function') {
-            const u8 = new Uint8Array(nBytes);
-            webCrypto.getRandomValues(u8);
-            return u8;
-          }
-        } catch {}
-
-        // Tier 3: Try Node.js standard crypto (Jest)
-        try {
-          const nodeCrypto = require('crypto');
-          if (nodeCrypto && typeof nodeCrypto.randomBytes === 'function') {
-            return nodeCrypto.randomBytes(nBytes);
-          }
-        } catch {}
-
-        // Tier 4: Math.random fallback
-        const u8 = new Uint8Array(nBytes);
-        for (let i = 0; i < nBytes; i++) {
-          u8[i] = Math.floor(Math.random() * 256);
-        }
-        return u8;
-      };
-
-      const saltBytes = getRandomBytes(16);
-      const ivBytes = getRandomBytes(16);
-      const salt = toWordArray(saltBytes);
-      const iv = toWordArray(ivBytes);
-
-      // Derive key using PBKDF2
-      const keyMaterial = toWordArray(keySourceMaterial);
-      const key = CryptoJS.PBKDF2(keyMaterial, salt, {
-        keySize: 256 / 32,
-        iterations: 10000,
-        hasher: CryptoJS.algo.SHA256,
-      });
-
-      // Encrypt using AES-CBC with PKCS7 padding
-      const encrypted = CryptoJS.AES.encrypt(payloadStr, key, {
-        iv: iv,
-        mode: CryptoJS.mode.CBC,
-        padding: CryptoJS.pad.Pkcs7,
-      });
 
       const encryptedBlob = JSON.stringify({
         ...envelope,
-        iv: CryptoJS.enc.Base64.stringify(iv),
-        salt: CryptoJS.enc.Base64.stringify(salt),
-        ciphertext: encrypted.toString(),
+        iv: toBase64(ivBytes),
+        salt: toBase64(saltBytes),
+        ciphertext: toBase64(new Uint8Array(cipherBuffer)),
       });
 
       const timestamp = envelope.exportedAt.replace(/[:.]/g, '-').replace('T', '_').substring(0, 19);
@@ -245,13 +209,13 @@ export const backupService = {
 
       if (Platform.OS === 'android') {
         try {
-          let parentUri = await storage.getItem('vjbilling_android_backup_dir_uri');
+          let parentUri = storage.getString('vjbilling_android_backup_dir_uri');
           if (!parentUri) {
             const permissions = await (FileSystem as any).StorageAccessFramework.requestDirectoryPermissionsAsync();
             if (permissions.granted) {
               parentUri = permissions.directoryUri;
               if (parentUri) {
-                await storage.setItem('vjbilling_android_backup_dir_uri', parentUri);
+                storage.set('vjbilling_android_backup_dir_uri', parentUri);
               }
             }
           }
@@ -268,7 +232,7 @@ export const backupService = {
         } catch (androidError) {
           console.warn('[Backup] Android SAF direct write failed, falling back to Sharing:', androidError);
           try {
-            await storage.removeItem('vjbilling_android_backup_dir_uri');
+            storage.delete('vjbilling_android_backup_dir_uri');
           } catch {}
         }
       }
@@ -287,11 +251,9 @@ export const backupService = {
         filePath = localPath;
 
         if (Platform.OS === 'ios') {
-          // On iOS, supportsDocumentBrowser exposes the documents directory natively
           isPublicSaved = true;
           console.log('[Backup] Saved directly to visible document directory on iOS:', filePath);
         } else {
-          // General fallback for Web / Other platforms
           const canShare = await Sharing.isAvailableAsync();
           if (canShare) {
             await Sharing.shareAsync(localPath, {

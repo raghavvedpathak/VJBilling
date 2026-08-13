@@ -6,6 +6,7 @@ import { auditRepository } from '@/repositories/phase1/auditRepository';
 import { safeModeStore, SafeModeTrigger } from '@/store/phase1/safeModeStore';
 import { now } from '@/utils/now';
 import { getDeviceId } from '@/utils/deviceId';
+import { ERR } from '@/constants/errorCodes';
 
 type DbOrTx = any;
 
@@ -27,6 +28,7 @@ export const safeModeService = {
 
     targetDb.transaction((tx: any) => {
       safeModeRepository.upsert(tx, {
+        id: 1, // Singleton row: id always = 1
         isActive: 1,
         reason: reason,
         activatedAt: currentTime,
@@ -37,7 +39,7 @@ export const safeModeService = {
         {
           firmId: null,
           eventType: 'SAFE_MODE_ACTIVATED',
-          payload: { reason, ...details },
+          payload: JSON.stringify({ reason, ...details }),
           deviceId,
         },
         tx
@@ -58,6 +60,7 @@ export const safeModeService = {
 
     targetDb.transaction((tx: any) => {
       safeModeRepository.upsert(tx, {
+        id: 1, // Singleton row: id always = 1
         isActive: 0,
         reason: null,
         activatedAt: null,
@@ -68,7 +71,7 @@ export const safeModeService = {
         {
           firmId: null,
           eventType: 'SAFE_MODE_CLEARED',
-          payload: {},
+          payload: JSON.stringify({}),
           deviceId,
         },
         tx
@@ -96,12 +99,12 @@ export const safeModeService = {
 
   assertNotInSafeMode() {
     if (!bootstrapComplete.value) {
-      throw new Error('BOOTSTRAP_INCOMPLETE: assertNotInSafeMode called before bootstrap finished');
+      throw new Error(`${ERR.BOOTSTRAP_INCOMPLETE}: assertNotInSafeMode called before bootstrap finished`);
     }
 
     const { isActive } = safeModeStore.getState();
     if (isActive) {
-      throw new Error('SAFE_MODE_ACTIVE: Write operations are blocked to protect data integrity.');
+      throw new Error(`${ERR.SAFE_MODE_ACTIVE}: Write operations are blocked to protect data integrity.`);
     }
   },
 };

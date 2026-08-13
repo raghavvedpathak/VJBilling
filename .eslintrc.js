@@ -4,8 +4,8 @@ module.exports = {
   extends: ['universe/native'],
   overrides: [
     {
-      // Apply this rule ONLY to UI files
-      files: ["app/**/*.tsx", "app/**/*.ts", "screens/**/*.tsx"],
+      // Apply this rule strictly to all UI screens, layouts, and components
+      files: ["app/**/*.tsx", "app/**/*.ts", "screens/**/*.tsx", "components/**/*.tsx"],
       rules: {
         "no-restricted-imports": [
           "error",
@@ -13,21 +13,29 @@ module.exports = {
             paths: [
               {
                 name: "@/db",
-                message: "PHASE 1 CONSTITUTIONAL VIOLATION: UI screens must never touch the database directly. Use the repository or service layer instead."
+                message: "PHASE 1 CONSTITUTIONAL VIOLATION: UI screens and components must never touch the database directly. Use the repository or service layer instead (G65)."
+              },
+              {
+                name: "@/db/client",
+                message: "PHASE 1 CONSTITUTIONAL VIOLATION: UI screens and components must never touch the database directly. Use the repository or service layer instead (G65)."
+              },
+              {
+                name: "@/db/schema",
+                message: "PHASE 1 CONSTITUTIONAL VIOLATION: UI screens and components must never import schema directly. Use domain types instead (G65)."
               },
               {
                 name: "../db/client",
-                message: "PHASE 1 CONSTITUTIONAL VIOLATION: UI screens must never touch the database directly. Use the repository or service layer instead."
+                message: "PHASE 1 CONSTITUTIONAL VIOLATION: UI screens and components must never touch the database directly. Use the repository or service layer instead (G65)."
               },
               {
                 name: "../../db/client",
-                message: "PHASE 1 CONSTITUTIONAL VIOLATION: UI screens must never touch the database directly. Use the repository or service layer instead."
+                message: "PHASE 1 CONSTITUTIONAL VIOLATION: UI screens and components must never touch the database directly. Use the repository or service layer instead (G65)."
               }
             ],
             patterns: [
               {
-                group: ["**/db/*"],
-                message: "PHASE 1 CONSTITUTIONAL VIOLATION: UI screens must never touch the database directly. Use the repository or service layer instead."
+                group: ["**/db/*", "@/db/*"],
+                message: "PHASE 1 CONSTITUTIONAL VIOLATION: UI screens and components must never touch the database directly. Use the repository or service layer instead (G65)."
               }
             ]
           }
@@ -36,7 +44,7 @@ module.exports = {
           "error",
           {
             selector: "Literal[value=/\\u20B9|\\bINR\\b/]",
-            message: "CURRENCY_HARDCODE: Never hardcode ₹ or 'INR'. Use getCurrencySymbol() from utils/currency.ts (G67)",
+            message: "CURRENCY_HARDCODE: Never hardcode ₹ or 'INR'. Use getCurrencySymbol() from utils/currency.ts (G67)."
           }
         ]
       }

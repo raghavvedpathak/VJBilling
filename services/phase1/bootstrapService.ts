@@ -1,8 +1,11 @@
 // services/phase1/bootstrapService.ts
 // Phase 1 Master Bootstrap Sequence — Steps 0–12
+// v7.24 FIX-VSEC-14: AES-256-GCM Encrypted Pre-Migration Snapshot
+// v7.26 FIX-V726-6: Uses getDeviceDerivedKeyMaterial() from utils/deviceKey
 
 import { safeModeService, bootstrapComplete } from '@/services/phase1/safeModeService';
-import { getDeviceId, getOrGenerateDeviceId, auditDeviceIdIfNew, getDeviceDerivedKeyMaterial } from '@/utils/deviceId';
+import { getDeviceId, getOrGenerateDeviceId, auditDeviceIdIfNew } from '@/utils/deviceId';
+import { getDeviceDerivedKeyMaterial } from '@/utils/deviceKey';
 import { verifyService } from '@/services/phase1/verifyService';
 import { safeModeStore, SafeModeTrigger } from '@/store/phase1/safeModeStore';
 import db, { expoDb } from '@/db/client';
@@ -24,7 +27,7 @@ let premigrationSnapshotFailed = false;
 export const bootstrapService = {
 
   // ==========================================================================
-  // STEP 0: PRE-MIGRATION SNAPSHOT
+  // STEP 0: PRE-MIGRATION SNAPSHOT (AES-256-GCM Encrypted)
   // ==========================================================================
   async takePreMigrationSnapshot(): Promise<void> {
     console.log('[Bootstrap] Step 0: Executing Encrypted Pre-Migration Snapshot...');
@@ -55,10 +58,40 @@ export const bootstrapService = {
       };
 
       const payloadStr = JSON.stringify(snapshot);
-      const toBase64 = (str: string) => btoa(encodeURIComponent(str));
+      const enc = new TextEncoder();
+      const keySourceMaterial = await getDeviceDerivedKeyMaterial();
+      const saltBytes = crypto.getRandomValues(new Uint8Array(16));
+      const ivBytes = crypto.getRandomValues(new Uint8Array(12));
+
+      const keyMaterial = await crypto.subtle.importKey(
+        'raw',
+        keySourceMaterial as unknown as BufferSource,
+        'PBKDF2',
+        false,
+        ['deriveKey']
+      );
+
+      const key = await crypto.subtle.deriveKey(
+        { name: 'PBKDF2', salt: saltBytes, iterations: 100000, hash: 'SHA-256' },
+        keyMaterial,
+        { name: 'AES-GCM', length: 256 },
+        false,
+        ['encrypt']
+      );
+
+      const cipherBuffer = await crypto.subtle.encrypt(
+        { name: 'AES-GCM', iv: ivBytes },
+        key,
+        enc.encode(payloadStr)
+      );
+
+      const toBase64 = (buf: ArrayBuffer) => btoa(String.fromCharCode(...new Uint8Array(buf)));
+
       const encryptedBlob = JSON.stringify({
-        obfuscated: toBase64(payloadStr),
-        timestamp: new Date().toISOString()
+        iv: toBase64(ivBytes.buffer),
+        salt: toBase64(saltBytes.buffer),
+        ciphertext: toBase64(cipherBuffer),
+        timestamp: new Date().toISOString(),
       });
 
       await FileSystem.makeDirectoryAsync(BACKUP_DIR, { intermediates: true });

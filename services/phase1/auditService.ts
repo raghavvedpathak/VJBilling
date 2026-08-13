@@ -9,6 +9,8 @@ export type AuditEventType =
   | 'FIRM_UPDATED'
   | 'FIRM_SWITCHED'
   | 'FIRM_CODE_SET'
+  | 'FIRM_ARCHIVED'
+  | 'FIRM_UNARCHIVED'
   | 'FY_CREATED'
   | 'FY_CLOSED'
   | 'FY_CLOCK_SKEW'
@@ -22,6 +24,7 @@ export type AuditEventType =
   | 'PRE_MIGRATION_SNAPSHOT_FAILED'
   | 'BIS_LOGO_ARCHIVED'
   | 'SETTINGS_CHANGED'
+  | 'AUDIT_RETENTION_PURGE_EXECUTED'
   | 'URD_PURCHASE_CREATED'
   | 'URD_PURCHASE_CONFIRMED'
   | 'CATEGORY_CREATED'
@@ -65,7 +68,7 @@ export const auditService = {
     const deviceId = deviceIdOverride || await getDeviceId();
     const activeTx = tx || undefined;
 
-    await auditRepository.create({
+    auditRepository.create({
       firmId,
       eventType: eventType as string,
       payload: typeof payload === 'string' ? JSON.parse(payload) : payload,
@@ -85,7 +88,7 @@ export const auditService = {
     const systemLogs = await auditRepository.getSystemLogs(50);
 
     return [...firmLogs, ...systemLogs].sort(
-      (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
     );
   },
 };

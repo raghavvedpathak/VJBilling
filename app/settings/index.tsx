@@ -1,4 +1,5 @@
 // app/settings/index.tsx — Phase 2 v2.11 Canonical Screen
+
 import React, { useState, useEffect } from 'react';
 import { View, Text, TouchableOpacity, ScrollView, Alert, ActivityIndicator, Modal, Switch } from 'react-native';
 import { useRouter } from 'expo-router';
@@ -8,7 +9,6 @@ import { TwoToneWrapper } from '@/components/TwoToneWrapper';
 import { useSession } from '@/hooks/useSession';
 import { backupService } from '@/services/phase1/backupService';
 import { restoreService } from '@/services/phase1/restoreService';
-import { auditService } from '@/services/phase1/auditService';
 import { storage } from '@/utils/storage';
 import { settingsService } from '@/services/phase1/settingsService'; 
 import { GlassCard, HeaderPill } from '@/components/ui/Glass';
@@ -75,9 +75,9 @@ export default function SettingsScreen() {
         console.error("Failed to load DB settings", e);
       }
 
-      const storedWarning = await storage.getItem('vjb_unsaved_warning');
+      const storedWarning = storage.getString('vjb_unsaved_warning');
       if (storedWarning) {
-          setUnsavedWarning(storedWarning !== 'false'); 
+        setUnsavedWarning(storedWarning !== 'false'); 
       }
 
       // Check PIN State
@@ -117,19 +117,12 @@ export default function SettingsScreen() {
 
   const toggleUnsavedWarning = async (value: boolean) => {
     setUnsavedWarning(value);
-    await storage.setItem('vjb_unsaved_warning', value ? 'true' : 'false');
+    storage.set('vjb_unsaved_warning', value ? 'true' : 'false');
     
     try {
-       await settingsService.updateSettings({ warnUnsavedChanges: value ? 1 : 0 });
-    } catch(e) {
-       console.error(e);
-    }
-
-    if (firm) {
-      await auditService.log(null, firm.id, 'SETTINGS_CHANGED', {
-        setting: 'UNSAVED_CHANGES_WARNING',
-        value: value ? 'ENABLED' : 'DISABLED'
-      });
+      await settingsService.updateSettings({ warnUnsavedChanges: value ? 1 : 0 });
+    } catch(e: any) {
+      console.error('Failed to update unsaved warning setting:', e?.message ?? e);
     }
   };
 
@@ -445,7 +438,6 @@ export default function SettingsScreen() {
                     className={`p-3.5 rounded-2xl border mb-3 flex-row justify-between items-center ${isApplied ? 'bg-vj-text border-vj-text' : 'bg-white/70 border-black/10'}`}
                   >
                     <View className="flex-row items-center gap-3 flex-1 mr-2">
-                      {/* Color Combo Swatch Preview Badge */}
                       <View className="flex-row items-center p-1 rounded-full bg-black/10 border border-black/10 gap-1">
                         <View className="w-4 h-4 rounded-full border border-white/40 shadow-sm" style={{ backgroundColor: preset.vjText }} />
                         <View className="w-4 h-4 rounded-full border border-black/20 shadow-sm" style={{ backgroundColor: preset.vjBg }} />

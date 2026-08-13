@@ -6,6 +6,10 @@ import { useRouter } from 'expo-router';
 import * as FileSystem from 'expo-file-system/legacy';
 import { ScreenWrapper } from '@/components/ScreenWrapper';
 import { GlassCard } from '@/components/ui/Glass';
+import { restoreService } from '@/services/phase1/restoreService';
+import { useSession } from '@/hooks/useSession';
+import { RestorePreviewModal } from '@/components/RestorePreviewModal';
+import { BackupEnvelope } from '@/services/phase1/backupService';
 import { 
   ArrowRight, 
   ShieldCheck, 
@@ -17,7 +21,15 @@ import { COLORS } from '@/constants/theme';
 
 export default function SetupScreen() {
   const router = useRouter();
+  const { refreshSession } = useSession();
+  
   const [hasBackup, setHasBackup] = useState<boolean | null>(null);
+  const [restoring, setRestoring] = useState(false);
+
+  // Restore Preview Modal State
+  const [previewModalVisible, setPreviewModalVisible] = useState(false);
+  const [previewBackup, setPreviewBackup] = useState<BackupEnvelope | null>(null);
+  const [previewFileContent, setPreviewFileContent] = useState<string | null>(null);
 
   useEffect(() => {
     const checkBackups = async () => {
@@ -39,6 +51,35 @@ export default function SetupScreen() {
     };
     checkBackups();
   }, []);
+
+  const handleRestore = async () => {
+    try {
+      const result = await restoreService.inspectBackupFile();
+      if (!result) return; // User canceled document picker
+
+      setPreviewBackup(result.backup);
+      setPreviewFileContent(result.fileContent);
+      setPreviewModalVisible(true);
+    } catch (error: any) {
+      Alert.alert("Invalid Backup File", error.message || "Failed to parse backup file.");
+    }
+  };
+
+  const handleConfirmRestore = async (password?: string) => {
+    if (!previewFileContent) return;
+    try {
+      setRestoring(true);
+      await restoreService.restore(previewFileContent, password);
+      await refreshSession();
+      setPreviewModalVisible(false);
+      Alert.alert("Success", "Database restored successfully.");
+      router.replace('/dashboard');
+    } catch (error: any) {
+      Alert.alert("Restore Failed", error.message);
+    } finally {
+      setRestoring(false);
+    }
+  };
 
   return (
     <ScreenWrapper>
@@ -67,7 +108,7 @@ export default function SetupScreen() {
             Welcome
           </Text>
           <Text className="text-vj-text/60 text-center mt-3 leading-6 px-4">
-            Your secure, offline-first command center. To begin, please establish your firm's identity.
+            Your secure, offline-first command center. To begin, please establish your firm's identity or restore an existing backup.
           </Text>
         </View>
 
@@ -82,20 +123,28 @@ export default function SetupScreen() {
               {hasBackup && (
                 <TouchableOpacity 
                   activeOpacity={0.8}
-                  onPress={() => Alert.alert("Restore Backup", "Please use the 'Restore Backup' option on the welcome screen or in Settings.")}
+                  onPress={handleRestore}
+                  disabled={restoring}
                 >
                   <GlassCard style={{ padding: 20, marginBottom: 0, borderColor: COLORS.vjAccent, borderWidth: 2 }}>
                     <View className="flex-row items-center gap-5">
                       <View className="bg-vj-bg p-4 rounded-2xl border border-vj-accent/30">
-                        <HardDriveDownload size={28} color={COLORS.vjAccent} />
+                        {restoring ? (
+                          <ActivityIndicator size="small" color={COLORS.vjAccent} />
+                        ) : (
+                          <HardDriveDownload size={28} color={COLORS.vjAccent} />
+                        )}
                       </View>
                       <View className="flex-1">
                         <Text className="text-vj-text font-bold text-lg mb-0.5">
-                          Restore Backup Detected
+                          {restoring ? "Restoring Backup..." : "Restore Backup Detected"}
                         </Text>
                         <Text className="text-vj-text/60 text-xs">
                           Import your existing .vjb data file
                         </Text>
+                      </View>
+                      <View className="bg-vj-glass p-2 rounded-full border border-white/20">
+                        <ArrowRight size={20} color={COLORS.vjText} />
                       </View>
                     </View>
                   </GlassCard>
@@ -106,6 +155,7 @@ export default function SetupScreen() {
               <TouchableOpacity 
                 activeOpacity={0.8}
                 onPress={() => router.push("/create-firm")}
+                disabled={restoring}
               >
                 <GlassCard style={{ padding: 20, marginBottom: 0 }}>
                   <View className="flex-row items-center gap-5">
@@ -140,6 +190,16 @@ export default function SetupScreen() {
         </View>
 
       </View>
+
+      {/* Modern Restore Preview Modal */}
+      <RestorePreviewModal
+        visible={previewModalVisible}
+        backup={previewBackup}
+        fileContent={previewFileContent}
+        isRestoring={restoring}
+        onConfirm={handleConfirmRestore}
+        onCancel={() => setPreviewModalVisible(false)}
+      />
     </ScreenWrapper>
   );
 }

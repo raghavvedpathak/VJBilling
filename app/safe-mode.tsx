@@ -4,29 +4,26 @@ import React, { useState } from 'react';
 import {
   View,
   Text,
-  TouchableOpacity,
   ScrollView,
   Alert,
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
-import { ShieldAlert, Unlock, HardDriveUpload, RefreshCw, X } from 'lucide-react-native';
+import { ShieldAlert, HardDriveUpload, RefreshCw } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
 import { safeModeStore } from '@/store/phase1/safeModeStore';
-import { safeModeService } from '@/services/phase1/safeModeService';
 import { bootstrapService } from '@/services/phase1/bootstrapService';
-import { GlassCard, GlassButton, GlassInput } from '@/components/ui/Glass';
+import { GlassCard, GlassButton } from '@/components/ui/Glass';
 
 export default function SafeModeScreen() {
   const router = useRouter();
   const reason = safeModeStore((s: any) => s.reason);
   const activatedAt = safeModeStore((s: any) => s.activatedAt);
 
-  const [showUnlock, setShowUnlock] = useState(false);
-  const [unlockCode, setUnlockCode] = useState('');
   const [retrying, setRetrying] = useState(false);
 
   // RETRY — Runs the full bootstrap sequence again.
+  // PATH 1: verifyService clears Safe Mode if the system is HEALTHY during initApp().
   const handleRetry = async () => {
     try {
       setRetrying(true);
@@ -54,17 +51,6 @@ export default function SafeModeScreen() {
       Alert.alert('Retry Failed', e?.message ?? 'An unexpected error occurred.');
     } finally {
       setRetrying(false);
-    }
-  };
-
-  // ADMIN OVERRIDE — Phase 1 emergency bypass code "0000".
-  const submitUnlock = async () => {
-    if (unlockCode === '0000') {
-      await safeModeService.clear();
-      router.replace('/dashboard');
-    } else {
-      Alert.alert('Access Denied', 'Invalid override code.');
-      setUnlockCode('');
     }
   };
 
@@ -103,7 +89,7 @@ export default function SafeModeScreen() {
             </Text>
           </View>
           <View className="flex-row justify-between">
-            <Text className="text-gray-300">Timestamp:</Text>
+            <Text className="text-gray-400">Timestamp:</Text>
             <Text className="text-gray-400 font-mono text-xs">
               {activatedAt ? new Date(activatedAt).toLocaleString() : 'N/A'}
             </Text>
@@ -111,61 +97,27 @@ export default function SafeModeScreen() {
         </GlassCard>
 
         {/* ACTIONS */}
-        {!showUnlock ? (
-          <View className="gap-4">
-            <GlassButton
-              title={retrying ? 'Running Diagnostics...' : 'Retry Diagnostics'}
-              onPress={handleRetry}
-              loading={retrying}
-              variant="danger"
-              icon={<RefreshCw size={20} color="white" />}
-            />
+        <View className="gap-4 mt-6">
+          <GlassButton
+            title={retrying ? 'Running Diagnostics...' : 'Retry Diagnostics'}
+            onPress={handleRetry}
+            loading={retrying}
+            variant="danger"
+            icon={<RefreshCw size={20} color="white" />}
+          />
 
-            <GlassButton
-              title="Restore Backup"
-              onPress={() =>
-                Alert.alert(
-                  'Manual Restore',
-                  'To restore a healthy backup, please reinstall the app to access the "Restore from Backup" option on the welcome screen.'
-                )
-              }
-              variant="secondary"
-              icon={<HardDriveUpload size={20} color="#ef4444" />}
-            />
-
-            <TouchableOpacity
-              onPress={() => setShowUnlock(true)}
-              className="p-4 flex-row justify-center items-center gap-2 mt-4"
-            >
-              <Unlock size={16} color="#ef4444" />
-              <Text className="text-vj-danger/80 font-bold">Admin Override</Text>
-            </TouchableOpacity>
-          </View>
-        ) : (
-          <GlassCard>
-            <View className="flex-row justify-between items-center mb-4">
-              <Text className="text-vj-danger font-bold text-lg">Admin Access</Text>
-              <TouchableOpacity onPress={() => setShowUnlock(false)}>
-                <X size={24} color="#999" />
-              </TouchableOpacity>
-            </View>
-            <Text className="text-gray-400 text-xs mb-3">
-              Enter the emergency bypass code.
-            </Text>
-            <GlassInput
-              value={unlockCode}
-              onChangeText={setUnlockCode}
-              placeholder="Enter Code"
-              secureTextEntry
-              keyboardType="number-pad"
-            />
-            <GlassButton
-              title="UNLOCK SYSTEM"
-              onPress={submitUnlock}
-              variant="danger"
-            />
-          </GlassCard>
-        )}
+          <GlassButton
+            title="Restore Backup"
+            onPress={() =>
+              Alert.alert(
+                'Manual Restore',
+                'To restore a healthy backup, please reinstall the app to access the "Restore from Backup" option on the welcome screen.'
+              )
+            }
+            variant="secondary"
+            icon={<HardDriveUpload size={20} color="#ef4444" />}
+          />
+        </View>
       </ScrollView>
     </KeyboardAvoidingView>
   );

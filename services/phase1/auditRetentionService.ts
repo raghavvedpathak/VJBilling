@@ -8,6 +8,8 @@ import { leaseService } from '@/services/phase1/leaseService';
 import { safeModeService } from '@/services/phase1/safeModeService';
 import { auditRepository } from '@/repositories/phase1/auditRepository';
 import { appSettingsStore } from '@/store/phase1/appSettingsStore';
+import { getDeviceId } from '@/utils/deviceId';
+import { now } from '@/utils/now';
 
 export async function purgeExpiredAuditLogs(): Promise<void> {
   await leaseService.assertNoActiveLease(); // GUARD 1 — Dual Guard
@@ -15,6 +17,8 @@ export async function purgeExpiredAuditLogs(): Promise<void> {
   
   const { auditRetentionDays } = appSettingsStore.getState(); // default 30
   const cutoff = subDays(new Date(), auditRetentionDays).toISOString();
+  const deviceId = await getDeviceId().catch(() => 'DEV-DEVICE-ID');
+  const executionTime = now();
   
   await db.transaction((tx) => {
     tx.update(auditDeleteGate).set({ gateOpen: 1 }).where(eq(auditDeleteGate.id, 1)).run();
@@ -27,17 +31,20 @@ export async function purgeExpiredAuditLogs(): Promise<void> {
     auditRepository.log(tx, { 
       eventType: 'AUDIT_RETENTION_PURGE_EXECUTED', 
       firmId: null,
-      deviceId: 'SYSTEM', 
-      payload: { 
+      deviceId, 
+      payload: JSON.stringify({ 
         deletedCount: result?.changes ?? 0, 
         auditRetentionDays,
         cutoff, 
-        executedAt: new Date().toISOString() 
-      } 
+        executedAt: executionTime 
+      }) 
     });
 
-    tx.update(appSettings).set({ auditRetentionLastRunAt: new Date().toISOString() }).where(eq(appSettings.id, 1)).run();
+    tx.update(appSettings)
+      .set({ auditRetentionLastRunAt: executionTime })
+      .where(eq(appSettings.id, 1))
+      .run();
   });
 
-  appSettingsStore.setState({ auditRetentionLastRunAt: new Date().toISOString() });
+  appSettingsStore.setState({ auditRetentionLastRunAt: executionTime });
 }

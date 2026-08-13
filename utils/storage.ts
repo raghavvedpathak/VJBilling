@@ -6,11 +6,11 @@ export interface StorageService {
   getItem: (key: string) => string | null | Promise<string | null>;
   removeItem: (key: string) => void | Promise<void>;
   
-  // Custom helpers for boolean/number flags (e.g., VerifyService & Safe Mode)
+  // Custom helpers for boolean/number/string flags
   set: (key: string, value: boolean | string | number) => void | Promise<void>;
   getBoolean: (key: string) => boolean | Promise<boolean>;
 
-  // Methods required by canonical pinService.ts
+  // Methods required by canonical pinService.ts, verifyService.ts, and bootstrapService.ts
   getString: (key: string) => string | undefined;
   delete: (key: string) => void | Promise<void>;
 }
@@ -19,12 +19,19 @@ let storageInstance: StorageService;
 
 try {
   // 1. Try to load MMKV dynamically (Production / Native Build)
-  // ⚠️ FIX: MMKV v4 uses `createMMKV` instead of `new MMKV`
-  const { createMMKV } = require('react-native-mmkv');
+  const { createMMKV, MMKV } = require('react-native-mmkv');
   
-  const mmkv = createMMKV({
-    id: 'vjbilling-storage',
-  });
+  const mmkv = typeof createMMKV === 'function' 
+    ? createMMKV({ id: 'vjbilling-storage' }) 
+    : new MMKV({ id: 'vjbilling-storage' });
+
+  const safeDelete = (key: string) => {
+    if (typeof mmkv.delete === 'function') {
+      mmkv.delete(key);
+    } else if (typeof (mmkv as any).remove === 'function') {
+      (mmkv as any).remove(key);
+    }
+  };
 
   // 2. Setup MMKV Adapter (Synchronous & Blisteringly Fast)
   storageInstance = {
@@ -33,24 +40,22 @@ try {
       const value = mmkv.getString(key);
       return value ?? null;
     },
-    // ⚠️ FIX: MMKV v4 changed `.delete()` to `.remove()`
-    removeItem: (key) => mmkv.remove(key),
+    removeItem: (key) => safeDelete(key),
     
     // Extended Methods
     set: (key, value) => mmkv.set(key, value),
     getBoolean: (key) => mmkv.getBoolean(key) ?? false,
 
-    // Methods required by canonical pinService.ts
+    // Methods required by canonical pinService, verifyService, and bootstrapService
     getString: (key) => mmkv.getString(key),
-    delete: (key) => mmkv.remove(key)
+    delete: (key) => safeDelete(key)
   };
   
   console.log('[Storage] High-Performance MMKV Engine Initialized');
 
 } catch (e: any) {
   // 3. Fallback to AsyncStorage (Safe Mode for Expo Go / Web)
-  // ⚠️ FIX: Added e.message so it stops hiding the true error from us!
-  console.log('[Storage] Native MMKV not found, safely falling back to AsyncStorage. Error:', e.message);
+  console.log('[Storage] Native MMKV not found, safely falling back to AsyncStorage. Error:', e?.message ?? e);
   
   storageInstance = {
     setItem: async (key, value) => {
@@ -65,7 +70,6 @@ try {
     
     // Extended Methods (Async Shim)
     set: async (key, value) => {
-      // AsyncStorage only stores strings natively
       await AsyncStorage.setItem(key, String(value));
     },
     getBoolean: async (key) => {
@@ -73,9 +77,9 @@ try {
       return val === 'true';
     },
 
-    // Fallback for pinService.ts methods
+    // Fallback for pinService.ts / verifyService.ts methods
     getString: (key) => {
-      console.warn(`[Storage] WARNING: Synchronous getString('${key}') called on AsyncStorage fallback. PIN Gate will bypass in Expo Go.`);
+      console.warn(`[Storage] WARNING: Synchronous getString('${key}') called on AsyncStorage fallback.`);
       return undefined;
     },
     delete: async (key) => {

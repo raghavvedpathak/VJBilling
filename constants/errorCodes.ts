@@ -1,6 +1,8 @@
 // constants/errorCodes.ts
 // v7.14 FIX-V714-6: Canonical error constants
 // v7.24 FIX-V724-5: 36 total error codes including 8 new security codes
+// v7.33 FIX-V733-1: 37 total Phase 1 error codes (PIN_DATA_CORRUPTED added)
+// v7.35 FIX-V735-1: GSTIN_IMMUTABLE renamed to GSTIN_ALREADY_SET
 // G65 LINT ALLOWLIST: add 'constants/errorCodes' to the no-restricted-imports exceptions.
 
 export const ERR = {
@@ -8,7 +10,7 @@ export const ERR = {
   SAFE_MODE_ACTIVE: 'SAFE_MODE_ACTIVE',
   MAX_FIRMS_REACHED: 'MAX_FIRMS_REACHED',
   FIRM_CODE_IMMUTABLE: 'FIRM_CODE_IMMUTABLE',
-  GSTIN_IMMUTABLE: 'GSTIN_IMMUTABLE',
+  GSTIN_ALREADY_SET: 'GSTIN_ALREADY_SET', // v7.35 FIX-V735-1: renamed from GSTIN_IMMUTABLE
   GSTIN_STATE_MISMATCH: 'GSTIN_STATE_MISMATCH',
   GSTIN_STATE_UPDATE_BLOCKED: 'GSTIN_STATE_UPDATE_BLOCKED',
   FIRM_NOT_FOUND: 'FIRM_NOT_FOUND',

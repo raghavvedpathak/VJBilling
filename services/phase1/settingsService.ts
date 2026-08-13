@@ -55,12 +55,12 @@ export const settingsService = {
         eventType: 'SETTINGS_CHANGED',
         firmId: null,
         deviceId,
-        payload: {
+        payload: JSON.stringify({
           eventType: 'SETTINGS_CHANGED',
           fields: Object.keys(input),
           oldValues: Object.fromEntries(Object.keys(input).map(k => [k, (existing as any)[k]])),
           newValues: input,
-        }
+        }),
       });
     });
 

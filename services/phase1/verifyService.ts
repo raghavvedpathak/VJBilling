@@ -43,9 +43,9 @@ export const verifyService = {
   async runVerify(firmId?: string): Promise<VerifyResult> {
     if (!firmId) {
       try {
-        const cachedStatus = await storage.getItem(CACHE_KEY_STATUS);
-        const cachedAt     = await storage.getItem(CACHE_KEY_AT);
-        const bootInterrupted = await storage.getItem('vjbilling_boot_was_interrupted');
+        const cachedStatus = storage.getString(CACHE_KEY_STATUS);
+        const cachedAt     = storage.getString(CACHE_KEY_AT);
+        const bootInterrupted = storage.getString('vjbilling_boot_was_interrupted');
 
         if (cachedStatus === 'HEALTHY' && cachedAt && bootInterrupted === 'false') {
           const elapsed = Date.now() - new Date(cachedAt).getTime();
@@ -72,8 +72,8 @@ export const verifyService = {
 
       if (!firmId) {
         try {
-          await storage.setItem(CACHE_KEY_STATUS, 'HEALTHY');
-          await storage.setItem(CACHE_KEY_AT, new Date().toISOString());
+          storage.set(CACHE_KEY_STATUS, 'HEALTHY');
+          storage.set(CACHE_KEY_AT, now());
         } catch (cacheWriteError) {
           console.warn('[Verify] VERIFY-BOOT-CACHE: Failed to write cache keys:', cacheWriteError);
         }
@@ -228,8 +228,8 @@ export const verifyService = {
 
     if (!firmId) {
       try {
-        await storage.setItem(CACHE_KEY_STATUS, status);
-        await storage.setItem(CACHE_KEY_AT, new Date().toISOString());
+        storage.set(CACHE_KEY_STATUS, status);
+        storage.set(CACHE_KEY_AT, now());
       } catch (cacheWriteError) {
         console.warn('[Verify] VERIFY-BOOT-CACHE: Failed to write cache keys:', cacheWriteError);
       }
@@ -246,8 +246,8 @@ export const verifyService = {
 
   async invalidateCache(): Promise<void> {
     try {
-      await storage.removeItem(CACHE_KEY_STATUS);
-      await storage.removeItem(CACHE_KEY_AT);
+      storage.delete(CACHE_KEY_STATUS);
+      storage.delete(CACHE_KEY_AT);
       console.log('[Verify] VERIFY-BOOT-CACHE: Cache invalidated.');
     } catch (e) {
       console.warn('[Verify] VERIFY-BOOT-CACHE: Cache invalidation failed (non-fatal):', e);

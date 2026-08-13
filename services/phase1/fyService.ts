@@ -82,7 +82,8 @@ export async function closeFY(fyId: string, firmId: string): Promise<void> {
   await leaseService.assertNoActiveLease(); // GUARD 1
   safeModeService.assertNotInSafeMode();    // GUARD 2
 
-  const leaseId = await leaseService.acquire('WRITE', firmId);
+  // v6.5 GAP 5: Acquire 'FY_CLOSE' lease handle (not 'WRITE', which is prohibited in Phase 1)
+  const leaseId = await leaseService.acquire('FY_CLOSE', firmId);
 
   try {
     const verifyIssues = await phase2VerifyService.runVerify(firmId);

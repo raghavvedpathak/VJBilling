@@ -144,6 +144,10 @@ export const auditRepository = {
       return 0;
     }
 
+    const endDateBound = fy.endDate.length === 10
+      ? `${fy.endDate}T23:59:59.999Z`
+      : fy.endDate;
+
     const rows = targetTx
       .select({ id: auditLogs.id })
       .from(auditLogs)
@@ -151,7 +155,7 @@ export const auditRepository = {
         and(
           eq(auditLogs.firmId, fy.firmId),
           gte(auditLogs.createdAt, fy.startDate),
-          lte(auditLogs.createdAt, fy.endDate + 'T23:59:59.999Z')
+          lte(auditLogs.createdAt, endDateBound)
         )
       )
       .all();

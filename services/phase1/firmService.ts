@@ -1,7 +1,8 @@
 // services/firmService.ts
 // v2.8 FULL COMPLIANCE: Dual Guard Pattern (assertNoActiveLease + assertNotInSafeMode)
 // v7.0 G70: GSTIN + stateCode cross-validation, pincode validation
-// v6.5 Gap B: BIS logo archival on licence removal
+// v6.6 BUG FIX: BIS logo archival on licence removal via UUID
+// v7.35 FIX-V735-1: GSTIN_ALREADY_SET implementation
 // isArchived and isActive are plain integers in schema — ALWAYS use 0/1, NEVER true/false
 
 import { eq } from 'drizzle-orm';
@@ -170,20 +171,20 @@ export const firmService = {
       const existingFirm = firmRepository.getById(firmId);
       if (!existingFirm) throw new Error('FIRM_NOT_FOUND');
 
-      if (existingFirm.gstin && 'gstin' in input && input.gstin !== existingFirm.gstin) {
-        throw new Error(
-          'GSTIN_IMMUTABLE: GSTIN is a statutory signal and cannot be changed or removed after firm registration.'
-        );
-      }
-
-      if (!existingFirm.gstin && input.gstin) {
-        validateGSTIN(input.gstin);
-        const gstinStateCode = input.gstin.slice(0, 2);
-        const targetStateCode = input.stateCode || existingFirm.stateCode;
-        if (gstinStateCode !== targetStateCode) {
-          throw new Error(
-            `GSTIN_STATE_MISMATCH: GSTIN state prefix (${gstinStateCode}) must match firm stateCode (${targetStateCode}).`
-          );
+      // v7.35 FIX-V735-1: GSTIN may be ADDED exactly once. If present, it is locked.
+      if ('gstin' in input) {
+        if (existingFirm.gstin) {
+          throw new Error('GSTIN_ALREADY_SET: GSTIN cannot be modified once set');
+        }
+        if (input.gstin) {
+          validateGSTIN(input.gstin);
+          const gstinStateCode = input.gstin.slice(0, 2);
+          const targetStateCode = input.stateCode || existingFirm.stateCode;
+          if (gstinStateCode !== targetStateCode) {
+            throw new Error(
+              `GSTIN_STATE_MISMATCH: GSTIN state prefix (${gstinStateCode}) must match firm stateCode (${targetStateCode}).`
+            );
+          }
         }
       }
 
@@ -219,9 +220,14 @@ export const firmService = {
 
       const targetDb = getDb();
       const updatedFirm = await targetDb.transaction((tx: any) => {
-        if ('bisLicence' in input && !input.bisLicence && existingFirm.bisLogoRef) {
+        // v6.6 BUG FIX: Archiving requires fetching the bis_logos row to pass its UUID
+        const clearingBisLicence = ('bisLicence' in input) && (!input.bisLicence) && !!existingFirm.bisLogoRef;
+        if (clearingBisLicence) {
           updatePayload.bisLogoRef = null;
-          bisLogoRepository.archive(existingFirm.id, existingFirm.bisLogoRef, 'licence_removed', tx);
+          const bisLogoRow = bisLogoRepository.findActiveByFirmId(firmId, tx);
+          if (bisLogoRow) {
+            bisLogoRepository.archive(bisLogoRow.id, 'licence_removed', tx);
+          }
           auditEvents.push({
             eventType: 'BIS_LOGO_ARCHIVED',
             payload: JSON.stringify({ reason: 'licence_removed' }),

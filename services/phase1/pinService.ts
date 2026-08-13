@@ -1,14 +1,14 @@
-// =================================================================
-// v7.29 FIX-V729-1 & FIX-V729-2 — services/pinService.ts CANONICAL IMPLEMENTATION
+// ================================================================
+// v7.24 FIX-V724-1 / v7.29 FIX-V729-1 & FIX-V729-2 — services/pinService.ts
+// CANONICAL IMPLEMENTATION (v7.35)
 // PIN gate runs BEFORE bootstrapDatabase(). On first boot: show PIN setup screen 
 // with a "Skip for now" option. If a PIN is set: show PIN entry screen on every 
 // subsequent boot (mandatory, no bypass once set). If skipped: proceed straight to 
 // bootstrapDatabase() with no gate until the user sets a PIN from Settings > Security.
-// =================================================================
+// ================================================================
 
 import { storage } from '@/utils/storage';
-import { ERR } from '@/constants';
-import * as Crypto from 'expo-crypto';
+import { ERR } from '@/constants/errorCodes';
 
 const PIN_HASH_KEY = 'vjbilling_pin_hash';
 const PIN_SALT_KEY = 'vjbilling_pin_salt';
@@ -21,18 +21,21 @@ const MAX_ATTEMPTS = 3;
 const BASE_LOCKOUT_MS = 30_000; // 30 seconds, doubles each subsequent lockout
 
 async function deriveKey(pin: string, saltHex: string): Promise<string> {
-  // v7.33 FIX-V733-1: saltHex null check on corrupted/tampered MMKV data.
+  const enc = new TextEncoder();
+  // v7.33 FIX-V733-1: saltHex.match() can return null on corrupted/tampered MMKV data.
+  // Fails closed with a typed, catchable error instead of throwing a raw TypeError.
   const saltHexPairs = saltHex ? saltHex.match(/.{2}/g) : null;
   if (!saltHexPairs) {
     throw new Error(ERR.PIN_DATA_CORRUPTED + ': stored PIN salt is malformed');
   }
-  // WebCrypto (crypto.subtle.deriveKey) is unsupported natively on Android JS engine.
-  // We use expo-crypto with iterative SHA-256 hashing to simulate PBKDF2 stretch.
-  let hash = await Crypto.digestStringAsync(Crypto.CryptoDigestAlgorithm.SHA256, pin + saltHex);
-  for (let i = 0; i < 50; i++) {
-    hash = await Crypto.digestStringAsync(Crypto.CryptoDigestAlgorithm.SHA256, hash + saltHex);
-  }
-  return hash;
+  const saltBytes = new Uint8Array(saltHexPairs.map(h => parseInt(h, 16)));
+  const km = await crypto.subtle.importKey('raw', enc.encode(pin), 'PBKDF2', false, ['deriveKey']);
+  const key = await crypto.subtle.deriveKey(
+    { name: 'PBKDF2', salt: saltBytes, iterations: 100_000, hash: 'SHA-256' },
+    km, { name: 'HMAC', hash: 'SHA-256', length: 256 }, true, ['sign']
+  );
+  const raw = await crypto.subtle.exportKey('raw', key);
+  return Array.from(new Uint8Array(raw)).map(b => b.toString(16).padStart(2, '0')).join('');
 }
 
 export function isPinSet(): boolean {
@@ -45,7 +48,7 @@ export async function setPin(pin: string): Promise<void> {
     throw new Error(ERR.PIN_INCORRECT + ': PIN must be exactly 4 or 6 digits');
   }
   
-  const saltBytes = Crypto.getRandomBytes(16);
+  const saltBytes = crypto.getRandomValues(new Uint8Array(16));
   const saltHex = Array.from(saltBytes).map(b => b.toString(16).padStart(2, '0')).join('');
   
   storage.set(PIN_HASH_KEY, await deriveKey(pin, saltHex));

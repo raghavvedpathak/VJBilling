@@ -1,6 +1,7 @@
 // services/phase1/leaseService.ts
 // Concurrency guard — session-scoped writer leases.
 // v5.1 S2 Gap: Heartbeat at half-TTL to extend lease during long operations.
+// v6.5 Gap 5: LeaseType.WRITE runtime guard.
 //
 // CONSTITUTIONAL RULES:
 //   - acquire(), release(), purgeExpired() ALWAYS use top-level db — NEVER a tx context.
@@ -11,11 +12,12 @@ import * as Crypto from 'expo-crypto';
 import { eq, lt, sql } from 'drizzle-orm';
 import { AppState, AppStateStatus } from 'react-native';
 import db, { db as dbNamed } from '@/db/client';
-import { writerLeases } from '@/db/schema';
+import { writerLeases, LeaseType } from '@/db/schema';
 import { leaseRepository } from '@/repositories/phase1/leaseRepository';
 import { useLeaseStore } from '@/store/phase1/leaseStore';
 import { getDeviceId } from '@/utils/deviceId';
-import { LEASE_TTL_MINUTES } from '@/constants';
+import { LEASE_TTL_MINUTES } from '@/constants/leaseConfig';
+import { ERR } from '@/constants/errorCodes';
 import { now } from '@/utils/now';
 import { addMinutes } from '@/utils/addMinutes';
 
@@ -48,7 +50,7 @@ export const leaseService = {
       .all();
 
     if (existing.length > 0) {
-      throw new Error(`LEASE_HELD: System is busy with ${existing[0].leaseType}`);
+      throw new Error(`${ERR.LEASE_HELD}: ${existing[0].leaseType} operation in progress`);
     }
   },
 
@@ -56,6 +58,11 @@ export const leaseService = {
    * Acquires a named writer lease. Returns the leaseId.
    */
   async acquire(type: string, firmId?: string): Promise<string> {
+    // v6.5 GAP 5 FIX: Runtime guard — LeaseType.WRITE has no Phase 1 implementation
+    if (type === LeaseType.WRITE || type === 'WRITE') {
+      throw new Error(`${ERR.WRITE_LEASE_NOT_IMPLEMENTED}: LeaseType.WRITE is reserved for Phase 2. Do not acquire in Phase 1.`);
+    }
+
     await this.assertNoActiveLease();
 
     const newId = Crypto.randomUUID();
@@ -194,4 +201,4 @@ export const assertNoActiveLease = leaseService.assertNoActiveLease.bind(leaseSe
 export const acquireLease = leaseService.acquire.bind(leaseService);
 export const releaseLease = leaseService.release.bind(leaseService);
 export const startLeaseHeartbeat = leaseService.startHeartbeat.bind(leaseService);
-export const stopLeaseHeartbeat = leaseService.stopHeartbeat.bind(leaseService);
+export const stopLeaseHeartbeat = leaseService.stopHeartbeat.bind(leaseService);

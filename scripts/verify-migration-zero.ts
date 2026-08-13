@@ -57,6 +57,8 @@ const REQUIRED_COMMENTS: string[] = [
 const REQUIRED_TABLE_AND_SEED = [
   { table: 'audit_delete_gate', seed: 'INSERT INTO audit_delete_gate' },
   { table: 'schema_version', seed: 'INSERT INTO schema_version' },
+  { table: 'safe_mode_state', seed: 'INSERT INTO safe_mode_state' },
+  { table: 'app_settings', seed: 'INSERT INTO app_settings' },
 ];
 
 function findMigrationZeroContent(): string {
@@ -117,13 +119,21 @@ function verify(): void {
   }
 
   for (const { table, seed } of REQUIRED_TABLE_AND_SEED) {
-    if (
-      !sqlContent.toLowerCase().includes('create table `' + table + '`') &&
-      !sqlContent.toLowerCase().includes('create table ' + table)
-    ) {
+    const contentLower = sqlContent.toLowerCase();
+    const hasTable =
+      contentLower.includes(`create table "${table}"`) ||
+      contentLower.includes(`create table \`${table}\``) ||
+      contentLower.includes(`create table ${table}`);
+
+    if (!hasTable) {
       failures.push(`MISSING TABLE: ${table}`);
     }
-    if (!sqlContent.includes(seed)) {
+
+    const hasSeed =
+      sqlContent.includes(seed) ||
+      sqlContent.includes(seed.replace('INSERT INTO', 'INSERT OR IGNORE INTO'));
+
+    if (!hasSeed) {
       failures.push(`MISSING SEED ROW: ${table}`);
     }
   }

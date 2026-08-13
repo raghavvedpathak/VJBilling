@@ -50,13 +50,17 @@ async function decryptBackupEnvelope(parsedBlob: any, password?: string): Promis
     return CryptoJS.lib.WordArray.create(words, u8.length);
   };
 
+  const fromBase64 = (b64: string) => Uint8Array.from(atob(b64.trim()), c => c.charCodeAt(0));
+  
   const keySourceCandidates: Uint8Array[] = [];
 
   if (parsedBlob.passwordProtected === true) {
     keySourceCandidates.push(new TextEncoder().encode(password));
   } else {
-    const canonicalKey = await getCanonicalBackupKeyMaterial();
-    keySourceCandidates.push(canonicalKey);
+    try {
+      const canonicalKey = await getCanonicalBackupKeyMaterial();
+      keySourceCandidates.push(canonicalKey);
+    } catch {}
 
     if (parsedBlob.deviceId && typeof parsedBlob.deviceId === 'string') {
       try {
@@ -71,35 +75,73 @@ async function decryptBackupEnvelope(parsedBlob: any, password?: string): Promis
     } catch {}
   }
 
-  const salt = CryptoJS.enc.Base64.parse(parsedBlob.salt);
-  const iv = CryptoJS.enc.Base64.parse(parsedBlob.iv);
-  const iterations = parsedBlob.encryptionVersion === 2 ? 10000 : 100000;
+  const saltBytes = fromBase64(parsedBlob.salt);
+  const ivBytes = fromBase64(parsedBlob.iv);
+  const cipherBytes = fromBase64(parsedBlob.ciphertext);
+  
+  const iterationCandidates = parsedBlob.encryptionVersion === 2 ? [100000, 10000] : [100000];
 
   for (const candidateKeySource of keySourceCandidates) {
-    try {
-      const keyMaterial = toWordArray(candidateKeySource);
-      const key = CryptoJS.PBKDF2(keyMaterial, salt, {
-        keySize: 256 / 32,
-        iterations: iterations,
-        hasher: CryptoJS.algo.SHA256,
-      });
+    for (const iterations of iterationCandidates) {
+      // 1. Try WebCrypto AES-GCM
+      try {
+        const keyMaterial = await crypto.subtle.importKey(
+          'raw',
+          candidateKeySource as any,
+          'PBKDF2',
+          false,
+          ['deriveKey']
+        );
+        const key = await crypto.subtle.deriveKey(
+          { name: 'PBKDF2', salt: saltBytes, iterations, hash: 'SHA-256' },
+          keyMaterial,
+          { name: 'AES-GCM', length: 256 },
+          false,
+          ['decrypt']
+        );
 
-      const decrypted = CryptoJS.AES.decrypt(parsedBlob.ciphertext, key, {
-        iv: iv,
-        mode: CryptoJS.mode.CBC,
-        padding: CryptoJS.pad.Pkcs7,
-      });
+        const decrypted = await crypto.subtle.decrypt(
+          { name: 'AES-GCM', iv: ivBytes },
+          key,
+          cipherBytes
+        );
 
-      const decryptedText = decrypted.toString(CryptoJS.enc.Utf8);
-      if (decryptedText) {
-        const payload = JSON.parse(decryptedText);
-        return {
-          ...parsedBlob,
-          payload
-        } as unknown as BackupEnvelope;
-      }
-    } catch {
-      // Try next candidate
+        const decryptedText = new TextDecoder().decode(decrypted);
+        if (decryptedText) {
+          const payload = JSON.parse(decryptedText);
+          return {
+            ...parsedBlob,
+            payload
+          } as unknown as BackupEnvelope;
+        }
+      } catch {}
+
+      // 2. Try CryptoJS AES-CBC (legacy backup compatibility)
+      try {
+        const salt = CryptoJS.enc.Base64.parse(parsedBlob.salt);
+        const iv = CryptoJS.enc.Base64.parse(parsedBlob.iv);
+        const keyMaterial = toWordArray(candidateKeySource);
+        const key = CryptoJS.PBKDF2(keyMaterial, salt, {
+          keySize: 256 / 32,
+          iterations: iterations,
+          hasher: CryptoJS.algo.SHA256,
+        });
+
+        const decrypted = CryptoJS.AES.decrypt(parsedBlob.ciphertext, key, {
+          iv: iv,
+          mode: CryptoJS.mode.CBC,
+          padding: CryptoJS.pad.Pkcs7,
+        });
+
+        const decryptedText = decrypted.toString(CryptoJS.enc.Utf8);
+        if (decryptedText) {
+          const payload = JSON.parse(decryptedText);
+          return {
+            ...parsedBlob,
+            payload
+          } as unknown as BackupEnvelope;
+        }
+      } catch {}
     }
   }
 

@@ -144,6 +144,21 @@ END;
 
 ---
 
+## ACTION 6 — Singleton Seed Inserts (FIX-V722-3)
+
+Drizzle does NOT generate seed rows. Manually append all 4 singleton initial row seed statements below to the generated SQL file:
+
+```sql
+INSERT OR IGNORE INTO safe_mode_state (id, is_active) VALUES (1, 0);
+INSERT OR IGNORE INTO app_settings (id, updated_at) VALUES (1, '');
+INSERT OR IGNORE INTO schema_version (id, current_version) VALUES (1, 1);
+INSERT OR IGNORE INTO audit_delete_gate (id, gate_open) VALUES (1, 0);
+```
+
+- [ ] All 4 singleton seed statements present. Verified by: `npx ts-node scripts/verify-migration-zero.ts`
+
+---
+
 ## SIGN-OFF
 
 **Developer:** _________________________

@@ -26,9 +26,8 @@ export type CreateFirmInput = {
 
 export type UpdateFirmInput = {
   name?: string;
-  firmCode?: string; // Checked in firmService to enforce immutability
   proprietor?: string;
-  gstin?: string | null;
+  gstin?: string | null; // v7.35 FIX-V735-1: one-time null -> value addition path
   addressLine1?: string;
   addressLine2?: string | null;
   city?: string;
@@ -42,4 +41,5 @@ export type UpdateFirmInput = {
   bisLogoRef?: string | null;
   firmLogoRef?: string | null; // v5.0 G45: firm brand logo URI
   bisLogoUri?: string | null;
+  // firmCode is strictly EXCLUDED — immutable post-creation
 };
