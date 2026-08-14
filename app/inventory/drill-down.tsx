@@ -28,13 +28,7 @@ const CategoryRow = memo(({ item, colors, onPress }: CategoryRowProps) => {
       id={`category-row-${item.id}`}
       onPress={() => onPress(item.id, item.name)}
       activeOpacity={0.75}
-      style={[
-        s.card,
-        {
-          backgroundColor: '#FFFFFF',
-          borderColor: colors.border || 'rgba(92, 22, 35, 0.1)',
-        }
-      ]}
+      style={s.card}
     >
       <View style={[s.metalBadge, { backgroundColor: `${colors.vjAccent}1A`, borderColor: `${colors.vjAccent}40` }]}>
         {getJewelryCategoryIcon(item.name, undefined, undefined, 24, colors.vjAccent)}
@@ -51,12 +45,12 @@ const CategoryRow = memo(({ item, colors, onPress }: CategoryRowProps) => {
         </View>
       </View>
 
-      <View style={[s.countBadge, { backgroundColor: '#FFFFFF', borderColor: `${colors.vjAccent}35` }]}>
+      <View style={[s.countBadge, { backgroundColor: 'rgba(255, 255, 255, 0.9)', borderColor: `${colors.vjAccent}40` }]}>
         <Text style={[s.countText, { color: colors.vjText }]}>{item.availableCount}</Text>
         <Text style={[s.countLabel, { color: colors.vjText, opacity: 0.5 }]}>items</Text>
       </View>
 
-      <ChevronRight size={18} color={colors.vjAccent} style={{ opacity: 0.5 }} />
+      <ChevronRight size={18} color={colors.vjAccent} style={{ opacity: 0.6 }} />
     </TouchableOpacity>
   );
 });
@@ -159,21 +153,23 @@ const s = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     marginBottom: 12,
-    borderRadius: 16,
-    padding: 14,
+    borderRadius: 20,
+    padding: 16,
+    backgroundColor: '#FCFBF8',
     borderWidth: 1,
-    gap: 12,
+    borderColor: 'rgba(212, 175, 55, 0.25)',
+    gap: 14,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.04,
-    shadowRadius: 6,
-    elevation: 2,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 10,
+    elevation: 3,
   },
   metalBadge: {
-    width: 46,
-    height: 46,
-    borderRadius: 14,
-    borderWidth: 1,
+    width: 48,
+    height: 48,
+    borderRadius: 16,
+    borderWidth: 1.5,
     justifyContent: 'center',
     alignItems: 'center',
   },

@@ -2,7 +2,7 @@
 
 import { eq, and, or } from 'drizzle-orm';
 import { db } from '@/db/client';
-import { stones } from '@/db/schema';
+import { stones, items } from '@/db/schema';
 import type { DrizzleTransaction, Stone, NewStone } from '@/types/phase2/phase2.types';
 import { now } from '@/utils/now';
 
@@ -21,6 +21,12 @@ export interface StoneRepository {
   // --- softDelete (Overloaded for (tx, id) and (tx, id, firmId) / (tx, firmId, id)) ---
   softDelete(tx: DrizzleTransaction, id: string): void;
   softDelete(tx: DrizzleTransaction, id: string, firmId: string): void;
+
+  // --- update ---
+  update(tx: DrizzleTransaction, id: string, firmId: string, data: Partial<NewStone>): Stone;
+
+  // --- isStoneUsedInItems ---
+  isStoneUsedInItems(tx: DrizzleTransaction, stoneId: string, firmId: string): boolean;
 }
 
 export const stoneRepository: StoneRepository = {
@@ -105,5 +111,29 @@ export const stoneRepository: StoneRepository = {
         .where(eq(stones.id, second))
         .run();
     }
+  },
+
+  update(tx: DrizzleTransaction, id: string, firmId: string, data: Partial<NewStone>): Stone {
+    tx.update(stones)
+      .set({ ...data, updatedAt: now() })
+      .where(and(eq(stones.id, id), eq(stones.firmId, firmId)))
+      .run();
+    const result = tx.select().from(stones).where(and(eq(stones.id, id), eq(stones.firmId, firmId))).get();
+    return result as Stone;
+  },
+
+  isStoneUsedInItems(tx: DrizzleTransaction, stoneId: string, firmId: string): boolean {
+    const res = tx
+      .select({ count: items.id })
+      .from(items)
+      .where(
+        and(
+          eq(items.primaryStoneId, stoneId),
+          eq(items.firmId, firmId)
+        )
+      )
+      .limit(1)
+      .get();
+    return !!res;
   }
 };

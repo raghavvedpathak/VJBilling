@@ -270,13 +270,13 @@ export const itemRepository: ItemRepository = {
     const rows = await db
       .select({
         metal: items.metal,
-        availableNetWeightMg: sql<number>`SUM(CASE WHEN ${items.status} = 'AVAILABLE' THEN ${items.netWeightMg} ELSE 0 END)`,
+        availableNetWeightMg: sql<number>`SUM(CASE WHEN ${items.status} IN ('AVAILABLE', 'DRAFT') THEN ${items.netWeightMg} ELSE 0 END)`,
         phantomDebtMg: sql<number>`SUM(CASE WHEN ${items.status} IN ('PHANTOM_AVAILABLE','PHANTOM_SOLD') AND ${items.phantomStockId} IS NULL THEN ${items.netWeightMg} ELSE 0 END)`
       })
       .from(items)
       .where(and(
         eq(items.firmId, firmId),
-        inArray(items.status, ['AVAILABLE', 'PHANTOM_AVAILABLE', 'PHANTOM_SOLD'])
+        inArray(items.status, ['AVAILABLE', 'DRAFT', 'PHANTOM_AVAILABLE', 'PHANTOM_SOLD'])
       ))
       .groupBy(items.metal);
 
@@ -312,19 +312,24 @@ export const itemRepository: ItemRepository = {
     const tokens = query.trim().split(/\s+/);
     const sizeToken = tokens.find(t => /^\d+(\.\d+)?$/.test(t));
     const textQuery = tokens.filter(t => t !== sizeToken).join(' ');
-    const safeQuery = `%${textQuery}%`;
 
-    const conditions = [
+    const conditions: any[] = [
       eq(items.firmId, firmId),
       inArray(items.status, ['AVAILABLE', 'PHANTOM_AVAILABLE']),
-      or(
-        like(items.sku, safeQuery),
-        like(items.barcode, safeQuery),
-        like(items.huid, safeQuery),
-        like(designs.name, safeQuery),
-        like(categories.name, safeQuery)
-      )
     ];
+
+    if (textQuery.length > 0) {
+      const safeQuery = `%${textQuery}%`;
+      conditions.push(
+        or(
+          like(items.sku, safeQuery),
+          like(items.barcode, safeQuery),
+          like(items.huid, safeQuery),
+          like(designs.name, safeQuery),
+          like(categories.name, safeQuery)
+        )
+      );
+    }
 
     if (sizeToken) {
       conditions.push(eq(items.sizeValue, Number(sizeToken)));

@@ -1,6 +1,5 @@
-// app/inventory/search.tsx — Phase 2 v2.11 Canonical Screen
 import React, { useState, useEffect, useCallback, memo } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator, Modal, Alert } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator, Modal, Alert, Keyboard } from 'react-native';
 import { FlashList } from '@shopify/flash-list';
 import { useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
@@ -8,6 +7,7 @@ import { CameraView, useCameraPermissions } from 'expo-camera';
 import { Search, PackageSearch, Ghost, Hash, Sparkles, Coins, ScanLine, X } from 'lucide-react-native';
 import { inventorySearchService } from '@/services/phase2/inventorySearchService';
 import { formatWeightMg as formatWeight } from '@/utils/calculations';
+import { formatSKUDisplay } from '@/utils/skuDisplay';
 import type { ItemSearchResult } from '@/types/phase2/phase2.types';
 import { useFirmStore } from '@/store/phase1/useFirmStore';
 import { TwoToneWrapper } from '@/components/TwoToneWrapper';
@@ -22,22 +22,41 @@ const COLORS = {
 
 const HighlightText = memo(({ text, query, style }: { text?: string | null, query: string, style: any }) => {
   if (!text) return null;
-  if (!query) return <Text style={style}>{text}</Text>;
+  const activeQuery = query.trim();
+  if (!activeQuery) return <Text style={style}>{text}</Text>;
 
-  const safeQuery = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const tokens = activeQuery.split(/\s+/).filter(Boolean);
+  if (tokens.length === 0) return <Text style={style}>{text}</Text>;
+
+  const escapedTokens = tokens.map(t => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+  const pattern = new RegExp(`(${escapedTokens.join('|')})`, 'gi');
+
   try {
-    const parts = text.split(new RegExp(`(${safeQuery})`, 'gi'));
+    const parts = text.split(pattern);
     return (
       <Text style={style}>
-        {parts.map((part, index) =>
-          part.toLowerCase() === query.toLowerCase() ? (
-            <Text key={index} style={[style, { backgroundColor: COLORS.highlight, color: '#78350F', fontWeight: '900' }]}>
+        {parts.map((part, index) => {
+          const isMatch = tokens.some(t => t.toLowerCase() === part.toLowerCase());
+          return isMatch ? (
+            <Text 
+              key={index} 
+              style={[
+                style, 
+                { 
+                  backgroundColor: '#FDE047', 
+                  color: '#78350F', 
+                  fontWeight: '900', 
+                  borderRadius: 4, 
+                  paddingHorizontal: 2 
+                }
+              ]}
+            >
               {part}
             </Text>
           ) : (
             <Text key={index} style={style}>{part}</Text>
-          )
-        )}
+          );
+        })}
       </Text>
     );
   } catch {
@@ -77,7 +96,12 @@ const SearchResultRow = memo(({ item, query, onPress }: SearchResultRowProps) =>
           {item.sizeValue != null && (
             <View style={[s.metalBadge, { backgroundColor: COLORS.border + '30', marginLeft: 6 }]}>
               <Text style={[s.metalText, { color: COLORS.vjText }]}>
-                SZ: {item.sizeValue} {item.sizeUnit ? item.sizeUnit : ''}
+                SZ:{' '}
+                <HighlightText 
+                  text={`${item.sizeValue}${item.sizeUnit ? ' ' + item.sizeUnit : ''}`} 
+                  query={activeQuery} 
+                  style={[s.metalText, { color: COLORS.vjText }]} 
+                />
               </Text>
             </View>
           )}
@@ -97,22 +121,27 @@ const SearchResultRow = memo(({ item, query, onPress }: SearchResultRowProps) =>
 
       <View style={s.cardBody}>
         <View style={s.mainDetails}>
-          <HighlightText text={item.sku} query={activeQuery} style={s.skuText} />
-          <Text style={s.categoryText}>
-            <HighlightText text={item.categoryName} query={activeQuery} style={s.categoryText} />
-            {' • '}
-            <HighlightText text={item.designName} query={activeQuery} style={s.categoryText} />
+          <Text style={s.itemNameText} numberOfLines={1}>
+            <HighlightText text={item.designName} query={activeQuery} style={s.itemNameText} />
+            {item.categoryName ? (
+              <Text style={s.itemCategorySub}> ({item.categoryName})</Text>
+            ) : null}
           </Text>
-        </View>
-        
-        <View style={s.weightDetails}>
-          <View style={{ alignItems: 'flex-end', marginRight: 12 }}>
-            <Text style={s.weightLabel}>GROSS</Text>
-            <Text style={s.weightValue}>{formatWeight(item.grossWeightMg)}</Text>
-          </View>
-          <View style={{ alignItems: 'flex-end' }}>
-            <Text style={s.weightLabel}>NET WT</Text>
-            <HighlightText text={formatWeight(item.netWeightMg)} query={activeQuery} style={s.weightValue} />
+          <Text style={s.skuSubText}>
+            SKU: <HighlightText text={formatSKUDisplay(item.sku)} query={activeQuery} style={s.skuSubText} />
+            {item.barcode ? (
+              <>
+                {' • Barcode: '}
+                <HighlightText text={item.barcode} query={activeQuery} style={s.skuSubText} />
+              </>
+            ) : null}
+          </Text>
+          <View style={s.inlineWeightRow}>
+            <Text style={s.weightInlineLabel}>Gross Wt: </Text>
+            <Text style={s.weightInlineVal}>{formatWeight(item.grossWeightMg)}</Text>
+            <Text style={s.weightInlineDivider}>   •   </Text>
+            <Text style={s.weightInlineLabel}>Net Wt: </Text>
+            <HighlightText text={formatWeight(item.netWeightMg)} query={activeQuery} style={s.weightInlineValBold} />
           </View>
         </View>
       </View>
@@ -132,7 +161,7 @@ export default function InventorySearchScreen() {
   useEffect(() => {
     const trimmedQuery = query.trim();
     
-    if (trimmedQuery.length < 1 || !activeFirmId) {
+    if (trimmedQuery.length < 2 || !activeFirmId) {
       setResults([]);
       setIsSearching(false);
       return;
@@ -156,19 +185,6 @@ export default function InventorySearchScreen() {
   const handleItemPress = useCallback((itemId: string) => {
     router.push(`/inventory/item-detail?itemId=${itemId}`);
   }, [router]);
-
-  const handleAutoSubmitBarcode = useCallback(async () => {
-    const trimmed = query.trim();
-    if (trimmed.length < 2 || !activeFirmId) return;
-    try {
-      const data = await inventorySearchService.searchItems(activeFirmId, trimmed);
-      if (data.length === 1) {
-        router.push(`/inventory/item-detail?itemId=${data[0].itemId}`);
-      }
-    } catch (e) {
-      console.error('[Search] Barcode submit failed:', e);
-    }
-  }, [query, activeFirmId, router]);
 
   const handleScanPress = async () => {
     try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); } catch (e) {}
@@ -222,11 +238,12 @@ export default function InventorySearchScreen() {
           <Search size={18} color="#D4AF37" style={s.searchIcon} />
           <TextInput
             style={s.input}
-            placeholder="Scan Barcode / Search SKU, HUID..."
+            placeholder="Scan Barcode / Search SKU, HUID, Size..."
             placeholderTextColor="rgba(46, 29, 0, 0.4)"
             value={query}
             onChangeText={setQuery}
-            onSubmitEditing={handleAutoSubmitBarcode}
+            onSubmitEditing={() => Keyboard.dismiss()}
+            returnKeyType="search"
             autoFocus
             autoCapitalize="characters"
           />
@@ -436,33 +453,57 @@ const s = StyleSheet.create({
   },
   mainDetails: {
     flex: 1,
+    marginRight: 8,
   },
-  skuText: {
+  itemNameText: {
     fontSize: 17,
     fontWeight: '900',
     color: COLORS.vjText,
-    letterSpacing: 0.5,
+    letterSpacing: 0.3,
     marginBottom: 2,
   },
-  categoryText: {
+  itemCategorySub: {
     fontSize: 12,
-    fontWeight: '600',
+    fontWeight: '700',
+    color: 'rgba(92,22,35,0.5)',
+  },
+  skuSubText: {
+    fontSize: 12,
+    fontWeight: '700',
     color: COLORS.muted,
   },
-  weightDetails: {
-    alignItems: 'flex-end',
+  inlineWeightRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 6,
+    backgroundColor: 'rgba(92,22,35,0.04)',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+    alignSelf: 'flex-start',
+    borderWidth: 1,
+    borderColor: 'rgba(92,22,35,0.08)',
   },
-  weightLabel: {
-    fontSize: 9,
+  weightInlineLabel: {
+    fontSize: 11,
     fontWeight: '800',
-    color: COLORS.muted,
-    marginBottom: 2,
+    color: 'rgba(92,22,35,0.5)',
   },
-  weightValue: {
-    fontSize: 15,
+  weightInlineVal: {
+    fontSize: 12,
     fontWeight: '800',
     color: COLORS.vjText,
     fontFamily: 'monospace',
+  },
+  weightInlineValBold: {
+    fontSize: 12,
+    fontWeight: '900',
+    color: COLORS.vjAccent,
+    fontFamily: 'monospace',
+  },
+  weightInlineDivider: {
+    fontSize: 10,
+    color: 'rgba(92,22,35,0.25)',
   },
   emptyState: {
     flex: 1,

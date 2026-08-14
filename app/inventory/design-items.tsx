@@ -11,7 +11,7 @@ import { appSettingsStore } from '@/store/phase1/appSettingsStore';
 import { useFirmStore } from '@/store/phase1/useFirmStore';
 import { inventoryDrillDownService } from '@/services/phase2/inventoryDrillDownService';
 import { getDisplayPurity, formatSKUDisplay, formatWeightMg as formatWeight } from '@/utils/calculations';
-import { MapPin, Package, Printer, Scale } from 'lucide-react-native';
+import { MapPin, Package, Printer, Scale, Sparkles } from 'lucide-react-native';
 import type { ItemSearchResult } from '@/types/phase2/phase2.types';
 import { COLORS, getThemeColors } from '@/constants/theme';
 
@@ -30,13 +30,7 @@ const ItemRow = memo(({ item, colors, onPress, onPrint }: { item: ItemSearchResu
   return (
     <TouchableOpacity 
       activeOpacity={0.75} 
-      style={[
-        s.itemCard,
-        {
-          backgroundColor: '#FFFFFF',
-          borderColor: colors.border || 'rgba(92, 22, 35, 0.1)',
-        }
-      ]} 
+      style={s.itemCard} 
       onPress={() => {
         try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch (e) {}
         onPress(item.itemId);
@@ -60,7 +54,7 @@ const ItemRow = memo(({ item, colors, onPress, onPrint }: { item: ItemSearchResu
           </View>
 
           {/* PURITY BADGE (KARAT & PERCENTAGE IN TOP-RIGHT CORNER) */}
-          <View style={[s.purityBadge, { borderColor: metalColor, backgroundColor: `${metalColor}12` }]}>
+          <View style={[s.purityBadge, { borderColor: metalColor, backgroundColor: `${metalColor}15` }]}>
             <Text style={[s.purityBadgeText, { color: metalColor }]}>{purityFull}</Text>
           </View>
         </View>
@@ -114,7 +108,7 @@ const ItemRow = memo(({ item, colors, onPress, onPrint }: { item: ItemSearchResu
 
 export default function DesignItemsScreen() {
   const router = useRouter();
-  const { designId, designName } = useLocalSearchParams<{ designId: string; designName: string }>();
+  const { designId, designName, purityPercent } = useLocalSearchParams<{ designId: string; designName: string; purityPercent?: string }>();
   const { activeFirmId } = useFirmStore();
   const [items, setItems] = useState<ItemSearchResult[]>([]);
   const [loading, setLoading] = useState(true);
@@ -123,6 +117,8 @@ export default function DesignItemsScreen() {
   const activeTheme = appSettingsStore((s: any) => s.theme);
   const colors = getThemeColors(activeTheme);
 
+  const purityNum = purityPercent ? parseFloat(purityPercent) : undefined;
+
   useFocusEffect(
     useCallback(() => {
       let active = true;
@@ -130,7 +126,7 @@ export default function DesignItemsScreen() {
         if (!activeFirmId || !designId) return;
         setLoading(true);
         try {
-          const results = await inventoryDrillDownService.getItemsByDesign(activeFirmId, designId);
+          const results = await inventoryDrillDownService.getItemsByDesign(activeFirmId, designId, purityNum);
           if (active) setItems(results);
         } catch (e) {
           console.error('[DesignItems] getItemsByDesign failed:', e);
@@ -140,7 +136,7 @@ export default function DesignItemsScreen() {
       };
       load();
       return () => { active = false; };
-    }, [activeFirmId, designId])
+    }, [activeFirmId, designId, purityNum])
   );
 
   const handleItemPress = useCallback((itemId: string) => {
@@ -159,9 +155,17 @@ export default function DesignItemsScreen() {
     return sortedItems.reduce((sum, i) => sum + (i.netWeightMg ?? i.grossWeightMg), 0);
   }, [sortedItems]);
 
+  const purityPillLabel = useMemo(() => {
+    if (!purityNum || sortedItems.length === 0) return null;
+    return getDisplayPurity(purityNum, sortedItems[0]?.purityKarat || null, sortedItems[0]?.metal || 'GOLD');
+  }, [purityNum, sortedItems]);
+
   const designHeaderPills = (
     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginTop: 4 }}>
       <HeaderPill icon={<Package size={12} color={colors.vjBg} />} label={`${sortedItems.length} Tagged Items`} />
+      {purityPillLabel && (
+        <HeaderPill icon={<Sparkles size={12} color="#38BDF8" />} label={purityPillLabel} variant="info" />
+      )}
       <HeaderPill icon={<Scale size={12} color="#4ADE80" />} label={`Net: ${formatWeight(totalNetWeightMg)}`} variant="success" />
     </View>
   );
@@ -203,14 +207,16 @@ const s = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     marginBottom: 12,
-    borderRadius: 16,
+    borderRadius: 20,
     overflow: 'hidden',
+    backgroundColor: '#FCFBF8',
     borderWidth: 1,
+    borderColor: 'rgba(212, 175, 55, 0.25)',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.04,
-    shadowRadius: 6,
-    elevation: 2,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 10,
+    elevation: 3,
   },
   metalStripe: {
     width: 6,

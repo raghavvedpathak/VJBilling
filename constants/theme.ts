@@ -60,8 +60,8 @@ export const COLORS = {
 
   saffron: '#E67E22',
   saffronLight: '#FBE3C5',
-  silver: '#6B7280',
-  silverAccent: '#9CA3AF',
+  silver: '#94A3B8',
+  silverAccent: '#CBD5E1',
 
   // --- System & Status Colors ---
   success: '#15803D',

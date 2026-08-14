@@ -5,7 +5,8 @@ import { View, Text, StyleSheet, TextInput, Alert, Modal, ScrollView } from 'rea
 import { useRouter, useFocusEffect } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { TwoToneWrapper } from '@/components/TwoToneWrapper';
-import { HeaderPill, GlassButton, GlassSmartSearch, GlassMetalSelector } from '@/components/ui/Glass';
+import { HeaderPill, GlassButton, GlassPickerInput, GlassMetalSelector } from '@/components/ui/Glass';
+import { GlassPickerModal, GlassPickerOption } from '@/components/ui/GlassPickerModal';
 import { appSettingsStore } from '@/store/phase1/appSettingsStore';
 import { Tag, CheckCircle, ShieldCheck } from 'lucide-react-native';
 import { useFirmStore } from '@/store/phase1/useFirmStore';
@@ -27,6 +28,21 @@ export default function CreateDesignScreen() {
   
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+
+  const [pickerModal, setPickerModal] = useState<{
+    visible: boolean;
+    title: string;
+    placeholder?: string | undefined;
+    options: GlassPickerOption[];
+    selectedId: string | null;
+    onSelect: (option: GlassPickerOption | null) => void;
+  }>({
+    visible: false,
+    title: '',
+    options: [],
+    selectedId: null,
+    onSelect: () => {},
+  });
 
   const loadCategories = useCallback(async () => {
     if (!activeFirmId) return;
@@ -113,21 +129,32 @@ export default function CreateDesignScreen() {
               }}
             />
 
-            <View style={[s.formGroup, { zIndex: 50 }]}>
-              <GlassSmartSearch
-                label="Link to Category"
-                placeholder="Search categories..."
-                options={categories.map(c => ({
-                  id: c.id,
-                  label: c.name,
-                  sublabel: c.code ? `Code: ${c.code}` : ''
-                }))}
-                selectedId={selectedCategoryId}
-                onSelect={(option) => {
-                  setSelectedCategoryId(option ? option.id : '');
-                }}
-              />
-            </View>
+            <GlassPickerInput
+              label="Link to Category"
+              placeholder="Search categories..."
+              selectedLabel={categories.find(c => c.id === selectedCategoryId)?.name || null}
+              selectedSublabel={
+                categories.find(c => c.id === selectedCategoryId)?.code
+                  ? `Code: ${categories.find(c => c.id === selectedCategoryId)?.code}`
+                  : null
+              }
+              onPress={() => {
+                setPickerModal({
+                  visible: true,
+                  title: 'Select Category',
+                  placeholder: 'Search category...',
+                  selectedId: selectedCategoryId || null,
+                  options: categories.map(c => ({
+                    id: c.id,
+                    label: c.name,
+                    sublabel: c.code ? `Code: ${c.code}` : undefined,
+                  })),
+                  onSelect: (opt) => {
+                    setSelectedCategoryId(opt ? opt.id : '');
+                  },
+                });
+              }}
+            />
 
             <View style={s.formGroup}>
               <Text style={s.label}>Low-Stock Alert Threshold (Count)</Text>
@@ -169,6 +196,16 @@ export default function CreateDesignScreen() {
           </View>
         </View>
       </Modal>
+
+      <GlassPickerModal
+        visible={pickerModal.visible}
+        title={pickerModal.title}
+        placeholder={pickerModal.placeholder}
+        options={pickerModal.options}
+        selectedId={pickerModal.selectedId}
+        onClose={() => setPickerModal((p) => ({ ...p, visible: false }))}
+        onSelect={pickerModal.onSelect}
+      />
     </TwoToneWrapper>
   );
 }

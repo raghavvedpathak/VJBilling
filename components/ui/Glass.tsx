@@ -2,6 +2,7 @@ import React from 'react';
 import { View, Text, TextInput, TouchableOpacity, ActivityIndicator, ViewProps, ScrollView } from 'react-native';
 import { BlurView } from 'expo-blur';
 import * as Haptics from 'expo-haptics';
+import { ChevronDown } from 'lucide-react-native';
 import { COLORS } from '../../constants/theme';
 
 // ============================================================================
@@ -563,6 +564,73 @@ export function GlassMetalBadge({ metal }: { metal: 'GOLD' | 'SILVER' }) {
         {metal}
       </Text>
       <BullionBar3D isGold={isGold} scale={0.5} />
+    </View>
+  );
+}
+
+// ============================================================================
+// 9. GLASS PICKER INPUT (Modal Sheet Trigger)
+// ============================================================================
+interface GlassPickerInputProps {
+  label?: string | undefined;
+  placeholder?: string | undefined;
+  selectedLabel?: string | null | undefined;
+  selectedSublabel?: string | null | undefined;
+  onPress: () => void;
+  disabled?: boolean | undefined;
+}
+
+export function GlassPickerInput({
+  label,
+  placeholder = 'Select option...',
+  selectedLabel,
+  selectedSublabel,
+  onPress,
+  disabled = false,
+}: GlassPickerInputProps) {
+  const handlePress = () => {
+    if (disabled) return;
+    try {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    } catch (e) {}
+    onPress();
+  };
+
+  return (
+    <View className="mb-4">
+      {label && (
+        <Text className="font-bold text-xs uppercase tracking-wider mb-2 ml-1 text-vj-text/70">
+          {label}
+        </Text>
+      )}
+      <TouchableOpacity
+        onPress={handlePress}
+        disabled={disabled}
+        activeOpacity={0.75}
+        className={`flex-row items-center justify-between rounded-2xl px-4 py-4 border bg-white border-vj-text/30 ${
+          disabled ? 'opacity-50' : ''
+        }`}
+      >
+        <View className="flex-1 mr-2">
+          {selectedLabel ? (
+            <>
+              <Text className="text-vj-text font-bold text-base" numberOfLines={1}>
+                {selectedLabel}
+              </Text>
+              {selectedSublabel ? (
+                <Text className="text-vj-text/60 text-xs mt-0.5" numberOfLines={1}>
+                  {selectedSublabel}
+                </Text>
+              ) : null}
+            </>
+          ) : (
+            <Text className="text-gray-400 font-semibold text-base" numberOfLines={1}>
+              {placeholder}
+            </Text>
+          )}
+        </View>
+        <ChevronDown size={20} color={COLORS.vjText} style={{ opacity: 0.6 }} />
+      </TouchableOpacity>
     </View>
   );
 }

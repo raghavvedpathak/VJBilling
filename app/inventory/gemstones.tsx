@@ -4,6 +4,7 @@ import React, { useState, useCallback, memo } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { FlashList } from '@shopify/flash-list';
 import { useRouter, useFocusEffect } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import { TwoToneWrapper } from '@/components/TwoToneWrapper';
 import { HeaderPill, GlassCard } from '@/components/ui/Glass';
@@ -65,6 +66,7 @@ const LotRow = memo(({ item }: { item: GemstoneLot }) => {
 
 export default function GemstonesInventoryScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const { activeFirmId } = useFirmStore();
   const [data, setData] = useState<GemstoneLot[]>([]);
   const [loading, setLoading] = useState(true);
@@ -125,7 +127,7 @@ export default function GemstonesInventoryScreen() {
       </View>
 
       <TouchableOpacity 
-        style={s.fab} 
+        style={[s.fab, { backgroundColor: colors.vjAccent || COLORS.vjAccent, bottom: Math.max(insets.bottom + 24, 64) }]} 
         onPress={() => {
           try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch (e) {}
           router.push('/inventory/add-gemstone');

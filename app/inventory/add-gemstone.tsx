@@ -5,7 +5,8 @@ import { View, Text, ScrollView, Alert, Modal, StyleSheet } from 'react-native';
 import { useRouter, useFocusEffect } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { TwoToneWrapper } from '@/components/TwoToneWrapper';
-import { GlassCard, GlassInput, GlassButton, GlassSmartSearch } from '@/components/ui/Glass';
+import { GlassCard, GlassInput, GlassButton, GlassPickerInput } from '@/components/ui/Glass';
+import { GlassPickerModal, GlassPickerOption } from '@/components/ui/GlassPickerModal';
 import { useFirmStore } from '@/store/phase1/useFirmStore';
 import { gemstoneLotService } from '@/services/phase2/gemstoneLotService';
 import { stoneRepository } from '@/repositories/phase2/stoneRepository';
@@ -34,6 +35,21 @@ export default function AddGemstoneScreen() {
   
   const [loading, setLoading] = useState(false);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+
+  const [pickerModal, setPickerModal] = useState<{
+    visible: boolean;
+    title: string;
+    placeholder?: string | undefined;
+    options: GlassPickerOption[];
+    selectedId: string | null;
+    onSelect: (option: GlassPickerOption | null) => void;
+  }>({
+    visible: false,
+    title: '',
+    options: [],
+    selectedId: null,
+    onSelect: () => {},
+  });
 
   useFocusEffect(
     React.useCallback(() => {
@@ -98,26 +114,36 @@ export default function AddGemstoneScreen() {
     <TwoToneWrapper title="New Gemstone Lot" showBack>
       <ScrollView contentContainerStyle={{ paddingTop: 32, paddingBottom: 150 }} showsVerticalScrollIndicator={false}>
         
-        <GlassCard style={{ marginBottom: 16, zIndex: 50, overflow: 'visible' }}>
+        <GlassCard style={{ marginBottom: 16 }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 16 }}>
             <Gem size={20} color="#D4AF37" />
             <Text style={{ fontSize: 18, fontWeight: '700', color: COLORS.vjText }}>Stone Definition</Text>
           </View>
           
-          <View style={{ zIndex: 50, marginBottom: 8 }}>
-            <GlassSmartSearch 
-              label="Stone Master Type *"
-              placeholder="Search stone type..."
-              options={stones.map(s => ({ id: s.id, label: s.name || 'Unnamed', sublabel: s.type || '' }))}
-              selectedId={selectedStone?.id || null}
-              onSelect={(opt) => {
-                try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch (e) {}
-                if (!opt) return setSelectedStone(null);
-                const sel = stones.find(s => s.id === opt.id)!;
-                setSelectedStone(sel);
-              }}
-            />
-          </View>
+          <GlassPickerInput
+            label="Stone Master Type *"
+            placeholder="Search stone type..."
+            selectedLabel={selectedStone ? selectedStone.name : null}
+            selectedSublabel={selectedStone ? selectedStone.type : null}
+            onPress={() => {
+              setPickerModal({
+                visible: true,
+                title: 'Select Stone Master Type',
+                placeholder: 'Search stone type...',
+                selectedId: selectedStone?.id || null,
+                options: stones.map(s => ({
+                  id: s.id,
+                  label: s.name || 'Unnamed',
+                  sublabel: s.type || '',
+                })),
+                onSelect: (opt) => {
+                  if (!opt) return setSelectedStone(null);
+                  const sel = stones.find(s => s.id === opt.id)!;
+                  setSelectedStone(sel);
+                },
+              });
+            }}
+          />
 
           <GlassInput label="Lot Description Name *" placeholder="e.g. Round Brilliant 0.50ct" value={lotName} onChangeText={setLotName} />
           <GlassInput label="Supplier Name" placeholder="Optional vendor name" value={supplierName} onChangeText={setSupplierName} />
@@ -181,6 +207,16 @@ export default function AddGemstoneScreen() {
           </View>
         </View>
       </Modal>
+
+      <GlassPickerModal
+        visible={pickerModal.visible}
+        title={pickerModal.title}
+        placeholder={pickerModal.placeholder}
+        options={pickerModal.options}
+        selectedId={pickerModal.selectedId}
+        onClose={() => setPickerModal((p) => ({ ...p, visible: false }))}
+        onSelect={pickerModal.onSelect}
+      />
     </TwoToneWrapper>
   );
 }

@@ -1,7 +1,7 @@
 // app/masters/designs.tsx — Phase 2 v2.11 Canonical Screen
 
 import React, { useState, useCallback, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Modal, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Modal, ActivityIndicator, useWindowDimensions } from 'react-native';
 import { useRouter, useFocusEffect } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Haptics from 'expo-haptics';
@@ -21,6 +21,8 @@ type DesignWithCategory = Design & { categoryName: string | null };
 
 export default function DesignsScreen() {
   const router = useRouter();
+  const { width } = useWindowDimensions();
+  const isTablet = width >= 768;
   const { activeFirmId } = useFirmStore();
   
   const [designs, setDesigns] = useState<DesignWithCategory[]>([]);

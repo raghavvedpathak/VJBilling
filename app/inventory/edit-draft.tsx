@@ -20,7 +20,8 @@ import {
   getCurrencySymbol 
 } from '@/utils/calculations';
 import { Edit3, Save, Calculator, CheckCircle } from 'lucide-react-native';
-import { GlassButton, GlassSmartSearch } from '@/components/ui/Glass';
+import { GlassButton, GlassPickerInput } from '@/components/ui/Glass';
+import { GlassPickerModal, GlassPickerOption } from '@/components/ui/GlassPickerModal';
 import { COLORS } from '@/constants/theme';
 
 export default function EditDraftScreen() {
@@ -53,6 +54,21 @@ export default function EditDraftScreen() {
   const [huid, setHuid] = useState('');
   const [metal, setMetal] = useState<'GOLD' | 'SILVER'>('GOLD');
   const [reason, setReason] = useState('Typo correction before activation');
+
+  const [pickerModal, setPickerModal] = useState<{
+    visible: boolean;
+    title: string;
+    placeholder?: string | undefined;
+    options: GlassPickerOption[];
+    selectedId: string | null;
+    onSelect: (option: GlassPickerOption | null) => void;
+  }>({
+    visible: false,
+    title: '',
+    options: [],
+    selectedId: null,
+    onSelect: () => {},
+  });
 
   useEffect(() => {
     let active = true;
@@ -352,26 +368,34 @@ export default function EditDraftScreen() {
                 <Text style={s.label}>Size Value</Text>
                 <TextInput style={s.input} value={sizeValue} onChangeText={setSizeValue} keyboardType="numeric" placeholder="e.g. 18" />
               </View>
-              <View style={[s.inputGroup, { flex: 1, paddingLeft: 6, zIndex: 10 }]}>
-                <Text style={s.label}>Size Unit</Text>
-                <View style={{ marginTop: 4 }}>
-                  <GlassSmartSearch 
-                    placeholder="Select Unit..."
-                    showAllOnFocus={true}
-                    options={[
-                      { id: 'NONE', label: 'No Unit (Clear)' },
-                      { id: 'INCH', label: 'Inches (INCH)' },
-                      { id: 'MM', label: 'Millimeters (MM)' },
-                      { id: 'CM', label: 'Centimeters (CM)' },
-                      { id: 'RING_SIZE', label: 'Ring Size' }
-                    ]}
-                    selectedId={sizeUnit || null}
-                    onSelect={(opt) => {
-                      if (!opt || opt.id === 'NONE') return setSizeUnit('');
-                      setSizeUnit(opt.id);
-                    }}
-                  />
-                </View>
+              <View style={[s.inputGroup, { flex: 1, paddingLeft: 6 }]}>
+                <GlassPickerInput
+                  label="Size Unit"
+                  placeholder="Select Unit..."
+                  selectedLabel={
+                    sizeUnit
+                      ? { INCH: 'Inches (INCH)', MM: 'Millimeters (MM)', CM: 'Centimeters (CM)', RING_SIZE: 'Ring Size' }[sizeUnit] || sizeUnit
+                      : null
+                  }
+                  onPress={() => {
+                    setPickerModal({
+                      visible: true,
+                      title: 'Select Size Unit',
+                      placeholder: 'Search unit...',
+                      selectedId: sizeUnit || null,
+                      options: [
+                        { id: 'INCH', label: 'Inches (INCH)' },
+                        { id: 'MM', label: 'Millimeters (MM)' },
+                        { id: 'CM', label: 'Centimeters (CM)' },
+                        { id: 'RING_SIZE', label: 'Ring Size' },
+                      ],
+                      onSelect: (opt) => {
+                        if (!opt) return setSizeUnit('');
+                        setSizeUnit(opt.id);
+                      },
+                    });
+                  }}
+                />
               </View>
             </View>
           </View>
@@ -472,6 +496,16 @@ export default function EditDraftScreen() {
           </View>
         </View>
       </Modal>
+
+      <GlassPickerModal
+        visible={pickerModal.visible}
+        title={pickerModal.title}
+        placeholder={pickerModal.placeholder}
+        options={pickerModal.options}
+        selectedId={pickerModal.selectedId}
+        onClose={() => setPickerModal((p) => ({ ...p, visible: false }))}
+        onSelect={pickerModal.onSelect}
+      />
     </TwoToneWrapper>
   );
 }

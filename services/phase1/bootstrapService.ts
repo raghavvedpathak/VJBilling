@@ -41,33 +41,53 @@ export const bootstrapService = {
         return;
       }
 
-      const tableCheck = expoDb.getFirstSync<{ count: number }>(
-        `SELECT count(*) as count FROM sqlite_master WHERE type='table' AND name='firms'`
-      );
+      const safeSelectAll = (tableName: string) => {
+        try {
+          const check = expoDb.getFirstSync<{ count: number }>(
+            `SELECT count(*) as count FROM sqlite_master WHERE type='table' AND name='${tableName}'`
+          );
+          if (check && check.count > 0) {
+            return expoDb.getAllSync(`SELECT * FROM ${tableName}`);
+          }
+        } catch (e) {
+          // Table doesn't exist yet
+        }
+        return [];
+      };
 
-      if (!tableCheck || tableCheck.count === 0) {
-        console.log('[Bootstrap] Clean install detected (No tables). Skipping snapshot.');
+      const firmsData = safeSelectAll('firms');
+      if (firmsData.length === 0) {
+        console.log('[Bootstrap] Clean install detected (No firm records). Skipping snapshot.');
         return;
       }
 
       const snapshot = {
         timestamp: new Date().toISOString(),
         version: 'v2.3_PRE_MIGRATION',
-        firms: expoDb.getAllSync('SELECT * FROM firms'),
-        financial_years: expoDb.getAllSync('SELECT * FROM financial_years'),
-        audit_logs: expoDb.getAllSync('SELECT * FROM audit_logs'),
+        firms: firmsData,
+        financial_years: safeSelectAll('financial_years'),
+        audit_logs: safeSelectAll('audit_logs'),
       };
 
       const payloadStr = JSON.stringify(snapshot);
-      const enc = new TextEncoder();
       const keySourceMaterial = await getDeviceDerivedKeyMaterial();
       const saltBytes = crypto.getRandomValues(new Uint8Array(16));
       const ivBytes = crypto.getRandomValues(new Uint8Array(12));
 
-      const toBase64 = (buf: ArrayBuffer) => btoa(String.fromCharCode(...new Uint8Array(buf)));
+      const toBase64 = (bytes: Uint8Array) => {
+        try {
+          if (typeof btoa === 'function') {
+            return btoa(String.fromCharCode(...bytes));
+          }
+        } catch (e) {}
+        const wa = CryptoJS.lib.WordArray.create(bytes as any);
+        return CryptoJS.enc.Base64.stringify(wa);
+      };
+
       let encryptedBlob = '';
 
       if (typeof crypto !== 'undefined' && crypto?.subtle?.importKey) {
+        const enc = new TextEncoder();
         const keyMaterial = await crypto.subtle.importKey(
           'raw',
           keySourceMaterial as unknown as BufferSource,
@@ -77,7 +97,7 @@ export const bootstrapService = {
         );
 
         const key = await crypto.subtle.deriveKey(
-          { name: 'PBKDF2', salt: saltBytes, iterations: 100000, hash: 'SHA-256' },
+          { name: 'PBKDF2', salt: saltBytes, iterations: 1000, hash: 'SHA-256' },
           keyMaterial,
           { name: 'AES-GCM', length: 256 },
           false,
@@ -91,9 +111,10 @@ export const bootstrapService = {
         );
 
         encryptedBlob = JSON.stringify({
-          iv: toBase64(ivBytes.buffer),
-          salt: toBase64(saltBytes.buffer),
-          ciphertext: toBase64(cipherBuffer),
+          iv: toBase64(ivBytes),
+          salt: toBase64(saltBytes),
+          ciphertext: toBase64(new Uint8Array(cipherBuffer)),
+          iterations: 1000,
           timestamp: new Date().toISOString(),
         });
       } else {
@@ -103,7 +124,7 @@ export const bootstrapService = {
 
         const derivedKey = CryptoJS.PBKDF2(keyMaterialWA, saltWA, {
           keySize: 256 / 32,
-          iterations: 100000,
+          iterations: 1000,
           hasher: CryptoJS.algo.SHA256,
         });
 
@@ -114,9 +135,10 @@ export const bootstrapService = {
         });
 
         encryptedBlob = JSON.stringify({
-          iv: toBase64(ivBytes.buffer),
-          salt: toBase64(saltBytes.buffer),
+          iv: toBase64(ivBytes),
+          salt: toBase64(saltBytes),
           ciphertext: encrypted.toString(),
+          iterations: 1000,
           timestamp: new Date().toISOString(),
         });
       }

@@ -134,7 +134,17 @@ export const inventoryDrillDownRepository = {
     }));
   },
 
-  async getItemsByDesign(firmId: string, designId: string): Promise<ItemSearchResult[]> {
+  async getItemsByDesign(firmId: string, designId: string, purityPercent?: number): Promise<ItemSearchResult[]> {
+    const conditions = [
+      eq(items.designId, designId),
+      eq(items.firmId, firmId),
+      eq(items.status, 'AVAILABLE')
+    ];
+
+    if (purityPercent !== undefined && purityPercent !== null && !isNaN(purityPercent)) {
+      conditions.push(sql`ABS(${items.purityPercent} - ${purityPercent}) < 0.05`);
+    }
+
     const results = await db
       .select({
         itemId: items.id,
@@ -156,13 +166,7 @@ export const inventoryDrillDownRepository = {
       .from(items)
       .innerJoin(designs, eq(designs.id, items.designId))
       .innerJoin(categories, eq(categories.id, items.categoryId))
-      .where(
-        and(
-          eq(items.designId, designId),
-          eq(items.firmId, firmId),
-          eq(items.status, 'AVAILABLE')
-        )
-      )
+      .where(and(...conditions))
       .orderBy(desc(items.createdAt));
 
     return results.map(r => ({

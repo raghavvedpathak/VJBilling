@@ -109,7 +109,18 @@ export const designRepository: DesignRepository = {
     const tokens = query.trim().split(/\s+/);
     const sizeToken = tokens.find(t => /^\d+(\.\d+)?$/.test(t));
     const textQuery = tokens.filter(t => t !== sizeToken).join(' ');
-    const likeQuery = `%${textQuery}%`;
+
+    const conditions: any[] = [
+      eq(designs.firmId, firmId),
+    ];
+
+    if (textQuery.length > 0) {
+      conditions.push(like(designs.name, `%${textQuery}%`));
+    }
+
+    if (sizeToken) {
+      conditions.push(eq(items.sizeValue, Number(sizeToken)));
+    }
 
     const results = await db
       .select({
@@ -137,13 +148,7 @@ export const designRepository: DesignRepository = {
         categories,
         eq(categories.id, items.categoryId)
       )
-      .where(
-        and(
-          eq(designs.firmId, firmId),
-          like(designs.name, likeQuery),
-          sizeToken ? eq(items.sizeValue, Number(sizeToken)) : undefined
-        )
-      )
+      .where(and(...conditions))
       // BLOCK-5 (v1.15): GROUP BY designs.id, items.purityPercent
       .groupBy(designs.id, items.purityPercent, items.sizeValue, items.sizeUnit)
       .orderBy(designs.name, sql`${items.purityPercent} DESC`)

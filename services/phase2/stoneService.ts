@@ -44,6 +44,37 @@ export const stoneService = {
     });
   },
 
+  // --- updateStone ---
+  async updateStone(stoneId: string, input: Partial<CreateStoneInput>, firmId: string): Promise<Stone> {
+    await leaseService.assertNoActiveLease(); // GUARD 1
+    safeModeService.assertNotInSafeMode();    // GUARD 2
+
+    const deviceId = await getDeviceId();
+
+    return db.transaction((tx) => {
+      const existing = stoneRepository.getById(tx, stoneId, firmId);
+      if (!existing || existing.firmId !== firmId) {
+        throw new Error(ERR.STONE_NOT_FOUND_OR_WRONG_FIRM);
+      }
+
+      const updateData: Record<string, any> = {};
+      if (input.name) updateData.name = sanitizeText(input.name);
+      if (input.type) updateData.type = input.type;
+
+      const updated = stoneRepository.update(tx, stoneId, firmId, updateData);
+
+      auditRepository.log(tx, {
+        eventType: 'STONE_UPDATED',
+        firmId,
+        entityId: stoneId,
+        deviceId,
+        payload: { stoneId, oldName: existing.name, newName: updated.name, oldType: existing.type, newType: updated.type }
+      });
+
+      return updated;
+    });
+  },
+
   // --- softDeleteStone (Step 4 / FIX-STONE-1) ---
   async softDeleteStone(stoneId: string, firmId: string): Promise<void> {
     await leaseService.assertNoActiveLease(); // GUARD 1
@@ -55,6 +86,11 @@ export const stoneService = {
       const stone = stoneRepository.getById(tx, stoneId, firmId);
       if (!stone || stone.firmId !== firmId) {
         throw new Error(ERR.STONE_NOT_FOUND_OR_WRONG_FIRM);
+      }
+
+      const isUsed = stoneRepository.isStoneUsedInItems(tx, stoneId, firmId);
+      if (isUsed) {
+        throw new Error('Cannot delete stone: This stone type is currently assigned to active stock items in inventory.');
       }
 
       stoneRepository.softDelete(tx, stoneId, firmId);

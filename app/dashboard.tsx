@@ -1,7 +1,7 @@
 // app/dashboard.tsx — Phase 2 v2.11 Canonical Screen
 
 import React, { useState, useEffect } from 'react';
-import { View, Text, TouchableOpacity, Image, ScrollView, Modal } from 'react-native';
+import { View, Text, TouchableOpacity, Image, ScrollView, Modal, useWindowDimensions } from 'react-native';
 import { useRouter } from 'expo-router';
 import { TwoToneWrapper } from '@/components/TwoToneWrapper'; 
 import { useSession } from '@/hooks/useSession';

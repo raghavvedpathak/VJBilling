@@ -1,13 +1,13 @@
 // app/masters/stones.tsx — Phase 2 v2.11 Canonical Screen
 
 import React, { useState, useCallback } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Modal, TextInput, Alert, ActivityIndicator, KeyboardAvoidingView, Platform } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Modal, TextInput, Alert, ActivityIndicator, KeyboardAvoidingView, Platform, useWindowDimensions } from 'react-native';
 import { useRouter, useFocusEffect } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { TwoToneWrapper } from '@/components/TwoToneWrapper';
 import { HeaderPill, GlassCard, GlassButton } from '@/components/ui/Glass';
 import { appSettingsStore } from '@/store/phase1/appSettingsStore';
-import { Gem, Plus, X, Trash2, LayoutGrid, List as ListIcon, CheckCircle, ShieldCheck } from 'lucide-react-native';
+import { Gem, Plus, X, Trash2, Edit3, LayoutGrid, List as ListIcon, CheckCircle, ShieldCheck } from 'lucide-react-native';
 import { useFirmStore } from '@/store/phase1/useFirmStore';
 import { stoneRepository } from '@/repositories/phase2/stoneRepository';
 import { stoneService } from '@/services/phase2/stoneService';
@@ -19,6 +19,8 @@ const STONE_TYPES: StoneType[] = ['DIAMOND', 'RUBY', 'EMERALD', 'SAPPHIRE'];
 
 export default function StonesScreen() {
   const router = useRouter();
+  const { width, height } = useWindowDimensions();
+  const isTablet = width >= 768;
   const { activeFirmId } = useFirmStore();
   
   const [stones, setStones] = useState<Stone[]>([]);
@@ -28,6 +30,12 @@ export default function StonesScreen() {
   const [showAddModal, setShowAddModal] = useState(false);
   const [newName, setNewName] = useState('');
   const [newType, setNewType] = useState<StoneType>('DIAMOND');
+
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editingStone, setEditingStone] = useState<Stone | null>(null);
+  const [editName, setEditName] = useState('');
+  const [editType, setEditType] = useState<StoneType>('DIAMOND');
+
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
@@ -77,6 +85,40 @@ export default function StonesScreen() {
     }
   };
 
+  const handleOpenEdit = (s: Stone) => {
+    try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch (e) {}
+    setEditingStone(s);
+    setEditName(s.name);
+    setEditType(s.type as StoneType);
+    setShowEditModal(true);
+  };
+
+  const handleSaveEdit = async () => {
+    if (!activeFirmId || !editingStone) return;
+    if (!editName.trim()) {
+      Alert.alert('Validation Error', 'Stone name is required');
+      return;
+    }
+    try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); } catch (e) {}
+    
+    setIsSubmitting(true);
+    try {
+      await stoneService.updateStone(editingStone.id, {
+        name: editName.trim(),
+        type: editType,
+      }, activeFirmId);
+      
+      setShowEditModal(false);
+      setEditingStone(null);
+      loadStones();
+      setSuccessMessage('Stone updated successfully');
+    } catch (e: any) {
+      Alert.alert('Error', e.message);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   const handleDelete = (s: Stone) => {
     if (!activeFirmId) return;
     Alert.alert('Confirm Delete', `Are you sure you want to remove ${s.name}?`, [
@@ -90,7 +132,7 @@ export default function StonesScreen() {
             setSuccessMessage('Stone removed');
             loadStones();
           } catch (e: any) {
-            Alert.alert('Error', e.message);
+            Alert.alert('Cannot Delete Stone', e.message);
           }
         }
       }
@@ -153,6 +195,9 @@ export default function StonesScreen() {
                   </View>
                   <View style={viewMode === 'grid' ? s.cardBottomGrid : s.cardBottomList}>
                     <View style={s.actionRow}>
+                      <TouchableOpacity onPress={() => handleOpenEdit(stone)} style={[s.actionBtn, { marginRight: 8 }]}>
+                        <Edit3 size={16} color={colors.vjAccent} />
+                      </TouchableOpacity>
                       <TouchableOpacity onPress={() => handleDelete(stone)} style={s.actionBtn}>
                         <Trash2 size={16} color="#ef4444" />
                       </TouchableOpacity>
@@ -165,48 +210,140 @@ export default function StonesScreen() {
         )}
       </View>
 
-      <Modal visible={showAddModal} transparent animationType="fade">
-        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} className="flex-1 bg-black/50 justify-center items-center p-4">
-          <View className="bg-vj-bg w-full max-w-[500px] rounded-3xl p-6 shadow-2xl border border-white/50" style={{ maxHeight: '80%' }}>
-            <View className="flex-row justify-between items-center mb-6 border-b border-black/10 pb-4">
-              <Text className="text-xl font-bold text-vj-text">New Stone Type</Text>
-              <TouchableOpacity onPress={() => setShowAddModal(false)} className="p-1 bg-black/5 rounded-full">
+      {/* ADD STONE MODAL */}
+      <Modal visible={showAddModal} transparent animationType="fade" onRequestClose={() => setShowAddModal(false)}>
+        <KeyboardAvoidingView 
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'} 
+          style={{ flex: 1, backgroundColor: 'rgba(0, 0, 0, 0.55)', justifyContent: 'center', alignItems: 'center', padding: 16 }}
+        >
+          <View 
+            style={{ 
+              backgroundColor: COLORS.vjBg, 
+              width: '100%', 
+              maxWidth: isTablet ? 540 : 420, 
+              borderRadius: 24, 
+              padding: 20, 
+              maxHeight: height * 0.85, 
+              borderWidth: 1.5, 
+              borderColor: 'rgba(255,255,255,0.6)', 
+              elevation: 10,
+              shadowColor: '#000',
+              shadowOffset: { width: 0, height: 10 },
+              shadowOpacity: 0.25,
+              shadowRadius: 20,
+            }}
+          >
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: 'rgba(0,0,0,0.1)' }}>
+              <Text style={{ fontSize: 20, fontWeight: '800', color: COLORS.vjText }}>New Stone Type</Text>
+              <TouchableOpacity onPress={() => setShowAddModal(false)} style={{ padding: 6, backgroundColor: 'rgba(0,0,0,0.05)', borderRadius: 999 }}>
                 <X size={20} color={COLORS.vjText} />
               </TouchableOpacity>
             </View>
             
-            <View style={s.formGroup}>
-              <Text style={s.label}>Stone Name</Text>
-              <TextInput 
-                style={s.input}
-                value={newName}
-                onChangeText={setNewName}
-                placeholder="e.g. VS1 Round Diamond"
-              />
-            </View>
-
-            <View style={s.formGroup}>
-              <Text style={s.label}>Base Type</Text>
-              <View style={s.typeGrid}>
-                {STONE_TYPES.map((type) => (
-                  <TouchableOpacity 
-                    key={type}
-                    style={[s.typeBtn, newType === type && s.typeBtnActive]}
-                    onPress={() => setNewType(type)}
-                  >
-                    <Text style={[s.typeText, newType === type && s.typeTextActive]}>{type}</Text>
-                  </TouchableOpacity>
-                ))}
+            <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+              <View style={s.formGroup}>
+                <Text style={s.label}>Stone Name</Text>
+                <TextInput 
+                  style={s.input}
+                  value={newName}
+                  onChangeText={setNewName}
+                  placeholder="e.g. VS1 Round Diamond"
+                  placeholderTextColor="rgba(92,22,35,0.4)"
+                />
               </View>
-            </View>
 
-            <View style={{ marginTop: 24 }}>
-              <GlassButton 
-                title={isSubmitting ? 'Saving...' : 'Save Stone'} 
-                onPress={handleAdd} 
-                disabled={isSubmitting} 
-              />
+              <View style={s.formGroup}>
+                <Text style={s.label}>Base Type</Text>
+                <View style={s.typeGrid}>
+                  {STONE_TYPES.map((type) => (
+                    <TouchableOpacity 
+                      key={type}
+                      style={[s.typeBtn, newType === type && s.typeBtnActive]}
+                      onPress={() => setNewType(type)}
+                    >
+                      <Text style={[s.typeText, newType === type && s.typeTextActive]}>{type}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+
+              <View style={{ marginTop: 24, marginBottom: 8 }}>
+                <GlassButton 
+                  title={isSubmitting ? 'Saving...' : 'Save Stone'} 
+                  onPress={handleAdd} 
+                  disabled={isSubmitting} 
+                />
+              </View>
+            </ScrollView>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
+
+      {/* EDIT STONE MODAL */}
+      <Modal visible={showEditModal} transparent animationType="fade" onRequestClose={() => setShowEditModal(false)}>
+        <KeyboardAvoidingView 
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'} 
+          style={{ flex: 1, backgroundColor: 'rgba(0, 0, 0, 0.55)', justifyContent: 'center', alignItems: 'center', padding: 16 }}
+        >
+          <View 
+            style={{ 
+              backgroundColor: COLORS.vjBg, 
+              width: '100%', 
+              maxWidth: isTablet ? 540 : 420, 
+              borderRadius: 24, 
+              padding: 20, 
+              maxHeight: height * 0.85, 
+              borderWidth: 1.5, 
+              borderColor: 'rgba(255,255,255,0.6)', 
+              elevation: 10,
+              shadowColor: '#000',
+              shadowOffset: { width: 0, height: 10 },
+              shadowOpacity: 0.25,
+              shadowRadius: 20,
+            }}
+          >
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: 'rgba(0,0,0,0.1)' }}>
+              <Text style={{ fontSize: 20, fontWeight: '800', color: COLORS.vjText }}>Edit Stone Master</Text>
+              <TouchableOpacity onPress={() => setShowEditModal(false)} style={{ padding: 6, backgroundColor: 'rgba(0,0,0,0.05)', borderRadius: 999 }}>
+                <X size={20} color={COLORS.vjText} />
+              </TouchableOpacity>
             </View>
+            
+            <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+              <View style={s.formGroup}>
+                <Text style={s.label}>Stone Name</Text>
+                <TextInput 
+                  style={s.input}
+                  value={editName}
+                  onChangeText={setEditName}
+                  placeholder="e.g. VS1 Round Diamond"
+                  placeholderTextColor="rgba(92,22,35,0.4)"
+                />
+              </View>
+
+              <View style={s.formGroup}>
+                <Text style={s.label}>Base Type</Text>
+                <View style={s.typeGrid}>
+                  {STONE_TYPES.map((type) => (
+                    <TouchableOpacity 
+                      key={type}
+                      style={[s.typeBtn, editType === type && s.typeBtnActive]}
+                      onPress={() => setEditType(type)}
+                    >
+                      <Text style={[s.typeText, editType === type && s.typeTextActive]}>{type}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+
+              <View style={{ marginTop: 24, marginBottom: 8 }}>
+                <GlassButton 
+                  title={isSubmitting ? 'Updating...' : 'Update Stone'} 
+                  onPress={handleSaveEdit} 
+                  disabled={isSubmitting} 
+                />
+              </View>
+            </ScrollView>
           </View>
         </KeyboardAvoidingView>
       </Modal>

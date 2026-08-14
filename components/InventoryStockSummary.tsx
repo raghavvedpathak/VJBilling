@@ -23,6 +23,7 @@ export interface InventoryStockSummaryProps {
   firmId: string;
   goldRatePerGramPaise?: number; // Injected by Phase 3 Rate Engine
   silverRatePerGramPaise?: number; // Injected by Phase 3 Rate Engine
+  refreshTrigger?: number;
 }
 
 const formatWeight = (mg: number) => (mg / 1000).toFixed(3) + ' g';
@@ -190,7 +191,7 @@ const SummaryCard = ({ metal, totalMg, debtMg, balanceMg, ratePaise, accentColor
   );
 };
 
-export function InventoryStockSummary({ firmId, goldRatePerGramPaise, silverRatePerGramPaise }: InventoryStockSummaryProps) {
+export function InventoryStockSummary({ firmId, goldRatePerGramPaise, silverRatePerGramPaise, refreshTrigger }: InventoryStockSummaryProps) {
   const [summary, setSummary] = useState<StockWeightSummary>({
     goldNetWeightMg: 0,
     goldPhantomDebtMg: 0,
@@ -212,7 +213,7 @@ export function InventoryStockSummary({ firmId, goldRatePerGramPaise, silverRate
     };
     fetchSummary();
     return () => { isActive = false; };
-  }, [firmId]);
+  }, [firmId, refreshTrigger]);
 
   return (
     <View style={s.container}>

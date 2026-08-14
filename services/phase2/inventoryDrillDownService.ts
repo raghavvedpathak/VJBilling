@@ -6,6 +6,18 @@ import { ERR } from '@/constants';
 
 export const inventoryDrillDownService = {
   
+  getDraftCountSync(firmId: string): number {
+    try {
+      const res = expoDb.getFirstSync<{ count: number }>(
+        `SELECT COUNT(*) as count FROM items WHERE firm_id = ? AND status = 'DRAFT'`,
+        [firmId]
+      );
+      return res?.count || 0;
+    } catch (e) {
+      return 0;
+    }
+  },
+
   // FIX-LOWSTOCK-DESIGN-1 (v2.08): Low stock on designs
   async getLowStockDesigns(firmId: string): Promise<{ id: string; name: string; lowStockThreshold: number; availableCount: number }[]> {
     const result = await db.all(sql`
@@ -215,32 +227,61 @@ export const inventoryDrillDownService = {
     return (result as unknown) as DesignCategoryStockResult[];
   },
 
-  async getItemsByDesign(firmId: string, designId: string): Promise<ItemSearchResult[]> {
-    const result = await db.all(sql`
-      SELECT 
-        i.id AS itemId, 
-        i.sku, 
-        d.name AS designName, 
-        c.name AS categoryName,
-        i.metal, 
-        i.gross_weight_mg AS grossWeightMg, 
-        i.purity_percent AS purityPercent, 
-        i.huid,
-        i.status, 
-        i.barcode, 
-        i.net_weight_mg AS netWeightMg, 
-        i.purity_karat AS purityKarat, 
-        i.location,
-        i.size_value AS sizeValue, 
-        i.size_unit AS sizeUnit
-      FROM items i
-      JOIN designs d ON d.id = i.design_id
-      JOIN categories c ON c.id = i.category_id
-      WHERE i.design_id = ${designId} 
-        AND i.firm_id = ${firmId} 
-        AND i.status = 'AVAILABLE'
-      ORDER BY i.created_at DESC
-    `);
+  async getItemsByDesign(firmId: string, designId: string, purityPercent?: number): Promise<ItemSearchResult[]> {
+    const hasPurityFilter = purityPercent !== undefined && purityPercent !== null && !isNaN(purityPercent);
+    const query = hasPurityFilter
+      ? sql`
+          SELECT 
+            i.id AS itemId, 
+            i.sku, 
+            d.name AS designName, 
+            c.name AS categoryName,
+            i.metal, 
+            i.gross_weight_mg AS grossWeightMg, 
+            i.purity_percent AS purityPercent, 
+            i.huid,
+            i.status, 
+            i.barcode, 
+            i.net_weight_mg AS netWeightMg, 
+            i.purity_karat AS purityKarat, 
+            i.location,
+            i.size_value AS sizeValue, 
+            i.size_unit AS sizeUnit
+          FROM items i
+          JOIN designs d ON d.id = i.design_id
+          JOIN categories c ON c.id = i.category_id
+          WHERE i.design_id = ${designId} 
+            AND i.firm_id = ${firmId} 
+            AND i.status = 'AVAILABLE'
+            AND ABS(i.purity_percent - ${purityPercent}) < 0.05
+          ORDER BY i.created_at DESC
+        `
+      : sql`
+          SELECT 
+            i.id AS itemId, 
+            i.sku, 
+            d.name AS designName, 
+            c.name AS categoryName,
+            i.metal, 
+            i.gross_weight_mg AS grossWeightMg, 
+            i.purity_percent AS purityPercent, 
+            i.huid,
+            i.status, 
+            i.barcode, 
+            i.net_weight_mg AS netWeightMg, 
+            i.purity_karat AS purityKarat, 
+            i.location,
+            i.size_value AS sizeValue, 
+            i.size_unit AS sizeUnit
+          FROM items i
+          JOIN designs d ON d.id = i.design_id
+          JOIN categories c ON c.id = i.category_id
+          WHERE i.design_id = ${designId} 
+            AND i.firm_id = ${firmId} 
+            AND i.status = 'AVAILABLE'
+          ORDER BY i.created_at DESC
+        `;
+    const result = await db.all(query);
     return (result as unknown) as ItemSearchResult[];
   },
 

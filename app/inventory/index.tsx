@@ -1,14 +1,15 @@
 // app/inventory/index.tsx — Phase 2 v2.11 Canonical Screen
 
-import React from 'react';
-import { View, Text, ScrollView, TouchableOpacity } from 'react-native';
-import { useRouter } from 'expo-router';
+import React, { useState, useCallback } from 'react';
+import { View, Text, ScrollView, TouchableOpacity, useWindowDimensions } from 'react-native';
+import { useRouter, useFocusEffect } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { TwoToneWrapper } from '@/components/TwoToneWrapper';
 import { GlassCard, HeaderPill } from '@/components/ui/Glass';
 import { InventoryStockSummary } from '@/components/InventoryStockSummary';
 import { useFirmStore } from '@/store/phase1/useFirmStore';
 import { appSettingsStore } from '@/store/phase1/appSettingsStore';
+import { inventoryDrillDownService } from '@/services/phase2/inventoryDrillDownService';
 import { 
   PackageSearch, 
   Layers, 
@@ -30,6 +31,19 @@ export default function InventoryHubScreen() {
   const activeTheme = appSettingsStore((s: any) => s.theme);
   const colors = getThemeColors(activeTheme);
 
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
+  const [draftCount, setDraftCount] = useState(0);
+
+  useFocusEffect(
+    useCallback(() => {
+      setRefreshTrigger(prev => prev + 1);
+      if (activeFirmId) {
+        const count = inventoryDrillDownService.getDraftCountSync(activeFirmId);
+        setDraftCount(count);
+      }
+    }, [activeFirmId])
+  );
+
   const inventoryHeaderPills = (
     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 4, flexWrap: 'wrap' }}>
       <HeaderPill icon={<Package size={12} color={colors.vjBg} />} label="Stock Operations" />
@@ -44,7 +58,7 @@ export default function InventoryHubScreen() {
         {/* The Live Jewelry Stock Display lives here natively */}
         {activeFirmId && (
           <View style={{ marginBottom: 24 }}>
-            <InventoryStockSummary firmId={activeFirmId} />
+            <InventoryStockSummary firmId={activeFirmId} refreshTrigger={refreshTrigger} />
           </View>
         )}
 
@@ -130,11 +144,12 @@ export default function InventoryHubScreen() {
 
           <MenuTile 
             title="Draft Items" 
-            subtitle="Pending Verification" 
-            icon={<ClipboardList size={22} color="#D97706" />} 
-            iconBg="rgba(217, 119, 6, 0.12)"
-            borderColor="rgba(217, 119, 6, 0.25)"
-            badgeText="VERIFY"
+            subtitle={draftCount > 0 ? `${draftCount} Pending Review` : "Pending Verification"} 
+            icon={<ClipboardList size={22} color={draftCount > 0 ? "#D97706" : "#D97706"} />} 
+            iconBg={draftCount > 0 ? "rgba(245, 158, 11, 0.2)" : "rgba(217, 119, 6, 0.12)"}
+            borderColor={draftCount > 0 ? "rgba(245, 158, 11, 0.5)" : "rgba(217, 119, 6, 0.25)"}
+            badgeText={draftCount > 0 ? `${draftCount} PENDING` : "0 DRAFTS"}
+            alertCount={draftCount}
             onPress={() => router.push('/inventory/drafts')} 
           />
         </View>
@@ -202,9 +217,10 @@ function MenuTile({
   title, 
   subtitle, 
   icon, 
-  iconBg,
-  borderColor,
-  badgeText,
+  iconBg, 
+  borderColor, 
+  badgeText, 
+  alertCount,
   disabled, 
   onPress 
 }: {
@@ -214,9 +230,11 @@ function MenuTile({
   iconBg: string;
   borderColor: string;
   badgeText: string;
+  alertCount?: number;
   disabled?: boolean;
   onPress?: () => void;
 }) {
+  const hasAlert = alertCount !== undefined && alertCount > 0;
   return (
     <View style={{ width: '48%' }}> 
       <TouchableOpacity 
@@ -232,20 +250,63 @@ function MenuTile({
             height: 144, 
             marginBottom: 0, 
             opacity: disabled ? 0.6 : 1,
-            borderColor: disabled ? 'rgba(255, 255, 255, 0.6)' : borderColor,
-            padding: 14
+            borderColor: hasAlert ? '#F59E0B' : (disabled ? 'rgba(255, 255, 255, 0.6)' : borderColor),
+            borderWidth: hasAlert ? 1.5 : 1,
+            padding: 14,
+            backgroundColor: hasAlert ? 'rgba(254, 243, 199, 0.55)' : undefined,
           }}
         >
           <View style={{ height: '100%', justifyContent: 'space-between' }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-              <View 
-                style={{ padding: 10, borderRadius: 16, borderWidth: 1, borderColor: 'rgba(0,0,0,0.05)', alignItems: 'center', justifyContent: 'center', backgroundColor: iconBg }}
-              >
-                {icon}
+              <View style={{ position: 'relative' }}>
+                <View 
+                  style={{ padding: 10, borderRadius: 16, borderWidth: 1, borderColor: hasAlert ? 'rgba(245,158,11,0.4)' : 'rgba(0,0,0,0.05)', alignItems: 'center', justifyContent: 'center', backgroundColor: iconBg }}
+                >
+                  {icon}
+                </View>
+                {hasAlert && (
+                  <View 
+                    style={{ 
+                      position: 'absolute', 
+                      top: -4, 
+                      right: -4, 
+                      backgroundColor: '#EF4444', 
+                      borderRadius: 10, 
+                      minWidth: 18, 
+                      height: 18, 
+                      justifyContent: 'center', 
+                      alignItems: 'center', 
+                      paddingHorizontal: 4,
+                      borderWidth: 1.5,
+                      borderColor: '#FFFFFF',
+                    }}
+                  >
+                    <Text style={{ color: '#FFFFFF', fontSize: 9, fontWeight: '900' }}>
+                      {alertCount > 99 ? '99+' : alertCount}
+                    </Text>
+                  </View>
+                )}
               </View>
 
-              <View style={{ paddingHorizontal: 8, paddingVertical: 2, borderRadius: 999, borderWidth: 1, backgroundColor: 'rgba(0,0,0,0.05)', borderColor: 'rgba(0,0,0,0.1)' }}>
-                <Text style={{ fontSize: 8, fontWeight: '900', textTransform: 'uppercase', letterSpacing: 1, color: 'rgba(92,22,35,0.6)' }}>
+              <View 
+                style={{ 
+                  paddingHorizontal: 8, 
+                  paddingVertical: 3, 
+                  borderRadius: 999, 
+                  borderWidth: 1, 
+                  backgroundColor: hasAlert ? 'rgba(245, 158, 11, 0.25)' : 'rgba(0,0,0,0.05)', 
+                  borderColor: hasAlert ? 'rgba(245, 158, 11, 0.6)' : 'rgba(0,0,0,0.1)' 
+                }}
+              >
+                <Text 
+                  style={{ 
+                    fontSize: 8.5, 
+                    fontWeight: '900', 
+                    textTransform: 'uppercase', 
+                    letterSpacing: 0.8, 
+                    color: hasAlert ? '#B45309' : 'rgba(92,22,35,0.6)' 
+                  }}
+                >
                   {badgeText}
                 </Text>
               </View>

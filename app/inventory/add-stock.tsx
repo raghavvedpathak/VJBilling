@@ -6,7 +6,8 @@ import { View, Text, ScrollView, Alert, Modal, TouchableOpacity, StyleSheet } fr
 import { useRouter, useFocusEffect } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { TwoToneWrapper } from '@/components/TwoToneWrapper';
-import { GlassCard, GlassInput, GlassButton, GlassSmartSearch } from '@/components/ui/Glass';
+import { GlassCard, GlassInput, GlassButton, GlassPickerInput } from '@/components/ui/Glass';
+import { GlassPickerModal, GlassPickerOption } from '@/components/ui/GlassPickerModal';
 import { useFirmStore } from '@/store/phase1/useFirmStore';
 import { itemService } from '@/services/phase2/itemService';
 import { designRepository } from '@/repositories/phase2/designRepository';
@@ -65,6 +66,21 @@ export default function AddStockScreen() {
   const [loading, setLoading] = useState(false);
   const [successSku, setSuccessSku] = useState<string | null>(null); 
   const [designStock, setDesignStock] = useState<{ totalNetWeightMg: number, count: number } | null>(null);
+
+  const [pickerModal, setPickerModal] = useState<{
+    visible: boolean;
+    title: string;
+    placeholder?: string | undefined;
+    options: GlassPickerOption[];
+    selectedId: string | null;
+    onSelect: (option: GlassPickerOption | null) => void;
+  }>({
+    visible: false,
+    title: '',
+    options: [],
+    selectedId: null,
+    onSelect: () => {},
+  });
 
   useEffect(() => {
     if (!activeFirmId || !selectedDesign) {
@@ -221,8 +237,8 @@ export default function AddStockScreen() {
     <TwoToneWrapper title="Add Stock" showBack>
       <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingTop: 32, paddingBottom: 350, paddingHorizontal: 16 }} showsVerticalScrollIndicator={false}>
         
-        {/* Classification */}
-        <GlassCard style={{ zIndex: 50, overflow: 'visible' }}>
+          {/* Classification */}
+        <GlassCard>
           <View className="flex-row items-center justify-between mb-4">
             <View className="flex-row items-center gap-2">
               <Package size={20} color="#D4AF37" />
@@ -236,7 +252,7 @@ export default function AddStockScreen() {
             </View>
           )}
 
-          <View style={{ zIndex: 40 }}>
+          <View>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
               <Text style={{ fontSize: 12, fontWeight: '700', color: 'rgba(92,22,35,0.6)', textTransform: 'uppercase' }}>Design *</Text>
               {designStock && designStock.count > 0 && (
@@ -247,83 +263,120 @@ export default function AddStockScreen() {
                 </View>
               )}
             </View>
-            <GlassSmartSearch 
-              placeholder="Search designs..."
-              options={designs.map(d => ({ id: d.id, label: d.name || 'Unnamed Design', sublabel: d.metal || 'Unknown' }))}
-              selectedId={selectedDesign?.id || null}
-              onFocusFetch={async () => {
+            <GlassPickerInput
+              placeholder="Search & select design..."
+              selectedLabel={selectedDesign ? selectedDesign.name : null}
+              selectedSublabel={selectedDesign && selectedDesign.metal ? `Metal: ${selectedDesign.metal}` : null}
+              onPress={async () => {
+                let dList = designs;
                 if (activeFirmId) {
-                  const d = await designRepository.findByFirmId(activeFirmId);
-                  setDesigns(d || []);
+                  const fetched = await designRepository.findByFirmId(activeFirmId);
+                  dList = fetched || [];
+                  setDesigns(dList);
                 }
-              }}
-              onSelect={async (opt) => {
-                if (!opt) {
-                  setSelectedDesign(null);
-                  return;
-                }
-                const selDesign = designs.find(d => d.id === opt.id)!;
-                setSelectedDesign(selDesign);
-                
-                if (activeFirmId) {
-                  try {
-                    const mappings = await designCategoryMapRepository.findByDesignId(selDesign.id, activeFirmId);
-                    let catList = categories;
-                    if (catList.length === 0) {
-                      catList = await categoryRepository.findByFirmId(activeFirmId);
-                      setCategories(catList || []);
+                setPickerModal({
+                  visible: true,
+                  title: 'Select Design',
+                  placeholder: 'Search design by name or metal...',
+                  selectedId: selectedDesign?.id || null,
+                  options: dList.map(d => ({
+                    id: d.id,
+                    label: d.name || 'Unnamed Design',
+                    sublabel: d.metal ? `Metal: ${d.metal}` : undefined,
+                  })),
+                  onSelect: async (opt) => {
+                    if (!opt) {
+                      setSelectedDesign(null);
+                      return;
                     }
+                    const selDesign = dList.find(d => d.id === opt.id)!;
+                    setSelectedDesign(selDesign);
 
-                    if (mappings.length > 0) {
-                      mappings.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-                      const linkedCat = catList.find(c => c.id === mappings[0].categoryId);
-                      if (linkedCat) {
-                        setSelectedCategory(linkedCat);
-                        return;
+                    if (activeFirmId) {
+                      try {
+                        const mappings = await designCategoryMapRepository.findByDesignId(selDesign.id, activeFirmId);
+                        let catList = categories;
+                        if (catList.length === 0) {
+                          catList = await categoryRepository.findByFirmId(activeFirmId);
+                          setCategories(catList || []);
+                        }
+
+                        if (mappings.length > 0) {
+                          mappings.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+                          const linkedCat = catList.find(c => c.id === mappings[0].categoryId);
+                          if (linkedCat) {
+                            setSelectedCategory(linkedCat);
+                            return;
+                          }
+                        }
+                      } catch (err) {
+                        console.warn("Failed to auto-select category:", err);
                       }
                     }
-                  } catch (err) {
-                    console.warn("Failed to auto-select category:", err);
+                  },
+                });
+              }}
+            />
+          </View>
+
+          <GlassPickerInput
+            label="Category *"
+            placeholder="Search & select category..."
+            selectedLabel={selectedCategory ? selectedCategory.name : null}
+            onPress={async () => {
+              let cList = categories;
+              if (activeFirmId) {
+                const fetched = await categoryRepository.findByFirmId(activeFirmId);
+                cList = fetched || [];
+                setCategories(cList);
+              }
+              setPickerModal({
+                visible: true,
+                title: 'Select Category',
+                placeholder: 'Search category...',
+                selectedId: selectedCategory?.id || null,
+                options: cList.map(c => ({
+                  id: c.id,
+                  label: c.name || 'Unnamed Category',
+                })),
+                onSelect: (opt) => {
+                  if (!opt) {
+                    setSelectedCategory(null);
+                    return;
                   }
-                }
-              }}
-            />
-          </View>
+                  const selCat = cList.find(c => c.id === opt.id)!;
+                  setSelectedCategory(selCat);
+                },
+              });
+            }}
+          />
 
-          <View style={{ zIndex: 30 }}>
-            <GlassSmartSearch 
-              label="Category *"
-              placeholder="Search categories..."
-              options={categories.map(c => ({ id: c.id, label: c.name || 'Unnamed Category', sublabel: '' }))}
-              selectedId={selectedCategory?.id || null}
-              onFocusFetch={async () => {
-                if (activeFirmId) {
-                  const c = await categoryRepository.findByFirmId(activeFirmId);
-                  setCategories(c || []);
-                }
-              }}
-              onSelect={(opt) => {
-                if (!opt) return setSelectedCategory(null);
-                const selCat = categories.find(c => c.id === opt.id)!;
-                setSelectedCategory(selCat);
-              }}
-            />
-          </View>
-
-          <View style={{ zIndex: 20 }}>
-            <GlassSmartSearch 
-              label="HSN Code *"
-              placeholder="Search HSN codes..."
-              showAllOnFocus={true}
-              options={hsnCodes.map(h => ({ id: h.id, label: h.code || 'No Code', sublabel: h.description || '' }))}
-              selectedId={selectedHsn?.id || null}
-              onSelect={(opt) => {
-                if (!opt) return setSelectedHsn(null);
-                const selHsn = hsnCodes.find(h => h.id === opt.id)!;
-                setSelectedHsn(selHsn);
-              }}
-            />
-          </View>
+          <GlassPickerInput
+            label="HSN Code *"
+            placeholder="Search HSN code..."
+            selectedLabel={selectedHsn ? `${selectedHsn.code} - ${selectedHsn.description || ''}` : null}
+            onPress={() => {
+              setPickerModal({
+                visible: true,
+                title: 'Select HSN Code',
+                placeholder: 'Search HSN code or description...',
+                selectedId: selectedHsn?.id || null,
+                options: hsnCodes.map(h => ({
+                  id: h.id,
+                  label: h.code || 'No Code',
+                  sublabel: h.description || '',
+                })),
+                onSelect: (opt) => {
+                  if (!opt) {
+                    setSelectedHsn(null);
+                    return;
+                  }
+                  const selHsn = hsnCodes.find(h => h.id === opt.id)!;
+                  setSelectedHsn(selHsn);
+                },
+              });
+            }}
+          />
         </GlassCard>
 
         {/* Weights */}
@@ -429,25 +482,36 @@ export default function AddStockScreen() {
         </GlassCard>
 
         {/* Tracking & Stones */}
-        <GlassCard style={{ zIndex: 30 }}>
+        <GlassCard>
           <View className="flex-row items-center gap-2 mb-4">
             <MapPin size={20} color="#D4AF37" />
             <Text className="text-lg font-bold text-vj-text">Tracking & Stones</Text>
           </View>
 
-          <View style={{ zIndex: 10 }}>
-            <GlassSmartSearch 
-              label="Primary Stone (Optional)"
-              placeholder="Select Stone..."
-              options={[{ id: 'NONE', label: 'No Stone', sublabel: 'Clear selection' }, ...stones.map(s => ({ id: s.id, label: s.name || 'Unnamed', sublabel: s.type || '' }))]}
-              selectedId={selectedStone?.id || 'NONE'}
-              onSelect={(opt) => {
-                if (!opt || opt.id === 'NONE') return setSelectedStone(null);
-                const selStone = stones.find(s => s.id === opt.id)!;
-                setSelectedStone(selStone);
-              }}
-            />
-          </View>
+          <GlassPickerInput
+            label="Primary Stone (Optional)"
+            placeholder="Select Stone..."
+            selectedLabel={selectedStone ? selectedStone.name : null}
+            selectedSublabel={selectedStone ? selectedStone.type : null}
+            onPress={() => {
+              setPickerModal({
+                visible: true,
+                title: 'Select Primary Stone',
+                placeholder: 'Search stone...',
+                selectedId: selectedStone?.id || null,
+                options: stones.map(s => ({
+                  id: s.id,
+                  label: s.name || 'Unnamed Stone',
+                  sublabel: s.type || '',
+                })),
+                onSelect: (opt) => {
+                  if (!opt) return setSelectedStone(null);
+                  const selStone = stones.find(s => s.id === opt.id)!;
+                  setSelectedStone(selStone);
+                },
+              });
+            }}
+          />
 
           <View style={{ flexDirection: 'row', gap: 12 }}>
             <View style={{ flex: 1 }}>
@@ -458,26 +522,36 @@ export default function AddStockScreen() {
             </View>
           </View>
           
-          <View style={{ flexDirection: 'row', gap: 12, marginTop: 12, zIndex: 30 }}>
+          <View style={{ flexDirection: 'row', gap: 12, marginTop: 12 }}>
             <View style={{ flex: 1 }}>
               <GlassInput label="Size Value" placeholder="e.g. 18" keyboardType="numeric" value={sizeValue} onChangeText={setSizeValue} />
             </View>
-            <View style={{ flex: 1, zIndex: 30 }}>
-              <Text style={{ fontSize: 12, fontWeight: '700', color: 'rgba(92,22,35,0.6)', textTransform: 'uppercase', marginBottom: 4 }}>Size Unit</Text>
-              <GlassSmartSearch 
+            <View style={{ flex: 1 }}>
+              <GlassPickerInput
+                label="Size Unit"
                 placeholder="Select Unit..."
-                showAllOnFocus={true}
-                options={[
-                  { id: 'NONE', label: 'No Unit (Clear)' },
-                  { id: 'INCH', label: 'Inches (INCH)' },
-                  { id: 'MM', label: 'Millimeters (MM)' },
-                  { id: 'CM', label: 'Centimeters (CM)' },
-                  { id: 'RING_SIZE', label: 'Ring Size' }
-                ]}
-                selectedId={sizeUnit || null}
-                onSelect={(opt) => {
-                  if (!opt || opt.id === 'NONE') return setSizeUnit('');
-                  setSizeUnit(opt.id);
+                selectedLabel={
+                  sizeUnit
+                    ? { INCH: 'Inches (INCH)', MM: 'Millimeters (MM)', CM: 'Centimeters (CM)', RING_SIZE: 'Ring Size' }[sizeUnit] || sizeUnit
+                    : null
+                }
+                onPress={() => {
+                  setPickerModal({
+                    visible: true,
+                    title: 'Select Size Unit',
+                    placeholder: 'Search unit...',
+                    selectedId: sizeUnit || null,
+                    options: [
+                      { id: 'INCH', label: 'Inches (INCH)' },
+                      { id: 'MM', label: 'Millimeters (MM)' },
+                      { id: 'CM', label: 'Centimeters (CM)' },
+                      { id: 'RING_SIZE', label: 'Ring Size' },
+                    ],
+                    onSelect: (opt) => {
+                      if (!opt) return setSizeUnit('');
+                      setSizeUnit(opt.id);
+                    },
+                  });
                 }}
               />
             </View>
@@ -585,6 +659,16 @@ export default function AddStockScreen() {
           </View>
         </View>
       </Modal>
+
+      <GlassPickerModal
+        visible={pickerModal.visible}
+        title={pickerModal.title}
+        placeholder={pickerModal.placeholder}
+        options={pickerModal.options}
+        selectedId={pickerModal.selectedId}
+        onClose={() => setPickerModal((p) => ({ ...p, visible: false }))}
+        onSelect={pickerModal.onSelect}
+      />
 
     </TwoToneWrapper>
   );

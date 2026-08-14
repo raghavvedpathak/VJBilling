@@ -1,7 +1,7 @@
 // app/masters/categories.tsx — Phase 2 v2.11 Canonical Screen
 
 import React, { useState, useCallback, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Modal, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Modal, ActivityIndicator, useWindowDimensions } from 'react-native';
 import { useRouter, useFocusEffect } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Haptics from 'expo-haptics';
@@ -17,6 +17,8 @@ import { COLORS, getThemeColors } from '@/constants/theme';
 
 export default function CategoriesScreen() {
   const router = useRouter();
+  const { width } = useWindowDimensions();
+  const isTablet = width >= 768;
   const { activeFirmId } = useFirmStore();
   
   const [categories, setCategories] = useState<Category[]>([]);

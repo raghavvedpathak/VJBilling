@@ -10,7 +10,7 @@ export const inventorySearchService = {
   // Read-only search query for available stock items matching SKU, barcode, or HUID
   async searchItems(firmId: string, query: string): Promise<ItemSearchResult[]> {
     if (!firmId) throw new Error(ERR.FIRM_ID_REQUIRED);
-    if (!query || query.trim().length < 1) return [];
+    if (!query || query.trim().length < 2) return [];
     return itemRepository.search(firmId, query.trim());
   },
 
@@ -18,7 +18,7 @@ export const inventorySearchService = {
   // Read-only search query for design stock aggregates matching design name or code
   async searchDesignStock(firmId: string, query: string): Promise<DesignStockResult[]> {
     if (!firmId) throw new Error(ERR.FIRM_ID_REQUIRED);
-    if (!query || query.trim().length < 1) return [];
+    if (!query || query.trim().length < 2) return [];
     return designRepository.searchStock(firmId, query.trim());
   }
 };
