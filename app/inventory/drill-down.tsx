@@ -12,44 +12,51 @@ import { inventoryDrillDownService } from '@/services/phase2/inventoryDrillDownS
 import { formatWeightMg as formatWeight } from '@/utils/calculations';
 import { HeaderPill } from '@/components/ui/Glass';
 import { appSettingsStore } from '@/store/phase1/appSettingsStore';
-import { COLORS, getThemeColors } from '@/constants/theme';
+import { getThemeColors } from '@/constants/theme';
 import { ChevronRight, Package, Plus, Scale } from 'lucide-react-native';
 import { getJewelryCategoryIcon } from '@/utils/jewelryIcons';
 
 type CategoryRowProps = {
   item: { id: string; name: string; availableCount: number; totalNetWeightMg: number };
+  colors: ReturnType<typeof getThemeColors>;
   onPress: (categoryId: string, categoryName: string) => void;
 };
 
-const CategoryRow = memo(({ item, onPress }: CategoryRowProps) => {
+const CategoryRow = memo(({ item, colors, onPress }: CategoryRowProps) => {
   return (
     <TouchableOpacity
       id={`category-row-${item.id}`}
       onPress={() => onPress(item.id, item.name)}
-      activeOpacity={0.7}
-      style={s.card}
+      activeOpacity={0.75}
+      style={[
+        s.card,
+        {
+          backgroundColor: '#FFFFFF',
+          borderColor: colors.border || 'rgba(92, 22, 35, 0.1)',
+        }
+      ]}
     >
-      <View style={s.metalBadge}>
-        {getJewelryCategoryIcon(item.name, undefined, undefined, 24, COLORS.vjAccent)}
+      <View style={[s.metalBadge, { backgroundColor: `${colors.vjAccent}1A`, borderColor: `${colors.vjAccent}40` }]}>
+        {getJewelryCategoryIcon(item.name, undefined, undefined, 24, colors.vjAccent)}
       </View>
 
       <View style={s.cardBody}>
         <View style={s.titleRow}>
-          <Text style={s.categoryName} numberOfLines={1}>{item.name}</Text>
+          <Text style={[s.categoryName, { color: colors.vjText }]} numberOfLines={1}>{item.name}</Text>
         </View>
         
-        <View style={s.weightBadge}>
-          <Scale size={11} color={COLORS.vjAccent} />
-          <Text style={s.weightText}>Net: {formatWeight(item.totalNetWeightMg)}</Text>
+        <View style={[s.weightBadge, { backgroundColor: `${colors.vjAccent}14`, borderColor: `${colors.vjAccent}35` }]}>
+          <Scale size={11} color={colors.vjAccent} />
+          <Text style={[s.weightText, { color: colors.vjText }]}>Net: {formatWeight(item.totalNetWeightMg)}</Text>
         </View>
       </View>
 
-      <View style={s.countBadge}>
-        <Text style={s.countText}>{item.availableCount}</Text>
-        <Text style={s.countLabel}>items</Text>
+      <View style={[s.countBadge, { backgroundColor: '#FFFFFF', borderColor: `${colors.vjAccent}35` }]}>
+        <Text style={[s.countText, { color: colors.vjText }]}>{item.availableCount}</Text>
+        <Text style={[s.countLabel, { color: colors.vjText, opacity: 0.5 }]}>items</Text>
       </View>
 
-      <ChevronRight size={18} color="rgba(92,22,35,0.25)" />
+      <ChevronRight size={18} color={colors.vjAccent} style={{ opacity: 0.5 }} />
     </TouchableOpacity>
   );
 });
@@ -60,6 +67,8 @@ export default function DrillDownScreen() {
   const { activeFirmId } = useFirmStore();
   const [data, setData] = useState<{ id: string; name: string; availableCount: number; totalNetWeightMg: number }[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // Reactive theme subscription ensures live background, accent, and card border updates
   const activeTheme = appSettingsStore((s: any) => s.theme);
   const colors = getThemeColors(activeTheme);
 
@@ -106,15 +115,15 @@ export default function DrillDownScreen() {
       <View style={s.listContainer}>
         {loading ? (
           <View style={s.loadingContainer}>
-            <ActivityIndicator size="large" color={COLORS.vjAccent} />
-            <Text style={s.loadingText}>Loading inventory...</Text>
+            <ActivityIndicator size="large" color={colors.vjAccent} />
+            <Text style={[s.loadingText, { color: colors.vjText }]}>Loading inventory...</Text>
           </View>
         ) : (
           <FlashList
             data={data}
             keyExtractor={(item) => item.id}
             renderItem={({ item }) => (
-              <CategoryRow item={item} onPress={handleCategoryPress} />
+              <CategoryRow item={item} colors={colors} onPress={handleCategoryPress} />
             )}
             // @ts-ignore: estimatedItemSize required by spec
             estimatedItemSize={88}
@@ -122,21 +131,21 @@ export default function DrillDownScreen() {
             showsVerticalScrollIndicator={false}
             ListEmptyComponent={
               <View style={s.emptyContainer}>
-                <Package size={48} color="rgba(92,22,35,0.2)" />
-                <Text style={s.emptyTitle}>No Stock Found</Text>
-                <Text style={s.emptySubtitle}>Add items to see category breakdown</Text>
+                <Package size={48} color={colors.vjAccent} style={{ opacity: 0.3 }} />
+                <Text style={[s.emptyTitle, { color: colors.vjText }]}>No Stock Found</Text>
+                <Text style={[s.emptySubtitle, { color: colors.vjText, opacity: 0.5 }]}>Add items to see category breakdown</Text>
               </View>
             }
           />
         )}
       </View>
       <TouchableOpacity 
-        style={[s.fab, { bottom: Math.max(insets.bottom + 24, 64) }]}
+        style={[s.fab, { backgroundColor: colors.vjAccent, bottom: Math.max(insets.bottom + 24, 64) }]}
         onPress={() => {
           try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch (e) {}
           router.push('/inventory/add-stock');
         }}
-        activeOpacity={0.8}
+        activeOpacity={0.85}
       >
         <Plus size={28} color="#ffffff" />
       </TouchableOpacity>
@@ -149,12 +158,10 @@ const s = StyleSheet.create({
   card: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FFFFFF',
     marginBottom: 12,
     borderRadius: 16,
     padding: 14,
     borderWidth: 1,
-    borderColor: 'rgba(92, 22, 35, 0.08)',
     gap: 12,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
@@ -166,9 +173,7 @@ const s = StyleSheet.create({
     width: 46,
     height: 46,
     borderRadius: 14,
-    backgroundColor: 'rgba(212,175,55,0.14)',
     borderWidth: 1,
-    borderColor: 'rgba(212,175,55,0.35)',
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -182,7 +187,6 @@ const s = StyleSheet.create({
     marginBottom: 6,
   },
   categoryName: {
-    color: COLORS.vjText,
     fontWeight: '800',
     fontSize: 15,
     flexShrink: 1,
@@ -195,31 +199,24 @@ const s = StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: 6,
-    backgroundColor: 'rgba(212,175,55,0.1)',
     borderWidth: 1,
-    borderColor: 'rgba(212,175,55,0.25)',
   },
   weightText: {
-    color: COLORS.vjText,
     fontSize: 11,
     fontWeight: '800',
   },
   countBadge: {
     alignItems: 'center',
-    backgroundColor: 'rgba(255,255,255,0.7)',
     paddingHorizontal: 10,
     paddingVertical: 6,
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: 'rgba(212,175,55,0.25)',
   },
   countText: {
-    color: COLORS.vjText,
     fontSize: 16,
     fontWeight: '900',
   },
   countLabel: {
-    color: 'rgba(92,22,35,0.45)',
     fontSize: 9,
     fontWeight: '700',
     textTransform: 'uppercase',
@@ -232,9 +229,9 @@ const s = StyleSheet.create({
     gap: 12,
   },
   loadingText: {
-    color: 'rgba(92,22,35,0.4)',
     fontSize: 14,
     fontWeight: '600',
+    opacity: 0.6,
   },
   emptyContainer: {
     alignItems: 'center',
@@ -242,12 +239,11 @@ const s = StyleSheet.create({
     gap: 8,
   },
   emptyTitle: {
-    color: 'rgba(92,22,35,0.5)',
     fontSize: 18,
     fontWeight: '700',
+    opacity: 0.7,
   },
   emptySubtitle: {
-    color: 'rgba(92,22,35,0.35)',
     fontSize: 13,
   },
   fab: {
@@ -257,7 +253,6 @@ const s = StyleSheet.create({
     width: 64,
     height: 64,
     borderRadius: 32,
-    backgroundColor: COLORS.vjAccent,
     justifyContent: 'center',
     alignItems: 'center',
     shadowColor: '#000',

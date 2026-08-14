@@ -9,6 +9,7 @@
 
 import { storage } from '@/utils/storage';
 import { ERR } from '@/constants/errorCodes';
+import CryptoJS from 'crypto-js';
 
 const PIN_HASH_KEY = 'vjbilling_pin_hash';
 const PIN_SALT_KEY = 'vjbilling_pin_salt';
@@ -21,21 +22,30 @@ const MAX_ATTEMPTS = 3;
 const BASE_LOCKOUT_MS = 30_000; // 30 seconds, doubles each subsequent lockout
 
 async function deriveKey(pin: string, saltHex: string): Promise<string> {
-  const enc = new TextEncoder();
-  // v7.33 FIX-V733-1: saltHex.match() can return null on corrupted/tampered MMKV data.
-  // Fails closed with a typed, catchable error instead of throwing a raw TypeError.
   const saltHexPairs = saltHex ? saltHex.match(/.{2}/g) : null;
   if (!saltHexPairs) {
     throw new Error(ERR.PIN_DATA_CORRUPTED + ': stored PIN salt is malformed');
   }
-  const saltBytes = new Uint8Array(saltHexPairs.map(h => parseInt(h, 16)));
-  const km = await crypto.subtle.importKey('raw', enc.encode(pin), 'PBKDF2', false, ['deriveKey']);
-  const key = await crypto.subtle.deriveKey(
-    { name: 'PBKDF2', salt: saltBytes, iterations: 100_000, hash: 'SHA-256' },
-    km, { name: 'HMAC', hash: 'SHA-256', length: 256 }, true, ['sign']
-  );
-  const raw = await crypto.subtle.exportKey('raw', key);
-  return Array.from(new Uint8Array(raw)).map(b => b.toString(16).padStart(2, '0')).join('');
+
+  if (typeof crypto !== 'undefined' && crypto?.subtle?.importKey) {
+    const enc = new TextEncoder();
+    const saltBytes = new Uint8Array(saltHexPairs.map(h => parseInt(h, 16)));
+    const km = await crypto.subtle.importKey('raw', enc.encode(pin), 'PBKDF2', false, ['deriveKey']);
+    const key = await crypto.subtle.deriveKey(
+      { name: 'PBKDF2', salt: saltBytes, iterations: 100_000, hash: 'SHA-256' },
+      km, { name: 'HMAC', hash: 'SHA-256', length: 256 }, true, ['sign']
+    );
+    const raw = await crypto.subtle.exportKey('raw', key);
+    return Array.from(new Uint8Array(raw)).map(b => b.toString(16).padStart(2, '0')).join('');
+  }
+
+  const saltWA = CryptoJS.enc.Hex.parse(saltHex);
+  const derived = CryptoJS.PBKDF2(pin, saltWA, {
+    keySize: 256 / 32,
+    iterations: 100_000,
+    hasher: CryptoJS.algo.SHA256,
+  });
+  return derived.toString(CryptoJS.enc.Hex);
 }
 
 export function isPinSet(): boolean {

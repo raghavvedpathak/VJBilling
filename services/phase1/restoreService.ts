@@ -79,42 +79,46 @@ async function decryptBackupEnvelope(parsedBlob: any, password?: string): Promis
   const ivBytes = fromBase64(parsedBlob.iv);
   const cipherBytes = fromBase64(parsedBlob.ciphertext);
   
-  const iterationCandidates = parsedBlob.encryptionVersion === 2 ? [100000, 10000] : [100000];
+  const iterationCandidates = parsedBlob.iterations
+    ? [parsedBlob.iterations, 1000, 100000, 10000, 5000]
+    : (parsedBlob.encryptionVersion === 2 ? [1000, 100000, 10000, 5000] : [100000, 1000]);
 
   for (const candidateKeySource of keySourceCandidates) {
     for (const iterations of iterationCandidates) {
-      // 1. Try WebCrypto AES-GCM
-      try {
-        const keyMaterial = await crypto.subtle.importKey(
-          'raw',
-          candidateKeySource as any,
-          'PBKDF2',
-          false,
-          ['deriveKey']
-        );
-        const key = await crypto.subtle.deriveKey(
-          { name: 'PBKDF2', salt: saltBytes, iterations, hash: 'SHA-256' },
-          keyMaterial,
-          { name: 'AES-GCM', length: 256 },
-          false,
-          ['decrypt']
-        );
+      // 1. Try WebCrypto AES-GCM (if supported by JS engine)
+      if (typeof crypto !== 'undefined' && crypto?.subtle?.importKey) {
+        try {
+          const keyMaterial = await crypto.subtle.importKey(
+            'raw',
+            candidateKeySource as any,
+            'PBKDF2',
+            false,
+            ['deriveKey']
+          );
+          const key = await crypto.subtle.deriveKey(
+            { name: 'PBKDF2', salt: saltBytes, iterations, hash: 'SHA-256' },
+            keyMaterial,
+            { name: 'AES-GCM', length: 256 },
+            false,
+            ['decrypt']
+          );
 
-        const decrypted = await crypto.subtle.decrypt(
-          { name: 'AES-GCM', iv: ivBytes },
-          key,
-          cipherBytes
-        );
+          const decrypted = await crypto.subtle.decrypt(
+            { name: 'AES-GCM', iv: ivBytes },
+            key,
+            cipherBytes
+          );
 
-        const decryptedText = new TextDecoder().decode(decrypted);
-        if (decryptedText) {
-          const payload = JSON.parse(decryptedText);
-          return {
-            ...parsedBlob,
-            payload
-          } as unknown as BackupEnvelope;
-        }
-      } catch {}
+          const decryptedText = new TextDecoder().decode(decrypted);
+          if (decryptedText) {
+            const payload = JSON.parse(decryptedText);
+            return {
+              ...parsedBlob,
+              payload
+            } as unknown as BackupEnvelope;
+          }
+        } catch {}
+      }
 
       // 2. Try CryptoJS AES-CBC (legacy backup compatibility)
       try {

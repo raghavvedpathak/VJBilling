@@ -18,6 +18,7 @@ import { eq, isNotNull } from 'drizzle-orm';
 import { differenceInDays, parseISO } from 'date-fns';
 import { purgeExpiredAuditLogs } from '@/services/phase1/auditRetentionService';
 import { appSettingsStore } from '@/store/phase1/appSettingsStore';
+import CryptoJS from 'crypto-js';
 
 import { BACKUP_DIR } from '@/services/phase1/backupService';
 export const PRE_MIGRATION_SNAPSHOT_PATH = BACKUP_DIR + 'vjbilling_premigration_snapshot.enc';
@@ -63,36 +64,62 @@ export const bootstrapService = {
       const saltBytes = crypto.getRandomValues(new Uint8Array(16));
       const ivBytes = crypto.getRandomValues(new Uint8Array(12));
 
-      const keyMaterial = await crypto.subtle.importKey(
-        'raw',
-        keySourceMaterial as unknown as BufferSource,
-        'PBKDF2',
-        false,
-        ['deriveKey']
-      );
-
-      const key = await crypto.subtle.deriveKey(
-        { name: 'PBKDF2', salt: saltBytes, iterations: 100000, hash: 'SHA-256' },
-        keyMaterial,
-        { name: 'AES-GCM', length: 256 },
-        false,
-        ['encrypt']
-      );
-
-      const cipherBuffer = await crypto.subtle.encrypt(
-        { name: 'AES-GCM', iv: ivBytes },
-        key,
-        enc.encode(payloadStr)
-      );
-
       const toBase64 = (buf: ArrayBuffer) => btoa(String.fromCharCode(...new Uint8Array(buf)));
+      let encryptedBlob = '';
 
-      const encryptedBlob = JSON.stringify({
-        iv: toBase64(ivBytes.buffer),
-        salt: toBase64(saltBytes.buffer),
-        ciphertext: toBase64(cipherBuffer),
-        timestamp: new Date().toISOString(),
-      });
+      if (typeof crypto !== 'undefined' && crypto?.subtle?.importKey) {
+        const keyMaterial = await crypto.subtle.importKey(
+          'raw',
+          keySourceMaterial as unknown as BufferSource,
+          'PBKDF2',
+          false,
+          ['deriveKey']
+        );
+
+        const key = await crypto.subtle.deriveKey(
+          { name: 'PBKDF2', salt: saltBytes, iterations: 100000, hash: 'SHA-256' },
+          keyMaterial,
+          { name: 'AES-GCM', length: 256 },
+          false,
+          ['encrypt']
+        );
+
+        const cipherBuffer = await crypto.subtle.encrypt(
+          { name: 'AES-GCM', iv: ivBytes },
+          key,
+          enc.encode(payloadStr)
+        );
+
+        encryptedBlob = JSON.stringify({
+          iv: toBase64(ivBytes.buffer),
+          salt: toBase64(saltBytes.buffer),
+          ciphertext: toBase64(cipherBuffer),
+          timestamp: new Date().toISOString(),
+        });
+      } else {
+        const saltWA = CryptoJS.lib.WordArray.create(saltBytes as any);
+        const ivWA = CryptoJS.lib.WordArray.create(ivBytes as any);
+        const keyMaterialWA = CryptoJS.lib.WordArray.create(keySourceMaterial as any);
+
+        const derivedKey = CryptoJS.PBKDF2(keyMaterialWA, saltWA, {
+          keySize: 256 / 32,
+          iterations: 100000,
+          hasher: CryptoJS.algo.SHA256,
+        });
+
+        const encrypted = CryptoJS.AES.encrypt(payloadStr, derivedKey, {
+          iv: ivWA,
+          mode: CryptoJS.mode.CBC,
+          padding: CryptoJS.pad.Pkcs7,
+        });
+
+        encryptedBlob = JSON.stringify({
+          iv: toBase64(ivBytes.buffer),
+          salt: toBase64(saltBytes.buffer),
+          ciphertext: encrypted.toString(),
+          timestamp: new Date().toISOString(),
+        });
+      }
 
       await FileSystem.makeDirectoryAsync(BACKUP_DIR, { intermediates: true });
       await FileSystem.writeAsStringAsync(PRE_MIGRATION_SNAPSHOT_PATH, encryptedBlob, { 

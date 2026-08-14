@@ -5,13 +5,22 @@
 // ================================================================
 
 import { getDeviceId } from '@/utils/deviceId';
+import * as Crypto from 'expo-crypto';
 
 export async function getDeviceDerivedKeyMaterial(): Promise<Uint8Array> {
   const deviceId = await getDeviceId();
-  const enc = new TextEncoder();
-  const raw = await crypto.subtle.digest(
-    'SHA-256',
-    enc.encode('vjbilling_device_key_v1:' + deviceId)
+  if (typeof crypto !== 'undefined' && crypto?.subtle?.digest) {
+    const enc = new TextEncoder();
+    const raw = await crypto.subtle.digest(
+      'SHA-256',
+      enc.encode('vjbilling_device_key_v1:' + deviceId)
+    );
+    return new Uint8Array(raw);
+  }
+  const hexHash = await Crypto.digestStringAsync(
+    Crypto.CryptoDigestAlgorithm.SHA256,
+    'vjbilling_device_key_v1:' + deviceId
   );
-  return new Uint8Array(raw);
+  const enc = new TextEncoder();
+  return enc.encode(hexHash);
 }

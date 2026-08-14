@@ -23,12 +23,13 @@ type DesignRowProps = {
   categoryName?: string;
   isLowStock: boolean;
   currentThreshold: number | null;
+  colors: ReturnType<typeof getThemeColors>;
   onPress: (designId: string, designName: string, purityPercent: number) => void;
   onOpenLowStockModal: (designId: string, designName: string, currentThreshold: number | null) => void;
 };
 
-const DesignRow = memo(({ item, categoryName, isLowStock, currentThreshold, onPress, onOpenLowStockModal }: DesignRowProps) => {
-  const metalColor = item.metal === 'GOLD' ? COLORS.gold : COLORS.silver;
+const DesignRow = memo(({ item, categoryName, isLowStock, currentThreshold, colors, onPress, onOpenLowStockModal }: DesignRowProps) => {
+  const metalColor = item.metal === 'GOLD' ? (colors.vjAccent || COLORS.gold) : COLORS.silver;
 
   // Format Purity in both Karat and Percentage: e.g. "22K (91.6%)" or "92.5%"
   const purityFull = item.purityKarat 
@@ -42,30 +43,36 @@ const DesignRow = memo(({ item, categoryName, isLowStock, currentThreshold, onPr
         try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch (e) {}
         onPress(item.designId, item.designName, item.purityPercent);
       }}
-      activeOpacity={0.7}
-      style={s.card}
+      activeOpacity={0.75}
+      style={[
+        s.card,
+        {
+          backgroundColor: '#FFFFFF',
+          borderColor: colors.border || 'rgba(92, 22, 35, 0.1)',
+        }
+      ]}
     >
       <View style={[s.metalStripe, { backgroundColor: metalColor }]} />
 
-      {/* SVG JEWELRY ICON BADGE CONTAINER (MATCHING DRILL DOWN) */}
-      <View style={s.metalBadge}>
-        {getJewelryCategoryIcon(categoryName, item.designName, item.metal, 22, COLORS.vjAccent)}
+      {/* SVG JEWELRY ICON BADGE CONTAINER */}
+      <View style={[s.metalBadge, { backgroundColor: `${colors.vjAccent}1A`, borderColor: `${colors.vjAccent}40` }]}>
+        {getJewelryCategoryIcon(categoryName, item.designName, item.metal, 22, colors.vjAccent)}
       </View>
 
       <View style={s.cardBody}>
-        {/* TOP ROW: DESIGN NAME & PURITY BADGE (KARAT + PERCENTAGE IN FRONT OF NAME) */}
+        {/* TOP ROW: DESIGN NAME & PURITY BADGE */}
         <View style={s.titleRow}>
-          <Text style={s.designName} numberOfLines={1}>{item.designName}</Text>
+          <Text style={[s.designName, { color: colors.vjText }]} numberOfLines={1}>{item.designName}</Text>
           <View style={[s.metalPill, { borderColor: metalColor, backgroundColor: `${metalColor}12` }]}>
             <Text style={[s.metalPillText, { color: metalColor }]}>{purityFull}</Text>
           </View>
         </View>
 
-        {/* METRICS ROW: NET WEIGHT & LOW STOCK BELL PILL (SIDE BY SIDE) */}
+        {/* METRICS ROW: NET WEIGHT & LOW STOCK BELL PILL */}
         <View style={s.metaRow}>
-          <View style={s.weightBadge}>
-            <Scale size={11} color={COLORS.vjAccent} />
-            <Text style={s.weightText}>Net: {formatWeight(item.totalNetWeightMg)}</Text>
+          <View style={[s.weightBadge, { backgroundColor: `${colors.vjAccent}14`, borderColor: `${colors.vjAccent}35` }]}>
+            <Scale size={11} color={colors.vjAccent} />
+            <Text style={[s.weightText, { color: colors.vjText }]}>Net: {formatWeight(item.totalNetWeightMg)}</Text>
           </View>
 
           <TouchableOpacity
@@ -78,16 +85,19 @@ const DesignRow = memo(({ item, categoryName, isLowStock, currentThreshold, onPr
             activeOpacity={0.7}
             style={[
               s.lowStockPill,
+              { borderColor: colors.border },
               isLowStock && s.lowStockPillActive,
             ]}
           >
             <Bell 
               size={12} 
-              color={isLowStock ? '#D97706' : (currentThreshold !== null ? '#B45309' : 'rgba(92,22,35,0.4)')} 
-              fill={isLowStock ? '#F59E0B' : (currentThreshold !== null ? 'rgba(245,158,11,0.2)' : 'none')}
+              color={isLowStock ? '#D97706' : (currentThreshold !== null ? colors.vjAccent : colors.vjText)} 
+              fill={isLowStock ? '#F59E0B' : (currentThreshold !== null ? `${colors.vjAccent}33` : 'none')}
+              style={{ opacity: isLowStock ? 1 : 0.6 }}
             />
             <Text style={[
               s.lowStockPillText,
+              { color: colors.vjText },
               isLowStock && s.lowStockPillTextActive,
             ]}>
               {isLowStock ? 'Low Stock' : (currentThreshold !== null ? `Min: ${currentThreshold}` : 'Limit')}
@@ -96,12 +106,12 @@ const DesignRow = memo(({ item, categoryName, isLowStock, currentThreshold, onPr
         </View>
       </View>
 
-      <View style={s.countBadge}>
-        <Text style={s.countText}>{item.availableCount}</Text>
-        <Text style={s.countLabel}>items</Text>
+      <View style={[s.countBadge, { backgroundColor: '#FFFFFF', borderColor: `${colors.vjAccent}35` }]}>
+        <Text style={[s.countText, { color: colors.vjText }]}>{item.availableCount}</Text>
+        <Text style={[s.countLabel, { color: colors.vjText, opacity: 0.5 }]}>items</Text>
       </View>
 
-      <ChevronRight size={18} color="rgba(92,22,35,0.25)" />
+      <ChevronRight size={18} color={colors.vjAccent} style={{ opacity: 0.5 }} />
     </TouchableOpacity>
   );
 });
@@ -119,6 +129,10 @@ export default function CategoryItemsScreen() {
   const [thresholdInput, setThresholdInput] = useState('');
   const [inputError, setInputError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Reactive theme subscription
+  const activeTheme = appSettingsStore((s: any) => s.theme);
+  const colors = getThemeColors(activeTheme);
 
   const loadData = useCallback(async () => {
     if (!activeFirmId || !categoryId) return;
@@ -211,9 +225,6 @@ export default function CategoryItemsScreen() {
   const totalItems = data.reduce((sum, i) => sum + i.availableCount, 0);
   const totalWeightMg = data.reduce((sum, i) => sum + i.totalNetWeightMg, 0);
 
-  const activeTheme = appSettingsStore((s: any) => s.theme);
-  const colors = getThemeColors(activeTheme);
-
   const categoryHeaderPills = (
     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginTop: 4 }}>
       <HeaderPill icon={<Package size={12} color={colors.vjBg} />} label={`${totalItems} Items`} />
@@ -226,8 +237,8 @@ export default function CategoryItemsScreen() {
       <View style={s.listContainer}>
         {loading ? (
           <View style={s.loadingContainer}>
-            <ActivityIndicator size="large" color={COLORS.vjAccent} />
-            <Text style={s.loadingText}>Loading designs...</Text>
+            <ActivityIndicator size="large" color={colors.vjAccent} />
+            <Text style={[s.loadingText, { color: colors.vjText }]}>Loading designs...</Text>
           </View>
         ) : (
           <FlashList
@@ -239,6 +250,7 @@ export default function CategoryItemsScreen() {
                 categoryName={categoryName}
                 isLowStock={lowStockDesignIds.has(item.designId)}
                 currentThreshold={designThresholds[item.designId] ?? null}
+                colors={colors}
                 onPress={handleDesignPress} 
                 onOpenLowStockModal={handleOpenLowStockModal}
               />
@@ -249,9 +261,9 @@ export default function CategoryItemsScreen() {
             showsVerticalScrollIndicator={false}
             ListEmptyComponent={
               <View style={s.emptyContainer}>
-                <Layers size={48} color="rgba(92,22,35,0.2)" />
-                <Text style={s.emptyTitle}>No Designs Found</Text>
-                <Text style={s.emptySubtitle}>This category has no available stock</Text>
+                <Layers size={48} color={colors.vjAccent} style={{ opacity: 0.3 }} />
+                <Text style={[s.emptyTitle, { color: colors.vjText }]}>No Designs Found</Text>
+                <Text style={[s.emptySubtitle, { color: colors.vjText, opacity: 0.5 }]}>This category has no available stock</Text>
               </View>
             }
           />
@@ -260,24 +272,24 @@ export default function CategoryItemsScreen() {
 
       <Modal visible={!!selectedDesign} transparent animationType="fade">
         <View style={s.modalOverlay}>
-          <View style={s.modalCard}>
+          <View style={[s.modalCard, { backgroundColor: colors.vjBg, borderColor: colors.border }]}>
             <View style={s.modalHeader}>
               <View style={s.modalTitleRow}>
-                <Bell size={20} color={COLORS.vjAccent} />
-                <Text style={s.modalTitle}>Set Low Stock Alert</Text>
+                <Bell size={20} color={colors.vjAccent} />
+                <Text style={[s.modalTitle, { color: colors.vjText }]}>Set Low Stock Alert</Text>
               </View>
               <TouchableOpacity onPress={() => setSelectedDesign(null)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                <X size={20} color="rgba(92,22,35,0.4)" />
+                <X size={20} color={colors.vjText} style={{ opacity: 0.5 }} />
               </TouchableOpacity>
             </View>
 
-            <Text style={s.modalSubtitle}>
-              Design: <Text style={{ fontWeight: '700', color: COLORS.vjText }}>{selectedDesign?.name}</Text>
+            <Text style={[s.modalSubtitle, { color: colors.vjText, opacity: 0.7 }]}>
+              Design: <Text style={{ fontWeight: '700', color: colors.vjText }}>{selectedDesign?.name}</Text>
             </Text>
 
-            <Text style={s.label}>Alert Threshold (Available Count)</Text>
+            <Text style={[s.label, { color: colors.vjText, opacity: 0.7 }]}>Alert Threshold (Available Count)</Text>
             <TextInput
-              style={[s.input, !!inputError && s.inputErrorBorder]}
+              style={[s.input, { color: colors.vjText, borderColor: colors.border }, !!inputError && s.inputErrorBorder]}
               value={thresholdInput}
               onChangeText={(text) => {
                 setThresholdInput(text);
@@ -326,12 +338,10 @@ const s = StyleSheet.create({
   card: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FFFFFF',
     marginBottom: 12,
     borderRadius: 16,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: 'rgba(92, 22, 35, 0.08)',
     paddingRight: 14,
     gap: 10,
     shadowColor: '#000',
@@ -348,9 +358,7 @@ const s = StyleSheet.create({
     width: 42,
     height: 42,
     borderRadius: 12,
-    backgroundColor: 'rgba(212,175,55,0.12)',
     borderWidth: 1,
-    borderColor: 'rgba(212,175,55,0.3)',
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -359,7 +367,6 @@ const s = StyleSheet.create({
     paddingVertical: 14,
   },
   designName: {
-    color: COLORS.vjText,
     fontWeight: '800',
     fontSize: 15,
   },
@@ -379,22 +386,22 @@ const s = StyleSheet.create({
     paddingVertical: 3,
     borderRadius: 6,
     borderWidth: 1,
-    borderColor: 'rgba(92,22,35,0.12)',
   },
   lowStockPillActive: {
     backgroundColor: 'rgba(245, 158, 11, 0.15)',
     borderColor: 'rgba(245, 158, 11, 0.4)',
   },
   lowStockPillText: {
-    color: 'rgba(92,22,35,0.6)',
     fontSize: 10,
     fontWeight: '700',
     letterSpacing: 0.3,
+    opacity: 0.7,
   },
   lowStockPillTextActive: {
     color: '#D97706',
     fontWeight: '800',
     textTransform: 'uppercase',
+    opacity: 1,
   },
   metaRow: {
     flexDirection: 'row',
@@ -421,31 +428,24 @@ const s = StyleSheet.create({
     paddingHorizontal: 9,
     paddingVertical: 3,
     borderRadius: 6,
-    backgroundColor: 'rgba(212,175,55,0.12)',
     borderWidth: 1,
-    borderColor: 'rgba(212,175,55,0.28)',
   },
   weightText: {
-    color: COLORS.vjText,
     fontSize: 11,
     fontWeight: '800',
   },
   countBadge: {
     alignItems: 'center',
-    backgroundColor: 'rgba(255,255,255,0.7)',
     paddingHorizontal: 10,
     paddingVertical: 6,
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: 'rgba(212,175,55,0.25)',
   },
   countText: {
-    color: COLORS.vjText,
     fontSize: 16,
     fontWeight: '900',
   },
   countLabel: {
-    color: 'rgba(92,22,35,0.45)',
     fontSize: 9,
     fontWeight: '700',
     textTransform: 'uppercase',
@@ -458,9 +458,9 @@ const s = StyleSheet.create({
     gap: 12,
   },
   loadingText: {
-    color: 'rgba(92,22,35,0.4)',
     fontSize: 14,
     fontWeight: '600',
+    opacity: 0.6,
   },
   emptyContainer: {
     alignItems: 'center',
@@ -468,12 +468,11 @@ const s = StyleSheet.create({
     gap: 8,
   },
   emptyTitle: {
-    color: 'rgba(92,22,35,0.5)',
     fontSize: 18,
     fontWeight: '700',
+    opacity: 0.7,
   },
   emptySubtitle: {
-    color: 'rgba(92,22,35,0.35)',
     fontSize: 13,
   },
   modalOverlay: {
@@ -485,11 +484,9 @@ const s = StyleSheet.create({
   },
   modalCard: {
     width: '100%',
-    backgroundColor: '#FCFAF8',
     borderRadius: 24,
     padding: 24,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.8)',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 10 },
     shadowOpacity: 0.15,
@@ -510,17 +507,14 @@ const s = StyleSheet.create({
   modalTitle: {
     fontSize: 18,
     fontWeight: '800',
-    color: COLORS.vjText,
   },
   modalSubtitle: {
     fontSize: 13,
-    color: 'rgba(92,22,35,0.6)',
     marginBottom: 20,
   },
   label: {
     fontSize: 12,
     fontWeight: '700',
-    color: 'rgba(92,22,35,0.7)',
     marginBottom: 6,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
@@ -528,13 +522,11 @@ const s = StyleSheet.create({
   input: {
     backgroundColor: '#FFFFFF',
     borderWidth: 1,
-    borderColor: 'rgba(92,22,35,0.15)',
     borderRadius: 12,
     paddingHorizontal: 16,
     paddingVertical: 12,
     fontSize: 16,
     fontWeight: '600',
-    color: COLORS.vjText,
     marginBottom: 12,
   },
   inputErrorBorder: {

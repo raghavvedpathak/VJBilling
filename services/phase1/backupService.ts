@@ -12,6 +12,7 @@ import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 import * as Haptics from 'expo-haptics';
 import { Platform } from 'react-native';
+import CryptoJS from 'crypto-js';
 import { storage } from '@/utils/storage';
 import { db } from '@/db/client';
 import { 
@@ -147,44 +148,24 @@ export const backupService = {
         };
       });
 
+      const iterations = password ? 100000 : 1000;
+
       const envelope = { 
         schemaVersion: SCHEMA_VERSION, 
         appVersion: APP_VERSION,
         exportedAt: new Date().toISOString(), 
         deviceId: await getDeviceId(), 
         encryptionVersion: 2 as const,
-        passwordProtected: !!password
+        passwordProtected: !!password,
+        iterations,
       };
 
       const payloadStr = JSON.stringify(payload);
       const enc = new TextEncoder();
       const keySourceMaterial = password ? enc.encode(password) : await getCanonicalBackupKeyMaterial();
 
-      // WebCrypto AES-256-GCM Key Derivation & Encryption
       const saltBytes = crypto.getRandomValues(new Uint8Array(16));
-      const ivBytes = crypto.getRandomValues(new Uint8Array(12)); // 12-byte IV for AES-GCM
-
-      const keyMaterial = await crypto.subtle.importKey(
-        'raw',
-        keySourceMaterial as any,
-        'PBKDF2',
-        false,
-        ['deriveKey']
-      );
-
-      const key = await crypto.subtle.deriveKey(
-        { name: 'PBKDF2', salt: saltBytes, iterations: 100000, hash: 'SHA-256' },
-        keyMaterial,
-        { name: 'AES-GCM', length: 256 },
-        false,
-        ['encrypt']
-      );
-
-      const cipherBuffer = await crypto.subtle.encrypt(
-        { name: 'AES-GCM', iv: ivBytes },
-        key,
-        enc.encode(payloadStr)
-      );
+      const ivBytes = crypto.getRandomValues(new Uint8Array(12));
 
       const toBase64 = (u8: Uint8Array) => {
         let binary = '';
@@ -194,12 +175,61 @@ export const backupService = {
         return btoa(binary);
       };
 
-      const encryptedBlob = JSON.stringify({
-        ...envelope,
-        iv: toBase64(ivBytes),
-        salt: toBase64(saltBytes),
-        ciphertext: toBase64(new Uint8Array(cipherBuffer)),
-      });
+      let encryptedBlob = '';
+
+      if (typeof crypto !== 'undefined' && crypto?.subtle?.importKey) {
+        const keyMaterial = await crypto.subtle.importKey(
+          'raw',
+          keySourceMaterial as any,
+          'PBKDF2',
+          false,
+          ['deriveKey']
+        );
+
+        const key = await crypto.subtle.deriveKey(
+          { name: 'PBKDF2', salt: saltBytes, iterations, hash: 'SHA-256' },
+          keyMaterial,
+          { name: 'AES-GCM', length: 256 },
+          false,
+          ['encrypt']
+        );
+
+        const cipherBuffer = await crypto.subtle.encrypt(
+          { name: 'AES-GCM', iv: ivBytes },
+          key,
+          enc.encode(payloadStr)
+        );
+
+        encryptedBlob = JSON.stringify({
+          ...envelope,
+          iv: toBase64(ivBytes),
+          salt: toBase64(saltBytes),
+          ciphertext: toBase64(new Uint8Array(cipherBuffer)),
+        });
+      } else {
+        const saltWA = CryptoJS.lib.WordArray.create(saltBytes as any);
+        const ivWA = CryptoJS.lib.WordArray.create(ivBytes as any);
+        const keyMaterialWA = CryptoJS.lib.WordArray.create(keySourceMaterial as any);
+
+        const derivedKey = CryptoJS.PBKDF2(keyMaterialWA, saltWA, {
+          keySize: 256 / 32,
+          iterations: iterations,
+          hasher: CryptoJS.algo.SHA256,
+        });
+
+        const encrypted = CryptoJS.AES.encrypt(payloadStr, derivedKey, {
+          iv: ivWA,
+          mode: CryptoJS.mode.CBC,
+          padding: CryptoJS.pad.Pkcs7,
+        });
+
+        encryptedBlob = JSON.stringify({
+          ...envelope,
+          iv: toBase64(ivBytes),
+          salt: toBase64(saltBytes),
+          ciphertext: encrypted.toString(),
+        });
+      }
 
       const timestamp = envelope.exportedAt.replace(/[:.]/g, '-').replace('T', '_').substring(0, 19);
       const fileName = `vjbilling_${timestamp}.vjb`;
@@ -221,18 +251,37 @@ export const backupService = {
           }
 
           if (parentUri) {
-            const vjBillingUri = await getOrCreateSAFDirectory(parentUri, 'VJBilling');
-            const backupsUri = await getOrCreateSAFDirectory(vjBillingUri, 'backups');
-            const safFileUri = await (FileSystem as any).StorageAccessFramework.createFileAsync(backupsUri, fileName, 'application/octet-stream');
-            await FileSystem.writeAsStringAsync(safFileUri, encryptedBlob, { encoding: FileSystem.EncodingType?.UTF8 ?? ('utf8' as any) });
-            filePath = safFileUri;
-            isPublicSaved = true;
-            console.log('[Backup] Saved directly to public SAF folder:', filePath);
+            let backupsUri = storage.getString('vjbilling_android_backups_dir_uri');
+            if (!backupsUri) {
+              const vjBillingUri = await getOrCreateSAFDirectory(parentUri, 'VJBilling');
+              backupsUri = await getOrCreateSAFDirectory(vjBillingUri, 'backups');
+              if (backupsUri) {
+                storage.set('vjbilling_android_backups_dir_uri', backupsUri);
+              }
+            }
+            try {
+              const safFileUri = await (FileSystem as any).StorageAccessFramework.createFileAsync(backupsUri, fileName, 'application/octet-stream');
+              await FileSystem.writeAsStringAsync(safFileUri, encryptedBlob, { encoding: FileSystem.EncodingType?.UTF8 ?? ('utf8' as any) });
+              filePath = safFileUri;
+              isPublicSaved = true;
+              console.log('[Backup] Saved directly to public SAF folder:', filePath);
+            } catch (createErr) {
+              // Cache retry fallback if directory was changed or revoked
+              storage.delete('vjbilling_android_backups_dir_uri');
+              const vjBillingUri = await getOrCreateSAFDirectory(parentUri, 'VJBilling');
+              backupsUri = await getOrCreateSAFDirectory(vjBillingUri, 'backups');
+              storage.set('vjbilling_android_backups_dir_uri', backupsUri);
+              const safFileUri = await (FileSystem as any).StorageAccessFramework.createFileAsync(backupsUri, fileName, 'application/octet-stream');
+              await FileSystem.writeAsStringAsync(safFileUri, encryptedBlob, { encoding: FileSystem.EncodingType?.UTF8 ?? ('utf8' as any) });
+              filePath = safFileUri;
+              isPublicSaved = true;
+            }
           }
         } catch (androidError) {
           console.warn('[Backup] Android SAF direct write failed, falling back to Sharing:', androidError);
           try {
             storage.delete('vjbilling_android_backup_dir_uri');
+            storage.delete('vjbilling_android_backups_dir_uri');
           } catch {}
         }
       }
