@@ -79,7 +79,7 @@ export function TwoToneWrapper({ title, children, showBack, actionIcon, onAction
         <View className="flex-1 rounded-t-[32px] overflow-hidden" style={{ backgroundColor: colors.vjBg }}>
           <DynamicBackground />
           <KeyboardAvoidingView
-            behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
             className="flex-1 w-full max-w-[800px] self-center px-4 pt-4"
             style={{ paddingBottom: Math.max(insets.bottom, 16) }}
           >

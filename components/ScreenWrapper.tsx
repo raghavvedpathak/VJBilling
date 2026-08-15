@@ -1,7 +1,7 @@
 // components/ScreenWrapper.tsx — Phase 2 v2.11 Canonical Component
 
 import React from 'react';
-import { View, Text, StatusBar, TouchableOpacity } from 'react-native';
+import { View, Text, StatusBar, TouchableOpacity, KeyboardAvoidingView, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { ChevronLeft } from 'lucide-react-native';
@@ -80,7 +80,12 @@ export function ScreenWrapper({
           {headerContent && <View className="mb-4">{headerContent}</View>}
 
           {/* BODY CONTENT */}
-          {children}
+          <KeyboardAvoidingView
+            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+            className="flex-1 w-full"
+          >
+            {children}
+          </KeyboardAvoidingView>
         </View>
       </SafeAreaView>
     </View>

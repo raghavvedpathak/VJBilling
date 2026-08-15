@@ -54,8 +54,8 @@ export function GlassPickerModal({
   }, [visible]);
 
   const filteredOptions = useMemo(() => {
-    if (!searchQuery.trim()) return options;
     const query = searchQuery.toLowerCase().trim();
+    if (!query) return [];
     return options.filter(
       (opt) =>
         opt.label.toLowerCase().includes(query) ||
@@ -63,6 +63,11 @@ export function GlassPickerModal({
         (opt.badge && opt.badge.toLowerCase().includes(query))
     );
   }, [options, searchQuery]);
+
+  const selectedOption = useMemo(() => {
+    if (!selectedId) return null;
+    return options.find((opt) => opt.id === selectedId) || null;
+  }, [options, selectedId]);
 
   const handleSelect = (option: GlassPickerOption | null) => {
     try {
@@ -74,10 +79,12 @@ export function GlassPickerModal({
 
   if (!visible) return null;
 
+  const isQueryEmpty = searchQuery.trim().length === 0;
+
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <KeyboardAvoidingView 
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined} 
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'} 
         style={styles.overlay}
       >
         <TouchableOpacity style={styles.backdrop} activeOpacity={1} onPress={onClose} />
@@ -90,7 +97,9 @@ export function GlassPickerModal({
               <View style={styles.headerTitleRow}>
                 <Text style={styles.headerTitle}>{title}</Text>
                 <View style={styles.countBadge}>
-                  <Text style={styles.countText}>{filteredOptions.length}</Text>
+                  <Text style={styles.countText}>
+                    {isQueryEmpty ? `${options.length} total` : `${filteredOptions.length} found`}
+                  </Text>
                 </View>
               </View>
               <TouchableOpacity onPress={onClose} style={styles.closeBtn} activeOpacity={0.7}>
@@ -107,6 +116,7 @@ export function GlassPickerModal({
                 placeholderTextColor="rgba(92,22,35,0.4)"
                 value={searchQuery}
                 onChangeText={setSearchQuery}
+                autoFocus
                 autoCorrect={false}
                 clearButtonMode="while-editing"
               />
@@ -125,20 +135,42 @@ export function GlassPickerModal({
               showsVerticalScrollIndicator={true}
               contentContainerStyle={{ paddingBottom: 32 }}
               ListHeaderComponent={
-                allowClear && selectedId !== null ? (
-                  <TouchableOpacity
-                    style={styles.clearOptionRow}
-                    onPress={() => handleSelect(null)}
-                    activeOpacity={0.7}
-                  >
-                    <Text style={styles.clearOptionText}>Clear Selection</Text>
-                  </TouchableOpacity>
+                allowClear && selectedId !== null && isQueryEmpty ? (
+                  <View style={{ marginBottom: 12 }}>
+                    {selectedOption && (
+                      <View style={[styles.optionRow, styles.optionRowSelected, { marginBottom: 8 }]}>
+                        <View style={styles.optionTextContainer}>
+                          <Text style={{ fontSize: 11, fontWeight: '800', color: 'rgba(146, 64, 14, 0.7)', textTransform: 'uppercase', marginBottom: 2 }}>
+                            Current Selection
+                          </Text>
+                          <Text style={styles.optionLabelSelected}>{selectedOption.label}</Text>
+                        </View>
+                        <Check size={18} color="#D4AF37" />
+                      </View>
+                    )}
+                    <TouchableOpacity
+                      style={styles.clearOptionRow}
+                      onPress={() => handleSelect(null)}
+                      activeOpacity={0.7}
+                    >
+                      <Text style={styles.clearOptionText}>Clear Selection</Text>
+                    </TouchableOpacity>
+                  </View>
                 ) : null
               }
               ListEmptyComponent={
-                <View style={styles.emptyState}>
-                  <Text style={styles.emptyText}>No matching options found</Text>
-                </View>
+                isQueryEmpty ? (
+                  <View style={styles.emptyState}>
+                    <Search size={32} color="rgba(92,22,35,0.25)" style={{ marginBottom: 8 }} />
+                    <Text style={styles.emptyTitle}>Type to Search</Text>
+                    <Text style={styles.emptySubtitle}>Start typing to search {title.toLowerCase()}</Text>
+                  </View>
+                ) : (
+                  <View style={styles.emptyState}>
+                    <Text style={styles.emptyTitle}>No matching options</Text>
+                    <Text style={styles.emptySubtitle}>No {title.toLowerCase()} match "{searchQuery}"</Text>
+                  </View>
+                )
               }
               renderItem={({ item }) => {
                 const isSelected = item.id === selectedId;
@@ -327,12 +359,18 @@ const styles = StyleSheet.create({
     marginLeft: 4,
   },
   emptyState: {
-    paddingVertical: 32,
+    paddingVertical: 40,
     alignItems: 'center',
   },
-  emptyText: {
-    fontSize: 14,
-    color: 'rgba(92, 22, 35, 0.5)',
+  emptyTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: COLORS.vjText,
+    marginBottom: 4,
+  },
+  emptySubtitle: {
+    fontSize: 13,
     fontWeight: '600',
+    color: 'rgba(92, 22, 35, 0.4)',
   },
 });
