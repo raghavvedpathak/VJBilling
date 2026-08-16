@@ -279,91 +279,106 @@ export default function EditFirmScreen() {
   // Transparent Glass Logo Picker
   const hasBisLicence = Boolean(form.bisLicence && form.bisLicence.trim());
 
-  const headerLogoPicker = (
-    <View className="flex-row items-center justify-center gap-5 pb-3 pt-1">
-      {/* 1. FIRM BRAND LOGO */}
-      <View className="items-center">
-        <TouchableOpacity
-          onPress={() => pickImage('logoUri')}
-          activeOpacity={0.8}
-          className="h-24 w-24 rounded-2xl justify-center items-center overflow-hidden border-2 border-white/30 shadow-xs mb-1.5 bg-white/10"
-        >
-          {form.logoUri ? (
-            <Image 
-              source={{ uri: form.logoUri }} 
-              style={{ width: '100%', height: '100%' }}
-              resizeMode="cover"
-              onError={() => {
-                console.warn('[FirmEdit] Failed to load firm logo thumbnail. Dead URI.');
-                setForm((prev: typeof form) => ({ ...prev, logoUri: null }));
-              }} 
-            />
-          ) : (
-            <View className="w-full h-full justify-center items-center bg-black/20">
-              <View className="items-center justify-center">
-                <ImagePlus size={22} color="#FCFBF8" />
-                <Text className="text-[9px] text-white/80 font-black tracking-widest uppercase mt-1 text-center px-1">
-                  NO LOGO
-                </Text>
-              </View>
-            </View>
-          )}
-        </TouchableOpacity>
-        
-        <TouchableOpacity onPress={() => pickImage('logoUri')} className="px-3 py-1 rounded-full border border-white/30">
-          <Text className="text-[10px] text-white font-bold tracking-widest uppercase">
-            {form.logoUri ? "CHANGE LOGO" : "UPLOAD LOGO"}
-          </Text>
-        </TouchableOpacity>
-      </View>
-
-      {/* 2. BIS HALLMARK LOGO (APPEARS ONLY WHEN BIS LICENCE NO IS ADDED) */}
-      {hasBisLicence && (
-        <View className="items-center">
-          <TouchableOpacity
-            onPress={() => pickImage('bisLogoUri')}
-            activeOpacity={0.8}
-            className="h-24 w-24 rounded-2xl justify-center items-center overflow-hidden border-2 border-amber-400/40 shadow-xs mb-1.5 bg-white/10 p-2"
-          >
-            {form.bisLogoUri ? (
-              <Image
-                source={{ uri: form.bisLogoUri }}
-                style={{ width: '100%', height: '100%' }}
-                resizeMode="contain"
-                onError={() => {
-                  console.warn('[FirmEdit] Failed to load BIS logo thumbnail. Dead URI.');
-                  setForm((prev: typeof form) => ({ ...prev, bisLogoUri: null }));
-                }}
-              />
-            ) : (
-              <View className="items-center justify-center">
-                <ShieldCheck size={24} color="#D4AF37" />
-                <Text className="text-[9px] text-amber-200 font-bold uppercase mt-1 text-center">
-                  BIS LOGO
-                </Text>
-              </View>
-            )}
-          </TouchableOpacity>
-          
-          <TouchableOpacity onPress={() => pickImage('bisLogoUri')} className="px-3 py-1 rounded-full border border-amber-400/40">
-            <Text className="text-[10px] text-amber-200 font-bold tracking-widest uppercase">
-              {form.bisLogoUri ? "CHANGE BIS" : "UPLOAD BIS"}
-            </Text>
-          </TouchableOpacity>
-        </View>
-      )}
-    </View>
-  );
-
   return (
-    <TwoToneWrapper title="Edit Firm" showBack headerContent={headerLogoPicker}>
+    <TwoToneWrapper title="Edit Firm" showBack>
       <View style={{ flex: 1 }}>
         <ScrollView 
           showsVerticalScrollIndicator={false} 
           keyboardShouldPersistTaps="handled" 
           keyboardDismissMode="on-drag"
-          contentContainerStyle={{ paddingBottom: 110, paddingTop: 24, paddingHorizontal: 14 }}
+          contentContainerStyle={{ paddingBottom: 160, paddingTop: 16, paddingHorizontal: 14 }}
         >
+          {/* CARD 0: STORE LOGO & BIS CERTIFICATION */}
+          <GlassCard>
+            <View className="flex-row items-center gap-2 mb-4 pb-2.5 border-b border-vj-text/10">
+              <View className="bg-amber-500/15 p-2 rounded-xl border border-amber-500/25">
+                <ImagePlus size={18} color="#D4AF37" />
+              </View>
+              <Text className="text-vj-text font-black text-sm uppercase tracking-wider">
+                Store Emblems & Logos
+              </Text>
+            </View>
+
+            <View className="flex-row items-center justify-around gap-4 py-2">
+              {/* 1. FIRM BRAND LOGO */}
+              <View className="items-center">
+                <TouchableOpacity
+                  onPress={() => pickImage('logoUri')}
+                  activeOpacity={0.8}
+                  className="h-24 w-24 rounded-2xl justify-center items-center overflow-hidden border-2 border-amber-500/30 shadow-xs mb-2 bg-black/5"
+                >
+                  {form.logoUri ? (
+                    <Image 
+                      source={{ uri: form.logoUri }} 
+                      style={{ width: '100%', height: '100%' }}
+                      resizeMode="cover"
+                      onError={() => {
+                        console.warn('[FirmEdit] Failed to load firm logo thumbnail. Dead URI.');
+                        setForm((prev: typeof form) => ({ ...prev, logoUri: null }));
+                      }} 
+                    />
+                  ) : (
+                    <View className="w-full h-full justify-center items-center bg-black/5">
+                      <View className="items-center justify-center">
+                        <ImagePlus size={22} color="#D4AF37" />
+                        <Text className="text-[9px] text-vj-text/70 font-black tracking-widest uppercase mt-1 text-center px-1">
+                          NO LOGO
+                        </Text>
+                      </View>
+                    </View>
+                  )}
+                </TouchableOpacity>
+                
+                <TouchableOpacity 
+                  onPress={() => pickImage('logoUri')} 
+                  className="px-3 py-1.5 rounded-full bg-amber-500/15 border border-amber-500/30"
+                >
+                  <Text className="text-[10px] text-vj-text font-bold tracking-widest uppercase">
+                    {form.logoUri ? "CHANGE LOGO" : "UPLOAD LOGO"}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+
+              {/* 2. BIS HALLMARK LOGO (APPEARS ONLY WHEN BIS LICENCE NO IS ADDED) */}
+              {hasBisLicence && (
+                <View className="items-center">
+                  <TouchableOpacity
+                    onPress={() => pickImage('bisLogoUri')}
+                    activeOpacity={0.8}
+                    className="h-24 w-24 rounded-2xl justify-center items-center overflow-hidden border-2 border-amber-400/50 shadow-xs mb-2 bg-black/5 p-2"
+                  >
+                    {form.bisLogoUri ? (
+                      <Image
+                        source={{ uri: form.bisLogoUri }}
+                        style={{ width: '100%', height: '100%' }}
+                        resizeMode="contain"
+                        onError={() => {
+                          console.warn('[FirmEdit] Failed to load BIS logo thumbnail. Dead URI.');
+                          setForm((prev: typeof form) => ({ ...prev, bisLogoUri: null }));
+                        }}
+                      />
+                    ) : (
+                      <View className="items-center justify-center">
+                        <ShieldCheck size={24} color="#D4AF37" />
+                        <Text className="text-[9px] text-amber-700 font-bold uppercase mt-1 text-center">
+                          BIS LOGO
+                        </Text>
+                      </View>
+                    )}
+                  </TouchableOpacity>
+                  
+                  <TouchableOpacity 
+                    onPress={() => pickImage('bisLogoUri')} 
+                    className="px-3 py-1.5 rounded-full bg-amber-500/15 border border-amber-400/40"
+                  >
+                    <Text className="text-[10px] text-vj-text font-bold tracking-widest uppercase">
+                      {form.bisLogoUri ? "CHANGE BIS" : "UPLOAD BIS"}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+            </View>
+          </GlassCard>
           {/* CARD 1: STORE PROFILE */}
           <GlassCard>
           <View className="flex-row items-center gap-2 mb-4 pb-2.5 border-b border-vj-text/10">

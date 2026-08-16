@@ -40,6 +40,8 @@ const EVENT_MAPPING: Record<string, string> = {
   'SETTINGS_CHANGED': 'System Preferences Modified',
   'DEVICE_ID_GENERATED': 'New Device Identity Registered',
   'BIS_LOGO_ARCHIVED': 'BIS Logo Removed',
+  'PRE_MIGRATION_SNAPSHOT_CREATED': 'Pre-Migration Snapshot Secured',
+  'PRE_MIGRATION_SNAPSHOT_PURGED': 'Pre-Migration Snapshot Cleaned Up',
   'PRE_MIGRATION_SNAPSHOT_FAILED': 'Pre-Migration Snapshot Failed',
   'AUDIT_RETENTION_PURGE_EXECUTED': 'Audit Log Auto-Cleanup Ran',
   'DEVICE_ID_CHANGED': 'Device Reinstall / Identity Updated',
@@ -191,6 +193,12 @@ function getHumanSummary(eventType: string, payload: Record<string, any>): strin
       return `Safe Mode safety guard was activated. Reason: ${payload.reason || 'System integrity check'}.`;
     case 'SAFE_MODE_CLEARED':
       return `Safe Mode cleared — store database verified healthy.`;
+    case 'PRE_MIGRATION_SNAPSHOT_CREATED':
+      return `Encrypted local snapshot secured safely prior to schema migration.`;
+    case 'PRE_MIGRATION_SNAPSHOT_PURGED':
+      return `Temporary pre-migration snapshot purged after database verification passed.`;
+    case 'PRE_MIGRATION_SNAPSHOT_FAILED':
+      return `Failed to capture pre-migration snapshot: ${payload.error || 'Unknown error'}.`;
     case 'SETTINGS_CHANGED':
       return `Updated system settings (${payload.setting || 'Preferences'}).`;
     case 'PIN_SET':

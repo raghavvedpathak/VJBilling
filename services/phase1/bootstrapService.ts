@@ -25,6 +25,7 @@ import { BACKUP_DIR } from '@/services/phase1/backupService';
 export const PRE_MIGRATION_SNAPSHOT_PATH = BACKUP_DIR + 'vjbilling_premigration_snapshot.enc';
 
 let premigrationSnapshotFailed = false;
+let premigrationSnapshotCreated = false;
 
 export const bootstrapService = {
 
@@ -150,6 +151,7 @@ export const bootstrapService = {
       });
 
       console.log('[Bootstrap] Encrypted Pre-Migration Snapshot secured at:', PRE_MIGRATION_SNAPSHOT_PATH);
+      premigrationSnapshotCreated = true;
 
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e);
@@ -206,6 +208,27 @@ export const bootstrapService = {
 
       // Step 7: Device ID Phase B — write DEVICE_ID_GENERATED audit event if not yet logged
       await auditDeviceIdIfNew();
+
+      // Audit for Step 0 snapshot creation
+      if (premigrationSnapshotCreated) {
+        try {
+          const deviceId = await getDeviceId().catch(() => 'DEV-DEVICE-ID');
+          db.transaction((tx) => {
+            auditRepository.create(
+              {
+                eventType: 'PRE_MIGRATION_SNAPSHOT_CREATED',
+                firmId: null,
+                deviceId,
+                payload: JSON.stringify({ snapshotPath: PRE_MIGRATION_SNAPSHOT_PATH, timestamp: new Date().toISOString() }),
+              },
+              tx
+            );
+          });
+          premigrationSnapshotCreated = false;
+        } catch (auditError) {
+          console.error('[Bootstrap] Failed to write pre-migration snapshot audit log:', auditError);
+        }
+      }
 
       // Deferred audit for Step 0 snapshot failure
       if (premigrationSnapshotFailed) {
@@ -318,11 +341,26 @@ export const bootstrapService = {
       const { status: verifyStatus } = await verifyService.runVerify();
 
       try {
-        await FileSystem.deleteAsync(PRE_MIGRATION_SNAPSHOT_PATH, { idempotent: true });
+        const snapshotInfo = await FileSystem.getInfoAsync(PRE_MIGRATION_SNAPSHOT_PATH);
+        if (snapshotInfo.exists) {
+          await FileSystem.deleteAsync(PRE_MIGRATION_SNAPSHOT_PATH, { idempotent: true });
+          const deviceId = await getDeviceId().catch(() => 'DEV-DEVICE-ID');
+          db.transaction((tx) => {
+            auditRepository.create(
+              {
+                eventType: 'PRE_MIGRATION_SNAPSHOT_PURGED',
+                firmId: null,
+                deviceId,
+                payload: JSON.stringify({ purgedAt: new Date().toISOString() }),
+              },
+              tx
+            );
+          });
+          console.log('[Bootstrap] Cleaned up stale pre-migration snapshot and recorded purge audit event.');
+        }
         if (STORAGE_PATHS.PRE_MIGRATION_SNAPSHOT) {
           await FileSystem.deleteAsync(STORAGE_PATHS.PRE_MIGRATION_SNAPSHOT, { idempotent: true });
         }
-        console.log('[Bootstrap] Cleaned up stale pre-migration snapshot.');
       } catch (cleanupError) {
         console.warn('[Bootstrap] Failed to clean up snapshot (non-fatal):', cleanupError);
       }

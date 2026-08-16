@@ -32,6 +32,8 @@ export type Phase1AuditPayload =
   | { eventType: 'SETTINGS_CHANGED'; fields?: string[]; oldValues?: Record<string, any>; newValues?: Record<string, any> }
   | { eventType: 'DEVICE_ID_GENERATED'; deviceId?: string; generatedAt?: string; deviceName?: string; os?: string }
   | { eventType: 'BIS_LOGO_ARCHIVED'; reason?: string; fileRef?: string }
+  | { eventType: 'PRE_MIGRATION_SNAPSHOT_CREATED'; snapshotPath?: string; timestamp?: string }
+  | { eventType: 'PRE_MIGRATION_SNAPSHOT_PURGED'; purgedAt?: string }
   | { eventType: 'PRE_MIGRATION_SNAPSHOT_FAILED'; error?: string }
   | { eventType: 'AUDIT_RETENTION_PURGE_EXECUTED'; deletedCount?: number; auditRetentionDays?: number; cutoff?: string; executedAt?: string }
   | { eventType: 'DEVICE_ID_CHANGED'; oldDeviceId?: string; newDeviceId?: string; reason?: 'reinstall_or_new_device' }

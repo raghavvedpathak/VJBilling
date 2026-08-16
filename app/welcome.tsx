@@ -134,6 +134,7 @@ export default function WelcomeScreen() {
     <TwoToneWrapper title="" headerContent={welcomeHeader}>
       <ScrollView 
         showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
         contentContainerStyle={{ paddingHorizontal: 8, paddingTop: 16, paddingBottom: 60, flexGrow: 1, justifyContent: 'center' }}
         className="w-full max-w-md self-center"
       >
