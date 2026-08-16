@@ -3,7 +3,6 @@ import { View, Text, TouchableOpacity, ScrollView, Alert, Image, ActivityIndicat
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { BlurView } from 'expo-blur';
 import * as ImagePicker from 'expo-image-picker';
-import { manipulateAsync, SaveFormat } from 'expo-image-manipulator';
 import * as FileSystem from 'expo-file-system/legacy';
 import { TwoToneWrapper } from '@/components/TwoToneWrapper';
 import { firmService } from '@/services/phase1/firmService';
@@ -13,6 +12,7 @@ import { GlassCard, GlassInput, GlassButton } from '@/components/ui/Glass';
 import { Save, Building2, User, MapPin, Hash, Phone, ShieldCheck, ImagePlus, Tag, CheckCircle2, ArrowLeft, ChevronDown, X, Lock } from 'lucide-react-native';
 import { validateGSTIN, formatGSTINInput, getGSTINKeyboardType } from '@/utils/validateGSTIN';
 import { useUnsavedChangesGuard } from '@/hooks/useUnsavedChangesGuard';
+import { processAndSaveFirmImage } from '@/utils/processFirmImage';
 import { COLORS } from '@/constants/theme';
 
 export default function EditFirmScreen() {
@@ -151,47 +151,7 @@ export default function EditFirmScreen() {
     }
 
     if (!result.canceled && result.assets && result.assets.length > 0) {
-      const asset = result.assets[0];
-      let finalUri = asset.uri;
-      
-      const resizeAction = (asset.width > 1024 || asset.height > 1024)
-        ? (asset.width > asset.height ? [{ resize: { width: 1024 } }] : [{ resize: { height: 1024 } }])
-        : [];
-
-      const manipResult = await manipulateAsync(
-        asset.uri,
-        resizeAction,
-        { compress: 0.9, format: SaveFormat.PNG }
-      );
-      finalUri = manipResult.uri;
-
-      const fileInfo = await FileSystem.getInfoAsync(finalUri);
-      if (!fileInfo.exists) return;
-      if (fileInfo.size && fileInfo.size > 2 * 1024 * 1024) {
-        Alert.alert("File Too Large", "Image too large. Please choose a smaller image.");
-        return;
-      }
-
-      const fsAny = FileSystem as any;
-      const docDir = fsAny.documentDirectory ?? fsAny.cacheDirectory ?? '';
-      const logosDir = docDir + 'logos/';
-      await FileSystem.makeDirectoryAsync(logosDir, { intermediates: true });
-      
-      const timeStamp = Date.now();
-      const fileName = field === 'logoUri' ? `firm_${id}_${timeStamp}.png` : `bis_firm_${id}_${timeStamp}.png`;
-      const destPath = logosDir + fileName;
-      
-      const currentUri = form[field];
-      if (currentUri && currentUri !== destPath) {
-        try {
-          await FileSystem.deleteAsync(currentUri, { idempotent: true });
-        } catch (e) {
-          // ignore cleanup error
-        }
-      }
-      
-      await FileSystem.copyAsync({ from: finalUri, to: destPath });
-      setForm(prev => ({ ...prev, [field]: destPath }));
+      setForm(prev => ({ ...prev, [field]: result.assets[0].uri }));
     }
   };
 
@@ -233,8 +193,6 @@ export default function EditFirmScreen() {
           name: form.name,
           proprietor: form.proprietor,
           bisLicence: form.bisLicence || null,
-          bisLogoRef: form.bisLogoUri !== (originalFirm?.bisLogoRef || null) ? form.bisLogoUri : undefined, 
-          firmLogoRef: form.logoUri !== (originalFirm?.firmLogoRef || null) ? form.logoUri : undefined,  
           phone1: form.phone1,
           phone2: form.phone2 || null,
           phone3: form.phone3 || null,
@@ -244,6 +202,27 @@ export default function EditFirmScreen() {
           pincode: form.pincode,
         };
 
+        if (!id) return;
+
+        // Process new images if they changed
+        if (form.logoUri !== (originalFirm?.firmLogoRef || null)) {
+          if (form.logoUri) {
+            const savedLogoPath = await processAndSaveFirmImage(form.logoUri, 'firm', id);
+            if (savedLogoPath) updatePayload.firmLogoRef = savedLogoPath;
+          } else {
+            updatePayload.firmLogoRef = null;
+          }
+        }
+
+        if (form.bisLogoUri !== (originalFirm?.bisLogoRef || null)) {
+          if (form.bisLogoUri) {
+            const savedBisLogoPath = await processAndSaveFirmImage(form.bisLogoUri, 'bis_firm', id);
+            if (savedBisLogoPath) updatePayload.bisLogoRef = savedBisLogoPath;
+          } else {
+            updatePayload.bisLogoRef = null;
+          }
+        }
+
         if (!originalFirm?.gstin) {
           updatePayload.stateCode = form.stateCode;
           updatePayload.stateName = form.stateName;
@@ -252,8 +231,16 @@ export default function EditFirmScreen() {
           }
         }
 
-        if (!id) return;
         await firmService.updateFirm(id, updatePayload);
+
+        // Safe cleanup: delete old files ONLY AFTER successful DB update
+        if (form.logoUri !== (originalFirm?.firmLogoRef || null) && originalFirm?.firmLogoRef) {
+          try { await FileSystem.deleteAsync(originalFirm.firmLogoRef, { idempotent: true }); } catch (e) {}
+        }
+        if (form.bisLogoUri !== (originalFirm?.bisLogoRef || null) && originalFirm?.bisLogoRef) {
+          try { await FileSystem.deleteAsync(originalFirm.bisLogoRef, { idempotent: true }); } catch (e) {}
+        }
+
         setShowSuccessModal(true);
       } catch (error: any) {
         Alert.alert("Update Failed", error.message);
@@ -626,7 +613,7 @@ const s = StyleSheet.create({
     overflow: 'hidden',
     borderWidth: 1.5,
     borderColor: 'rgba(212, 175, 55, 0.35)',
-    backgroundColor: '#FFFDF9',
+    backgroundColor: 'rgba(255, 253, 249, 0.75)',
     shadowColor: '#5C1623',
     shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.18,
@@ -637,7 +624,7 @@ const s = StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 8,
     borderRadius: 36,
-    backgroundColor: '#FFFDF9',
+    backgroundColor: 'transparent',
   },
   fixedBottomBarRow: {
     flexDirection: 'row',

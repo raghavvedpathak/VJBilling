@@ -5,8 +5,10 @@ const { withNativeWind } = require("nativewind/metro");
 
 const config = getDefaultConfig(__dirname);
 
-// ✅ FIXED: Removed sql from assetExts and sourceExts filter.
-// babel-preset inline-import handles .sql files as inlined strings.
-// Moving sql to assetExts conflicts with inline-import and breaks useMigrations().
+// Required: Allows Metro to recognize .sql files and pass them to Babel's inline-import plugin
+if (!config.resolver.sourceExts.includes('sql')) {
+  config.resolver.sourceExts.push('sql');
+}
+config.resolver.assetExts = config.resolver.assetExts.filter((ext) => ext !== 'sql');
 
 module.exports = withNativeWind(config, { input: "./app/global.css" });

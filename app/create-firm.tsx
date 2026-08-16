@@ -15,14 +15,14 @@ import {
 import { useRouter } from 'expo-router';
 import { BlurView } from 'expo-blur';
 import * as ImagePicker from 'expo-image-picker';
-import { manipulateAsync, SaveFormat } from 'expo-image-manipulator';
 import * as FileSystem from 'expo-file-system/legacy';
 import { TwoToneWrapper } from '@/components/TwoToneWrapper';
 import { GlassCard, GlassInput, GlassButton } from '@/components/ui/Glass';
 import { firmService } from '@/services/phase1/firmService';
 import { useFirmStore } from '@/store/phase1/useFirmStore';
 import { INDIAN_STATES } from '@/utils/indianStates';
-import { formatGSTINInput, getGSTINKeyboardType } from '@/utils/validateGSTIN';
+import { formatGSTINInput, getGSTINKeyboardType, validateGSTIN } from '@/utils/validateGSTIN';
+import { processAndSaveFirmImage } from '@/utils/processFirmImage';
 import { useUnsavedChangesGuard } from '@/hooks/useUnsavedChangesGuard';
 import {
   Save,
@@ -44,106 +44,10 @@ import { COLORS } from '@/constants/theme';
 
 // ============================================================================
 // G58 SPEC CONSTANTS — DO NOT change these values.
-// max 1024×1024, max 2MB, quality 0.8
-// saved to DocumentDirectory/logos/firm_{firmId}.jpg
+// max 1024x1024, max 2MB, quality 0.8
+// saved to DocumentDirectory/logos/firm_{firmId}.png
 // ============================================================================
-const LOGO_MAX_DIMENSION = 1024;
-const LOGO_MAX_BYTES = 2 * 1024 * 1024; // 2MB
 const LOGO_QUALITY = 0.8;
-
-// ============================================================================
-// processAndSaveLogoToPath — G58 canonical implementation
-// ============================================================================
-async function processAndSaveLogoToPath(
-  rawUri: string,
-  firmId: string
-): Promise<string | null> {
-  try {
-    const manipulated = await manipulateAsync(
-      rawUri,
-      [
-        {
-          resize: {
-            width: LOGO_MAX_DIMENSION,
-            height: LOGO_MAX_DIMENSION,
-          },
-        },
-      ],
-      {
-        compress: 0.9,
-        format: SaveFormat.PNG,
-      }
-    );
-
-    const fileInfo = await FileSystem.getInfoAsync(manipulated.uri);
-    if (fileInfo.exists && 'size' in fileInfo && fileInfo.size && fileInfo.size > LOGO_MAX_BYTES) {
-      Alert.alert(
-        'Image Too Large',
-        'Please choose a smaller image. Maximum size is 2MB after processing.'
-      );
-      return null;
-    }
-
-    const fsAny = FileSystem as any;
-    const docDir = fsAny.documentDirectory ?? fsAny.cacheDirectory ?? '';
-    const logosDir = `${docDir}logos/`;
-    await FileSystem.makeDirectoryAsync(logosDir, { intermediates: true });
-
-    const targetPath = `${logosDir}firm_${firmId}_${Date.now()}.png`;
-    await FileSystem.copyAsync({ from: manipulated.uri, to: targetPath });
-
-    return targetPath;
-  } catch (e: any) {
-    console.error('[CreateFirmScreen] Logo processing failed:', e);
-    Alert.alert('Logo Error', 'Failed to process the logo image. Please try again.');
-    return null;
-  }
-}
-
-async function processAndSaveBisLogoToPath(
-  rawUri: string,
-  firmId: string
-): Promise<string | null> {
-  try {
-    const manipulated = await manipulateAsync(
-      rawUri,
-      [
-        {
-          resize: {
-            width: LOGO_MAX_DIMENSION,
-            height: LOGO_MAX_DIMENSION,
-          },
-        },
-      ],
-      {
-        compress: 0.9,
-        format: SaveFormat.PNG,
-      }
-    );
-
-    const fileInfo = await FileSystem.getInfoAsync(manipulated.uri);
-    if (fileInfo.exists && 'size' in fileInfo && fileInfo.size && fileInfo.size > LOGO_MAX_BYTES) {
-      Alert.alert(
-        'Image Too Large',
-        'Please choose a smaller image. Maximum size is 2MB after processing.'
-      );
-      return null;
-    }
-
-    const fsAny = FileSystem as any;
-    const docDir = fsAny.documentDirectory ?? fsAny.cacheDirectory ?? '';
-    const logosDir = `${docDir}logos/`;
-    await FileSystem.makeDirectoryAsync(logosDir, { intermediates: true });
-
-    const targetPath = `${logosDir}bis_firm_${firmId}_${Date.now()}.png`;
-    await FileSystem.copyAsync({ from: manipulated.uri, to: targetPath });
-
-    return targetPath;
-  } catch (e: any) {
-    console.error('[CreateFirmScreen] BIS Logo processing failed:', e);
-    return null;
-  }
-}
 
 export default function CreateFirmScreen() {
   const router = useRouter();
@@ -267,6 +171,20 @@ export default function CreateFirmScreen() {
       return;
     }
 
+    if (form.gstin) {
+      try {
+        validateGSTIN(form.gstin);
+        const gstinStatePrefix = form.gstin.trim().slice(0, 2);
+        if (gstinStatePrefix !== form.stateCode) {
+          setErrorMessage(`GSTIN state prefix (${gstinStatePrefix}) must match chosen jurisdiction state code (${form.stateCode}).`);
+          return;
+        }
+      } catch (err: any) {
+        setErrorMessage(err.message || "Please enter a valid 15-character GSTIN.");
+        return;
+      }
+    }
+
     try {
       setLoading(true);
 
@@ -289,14 +207,14 @@ export default function CreateFirmScreen() {
       });
 
       if (form.firmLogoUri) {
-        const savedLogoPath = await processAndSaveLogoToPath(form.firmLogoUri, newFirm.id);
+        const savedLogoPath = await processAndSaveFirmImage(form.firmLogoUri, 'firm', newFirm.id);
         if (savedLogoPath) {
           await firmService.updateFirm(newFirm.id, { firmLogoRef: savedLogoPath });
         }
       }
 
       if (form.bisLogoUri && form.bisLicence) {
-        const savedBisLogoPath = await processAndSaveBisLogoToPath(form.bisLogoUri, newFirm.id);
+        const savedBisLogoPath = await processAndSaveFirmImage(form.bisLogoUri, 'bis_firm', newFirm.id);
         if (savedBisLogoPath) {
           await firmService.updateFirm(newFirm.id, { bisLogoUri: savedBisLogoPath, bisLicence: form.bisLicence });
         }
@@ -735,7 +653,7 @@ const s = StyleSheet.create({
     overflow: 'hidden',
     borderWidth: 1.5,
     borderColor: 'rgba(212, 175, 55, 0.35)',
-    backgroundColor: '#FFFDF9',
+    backgroundColor: 'rgba(255, 253, 249, 0.75)',
     shadowColor: '#5C1623',
     shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.18,
@@ -746,7 +664,7 @@ const s = StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 8,
     borderRadius: 36,
-    backgroundColor: '#FFFDF9',
+    backgroundColor: 'transparent',
   },
   fixedBottomBarRow: {
     flexDirection: 'row',

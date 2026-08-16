@@ -1,32 +1,30 @@
 {
   "cli": {
-    "version": ">= 7.0.0",
+    "version": ">= 16.0.0",
     "appVersionSource": "remote"
   },
   "build": {
-    "development": {
-      "developmentClient": true,
-      "distribution": "internal",
+    "production": {
+      "autoIncrement": true,
       "env": {
         "EXPO_ROUTER_DISABLE_RN_NAVIGATION_CHECK": "1",
         "npm_config_legacy_peer_deps": "true"
       }
     },
     "preview": {
+      "extends": "production",
       "distribution": "internal",
       "android": {
         "buildType": "apk"
-      },
-      "env": {
-        "EXPO_ROUTER_DISABLE_RN_NAVIGATION_CHECK": "1",
-        "npm_config_legacy_peer_deps": "true"
       }
     },
-    "production": {
-      "env": {
-        "EXPO_ROUTER_DISABLE_RN_NAVIGATION_CHECK": "1",
-        "npm_config_legacy_peer_deps": "true"
-      }
+    "development": {
+      "extends": "production",
+      "developmentClient": true,
+      "distribution": "internal"
     }
+  },
+  "submit": {
+    "production": {}
   }
 }
