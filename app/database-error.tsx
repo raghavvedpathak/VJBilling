@@ -1,7 +1,5 @@
-// app/database-error.tsx — Phase 2 v2.11 Canonical Screen
-
 import React, { useEffect, useState } from 'react';
-import { View, Text, Alert, ActivityIndicator } from 'react-native';
+import { View, Text, Alert, ActivityIndicator, ScrollView } from 'react-native';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 import { STORAGE_PATHS } from '@/constants/storagePaths';
@@ -110,83 +108,89 @@ export default function DatabaseErrorScreen() {
 
   return (
     <ScreenWrapper title="Critical System Error" showBack={false}>
-      <View className="flex-1 justify-center items-center px-6">
-        <View className="bg-vj-danger/20 p-4 rounded-full mb-6">
-          <AlertTriangle size={48} color="#ef4444" />
-        </View>
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+        contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', paddingVertical: 24, paddingBottom: 40 }}
+      >
+        <View className="w-full items-center px-6">
+          <View className="bg-vj-danger/20 p-4 rounded-full mb-6">
+            <AlertTriangle size={48} color="#ef4444" />
+          </View>
 
-        <Text className="text-2xl font-bold text-vj-text text-center mb-2">
-          Database Migration Failed
-        </Text>
-        
-        <Text className="text-vj-text/70 text-center mb-10">
-          The application encountered a critical error while upgrading your local database. To prevent data corruption, the system has halted.
-        </Text>
+          <Text className="text-2xl font-bold text-vj-text text-center mb-2">
+            Database Migration Failed
+          </Text>
+          
+          <Text className="text-vj-text/70 text-center mb-10">
+            The application encountered a critical error while upgrading your local database. To prevent data corruption, the system has halted.
+          </Text>
 
-        <View className="w-full gap-4 mt-6">
-          {/* OPTION 1: Export Raw Data */}
-          <GlassButton
-            title={
-              isChecking 
-                ? 'Checking for snapshot...' 
-                : isExporting
-                  ? 'Decrypting Snapshot...'
-                  : snapshotAvailable 
-                    ? 'Export Raw Data' 
-                    : 'No snapshot available'
-            }
-            onPress={handleExportRaw}
-            disabled={!snapshotAvailable || isChecking || isExporting}
-            variant="primary"
-            icon={<Database size={20} color={snapshotAvailable ? "#fff" : "#9ca3af"} />}
-          />
-
-          {/* OPTION 2: Contact Support */}
-          <GlassButton
-            title="Contact Support"
-            onPress={handleContactSupport}
-            variant="secondary"
-            icon={<Mail size={20} color="#1f2937" />}
-          />
-
-          {/* OPTION 3: Factory Reset */}
-          {!showFactoryReset ? (
+          <View className="w-full gap-4 mt-6">
+            {/* OPTION 1: Export Raw Data */}
             <GlassButton
-              title="Factory Reset (Delete All Data)"
-              onPress={() => setShowFactoryReset(true)}
-              variant="danger"
-              icon={<Trash2 size={20} color="#ffffff" />}
+              title={
+                isChecking 
+                  ? 'Checking for snapshot...' 
+                  : isExporting
+                    ? 'Decrypting Snapshot...'
+                    : snapshotAvailable 
+                      ? 'Export Raw Data' 
+                      : 'No snapshot available'
+              }
+              onPress={handleExportRaw}
+              disabled={!snapshotAvailable || isChecking || isExporting}
+              variant="primary"
+              icon={<Database size={20} color={snapshotAvailable ? "#fff" : "#9ca3af"} />}
             />
-          ) : (
-            <GlassCard>
-              <Text className="text-vj-danger text-sm text-center font-bold mb-4">
-                WARNING: This will permanently delete all your data. Type 'DELETE' to confirm.
-              </Text>
-              <GlassInput
-                value={deleteConfirm}
-                onChangeText={setDeleteConfirm}
-                placeholder="Type DELETE"
-                autoCapitalize="characters"
+
+            {/* OPTION 2: Contact Support */}
+            <GlassButton
+              title="Contact Support"
+              onPress={handleContactSupport}
+              variant="secondary"
+              icon={<Mail size={20} color="#1f2937" />}
+            />
+
+            {/* OPTION 3: Factory Reset */}
+            {!showFactoryReset ? (
+              <GlassButton
+                title="Factory Reset (Delete All Data)"
+                onPress={() => setShowFactoryReset(true)}
+                variant="danger"
+                icon={<Trash2 size={20} color="#ffffff" />}
               />
-              <View className="gap-3 mt-2">
-                <GlassButton
-                  title="Confirm Reset"
-                  onPress={handleFactoryReset}
-                  variant="danger"
+            ) : (
+              <GlassCard>
+                <Text className="text-vj-danger text-sm text-center font-bold mb-4">
+                  WARNING: This will permanently delete all your data. Type 'DELETE' to confirm.
+                </Text>
+                <GlassInput
+                  value={deleteConfirm}
+                  onChangeText={setDeleteConfirm}
+                  placeholder="Type DELETE"
+                  autoCapitalize="characters"
                 />
-                <GlassButton
-                  title="Cancel"
-                  onPress={() => {
-                    setShowFactoryReset(false);
-                    setDeleteConfirm('');
-                  }}
-                  variant="secondary"
-                />
-              </View>
-            </GlassCard>
-          )}
+                <View className="gap-3 mt-2">
+                  <GlassButton
+                    title="Confirm Reset"
+                    onPress={handleFactoryReset}
+                    variant="danger"
+                  />
+                  <GlassButton
+                    title="Cancel"
+                    onPress={() => {
+                      setShowFactoryReset(false);
+                      setDeleteConfirm('');
+                    }}
+                    variant="secondary"
+                  />
+                </View>
+              </GlassCard>
+            )}
+          </View>
         </View>
-      </View>
+      </ScrollView>
     </ScreenWrapper>
   );
 }

@@ -193,3 +193,8 @@ dependencies {
 tasks.matching { it.name.contains("AarMetadata") }.configureEach {
     enabled = false
 }
+
+// Ensure all Node/Metro child processes inherit the navigation check override
+tasks.withType(Exec).configureEach {
+    environment "EXPO_ROUTER_DISABLE_RN_NAVIGATION_CHECK", "1"
+}

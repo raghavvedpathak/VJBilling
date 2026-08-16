@@ -1,7 +1,7 @@
 // app/setup.tsx — Phase 2 v2.11 Canonical Screen
 
 import React, { useEffect, useState } from 'react';
-import { View, Text, TouchableOpacity, ActivityIndicator, Alert } from 'react-native';
+import { View, Text, TouchableOpacity, ActivityIndicator, Alert, ScrollView } from 'react-native';
 import { useRouter } from 'expo-router';
 import * as FileSystem from 'expo-file-system/legacy';
 import { ScreenWrapper } from '@/components/ScreenWrapper';
@@ -83,10 +83,15 @@ export default function SetupScreen() {
 
   return (
     <ScreenWrapper>
-      <View className="flex-1 justify-center px-2">
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+        contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', paddingVertical: 24, paddingBottom: 40 }}
+      >
+        <View className="w-full px-2">
         
-        {/* 1. HERO SECTION (Logo & Title) */}
-        <View className="items-center mb-12">
+          {/* 1. HERO SECTION (Logo & Title) */}
+          <View className="items-center mb-12">
           {/* Glowing Glass Logo Container */}
           <View className="h-24 w-24 bg-vj-glass rounded-full border border-white/50 justify-center items-center mb-6 shadow-sm">
             <View className="h-20 w-20 bg-white/60 rounded-full justify-center items-center shadow-inner">
@@ -190,6 +195,7 @@ export default function SetupScreen() {
         </View>
 
       </View>
+    </ScrollView>
 
       {/* Modern Restore Preview Modal */}
       <RestorePreviewModal
