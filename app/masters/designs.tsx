@@ -23,6 +23,11 @@ export default function DesignsScreen() {
   const router = useRouter();
   const { width } = useWindowDimensions();
   const isTablet = width >= 768;
+  const containerWidth = isTablet ? Math.min(width - 32, 920) : width - 32;
+  const numColumns = 2;
+  const gap = 12;
+  const itemWidth = Math.floor((containerWidth - (gap * (numColumns - 1))) / numColumns);
+
   const { activeFirmId } = useFirmStore();
   
   const [designs, setDesigns] = useState<DesignWithCategory[]>([]);
@@ -138,11 +143,11 @@ export default function DesignsScreen() {
             showsVerticalScrollIndicator={false} 
             contentContainerStyle={[
               { paddingBottom: 150 },
-              viewMode === 'grid' && { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' }
+              viewMode === 'grid' && { flexDirection: 'row', flexWrap: 'wrap', gap }
             ]}
           >
             {designs.map((d) => (
-              <GlassCard key={d.id} style={[s.card, viewMode === 'grid' ? s.cardGrid : s.cardList]}>
+              <GlassCard key={d.id} style={[s.card, viewMode === 'grid' ? [s.cardGrid, { width: itemWidth }] : s.cardList]}>
                 <View style={viewMode === 'grid' ? s.cardTopGrid : s.cardTopList}>
                   <Text style={s.rowTitle} numberOfLines={1}>{d.name}</Text>
                   <Text style={s.rowCode} numberOfLines={1}>{d.code} • {d.categoryName || 'Unlinked'}</Text>

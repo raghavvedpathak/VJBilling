@@ -1,7 +1,7 @@
 // components/RestorePreviewModal.tsx — Phase 2 v2.11 Canonical Component
 
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, Modal, TouchableOpacity, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, Modal, TouchableOpacity, ScrollView, KeyboardAvoidingView, Platform } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { GlassCard, GlassButton, GlassInput } from '@/components/ui/Glass';
 import { 
@@ -95,7 +95,11 @@ export function RestorePreviewModal({
       statusBarTranslucent={true}
       onRequestClose={handleCancelPress}
     >
-      <View style={s.overlay}>
+      <KeyboardAvoidingView 
+        behavior={Platform.OS === 'ios' ? 'padding' : 'padding'}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : (Platform.OS === 'android' ? (require('react-native').StatusBar.currentHeight || 24) : 24)}
+        style={s.overlay}
+      >
         <View style={s.container}>
           <GlassCard style={s.modalCard}>
             
@@ -257,7 +261,7 @@ export function RestorePreviewModal({
 
           </GlassCard>
         </View>
-      </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }

@@ -21,6 +21,11 @@ export default function StonesScreen() {
   const router = useRouter();
   const { width, height } = useWindowDimensions();
   const isTablet = width >= 768;
+  const containerWidth = isTablet ? Math.min(width - 32, 920) : width - 32;
+  const numColumns = 2;
+  const gap = 12;
+  const itemWidth = Math.floor((containerWidth - (gap * (numColumns - 1))) / numColumns);
+
   const { activeFirmId } = useFirmStore();
   
   const [stones, setStones] = useState<Stone[]>([]);
@@ -174,7 +179,7 @@ export default function StonesScreen() {
             showsVerticalScrollIndicator={false} 
             contentContainerStyle={[
               { paddingBottom: 100 },
-              viewMode === 'grid' && { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' }
+              viewMode === 'grid' && { flexDirection: 'row', flexWrap: 'wrap', gap }
             ]}
           >
             {stones.map((stone) => {
@@ -186,7 +191,7 @@ export default function StonesScreen() {
               }[stone.type as StoneType] || { bg: 'rgba(92,22,35,0.1)', border: 'rgba(92,22,35,0.2)', text: COLORS.vjText };
 
               return (
-                <GlassCard key={stone.id} style={[s.card, viewMode === 'grid' ? s.cardGrid : s.cardList]}>
+                <GlassCard key={stone.id} style={[s.card, viewMode === 'grid' ? [s.cardGrid, { width: itemWidth }] : s.cardList]}>
                   <View style={viewMode === 'grid' ? s.cardTopGrid : s.cardTopList}>
                     <Text style={s.rowTitle} numberOfLines={1}>{stone.name}</Text>
                     <View style={[s.stoneTypeBadge, { backgroundColor: stoneColors.bg, borderColor: stoneColors.border }]}>

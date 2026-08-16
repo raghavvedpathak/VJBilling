@@ -85,7 +85,8 @@ export function TwoToneWrapper({ title, children, showBack, actionIcon, onAction
         <View className="flex-1 rounded-t-[32px] overflow-hidden" style={{ backgroundColor: colors.vjBg }}>
           <DynamicBackground />
           <KeyboardAvoidingView
-            behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+            behavior={Platform.OS === 'ios' ? 'padding' : 'padding'}
+            keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : (StatusBar.currentHeight || 24)}
             className="flex-1 w-full self-center px-4 pt-4"
             style={{ 
               maxWidth: isTablet ? 920 : undefined,
