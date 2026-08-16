@@ -178,7 +178,7 @@ export default function WelcomeScreen() {
                   <View className="w-full">
                     <GlassButton
                       title={enteringFirmId === f.id ? "Entering Workspace..." : "Enter Store Workspace"}
-                      icon={enteringFirmId !== f.id && <ArrowRight size={18} color="#FCFBF8" />}
+                      icon={enteringFirmId !== f.id ? <ArrowRight size={18} color="#FCFBF8" /> : undefined}
                       onPress={() => handleEnterFirm(f.id)}
                       loading={enteringFirmId === f.id}
                     />

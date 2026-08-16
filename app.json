@@ -24,8 +24,10 @@
       "package": "com.vjbilling.app",
       "allowBackup": false,
       "permissions": [
+        "CAMERA",
         "READ_EXTERNAL_STORAGE",
-        "WRITE_EXTERNAL_STORAGE"
+        "WRITE_EXTERNAL_STORAGE",
+        "READ_MEDIA_IMAGES"
       ]
     },
     "web": {
@@ -36,7 +38,20 @@
       "expo-font",
       "expo-sharing",
       "expo-sqlite",
-      "expo-status-bar"
+      "expo-status-bar",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "VJ Billing requires photo library access to upload store logos and BIS hallmark certificates.",
+          "cameraPermission": "VJ Billing requires camera access to capture store logos and BIS hallmark certificates."
+        }
+      ],
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "VJ Billing requires camera access to scan jewelry barcodes and HUID tags."
+        }
+      ]
     ],
     "extra": {
       "router": {},

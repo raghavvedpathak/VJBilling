@@ -1,12 +1,14 @@
 // app/inventory/bulk-add.tsx — Phase 2 v2.11 Canonical Screen
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { View, Text, ScrollView, Alert, Modal, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Text, ScrollView, Alert, Modal, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
 import { useRouter, useFocusEffect } from 'expo-router';
+import { BlurView } from 'expo-blur';
 import * as Haptics from 'expo-haptics';
 import { TwoToneWrapper } from '@/components/TwoToneWrapper';
 import { GlassCard, GlassInput, GlassButton, GlassPickerInput } from '@/components/ui/Glass';
 import { GlassPickerModal, GlassPickerOption } from '@/components/ui/GlassPickerModal';
+import { GlassDatePickerModal } from '@/components/ui/GlassDatePickerModal';
 import { useFirmStore } from '@/store/phase1/useFirmStore';
 import { itemService } from '@/services/phase2/itemService';
 import { designRepository } from '@/repositories/phase2/designRepository';
@@ -16,7 +18,8 @@ import { stoneRepository } from '@/repositories/phase2/stoneRepository';
 import { itemRepository } from '@/repositories/phase2/itemRepository';
 import { designCategoryMapRepository } from '@/repositories/phase2/designCategoryMapRepository';
 import type { Design, Category, HsnCode, Stone } from '@/types/phase2/phase2.types';
-import { Package, Plus, Trash2, Calculator, Layers, CheckCircle } from 'lucide-react-native';
+import { Package, Plus, Trash2, Calculator, Layers, CheckCircle, Calendar as CalendarIcon } from 'lucide-react-native';
+import { formatDate } from '@/utils/formatDate';
 import { 
   PURITY_MAP,
   percentToKarat, 
@@ -319,6 +322,17 @@ export default function BulkAddScreen() {
   const [successCount, setSuccessCount] = useState<number | null>(null);
   const [designStock, setDesignStock] = useState<{ totalNetWeightMg: number, count: number } | null>(null);
 
+  const todayIso = useMemo(() => {
+    const t = new Date();
+    const y = t.getFullYear();
+    const m = String(t.getMonth() + 1).padStart(2, '0');
+    const d = String(t.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  }, []);
+
+  const [entryDate, setEntryDate] = useState(todayIso);
+  const [showDatePicker, setShowDatePicker] = useState(false);
+
   const [pickerModal, setPickerModal] = useState<{
     visible: boolean;
     title: string;
@@ -472,6 +486,7 @@ export default function BulkAddScreen() {
         sizeUnit: r.sizeUnit || undefined,
         huid: huidUpper,
         metalSource: 'SUPPLIER_PURCHASE',
+        entryDate,
       });
     }
 
@@ -489,10 +504,14 @@ export default function BulkAddScreen() {
 
   return (
     <TwoToneWrapper title="Bulk Add Stock" showBack>
-      <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingTop: 32, paddingBottom: 350, paddingHorizontal: 16 }} showsVerticalScrollIndicator={false}>
-        
-        <View style={{ zIndex: 2000 }}>
-          <GlassCard style={{ marginBottom: 16 }}>
+      <View style={{ flex: 1 }}>
+        <ScrollView 
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+          contentContainerStyle={{ paddingBottom: 110 }}
+        >
+          <View style={{ zIndex: 2000 }}>
+            <GlassCard style={{ marginBottom: 16 }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 16 }}>
             <Layers size={20} color="#D4AF37" />
             <Text style={{ fontSize: 16, fontWeight: 'bold', color: COLORS.vjText }}>Batch Classification</Text>
@@ -501,6 +520,18 @@ export default function BulkAddScreen() {
           <Text style={{ fontSize: 12, color: 'rgba(92,22,35,0.6)', marginBottom: 16 }}>
             These attributes will be applied to all items in this bulk batch.
           </Text>
+
+          {/* Batch Entry Date Field */}
+          <View style={{ marginBottom: 16 }}>
+            <GlassPickerInput
+              label="Batch Entry Date"
+              placeholder="Select date..."
+              selectedLabel={formatDate(entryDate)}
+              selectedSublabel={entryDate === todayIso ? 'Today' : undefined}
+              onPress={() => setShowDatePicker(true)}
+              icon={<CalendarIcon size={18} color="#D4AF37" />}
+            />
+          </View>
 
           <View style={{ marginBottom: 16 }}>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
@@ -653,16 +684,42 @@ export default function BulkAddScreen() {
           />
         ))}
 
-        <TouchableOpacity style={s.addBtn} onPress={addRow} activeOpacity={0.7}>
-          <Plus size={20} color="#D4AF37" />
-          <Text style={s.addBtnText}>Add Another Item</Text>
-        </TouchableOpacity>
+        </ScrollView>
 
-        <View style={{ marginTop: 24 }}>
-          <GlassButton title={`Generate ${rows.length} Items`} onPress={handleSubmit} loading={loading} />
+        {/* === FIXED STICKY PILL-SHAPED GLASS ACTION BAR === */}
+        <View style={styles.fixedPillWrapper}>
+          <View style={styles.fixedPillCard}>
+            <BlurView intensity={50} tint="light" style={styles.fixedPillBlurContent}>
+              <View style={styles.fixedBottomBarRow}>
+                <TouchableOpacity
+                  style={styles.pillSecondaryBtn}
+                  onPress={addRow}
+                  activeOpacity={0.7}
+                >
+                  <Plus size={16} color={COLORS.vjAccent} />
+                  <Text style={styles.pillSecondaryText}>+ Row</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.pillPrimaryBtn}
+                  onPress={handleSubmit}
+                  disabled={loading}
+                  activeOpacity={0.8}
+                >
+                  {loading ? (
+                    <ActivityIndicator size="small" color="#fff" />
+                  ) : (
+                    <>
+                      <Layers size={18} color="#fff" />
+                      <Text style={styles.pillPrimaryText}>Generate {rows.length} Items</Text>
+                    </>
+                  )}
+                </TouchableOpacity>
+              </View>
+            </BlurView>
+          </View>
         </View>
-
-      </ScrollView>
+      </View>
 
       <Modal visible={!!successCount} transparent animationType="fade">
         <View style={styles.modalOverlay}>
@@ -694,6 +751,14 @@ export default function BulkAddScreen() {
         selectedId={pickerModal.selectedId}
         onClose={() => setPickerModal((p) => ({ ...p, visible: false }))}
         onSelect={pickerModal.onSelect}
+      />
+
+      <GlassDatePickerModal
+        visible={showDatePicker}
+        title="Batch Entry Date"
+        value={entryDate}
+        onClose={() => setShowDatePicker(false)}
+        onSelect={(d) => setEntryDate(d)}
       />
 
     </TwoToneWrapper>
@@ -781,5 +846,74 @@ const styles = StyleSheet.create({
     color: 'rgba(92,22,35,0.6)',
     textAlign: 'center',
     marginBottom: 24,
+  },
+
+  // --- Fixed Sticky Pill-Shaped Glass Action Bar ---
+  fixedPillWrapper: {
+    position: 'absolute',
+    bottom: 18,
+    left: 0,
+    right: 0,
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    zIndex: 99,
+  },
+  fixedPillCard: {
+    width: '100%',
+    maxWidth: 580,
+    borderRadius: 36,
+    overflow: 'hidden',
+    borderWidth: 1.5,
+    borderColor: 'rgba(212, 175, 55, 0.35)',
+    backgroundColor: '#FFFDF9',
+    shadowColor: '#5C1623',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.18,
+    shadowRadius: 16,
+    elevation: 10,
+  },
+  fixedPillBlurContent: {
+    paddingHorizontal: 8,
+    paddingVertical: 8,
+    borderRadius: 36,
+    backgroundColor: '#FFFDF9',
+  },
+  fixedBottomBarRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  pillSecondaryBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    backgroundColor: 'rgba(92, 22, 35, 0.06)',
+    borderWidth: 1,
+    borderColor: 'rgba(92, 22, 35, 0.15)',
+    paddingVertical: 14,
+    paddingHorizontal: 18,
+    borderRadius: 28,
+  },
+  pillSecondaryText: {
+    color: COLORS.vjText,
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  pillPrimaryBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: COLORS.vjAccent,
+    paddingVertical: 14,
+    borderRadius: 28,
+  },
+  pillPrimaryText: {
+    color: '#ffffff',
+    fontSize: 15,
+    fontWeight: '800',
+    letterSpacing: 0.3,
   },
 });

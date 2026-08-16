@@ -4,6 +4,7 @@ import { useState, useCallback } from 'react';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { useFirmStore } from '@/store/phase1/useFirmStore';
 import { firmRepository, Firm } from '@/repositories/phase1/firmRepository';
+import { bisLogoRepository } from '@/repositories/phase1/bisLogoRepository';
 import { fyRepository } from '@/repositories/phase1/fyRepository';
 import { useFyBannerStore } from '@/store/phase1/fyBannerStore';
 
@@ -14,6 +15,7 @@ export function useSession() {
   const [firm, setFirm] = useState<Firm | null>(null);
   const [activeFY, setActiveFY] = useState<any | null>(null);
   const [isFYExpired, setIsFYExpired] = useState(false);
+  const [bisLogoUri, setBisLogoUri] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   const refreshSession = useCallback(() => {
@@ -49,11 +51,23 @@ export function useSession() {
         fyExpired = fyData.endDate < todayStr;
       }
 
+      // 4. Fetch Active BIS Logo
+      const bisLogoRow = bisLogoRepository.findActiveByFirmId(activeFirmId);
+      const resolvedBisUri = bisLogoRow?.fileRef || (
+        firmData.bisLogoRef?.startsWith('file:') ||
+        firmData.bisLogoRef?.startsWith('http') ||
+        firmData.bisLogoRef?.startsWith('data:') ||
+        firmData.bisLogoRef?.startsWith('/')
+          ? firmData.bisLogoRef
+          : null
+      );
+
       setFirm(firmData);
       setActiveFY(fyData);
       setIsFYExpired(fyExpired);
+      setBisLogoUri(resolvedBisUri || null);
 
-      // 4. Update banner state in Zustand store
+      // 5. Update banner state in Zustand store
       if (fyExpired) {
         useFyBannerStore.getState().setBannerVisible(true);
       }
@@ -74,6 +88,7 @@ export function useSession() {
     firm,
     activeFY,
     isFYExpired, // Dashboard shows amber FY-boundary banner when true
+    bisLogoUri,
     isLoading,
     refreshSession,
   };

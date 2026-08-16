@@ -3,13 +3,14 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { View, Text, ScrollView, Alert, TouchableOpacity, Modal, ActivityIndicator, StyleSheet } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
+import { BlurView } from 'expo-blur';
 import * as Haptics from 'expo-haptics';
 import { TwoToneWrapper } from '@/components/TwoToneWrapper';
 import { GlassCard, GlassInput, GlassButton } from '@/components/ui/Glass';
 import { useFirmStore } from '@/store/phase1/useFirmStore';
 import { urdPurchaseService } from '@/services/phase2/urdPurchaseService';
 import { getCurrencySymbol, formatRupees, computeURDCostBreakdown, parseCleanFloat } from '@/utils/calculations';
-import { User, Scale, Banknote, CheckCircle, Save, Edit3 } from 'lucide-react-native';
+import { User, Scale, Banknote, CheckCircle, Save, Edit3, X } from 'lucide-react-native';
 import type { URDMetalType, URDPurchase } from '@/types/phase2/phase2.types';
 import { COLORS } from '@/constants/theme';
 
@@ -167,10 +168,14 @@ export default function EditURDScreen() {
 
   return (
     <TwoToneWrapper title="Edit URD Purchase" showBack>
-      <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingTop: 32, paddingBottom: 350, paddingHorizontal: 16 }} showsVerticalScrollIndicator={false}>
-
-        {/* Seller / Customer Details */}
-        <GlassCard style={{ marginBottom: 16 }}>
+      <View style={{ flex: 1 }}>
+        <ScrollView 
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled" 
+          contentContainerStyle={{ paddingTop: 16, paddingBottom: 110, paddingHorizontal: 16 }}
+        >
+          {/* Seller / Customer Details */}
+          <GlassCard style={{ marginBottom: 16 }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 16 }}>
             <User size={20} color="#D4AF37" />
             <Text style={{ fontSize: 18, fontWeight: '700', color: COLORS.vjText }}>Seller Details</Text>
@@ -362,9 +367,46 @@ export default function EditURDScreen() {
           )}
         </GlassCard>
 
-        <GlassButton title="Save Changes" onPress={handleSubmit} loading={loading} />
+        </ScrollView>
 
-      </ScrollView>
+        {/* === FIXED STICKY PILL-SHAPED GLASS ACTION BAR === */}
+        <View style={s.fixedPillWrapper}>
+          <View style={s.fixedPillCard}>
+            <BlurView intensity={50} tint="light" style={s.fixedPillBlurContent}>
+              <View style={s.fixedBottomBarRow}>
+                <TouchableOpacity
+                  style={s.pillSecondaryBtn}
+                  onPress={() => {
+                    try { Haptics.selectionAsync(); } catch {}
+                    router.back();
+                  }}
+                  disabled={loading}
+                  activeOpacity={0.7}
+                >
+                  <X size={16} color={COLORS.vjText} />
+                  <Text style={s.pillSecondaryText}>Cancel</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={s.pillPrimaryBtn}
+                  onPress={handleSubmit}
+                  disabled={loading}
+                  activeOpacity={0.8}
+                >
+                  {loading ? (
+                    <ActivityIndicator size="small" color="#fff" />
+                  ) : (
+                    <>
+                      <Save size={18} color="#fff" />
+                      <Text style={s.pillPrimaryText}>Save Changes</Text>
+                    </>
+                  )}
+                </TouchableOpacity>
+              </View>
+            </BlurView>
+          </View>
+        </View>
+      </View>
 
       {/* Success Modal */}
       <Modal visible={!!successMessage} transparent animationType="fade">
@@ -432,5 +474,74 @@ const s = StyleSheet.create({
     color: 'rgba(92,22,35,0.6)',
     textAlign: 'center',
     marginBottom: 24,
+  },
+
+  // --- Fixed Sticky Pill-Shaped Glass Action Bar ---
+  fixedPillWrapper: {
+    position: 'absolute',
+    bottom: 18,
+    left: 0,
+    right: 0,
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    zIndex: 99,
+  },
+  fixedPillCard: {
+    width: '100%',
+    maxWidth: 580,
+    borderRadius: 36,
+    overflow: 'hidden',
+    borderWidth: 1.5,
+    borderColor: 'rgba(212, 175, 55, 0.35)',
+    backgroundColor: '#FFFDF9',
+    shadowColor: '#5C1623',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.18,
+    shadowRadius: 16,
+    elevation: 10,
+  },
+  fixedPillBlurContent: {
+    paddingHorizontal: 8,
+    paddingVertical: 8,
+    borderRadius: 36,
+    backgroundColor: '#FFFDF9',
+  },
+  fixedBottomBarRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  pillSecondaryBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    backgroundColor: 'rgba(92, 22, 35, 0.06)',
+    borderWidth: 1,
+    borderColor: 'rgba(92, 22, 35, 0.15)',
+    paddingVertical: 14,
+    borderRadius: 28,
+  },
+  pillSecondaryText: {
+    color: COLORS.vjText,
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  pillPrimaryBtn: {
+    flex: 2,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: COLORS.vjAccent,
+    paddingVertical: 14,
+    borderRadius: 28,
+  },
+  pillPrimaryText: {
+    color: '#ffffff',
+    fontSize: 15,
+    fontWeight: '800',
+    letterSpacing: 0.3,
   },
 });

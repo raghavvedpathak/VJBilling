@@ -52,6 +52,9 @@ interface GlassInputProps {
   keyboardType?: any;
   maxLength?: number | undefined;
   autoCapitalize?: any;
+  autoCorrect?: boolean | undefined;
+  spellCheck?: boolean | undefined;
+  autoComplete?: any;
   readOnly?: boolean | undefined;
   secureTextEntry?: boolean | undefined;
   onFocus?: (() => void) | undefined;
@@ -67,6 +70,9 @@ export function GlassInput({
   keyboardType,
   maxLength,
   autoCapitalize,
+  autoCorrect,
+  spellCheck,
+  autoComplete,
   readOnly,
   secureTextEntry,
   onFocus,
@@ -100,6 +106,9 @@ export function GlassInput({
           keyboardType={keyboardType}
           maxLength={maxLength}
           autoCapitalize={autoCapitalize}
+          autoCorrect={autoCorrect}
+          spellCheck={spellCheck}
+          autoComplete={autoComplete}
           editable={!readOnly}
           secureTextEntry={secureTextEntry}
           onFocus={onFocus}
@@ -170,7 +179,7 @@ export function GlassButton({
         <ActivityIndicator color={spinnerColors[variant]} />
       ) : (
         <>
-          {icon && <View className="absolute left-6">{icon}</View>}
+          {Boolean(icon) ? <View className="absolute left-6">{icon}</View> : null}
           <Text className={`${textColors[variant]} font-bold text-lg text-center`} style={{ includeFontPadding: false, textAlignVertical: 'center' }}>{title}</Text>
         </>
       )}
@@ -576,6 +585,7 @@ interface GlassPickerInputProps {
   placeholder?: string | undefined;
   selectedLabel?: string | null | undefined;
   selectedSublabel?: string | null | undefined;
+  icon?: React.ReactNode | undefined;
   onPress: () => void;
   disabled?: boolean | undefined;
 }
@@ -585,6 +595,7 @@ export function GlassPickerInput({
   placeholder = 'Select option...',
   selectedLabel,
   selectedSublabel,
+  icon,
   onPress,
   disabled = false,
 }: GlassPickerInputProps) {
@@ -611,6 +622,7 @@ export function GlassPickerInput({
           disabled ? 'opacity-50' : ''
         }`}
       >
+        {Boolean(icon) ? <View className="mr-3">{icon}</View> : null}
         <View className="flex-1 mr-2">
           {selectedLabel ? (
             <>

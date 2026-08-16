@@ -1,6 +1,6 @@
 // components/ui/GlassPickerModal.tsx — Phase 2 v2.11 Canonical Component
 
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { 
   View, 
   Text, 
@@ -10,7 +10,9 @@ import {
   FlatList, 
   StyleSheet, 
   KeyboardAvoidingView, 
-  Platform 
+  Platform,
+  Keyboard,
+  useWindowDimensions
 } from 'react-native';
 import { BlurView } from 'expo-blur';
 import * as Haptics from 'expo-haptics';
@@ -35,6 +37,46 @@ interface GlassPickerModalProps {
   allowClear?: boolean | undefined;
 }
 
+interface OptionRowProps {
+  item: GlassPickerOption;
+  isSelected: boolean;
+  onSelect: (item: GlassPickerOption) => void;
+}
+
+const OptionRow = React.memo(
+  ({ item, isSelected, onSelect }: OptionRowProps) => {
+    return (
+      <TouchableOpacity
+        style={[styles.optionRow, isSelected && styles.optionRowSelected]}
+        onPress={() => onSelect(item)}
+        activeOpacity={0.7}
+      >
+        <View style={styles.optionTextContainer}>
+          <Text style={[styles.optionLabel, isSelected && styles.optionLabelSelected]}>
+            {item.label}
+          </Text>
+          {item.sublabel ? (
+            <Text style={styles.optionSublabel}>{item.sublabel}</Text>
+          ) : null}
+        </View>
+
+        {item.badge ? (
+          <View style={styles.badgeContainer}>
+            <Text style={styles.badgeText}>{item.badge}</Text>
+          </View>
+        ) : null}
+
+        {isSelected && (
+          <View style={styles.checkIcon}>
+            <Check size={18} color="#D4AF37" />
+          </View>
+        )}
+      </TouchableOpacity>
+    );
+  },
+  (prev, next) => prev.isSelected === next.isSelected && prev.item === next.item
+);
+
 export function GlassPickerModal({
   visible,
   title,
@@ -46,16 +88,19 @@ export function GlassPickerModal({
   allowClear = true,
 }: GlassPickerModalProps) {
   const [searchQuery, setSearchQuery] = useState('');
+  const { width: windowWidth } = useWindowDimensions();
+  const isTablet = windowWidth >= 768;
 
   useEffect(() => {
     if (visible) {
+      Keyboard.dismiss();
       setSearchQuery('');
     }
   }, [visible]);
 
   const filteredOptions = useMemo(() => {
     const query = searchQuery.toLowerCase().trim();
-    if (!query) return [];
+    if (!query) return options;
     return options.filter(
       (opt) =>
         opt.label.toLowerCase().includes(query) ||
@@ -69,27 +114,47 @@ export function GlassPickerModal({
     return options.find((opt) => opt.id === selectedId) || null;
   }, [options, selectedId]);
 
-  const handleSelect = (option: GlassPickerOption | null) => {
-    try {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    } catch (e) {}
-    onSelect(option);
-    onClose();
-  };
+  const handleSelect = useCallback(
+    (option: GlassPickerOption | null) => {
+      try {
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      } catch (e) {}
+      onSelect(option);
+      onClose();
+    },
+    [onSelect, onClose]
+  );
+
+  const renderOptionItem = useCallback(
+    ({ item }: { item: GlassPickerOption }) => (
+      <OptionRow
+        item={item}
+        isSelected={item.id === selectedId}
+        onSelect={handleSelect}
+      />
+    ),
+    [selectedId, handleSelect]
+  );
 
   if (!visible) return null;
 
   const isQueryEmpty = searchQuery.trim().length === 0;
 
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+    <Modal 
+      visible={visible} 
+      transparent 
+      animationType="slide" 
+      statusBarTranslucent={true}
+      onRequestClose={onClose}
+    >
       <KeyboardAvoidingView 
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'} 
-        style={styles.overlay}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined} 
+        style={[styles.overlay, isTablet && styles.overlayTablet]}
       >
         <TouchableOpacity style={styles.backdrop} activeOpacity={1} onPress={onClose} />
         
-        <View style={styles.sheetContainer}>
+        <View style={[styles.sheetContainer, isTablet && styles.sheetContainerTablet]}>
           <BlurView intensity={40} tint="light" style={styles.sheetContent}>
             
             {/* Header Bar */}
@@ -98,7 +163,9 @@ export function GlassPickerModal({
                 <Text style={styles.headerTitle}>{title}</Text>
                 <View style={styles.countBadge}>
                   <Text style={styles.countText}>
-                    {isQueryEmpty ? `${options.length} total` : `${filteredOptions.length} found`}
+                    {isQueryEmpty
+                      ? `${options.length} options`
+                      : `${filteredOptions.length} of ${options.length} found`}
                   </Text>
                 </View>
               </View>
@@ -116,11 +183,11 @@ export function GlassPickerModal({
                 placeholderTextColor="rgba(92,22,35,0.4)"
                 value={searchQuery}
                 onChangeText={setSearchQuery}
-                autoFocus
+                autoFocus={false}
                 autoCorrect={false}
                 clearButtonMode="while-editing"
               />
-              {searchQuery.length > 0 && Platform.OS !== 'ios' && (
+              {searchQuery.length > 0 && (
                 <TouchableOpacity onPress={() => setSearchQuery('')} style={{ padding: 4 }}>
                   <X size={16} color="rgba(92,22,35,0.5)" />
                 </TouchableOpacity>
@@ -131,7 +198,14 @@ export function GlassPickerModal({
             <FlatList
               data={filteredOptions}
               keyExtractor={(item) => item.id}
+              renderItem={renderOptionItem}
+              initialNumToRender={10}
+              maxToRenderPerBatch={10}
+              updateCellsBatchingPeriod={30}
+              windowSize={7}
+              removeClippedSubviews={Platform.OS === 'android'}
               keyboardShouldPersistTaps="handled"
+              keyboardDismissMode="on-drag"
               showsVerticalScrollIndicator={true}
               contentContainerStyle={{ paddingBottom: 32 }}
               ListHeaderComponent={
@@ -159,11 +233,11 @@ export function GlassPickerModal({
                 ) : null
               }
               ListEmptyComponent={
-                isQueryEmpty ? (
+                options.length === 0 ? (
                   <View style={styles.emptyState}>
                     <Search size={32} color="rgba(92,22,35,0.25)" style={{ marginBottom: 8 }} />
-                    <Text style={styles.emptyTitle}>Type to Search</Text>
-                    <Text style={styles.emptySubtitle}>Start typing to search {title.toLowerCase()}</Text>
+                    <Text style={styles.emptyTitle}>No options available</Text>
+                    <Text style={styles.emptySubtitle}>No {title.toLowerCase()} configured in system</Text>
                   </View>
                 ) : (
                   <View style={styles.emptyState}>
@@ -172,37 +246,6 @@ export function GlassPickerModal({
                   </View>
                 )
               }
-              renderItem={({ item }) => {
-                const isSelected = item.id === selectedId;
-                return (
-                  <TouchableOpacity
-                    style={[styles.optionRow, isSelected && styles.optionRowSelected]}
-                    onPress={() => handleSelect(item)}
-                    activeOpacity={0.7}
-                  >
-                    <View style={styles.optionTextContainer}>
-                      <Text style={[styles.optionLabel, isSelected && styles.optionLabelSelected]}>
-                        {item.label}
-                      </Text>
-                      {item.sublabel ? (
-                        <Text style={styles.optionSublabel}>{item.sublabel}</Text>
-                      ) : null}
-                    </View>
-
-                    {item.badge ? (
-                      <View style={styles.badgeContainer}>
-                        <Text style={styles.badgeText}>{item.badge}</Text>
-                      </View>
-                    ) : null}
-
-                    {isSelected && (
-                      <View style={styles.checkIcon}>
-                        <Check size={18} color="#D4AF37" />
-                      </View>
-                    )}
-                  </TouchableOpacity>
-                );
-              }}
             />
           </BlurView>
         </View>
@@ -215,6 +258,11 @@ const styles = StyleSheet.create({
   overlay: {
     flex: 1,
     justifyContent: 'flex-end',
+  },
+  overlayTablet: {
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
   },
   backdrop: {
     ...StyleSheet.absoluteFill,
@@ -235,6 +283,11 @@ const styles = StyleSheet.create({
     shadowRadius: 16,
     elevation: 16,
     backgroundColor: '#FCFBF8',
+  },
+  sheetContainerTablet: {
+    maxWidth: 580,
+    borderRadius: 28,
+    maxHeight: '75%',
   },
   sheetContent: {
     flex: 1,

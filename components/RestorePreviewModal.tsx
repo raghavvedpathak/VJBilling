@@ -92,6 +92,7 @@ export function RestorePreviewModal({
       visible={visible}
       transparent
       animationType="fade"
+      statusBarTranslucent={true}
       onRequestClose={handleCancelPress}
     >
       <View style={s.overlay}>

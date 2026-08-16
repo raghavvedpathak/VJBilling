@@ -19,6 +19,7 @@ import { differenceInDays, parseISO } from 'date-fns';
 import { purgeExpiredAuditLogs } from '@/services/phase1/auditRetentionService';
 import { appSettingsStore } from '@/store/phase1/appSettingsStore';
 import CryptoJS from 'crypto-js';
+import * as Crypto from 'expo-crypto';
 
 import { BACKUP_DIR } from '@/services/phase1/backupService';
 export const PRE_MIGRATION_SNAPSHOT_PATH = BACKUP_DIR + 'vjbilling_premigration_snapshot.enc';
@@ -71,8 +72,8 @@ export const bootstrapService = {
 
       const payloadStr = JSON.stringify(snapshot);
       const keySourceMaterial = await getDeviceDerivedKeyMaterial();
-      const saltBytes = crypto.getRandomValues(new Uint8Array(16));
-      const ivBytes = crypto.getRandomValues(new Uint8Array(12));
+      const saltBytes = Crypto.getRandomBytes(16);
+      const ivBytes = Crypto.getRandomBytes(12);
 
       const toBase64 = (bytes: Uint8Array) => {
         try {
@@ -97,7 +98,7 @@ export const bootstrapService = {
         );
 
         const key = await crypto.subtle.deriveKey(
-          { name: 'PBKDF2', salt: saltBytes, iterations: 1000, hash: 'SHA-256' },
+          { name: 'PBKDF2', salt: saltBytes as any, iterations: 1000, hash: 'SHA-256' },
           keyMaterial,
           { name: 'AES-GCM', length: 256 },
           false,
@@ -105,7 +106,7 @@ export const bootstrapService = {
         );
 
         const cipherBuffer = await crypto.subtle.encrypt(
-          { name: 'AES-GCM', iv: ivBytes },
+          { name: 'AES-GCM', iv: ivBytes as any },
           key,
           enc.encode(payloadStr)
         );

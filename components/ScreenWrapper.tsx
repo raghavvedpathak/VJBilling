@@ -1,7 +1,7 @@
 // components/ScreenWrapper.tsx — Phase 2 v2.11 Canonical Component
 
 import React from 'react';
-import { View, Text, StatusBar, TouchableOpacity, KeyboardAvoidingView, Platform } from 'react-native';
+import { View, Text, StatusBar, TouchableOpacity, KeyboardAvoidingView, Platform, useWindowDimensions } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { ChevronLeft } from 'lucide-react-native';
@@ -28,6 +28,9 @@ export function ScreenWrapper({
   headerContent,
 }: ScreenWrapperProps) {
   const router = useRouter();
+  const { width } = useWindowDimensions();
+  const isTablet = width >= 768;
+
   // Reactive subscription ensures component re-renders instantly on theme change from Settings
   const activeTheme = appSettingsStore((s) => s.theme);
   const colors = getThemeColors(activeTheme);
@@ -45,7 +48,10 @@ export function ScreenWrapper({
 
       {/* SAFE AREA */}
       <SafeAreaView className="flex-1" edges={['top', 'left', 'right']}>
-        <View className="flex-1 w-full max-w-[800px] self-center px-4 pt-2">
+        <View 
+          className="flex-1 w-full self-center px-4 pt-2"
+          style={{ maxWidth: isTablet ? 920 : undefined }}
+        >
 
           {/* HEADER */}
           {(title || showBack || actionIcon) && (
@@ -81,7 +87,7 @@ export function ScreenWrapper({
 
           {/* BODY CONTENT */}
           <KeyboardAvoidingView
-            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+            behavior={Platform.OS === 'ios' ? 'padding' : undefined}
             className="flex-1 w-full"
           >
             {children}

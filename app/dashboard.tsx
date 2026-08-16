@@ -18,7 +18,7 @@ import { COLORS } from '@/constants/theme';
 export default function Dashboard() {
   const router = useRouter();
   const { clearActiveFirm } = useFirmStore();
-  const { firm, activeFY, isLoading } = useSession();
+  const { firm, activeFY, isLoading, bisLogoUri } = useSession();
   
   const [showLogoutModal, setShowLogoutModal] = useState(false);
 
@@ -54,12 +54,12 @@ export default function Dashboard() {
       </View>
 
       <View className="py-2">
-        <View className="flex-row items-center gap-4 mb-4">
-          <View className="h-16 w-16 bg-vj-bg rounded-2xl border-2 border-white/30 justify-center items-center overflow-hidden shadow-lg">
+        <View className="flex-row items-center gap-3 mb-4">
+          <View className="h-16 w-16 bg-vj-bg rounded-2xl border-2 border-white/30 justify-center items-center overflow-hidden shadow-lg shrink-0 p-1.5">
             {displayLogo ? (
               <Image 
                 source={{ uri: displayLogo }} 
-                style={{ width: '100%', height: '100%', resizeMode: 'cover' }} 
+                style={{ width: '100%', height: '100%', resizeMode: 'contain' }} 
               />
             ) : (
               <Text className="text-3xl font-extrabold text-vj-text">
@@ -68,18 +68,27 @@ export default function Dashboard() {
             )}
           </View>
           
-          <View className="flex-1">
+          <View className="flex-1 min-w-0 pr-1">
             <Text className="text-vj-bg text-2xl font-black tracking-tight" numberOfLines={1}>
               {firm.name}
             </Text>
-            <Text className="text-vj-bg/70 text-sm font-semibold mt-0.5">
+            <Text className="text-vj-bg/70 text-sm font-semibold mt-0.5" numberOfLines={1}>
               {firm.proprietor}
             </Text>
           </View>
 
+          {bisLogoUri && (
+            <View className="h-16 w-16 bg-vj-bg rounded-2xl border-2 border-white/30 justify-center items-center overflow-hidden shadow-lg p-1.5 shrink-0">
+              <Image 
+                source={{ uri: bisLogoUri }} 
+                style={{ width: '100%', height: '100%', resizeMode: 'contain' }} 
+              />
+            </View>
+          )}
+
           <TouchableOpacity 
             onPress={() => setShowLogoutModal(true)} 
-            className="bg-white/15 p-3 rounded-full border border-white/25 active:bg-vj-danger/50"
+            className="bg-white/15 p-3 rounded-full border border-white/25 active:bg-vj-danger/50 shrink-0"
             activeOpacity={0.7}
           >
             <LogOut size={20} color="#FCFBF8" />
@@ -96,13 +105,25 @@ export default function Dashboard() {
             label={firm.gstin ? 'GST REGISTERED' : 'NON-GST'} 
             variant={firm.gstin ? "success" : "default"}
           />
-          {firm.bisLicence && (
+          {bisLogoUri ? (
+            <View className="flex-row items-center gap-1.5 bg-emerald-500/20 px-2.5 py-1 rounded-full border border-emerald-400/30">
+              <View className="w-4 h-4 bg-vj-bg rounded-xs justify-center items-center overflow-hidden">
+                <Image 
+                  source={{ uri: bisLogoUri }} 
+                  style={{ width: '100%', height: '100%', resizeMode: 'contain' }} 
+                />
+              </View>
+              <Text className="text-[10px] font-bold text-emerald-200 uppercase tracking-wide">
+                BIS CERTIFIED
+              </Text>
+            </View>
+          ) : firm.bisLicence ? (
             <HeaderPill 
-              icon={<ShieldCheck size={12} color="#38BDF8" />} 
-              label="BIS HALLMARK" 
-              variant="info" 
+              icon={<ShieldCheck size={12} color="#4ADE80" />} 
+              label="BIS CERTIFIED" 
+              variant="success" 
             />
-          )}
+          ) : null}
         </View>
       </View>
     </View>

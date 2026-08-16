@@ -13,6 +13,7 @@ import * as Sharing from 'expo-sharing';
 import * as Haptics from 'expo-haptics';
 import { Platform } from 'react-native';
 import CryptoJS from 'crypto-js';
+import * as Crypto from 'expo-crypto';
 import { storage } from '@/utils/storage';
 import { db } from '@/db/client';
 import { 
@@ -164,8 +165,8 @@ export const backupService = {
       const enc = new TextEncoder();
       const keySourceMaterial = password ? enc.encode(password) : await getCanonicalBackupKeyMaterial();
 
-      const saltBytes = crypto.getRandomValues(new Uint8Array(16));
-      const ivBytes = crypto.getRandomValues(new Uint8Array(12));
+      const saltBytes = Crypto.getRandomBytes(16);
+      const ivBytes = Crypto.getRandomBytes(12);
 
       const toBase64 = (u8: Uint8Array) => {
         let binary = '';
@@ -187,7 +188,7 @@ export const backupService = {
         );
 
         const key = await crypto.subtle.deriveKey(
-          { name: 'PBKDF2', salt: saltBytes, iterations, hash: 'SHA-256' },
+          { name: 'PBKDF2', salt: saltBytes as any, iterations, hash: 'SHA-256' },
           keyMaterial,
           { name: 'AES-GCM', length: 256 },
           false,
@@ -195,7 +196,7 @@ export const backupService = {
         );
 
         const cipherBuffer = await crypto.subtle.encrypt(
-          { name: 'AES-GCM', iv: ivBytes },
+          { name: 'AES-GCM', iv: ivBytes as any },
           key,
           enc.encode(payloadStr)
         );

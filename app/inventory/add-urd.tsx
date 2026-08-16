@@ -1,15 +1,18 @@
 // app/inventory/add-urd.tsx — Phase 2 v2.11 Canonical Screen
 
 import React, { useState, useMemo } from 'react';
-import { View, Text, ScrollView, Alert, TouchableOpacity, Modal, StyleSheet } from 'react-native';
+import { View, Text, ScrollView, Alert, TouchableOpacity, Modal, StyleSheet, ActivityIndicator } from 'react-native';
 import { useRouter } from 'expo-router';
+import { BlurView } from 'expo-blur';
 import * as Haptics from 'expo-haptics';
 import { TwoToneWrapper } from '@/components/TwoToneWrapper';
-import { GlassCard, GlassInput, GlassButton } from '@/components/ui/Glass';
+import { GlassCard, GlassInput, GlassButton, GlassPickerInput } from '@/components/ui/Glass';
+import { GlassDatePickerModal } from '@/components/ui/GlassDatePickerModal';
 import { useFirmStore } from '@/store/phase1/useFirmStore';
 import { urdPurchaseService } from '@/services/phase2/urdPurchaseService';
 import { getCurrencySymbol, formatRupees, computeURDCostBreakdown, parseCleanFloat } from '@/utils/calculations';
-import { User, Scale, Banknote, CheckCircle, Trash2, Plus } from 'lucide-react-native';
+import { User, Scale, Banknote, CheckCircle, Trash2, Plus, Calendar as CalendarIcon } from 'lucide-react-native';
+import { formatDate } from '@/utils/formatDate';
 import type { URDMetalType } from '@/types/phase2/phase2.types';
 import { COLORS } from '@/constants/theme';
 
@@ -36,6 +39,17 @@ const getEmptyRow = (): URDItemRow => ({
 export default function AddURDScreen() {
   const router = useRouter();
   const { activeFirmId } = useFirmStore();
+
+  const todayIso = useMemo(() => {
+    const t = new Date();
+    const y = t.getFullYear();
+    const m = String(t.getMonth() + 1).padStart(2, '0');
+    const d = String(t.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  }, []);
+
+  const [purchaseDate, setPurchaseDate] = useState(todayIso);
+  const [showDatePicker, setShowDatePicker] = useState(false);
 
   const [customerName, setCustomerName] = useState('');
   const [customerMobile, setCustomerMobile] = useState('');
@@ -149,7 +163,6 @@ export default function AddURDScreen() {
 
     setLoading(true);
     try {
-      const purchaseDate = new Date().toISOString().split('T')[0];
       const cName = customerName.trim();
       const cAddr = customerAddress.trim() || null;
       const cMob = customerMobile.trim() || null;
@@ -189,13 +202,29 @@ export default function AddURDScreen() {
 
   return (
     <TwoToneWrapper title="New URD Purchase" showBack>
-      <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingTop: 32, paddingBottom: 350, paddingHorizontal: 16 }} showsVerticalScrollIndicator={false}>
-        
-        {/* Seller / Customer Details */}
-        <GlassCard style={{ marginBottom: 16 }}>
+      <View style={{ flex: 1 }}>
+        <ScrollView 
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled" 
+          contentContainerStyle={{ paddingTop: 16, paddingBottom: 110, paddingHorizontal: 16 }}
+        >
+          {/* Seller / Customer Details */}
+          <GlassCard style={{ marginBottom: 16 }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 16 }}>
             <User size={20} color="#D4AF37" />
             <Text style={{ fontSize: 18, fontWeight: '700', color: COLORS.vjText }}>Seller Details</Text>
+          </View>
+
+          {/* Purchase Date Field */}
+          <View style={{ marginBottom: 12 }}>
+            <GlassPickerInput
+              label="Purchase Date"
+              placeholder="Select date..."
+              selectedLabel={formatDate(purchaseDate)}
+              selectedSublabel={purchaseDate === todayIso ? 'Today' : undefined}
+              onPress={() => setShowDatePicker(true)}
+              icon={<CalendarIcon size={18} color="#D4AF37" />}
+            />
           </View>
           
           <GlassInput label="Full Name *" placeholder="Enter customer name" value={customerName} onChangeText={setCustomerName} />
@@ -441,9 +470,38 @@ export default function AddURDScreen() {
           </View>
         </GlassCard>
 
-        <GlassButton title="Save as Draft" onPress={handleSubmit} loading={loading} />
+        </ScrollView>
 
-      </ScrollView>
+        {/* === FIXED STICKY PILL-SHAPED GLASS ACTION BAR === */}
+        <View style={s.fixedPillWrapper}>
+          <View style={s.fixedPillCard}>
+            <BlurView intensity={50} tint="light" style={s.fixedPillBlurContent}>
+              <View style={s.fixedBottomBarRow}>
+                <View style={s.payoutBadge}>
+                  <Text style={s.payoutBadgeLabel}>TOTAL PAYOUT</Text>
+                  <Text style={s.payoutBadgeVal}>{batchSummary.formattedTotalPayout}</Text>
+                </View>
+
+                <TouchableOpacity
+                  style={s.pillPrimaryBtn}
+                  onPress={handleSubmit}
+                  disabled={loading}
+                  activeOpacity={0.8}
+                >
+                  {loading ? (
+                    <ActivityIndicator size="small" color="#fff" />
+                  ) : (
+                    <>
+                      <Banknote size={18} color="#fff" />
+                      <Text style={s.pillPrimaryText}>Save URD Draft</Text>
+                    </>
+                  )}
+                </TouchableOpacity>
+              </View>
+            </BlurView>
+          </View>
+        </View>
+      </View>
 
       {/* Success Modal */}
       <Modal visible={!!successMessage} transparent animationType="fade">
@@ -467,6 +525,14 @@ export default function AddURDScreen() {
           </View>
         </View>
       </Modal>
+
+      <GlassDatePickerModal
+        visible={showDatePicker}
+        title="Purchase Date"
+        value={purchaseDate}
+        onClose={() => setShowDatePicker(false)}
+        onSelect={(d) => setPurchaseDate(d)}
+      />
     </TwoToneWrapper>
   );
 }
@@ -511,5 +577,75 @@ const s = StyleSheet.create({
     color: 'rgba(92,22,35,0.6)',
     textAlign: 'center',
     marginBottom: 24,
+  },
+
+  // --- Fixed Sticky Pill-Shaped Glass Action Bar ---
+  fixedPillWrapper: {
+    position: 'absolute',
+    bottom: 18,
+    left: 0,
+    right: 0,
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    zIndex: 99,
+  },
+  fixedPillCard: {
+    width: '100%',
+    maxWidth: 580,
+    borderRadius: 36,
+    overflow: 'hidden',
+    borderWidth: 1.5,
+    borderColor: 'rgba(212, 175, 55, 0.35)',
+    backgroundColor: '#FFFDF9',
+    shadowColor: '#5C1623',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.18,
+    shadowRadius: 16,
+    elevation: 10,
+  },
+  fixedPillBlurContent: {
+    paddingHorizontal: 8,
+    paddingVertical: 8,
+    borderRadius: 36,
+    backgroundColor: '#FFFDF9',
+  },
+  fixedBottomBarRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  payoutBadge: {
+    paddingVertical: 6,
+    paddingHorizontal: 14,
+    backgroundColor: 'rgba(92,22,35,0.06)',
+    borderRadius: 20,
+  },
+  payoutBadgeLabel: {
+    fontSize: 9,
+    fontWeight: '800',
+    color: 'rgba(92,22,35,0.5)',
+    letterSpacing: 0.5,
+  },
+  payoutBadgeVal: {
+    fontSize: 15,
+    fontWeight: '900',
+    color: COLORS.vjText,
+    fontFamily: 'monospace',
+  },
+  pillPrimaryBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: COLORS.vjAccent,
+    paddingVertical: 14,
+    borderRadius: 28,
+  },
+  pillPrimaryText: {
+    color: '#ffffff',
+    fontSize: 15,
+    fontWeight: '800',
+    letterSpacing: 0.3,
   },
 });

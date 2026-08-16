@@ -10,6 +10,7 @@
 import { storage } from '@/utils/storage';
 import { ERR } from '@/constants/errorCodes';
 import CryptoJS from 'crypto-js';
+import * as Crypto from 'expo-crypto';
 
 const PIN_HASH_KEY = 'vjbilling_pin_hash';
 const PIN_SALT_KEY = 'vjbilling_pin_salt';
@@ -58,7 +59,7 @@ export async function setPin(pin: string): Promise<void> {
     throw new Error(ERR.PIN_INCORRECT + ': PIN must be exactly 4 or 6 digits');
   }
   
-  const saltBytes = crypto.getRandomValues(new Uint8Array(16));
+  const saltBytes = Crypto.getRandomBytes(16);
   const saltHex = Array.from(saltBytes).map(b => b.toString(16).padStart(2, '0')).join('');
   
   storage.set(PIN_HASH_KEY, await deriveKey(pin, saltHex));

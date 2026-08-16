@@ -1,7 +1,7 @@
 // components/TwoToneWrapper.tsx — Phase 2 v2.11 Canonical Component
 
 import React from 'react';
-import { View, Text, StatusBar, TouchableOpacity, KeyboardAvoidingView, Platform } from 'react-native';
+import { View, Text, StatusBar, TouchableOpacity, KeyboardAvoidingView, Platform, useWindowDimensions } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { ChevronLeft } from 'lucide-react-native';
@@ -22,6 +22,9 @@ interface TwoToneWrapperProps {
 export function TwoToneWrapper({ title, children, showBack, actionIcon, onAction, headerContent }: TwoToneWrapperProps) {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { width } = useWindowDimensions();
+  const isTablet = width >= 768;
+
   // Reactive subscription ensures component re-renders instantly on theme change from Settings
   const activeTheme = appSettingsStore((s) => s.theme);
   const colors = getThemeColors(activeTheme);
@@ -39,7 +42,10 @@ export function TwoToneWrapper({ title, children, showBack, actionIcon, onAction
       <SafeAreaView className="flex-1" edges={['top', 'left', 'right']}>
         
         {/* === UPPER ZONE (DARK) === */}
-        <View className="w-full max-w-[800px] self-center px-4 pt-2 pb-6">
+        <View 
+          className="w-full self-center px-4 pt-2 pb-6"
+          style={{ maxWidth: isTablet ? 920 : undefined }}
+        >
           
           {/* HEADER BAR */}
           {(title || showBack || actionIcon) && (
@@ -79,9 +85,12 @@ export function TwoToneWrapper({ title, children, showBack, actionIcon, onAction
         <View className="flex-1 rounded-t-[32px] overflow-hidden" style={{ backgroundColor: colors.vjBg }}>
           <DynamicBackground />
           <KeyboardAvoidingView
-            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-            className="flex-1 w-full max-w-[800px] self-center px-4 pt-4"
-            style={{ paddingBottom: Math.max(insets.bottom, 16) }}
+            behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+            className="flex-1 w-full self-center px-4 pt-4"
+            style={{ 
+              maxWidth: isTablet ? 920 : undefined,
+              paddingBottom: Math.max(insets.bottom, 16) 
+            }}
           >
             {children}
           </KeyboardAvoidingView>

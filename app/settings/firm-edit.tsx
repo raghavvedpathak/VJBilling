@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { View, Text, TouchableOpacity, ScrollView, Alert, Image, ActivityIndicator, Modal } from 'react-native';
+import { View, Text, TouchableOpacity, ScrollView, Alert, Image, ActivityIndicator, Modal, StyleSheet } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { BlurView } from 'expo-blur';
 import * as ImagePicker from 'expo-image-picker';
@@ -11,7 +11,7 @@ import { useFirmStore } from '@/store/phase1/useFirmStore';
 import { INDIAN_STATES } from '@/utils/indianStates'; 
 import { GlassCard, GlassInput, GlassButton } from '@/components/ui/Glass';
 import { Save, Building2, User, MapPin, Hash, Phone, ShieldCheck, ImagePlus, Tag, CheckCircle2, ArrowLeft, ChevronDown, X, Lock } from 'lucide-react-native';
-import { validateGSTIN } from '@/utils/validateGSTIN';
+import { validateGSTIN, formatGSTINInput, getGSTINKeyboardType } from '@/utils/validateGSTIN';
 import { useUnsavedChangesGuard } from '@/hooks/useUnsavedChangesGuard';
 import { COLORS } from '@/constants/theme';
 
@@ -40,10 +40,32 @@ export default function EditFirmScreen() {
     addressLine1: '',
     addressLine2: '',
     city: '',
+    pincode: '',
     stateCode: '',
     stateName: '',
-    pincode: ''
   });
+
+  const handleGstinChange = (text: string) => {
+    const formatted = formatGSTINInput(text);
+    let updatedStateCode = form.stateCode;
+    let updatedStateName = form.stateName;
+
+    if (!originalFirm?.gstin && formatted.length >= 2) {
+      const stateCodePrefix = formatted.slice(0, 2);
+      const matchedState = INDIAN_STATES.find(s => s.code === stateCodePrefix);
+      if (matchedState) {
+        updatedStateCode = matchedState.code;
+        updatedStateName = matchedState.name;
+      }
+    }
+
+    setForm(prev => ({
+      ...prev,
+      gstin: formatted,
+      stateCode: updatedStateCode,
+      stateName: updatedStateName,
+    }));
+  };
 
   useEffect(() => {
     if (id && firms.length > 0) {
@@ -115,11 +137,16 @@ export default function EditFirmScreen() {
     if (source === 'camera') {
       const permission = await ImagePicker.requestCameraPermissionsAsync();
       if (!permission.granted) {
-        Alert.alert("Permission Required", "Camera access is needed.");
+        Alert.alert("Permission Required", "Camera access is needed to capture store / BIS hallmark logos.");
         return;
       }
       result = await ImagePicker.launchCameraAsync(options);
     } else {
+      const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!permission.granted) {
+        Alert.alert("Permission Required", "Photo library access is needed to select store / BIS hallmark logos.");
+        return;
+      }
       result = await ImagePicker.launchImageLibraryAsync(options);
     }
 
@@ -127,18 +154,16 @@ export default function EditFirmScreen() {
       const asset = result.assets[0];
       let finalUri = asset.uri;
       
-      if (asset.width > 1024 || asset.height > 1024) {
-        const resizeAction = asset.width > asset.height 
-          ? { width: 1024 } 
-          : { height: 1024 }; 
+      const resizeAction = (asset.width > 1024 || asset.height > 1024)
+        ? (asset.width > asset.height ? [{ resize: { width: 1024 } }] : [{ resize: { height: 1024 } }])
+        : [];
 
-        const manipResult = await manipulateAsync(
-          asset.uri,
-          [{ resize: resizeAction }],
-          { compress: 0.8, format: SaveFormat.JPEG }
-        );
-        finalUri = manipResult.uri;
-      }
+      const manipResult = await manipulateAsync(
+        asset.uri,
+        resizeAction,
+        { compress: 0.9, format: SaveFormat.PNG }
+      );
+      finalUri = manipResult.uri;
 
       const fileInfo = await FileSystem.getInfoAsync(finalUri);
       if (!fileInfo.exists) return;
@@ -153,7 +178,7 @@ export default function EditFirmScreen() {
       await FileSystem.makeDirectoryAsync(logosDir, { intermediates: true });
       
       const timeStamp = Date.now();
-      const fileName = field === 'logoUri' ? `firm_${id}_${timeStamp}.jpg` : `bis_firm_${id}_${timeStamp}.jpg`;
+      const fileName = field === 'logoUri' ? `firm_${id}_${timeStamp}.png` : `bis_firm_${id}_${timeStamp}.png`;
       const destPath = logosDir + fileName;
       
       const currentUri = form[field];
@@ -252,54 +277,95 @@ export default function EditFirmScreen() {
   if (initialLoad) return <ActivityIndicator size="large" className="mt-10" color="#D4AF37" />;
 
   // Transparent Glass Logo Picker
+  const hasBisLicence = Boolean(form.bisLicence && form.bisLicence.trim());
+
   const headerLogoPicker = (
-    <View className="items-center pb-3 pt-1">
-      <TouchableOpacity
-        onPress={() => pickImage('logoUri')}
-        activeOpacity={0.8}
-        className="h-28 w-28 rounded-3xl justify-center items-center overflow-hidden border-2 border-white/30 shadow-sm mb-2 bg-white/10"
-      >
-        {form.logoUri ? (
-          <Image 
-            source={{ uri: form.logoUri }} 
-            style={{ width: '100%', height: '100%' }}
-            resizeMode="cover"
-            onError={() => {
-              console.warn('[FirmEdit] Failed to load firm logo thumbnail. Dead URI.');
-              setForm(prev => ({...prev, logoUri: null}));
-            }} 
-          />
-        ) : (
-          <View className="w-full h-full justify-center items-center bg-black/20">
-            <View className="items-center justify-center">
-              <ImagePlus size={26} color="#FCFBF8" />
-              <Text className="text-[9px] text-white/80 font-black tracking-widest uppercase mt-1 text-center px-1">
-                NO LOGO
-              </Text>
+    <View className="flex-row items-center justify-center gap-5 pb-3 pt-1">
+      {/* 1. FIRM BRAND LOGO */}
+      <View className="items-center">
+        <TouchableOpacity
+          onPress={() => pickImage('logoUri')}
+          activeOpacity={0.8}
+          className="h-24 w-24 rounded-2xl justify-center items-center overflow-hidden border-2 border-white/30 shadow-xs mb-1.5 bg-white/10"
+        >
+          {form.logoUri ? (
+            <Image 
+              source={{ uri: form.logoUri }} 
+              style={{ width: '100%', height: '100%' }}
+              resizeMode="cover"
+              onError={() => {
+                console.warn('[FirmEdit] Failed to load firm logo thumbnail. Dead URI.');
+                setForm((prev: typeof form) => ({ ...prev, logoUri: null }));
+              }} 
+            />
+          ) : (
+            <View className="w-full h-full justify-center items-center bg-black/20">
+              <View className="items-center justify-center">
+                <ImagePlus size={22} color="#FCFBF8" />
+                <Text className="text-[9px] text-white/80 font-black tracking-widest uppercase mt-1 text-center px-1">
+                  NO LOGO
+                </Text>
+              </View>
             </View>
-          </View>
-        )}
-      </TouchableOpacity>
-      
-      <TouchableOpacity onPress={() => pickImage('logoUri')} className="px-4 py-1.5 rounded-full border border-white/30">
-        <Text className="text-[11px] text-white font-bold tracking-widest uppercase">
-          {form.logoUri ? "CHANGE LOGO" : "UPLOAD LOGO"}
-        </Text>
-      </TouchableOpacity>
+          )}
+        </TouchableOpacity>
+        
+        <TouchableOpacity onPress={() => pickImage('logoUri')} className="px-3 py-1 rounded-full border border-white/30">
+          <Text className="text-[10px] text-white font-bold tracking-widest uppercase">
+            {form.logoUri ? "CHANGE LOGO" : "UPLOAD LOGO"}
+          </Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* 2. BIS HALLMARK LOGO (APPEARS ONLY WHEN BIS LICENCE NO IS ADDED) */}
+      {hasBisLicence && (
+        <View className="items-center">
+          <TouchableOpacity
+            onPress={() => pickImage('bisLogoUri')}
+            activeOpacity={0.8}
+            className="h-24 w-24 rounded-2xl justify-center items-center overflow-hidden border-2 border-amber-400/40 shadow-xs mb-1.5 bg-white/10 p-2"
+          >
+            {form.bisLogoUri ? (
+              <Image
+                source={{ uri: form.bisLogoUri }}
+                style={{ width: '100%', height: '100%' }}
+                resizeMode="contain"
+                onError={() => {
+                  console.warn('[FirmEdit] Failed to load BIS logo thumbnail. Dead URI.');
+                  setForm((prev: typeof form) => ({ ...prev, bisLogoUri: null }));
+                }}
+              />
+            ) : (
+              <View className="items-center justify-center">
+                <ShieldCheck size={24} color="#D4AF37" />
+                <Text className="text-[9px] text-amber-200 font-bold uppercase mt-1 text-center">
+                  BIS LOGO
+                </Text>
+              </View>
+            )}
+          </TouchableOpacity>
+          
+          <TouchableOpacity onPress={() => pickImage('bisLogoUri')} className="px-3 py-1 rounded-full border border-amber-400/40">
+            <Text className="text-[10px] text-amber-200 font-bold tracking-widest uppercase">
+              {form.bisLogoUri ? "CHANGE BIS" : "UPLOAD BIS"}
+            </Text>
+          </TouchableOpacity>
+        </View>
+      )}
     </View>
   );
 
   return (
     <TwoToneWrapper title="Edit Firm" showBack headerContent={headerLogoPicker}>
-      <ScrollView 
-        showsVerticalScrollIndicator={false} 
-        keyboardShouldPersistTaps="handled" 
-        keyboardDismissMode="on-drag"
-        contentContainerStyle={{ paddingBottom: 350, paddingTop: 24, paddingHorizontal: 14 }}
-      >
-        
-        {/* CARD 1: STORE PROFILE */}
-        <GlassCard>
+      <View style={{ flex: 1 }}>
+        <ScrollView 
+          showsVerticalScrollIndicator={false} 
+          keyboardShouldPersistTaps="handled" 
+          keyboardDismissMode="on-drag"
+          contentContainerStyle={{ paddingBottom: 110, paddingTop: 24, paddingHorizontal: 14 }}
+        >
+          {/* CARD 1: STORE PROFILE */}
+          <GlassCard>
           <View className="flex-row items-center gap-2 mb-4 pb-2.5 border-b border-vj-text/10">
             <View className="bg-amber-500/15 p-2 rounded-xl border border-amber-500/25">
               <Building2 size={18} color="#D4AF37" />
@@ -340,10 +406,15 @@ export default function EditFirmScreen() {
             <GlassInput 
               label="GSTIN (Optional)" 
               value={form.gstin} 
-              onChangeText={(t) => setForm({ ...form, gstin: t.toUpperCase() })} 
-              placeholder="27AAAAA0000A1Z5" 
+              onChangeText={handleGstinChange} 
+              keyboardType={getGSTINKeyboardType(form.gstin.length)}
+              placeholder="e.g. 27ASDFG1234A1Z5" 
               maxLength={15} 
               icon={<Hash size={18} color="#D4AF37" />} 
+              autoCapitalize="characters"
+              autoCorrect={false}
+              spellCheck={false}
+              autoComplete="off"
             />
           ) : (
             <View className="mb-4">
@@ -361,28 +432,18 @@ export default function EditFirmScreen() {
           <GlassInput label="BIS Licence" value={form.bisLicence} onChangeText={(t) => setForm({...form, bisLicence: t})} icon={<ShieldCheck size={18} color="#D4AF37" />} />
           
           {!form.bisLicence ? (
-            <View className="mt-2 p-3.5 bg-white/40 rounded-2xl border border-white/50">
-              <Text className="text-vj-text font-bold text-xs mb-1">BIS Hallmark Logo</Text>
-              <Text className="text-vj-text/60 text-[11px]">Add BIS licence number above to enable BIS logo upload.</Text>
+            <View className="mt-1 px-1">
+              <Text className="text-[11px] text-vj-text/50 font-medium italic">
+                Enter BIS Licence to enable BIS Hallmark logo upload in header.
+              </Text>
             </View>
           ) : (
-            <View className="mt-2 p-3.5 bg-white/60 rounded-2xl border border-white/60 flex-row items-center justify-between">
-              <Text className="text-vj-text font-bold text-xs ml-1">BIS Hallmark Logo</Text>
-              <TouchableOpacity onPress={() => pickImage('bisLogoUri')} className="bg-white px-4 py-2 rounded-full shadow-xs border border-white/80">
-                <Text className="text-xs font-bold text-vj-accent">{form.bisLogoUri ? "Change Logo" : "Upload Logo"}</Text>
-              </TouchableOpacity>
+            <View className="mt-1 px-1 flex-row items-center gap-1.5">
+              <ShieldCheck size={14} color="#D4AF37" />
+              <Text className="text-[11px] text-amber-800 font-bold">
+                BIS Hallmark Logo upload unlocked in header above ↑
+              </Text>
             </View>
-          )}
-          
-          {form.bisLogoUri && (
-            <Image 
-              source={{ uri: form.bisLogoUri }} 
-              style={{ height: 64, width: 128, resizeMode: 'contain', marginTop: 12, alignSelf: 'center' }}
-              onError={() => {
-                console.warn('[FirmEdit] Failed to load BIS logo thumbnail. Dead URI.');
-                setForm(prev => ({...prev, bisLogoUri: null}));
-              }} 
-            />
           )}
         </GlassCard>
 
@@ -452,13 +513,33 @@ export default function EditFirmScreen() {
             </View>
           </View>
         </GlassCard>
-
-        {/* SUBMIT BUTTON */}
-        <View className="mt-2 mb-10">
-          <GlassButton title="Save Changes" icon={<Save size={20} color="#FCFBF8" />} onPress={handleUpdate} loading={loading} />
-        </View>
-
       </ScrollView>
+
+      {/* === FIXED STICKY PILL-SHAPED GLASS ACTION BAR === */}
+      <View style={s.fixedPillWrapper}>
+        <View style={s.fixedPillCard}>
+          <BlurView intensity={50} tint="light" style={s.fixedPillBlurContent}>
+            <View style={s.fixedBottomBarRow}>
+              <TouchableOpacity
+                style={s.pillPrimaryBtn}
+                onPress={handleUpdate}
+                disabled={loading}
+                activeOpacity={0.8}
+              >
+                {loading ? (
+                  <ActivityIndicator size="small" color="#fff" />
+                ) : (
+                  <>
+                    <Save size={18} color="#fff" />
+                    <Text style={s.pillPrimaryText}>Save Firm Changes</Text>
+                  </>
+                )}
+              </TouchableOpacity>
+            </View>
+          </BlurView>
+        </View>
+      </View>
+    </View>
 
       {/* STATE PICKER MODAL */}
       <Modal visible={showStatePicker} animationType="slide" transparent={true}>
@@ -511,3 +592,56 @@ export default function EditFirmScreen() {
     </TwoToneWrapper>
   );
 }
+
+const s = StyleSheet.create({
+  // --- Fixed Sticky Pill-Shaped Glass Action Bar ---
+  fixedPillWrapper: {
+    position: 'absolute',
+    bottom: 18,
+    left: 0,
+    right: 0,
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    zIndex: 99,
+  },
+  fixedPillCard: {
+    width: '100%',
+    maxWidth: 580,
+    borderRadius: 36,
+    overflow: 'hidden',
+    borderWidth: 1.5,
+    borderColor: 'rgba(212, 175, 55, 0.35)',
+    backgroundColor: '#FFFDF9',
+    shadowColor: '#5C1623',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.18,
+    shadowRadius: 16,
+    elevation: 10,
+  },
+  fixedPillBlurContent: {
+    paddingHorizontal: 8,
+    paddingVertical: 8,
+    borderRadius: 36,
+    backgroundColor: '#FFFDF9',
+  },
+  fixedBottomBarRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  pillPrimaryBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: COLORS.vjAccent,
+    paddingVertical: 14,
+    borderRadius: 28,
+  },
+  pillPrimaryText: {
+    color: '#ffffff',
+    fontSize: 15,
+    fontWeight: '800',
+    letterSpacing: 0.3,
+  },
+});
