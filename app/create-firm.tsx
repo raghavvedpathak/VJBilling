@@ -9,15 +9,15 @@ import {
   Alert,
   Image,
   Modal,
-  StyleSheet,
   ActivityIndicator,
+  Platform,
 } from 'react-native';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import { useRouter } from 'expo-router';
-import { BlurView } from 'expo-blur';
 import * as ImagePicker from 'expo-image-picker';
 import * as FileSystem from 'expo-file-system/legacy';
 import { TwoToneWrapper } from '@/components/TwoToneWrapper';
-import { GlassCard, GlassInput, GlassButton } from '@/components/ui/Glass';
+import { GlassCard, GlassInput, GlassButton, FixedGlassBar, fixedBarStyles } from '@/components/ui/Glass';
 import { firmService } from '@/services/phase1/firmService';
 import { useFirmStore } from '@/store/phase1/useFirmStore';
 import { INDIAN_STATES } from '@/utils/indianStates';
@@ -235,11 +235,15 @@ export default function CreateFirmScreen() {
   return (
     <TwoToneWrapper title="New Firm" showBack>
       <View style={{ flex: 1 }}>
-        <ScrollView
+        <KeyboardAwareScrollView
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
           keyboardDismissMode="on-drag"
-          contentContainerStyle={{ paddingTop: 16, paddingBottom: 160, paddingHorizontal: 14 }}
+          enableOnAndroid={true}
+          enableAutomaticScroll={true}
+          extraScrollHeight={120}
+          extraHeight={140}
+          contentContainerStyle={{ paddingTop: 16, paddingBottom: 190, paddingHorizontal: 14 }}
         >
           {/* CARD 0: STORE LOGO & BIS CERTIFICATION */}
           <GlassCard>
@@ -516,32 +520,26 @@ export default function CreateFirmScreen() {
             </View>
           </View>
         </GlassCard>
-      </ScrollView>
+      </KeyboardAwareScrollView>
 
         {/* === FIXED STICKY PILL-SHAPED GLASS ACTION BAR === */}
-        <View style={s.fixedPillWrapper}>
-          <View style={s.fixedPillCard}>
-            <BlurView intensity={50} tint="light" style={s.fixedPillBlurContent}>
-              <View style={s.fixedBottomBarRow}>
-                <TouchableOpacity
-                  style={s.pillPrimaryBtn}
-                  onPress={handleSave}
-                  disabled={loading}
-                  activeOpacity={0.8}
-                >
-                  {loading ? (
-                    <ActivityIndicator size="small" color="#fff" />
-                  ) : (
-                    <>
-                      <Save size={18} color="#fff" />
-                      <Text style={s.pillPrimaryText}>Establish Firm Identity</Text>
-                    </>
-                  )}
-                </TouchableOpacity>
-              </View>
-            </BlurView>
-          </View>
-        </View>
+        <FixedGlassBar>
+          <TouchableOpacity
+            style={fixedBarStyles.pillPrimaryBtn}
+            onPress={handleSave}
+            disabled={loading}
+            activeOpacity={0.8}
+          >
+            {loading ? (
+              <ActivityIndicator size="small" color="#fff" />
+            ) : (
+              <>
+                <Save size={18} color="#fff" />
+                <Text style={fixedBarStyles.pillPrimaryText}>Establish Firm Identity</Text>
+              </>
+            )}
+          </TouchableOpacity>
+        </FixedGlassBar>
       </View>
 
       {/* STATE PICKER MODAL */}
@@ -599,6 +597,7 @@ export default function CreateFirmScreen() {
                 icon={<ArrowRight size={20} color="#FCFBF8" />}
                 onPress={() => {
                   setShowSuccessModal(false);
+                  try { router.dismissAll(); } catch {}
                   router.replace('/dashboard');
                 }}
               />
@@ -633,57 +632,4 @@ export default function CreateFirmScreen() {
 
     </TwoToneWrapper>
   );
-}
-
-const s = StyleSheet.create({
-  // --- Fixed Sticky Pill-Shaped Glass Action Bar ---
-  fixedPillWrapper: {
-    position: 'absolute',
-    bottom: 18,
-    left: 0,
-    right: 0,
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    zIndex: 99,
-  },
-  fixedPillCard: {
-    width: '100%',
-    maxWidth: 580,
-    borderRadius: 36,
-    overflow: 'hidden',
-    borderWidth: 1.5,
-    borderColor: 'rgba(212, 175, 55, 0.35)',
-    backgroundColor: 'rgba(255, 253, 249, 0.75)',
-    shadowColor: '#5C1623',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.18,
-    shadowRadius: 16,
-    elevation: 10,
-  },
-  fixedPillBlurContent: {
-    paddingHorizontal: 8,
-    paddingVertical: 8,
-    borderRadius: 36,
-    backgroundColor: 'transparent',
-  },
-  fixedBottomBarRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  pillPrimaryBtn: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    backgroundColor: COLORS.vjAccent,
-    paddingVertical: 14,
-    borderRadius: 28,
-  },
-  pillPrimaryText: {
-    color: '#ffffff',
-    fontSize: 15,
-    fontWeight: '800',
-    letterSpacing: 0.3,
-  },
-});
+}

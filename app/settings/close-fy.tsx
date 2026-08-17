@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { View, Text, ScrollView, StyleSheet, ActivityIndicator, Alert, TextInput } from 'react-native';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import { useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { TwoToneWrapper } from '@/components/TwoToneWrapper';
@@ -213,7 +214,16 @@ export default function CloseFYWizard() {
 
   return (
     <TwoToneWrapper title="Close Financial Year" showBack>
-      <ScrollView contentContainerStyle={{ paddingTop: 32, paddingBottom: 350 }} showsVerticalScrollIndicator={false}>
+      <KeyboardAwareScrollView 
+        contentContainerStyle={{ paddingTop: 32, paddingBottom: 190 }} 
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
+        enableOnAndroid={true}
+        enableAutomaticScroll={true}
+        extraScrollHeight={120}
+        extraHeight={140}
+      >
         <View style={s.stepper}>
           {[1, 2, 3].map((num) => (
             <View key={num} style={[s.stepDot, step >= num && s.stepDotActive, step === 4 && s.stepDotSuccess]}>
@@ -226,7 +236,7 @@ export default function CloseFYWizard() {
         {step === 2 && renderStep2()}
         {step === 3 && renderStep3()}
         {step === 4 && renderStep4()}
-      </ScrollView>
+      </KeyboardAwareScrollView>
     </TwoToneWrapper>
   );
 }

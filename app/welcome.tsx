@@ -62,6 +62,7 @@ export default function WelcomeScreen() {
       setEnteringFirmId(firmId);
       await switchFirm(firmId);
       await refreshSession();
+      try { router.dismissAll(); } catch {}
       router.replace('/dashboard');
     } catch (err: any) {
       Alert.alert('Error', err.message || 'Failed to enter store workspace.');
@@ -90,6 +91,7 @@ export default function WelcomeScreen() {
       await refreshSession();
       setPreviewModalVisible(false);
       Alert.alert("Welcome Back", "Database restored successfully.");
+      try { router.dismissAll(); } catch {}
       router.replace('/dashboard');
     } catch (error: any) {
       Alert.alert("Restore Failed", error.message);

@@ -2,11 +2,12 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { View, Text, ScrollView, Alert, TouchableOpacity, Modal, ActivityIndicator, StyleSheet } from 'react-native';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { BlurView } from 'expo-blur';
 import * as Haptics from 'expo-haptics';
 import { TwoToneWrapper } from '@/components/TwoToneWrapper';
-import { GlassCard, GlassInput, GlassButton } from '@/components/ui/Glass';
+import { GlassCard, GlassInput, GlassButton, FixedGlassBar, fixedBarStyles } from '@/components/ui/Glass';
 import { useFirmStore } from '@/store/phase1/useFirmStore';
 import { urdPurchaseService } from '@/services/phase2/urdPurchaseService';
 import { getCurrencySymbol, formatRupees, computeURDCostBreakdown, parseCleanFloat } from '@/utils/calculations';
@@ -169,10 +170,15 @@ export default function EditURDScreen() {
   return (
     <TwoToneWrapper title="Edit URD Purchase" showBack>
       <View style={{ flex: 1 }}>
-        <ScrollView 
+        <KeyboardAwareScrollView 
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled" 
-          contentContainerStyle={{ paddingTop: 16, paddingBottom: 110, paddingHorizontal: 16 }}
+          keyboardDismissMode="on-drag"
+          enableOnAndroid={true}
+          enableAutomaticScroll={true}
+          extraScrollHeight={120}
+          extraHeight={140}
+          contentContainerStyle={{ paddingTop: 16, paddingBottom: 190, paddingHorizontal: 16 }}
         >
           {/* Seller / Customer Details */}
           <GlassCard style={{ marginBottom: 16 }}>
@@ -367,45 +373,39 @@ export default function EditURDScreen() {
           )}
         </GlassCard>
 
-        </ScrollView>
+        </KeyboardAwareScrollView>
 
         {/* === FIXED STICKY PILL-SHAPED GLASS ACTION BAR === */}
-        <View style={s.fixedPillWrapper}>
-          <View style={s.fixedPillCard}>
-            <BlurView intensity={50} tint="light" style={s.fixedPillBlurContent}>
-              <View style={s.fixedBottomBarRow}>
-                <TouchableOpacity
-                  style={s.pillSecondaryBtn}
-                  onPress={() => {
-                    try { Haptics.selectionAsync(); } catch {}
-                    router.back();
-                  }}
-                  disabled={loading}
-                  activeOpacity={0.7}
-                >
-                  <X size={16} color={COLORS.vjText} />
-                  <Text style={s.pillSecondaryText}>Cancel</Text>
-                </TouchableOpacity>
+        <FixedGlassBar>
+          <TouchableOpacity
+            style={s.pillSecondaryBtn}
+            onPress={() => {
+              try { Haptics.selectionAsync(); } catch {}
+              router.back();
+            }}
+            disabled={loading}
+            activeOpacity={0.7}
+          >
+            <X size={16} color={COLORS.vjText} />
+            <Text style={s.pillSecondaryText}>Cancel</Text>
+          </TouchableOpacity>
 
-                <TouchableOpacity
-                  style={s.pillPrimaryBtn}
-                  onPress={handleSubmit}
-                  disabled={loading}
-                  activeOpacity={0.8}
-                >
-                  {loading ? (
-                    <ActivityIndicator size="small" color="#fff" />
-                  ) : (
-                    <>
-                      <Save size={18} color="#fff" />
-                      <Text style={s.pillPrimaryText}>Save Changes</Text>
-                    </>
-                  )}
-                </TouchableOpacity>
-              </View>
-            </BlurView>
-          </View>
-        </View>
+          <TouchableOpacity
+            style={s.pillPrimaryBtn}
+            onPress={handleSubmit}
+            disabled={loading}
+            activeOpacity={0.8}
+          >
+            {loading ? (
+              <ActivityIndicator size="small" color="#fff" />
+            ) : (
+              <>
+                <Save size={18} color="#fff" />
+                <Text style={s.pillPrimaryText}>Save Changes</Text>
+              </>
+            )}
+          </TouchableOpacity>
+        </FixedGlassBar>
       </View>
 
       {/* Success Modal */}
@@ -474,42 +474,6 @@ const s = StyleSheet.create({
     color: 'rgba(92,22,35,0.6)',
     textAlign: 'center',
     marginBottom: 24,
-  },
-
-  // --- Fixed Sticky Pill-Shaped Glass Action Bar ---
-  fixedPillWrapper: {
-    position: 'absolute',
-    bottom: 18,
-    left: 0,
-    right: 0,
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    zIndex: 99,
-  },
-  fixedPillCard: {
-    width: '100%',
-    maxWidth: 580,
-    borderRadius: 36,
-    overflow: 'hidden',
-    borderWidth: 1.5,
-    borderColor: 'rgba(212, 175, 55, 0.35)',
-    backgroundColor: '#FFFDF9',
-    shadowColor: '#5C1623',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.18,
-    shadowRadius: 16,
-    elevation: 10,
-  },
-  fixedPillBlurContent: {
-    paddingHorizontal: 8,
-    paddingVertical: 8,
-    borderRadius: 36,
-    backgroundColor: '#FFFDF9',
-  },
-  fixedBottomBarRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
   },
   pillSecondaryBtn: {
     flex: 1,

@@ -2,11 +2,12 @@
 
 import React, { useState, useMemo } from 'react';
 import { View, Text, ScrollView, Alert, TouchableOpacity, Modal, StyleSheet, ActivityIndicator } from 'react-native';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import { useRouter } from 'expo-router';
 import { BlurView } from 'expo-blur';
 import * as Haptics from 'expo-haptics';
 import { TwoToneWrapper } from '@/components/TwoToneWrapper';
-import { GlassCard, GlassInput, GlassButton, GlassPickerInput } from '@/components/ui/Glass';
+import { GlassCard, GlassInput, GlassButton, GlassPickerInput, FixedGlassBar, fixedBarStyles } from '@/components/ui/Glass';
 import { GlassDatePickerModal } from '@/components/ui/GlassDatePickerModal';
 import { useFirmStore } from '@/store/phase1/useFirmStore';
 import { urdPurchaseService } from '@/services/phase2/urdPurchaseService';
@@ -203,10 +204,15 @@ export default function AddURDScreen() {
   return (
     <TwoToneWrapper title="New URD Purchase" showBack>
       <View style={{ flex: 1 }}>
-        <ScrollView 
+        <KeyboardAwareScrollView 
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled" 
-          contentContainerStyle={{ paddingTop: 16, paddingBottom: 110, paddingHorizontal: 16 }}
+          keyboardDismissMode="on-drag"
+          enableOnAndroid={true}
+          enableAutomaticScroll={true}
+          extraScrollHeight={120}
+          extraHeight={140}
+          contentContainerStyle={{ paddingTop: 16, paddingBottom: 190, paddingHorizontal: 16 }}
         >
           {/* Seller / Customer Details */}
           <GlassCard style={{ marginBottom: 16 }}>
@@ -470,37 +476,31 @@ export default function AddURDScreen() {
           </View>
         </GlassCard>
 
-        </ScrollView>
+        </KeyboardAwareScrollView>
 
         {/* === FIXED STICKY PILL-SHAPED GLASS ACTION BAR === */}
-        <View style={s.fixedPillWrapper}>
-          <View style={s.fixedPillCard}>
-            <BlurView intensity={50} tint="light" style={s.fixedPillBlurContent}>
-              <View style={s.fixedBottomBarRow}>
-                <View style={s.payoutBadge}>
-                  <Text style={s.payoutBadgeLabel}>TOTAL PAYOUT</Text>
-                  <Text style={s.payoutBadgeVal}>{batchSummary.formattedTotalPayout}</Text>
-                </View>
-
-                <TouchableOpacity
-                  style={s.pillPrimaryBtn}
-                  onPress={handleSubmit}
-                  disabled={loading}
-                  activeOpacity={0.8}
-                >
-                  {loading ? (
-                    <ActivityIndicator size="small" color="#fff" />
-                  ) : (
-                    <>
-                      <Banknote size={18} color="#fff" />
-                      <Text style={s.pillPrimaryText}>Save URD Draft</Text>
-                    </>
-                  )}
-                </TouchableOpacity>
-              </View>
-            </BlurView>
+        <FixedGlassBar>
+          <View style={s.payoutBadge}>
+            <Text style={s.payoutBadgeLabel}>TOTAL PAYOUT</Text>
+            <Text style={s.payoutBadgeVal}>{batchSummary.formattedTotalPayout}</Text>
           </View>
-        </View>
+
+          <TouchableOpacity
+            style={fixedBarStyles.pillPrimaryBtn}
+            onPress={handleSubmit}
+            disabled={loading}
+            activeOpacity={0.8}
+          >
+            {loading ? (
+              <ActivityIndicator size="small" color="#fff" />
+            ) : (
+              <>
+                <Banknote size={18} color="#fff" />
+                <Text style={fixedBarStyles.pillPrimaryText}>Save URD Draft</Text>
+              </>
+            )}
+          </TouchableOpacity>
+        </FixedGlassBar>
       </View>
 
       {/* Success Modal */}
@@ -578,42 +578,6 @@ const s = StyleSheet.create({
     textAlign: 'center',
     marginBottom: 24,
   },
-
-  // --- Fixed Sticky Pill-Shaped Glass Action Bar ---
-  fixedPillWrapper: {
-    position: 'absolute',
-    bottom: 18,
-    left: 0,
-    right: 0,
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    zIndex: 99,
-  },
-  fixedPillCard: {
-    width: '100%',
-    maxWidth: 580,
-    borderRadius: 36,
-    overflow: 'hidden',
-    borderWidth: 1.5,
-    borderColor: 'rgba(212, 175, 55, 0.35)',
-    backgroundColor: '#FFFDF9',
-    shadowColor: '#5C1623',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.18,
-    shadowRadius: 16,
-    elevation: 10,
-  },
-  fixedPillBlurContent: {
-    paddingHorizontal: 8,
-    paddingVertical: 8,
-    borderRadius: 36,
-    backgroundColor: '#FFFDF9',
-  },
-  fixedBottomBarRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
   payoutBadge: {
     paddingVertical: 6,
     paddingHorizontal: 14,
@@ -631,21 +595,5 @@ const s = StyleSheet.create({
     fontWeight: '900',
     color: COLORS.vjText,
     fontFamily: 'monospace',
-  },
-  pillPrimaryBtn: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    backgroundColor: COLORS.vjAccent,
-    paddingVertical: 14,
-    borderRadius: 28,
-  },
-  pillPrimaryText: {
-    color: '#ffffff',
-    fontSize: 15,
-    fontWeight: '800',
-    letterSpacing: 0.3,
   },
 });

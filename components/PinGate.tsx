@@ -1,7 +1,7 @@
 // components/PinGate.tsx — Phase 2 v2.11 Canonical Component
 
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, TextInput, TouchableOpacity, Keyboard, ScrollView } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, Keyboard, ScrollView, ActivityIndicator } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { Lock, Eye, EyeOff } from 'lucide-react-native';
 import { 
@@ -30,6 +30,7 @@ export function PinGate({ onSuccess }: { onSuccess: () => void }) {
   const [error, setError] = useState<string | null>(null);
   const [lockoutSecs, setLockoutSecs] = useState(0);
   const [isPinVisible, setIsPinVisible] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
 
   const inputRef = useRef<TextInput>(null);
   const lockoutTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -96,40 +97,52 @@ export function PinGate({ onSuccess }: { onSuccess: () => void }) {
   };
 
   const processCompletedPin = async (completedPin: string) => {
-    if (mode === 'SETUP_STEP_1') {
-      setFirstPin(completedPin);
-      setPinInput('');
-      setMode('SETUP_STEP_2');
-      setTimeout(() => inputRef.current?.focus(), 500);
-
-    } else if (mode === 'SETUP_STEP_2') {
-      if (completedPin === firstPin) {
-        await setPin(completedPin);
-        onSuccess();
-      } else {
-        setError('PINs do not match. Try again.');
-        setFirstPin('');
+    setIsProcessing(true);
+    try {
+      if (mode === 'SETUP_STEP_1') {
+        setFirstPin(completedPin);
         setPinInput('');
-        setMode('SETUP_STEP_1');
-        setTimeout(() => inputRef.current?.focus(), 500);
-      }
+        setMode('SETUP_STEP_2');
+        setIsProcessing(false);
+        setTimeout(() => inputRef.current?.focus(), 300);
 
-    } else if (mode === 'VERIFY') {
-      const isValid = await verifyPin(completedPin);
-      if (isValid) {
-        resetFailedAttempts();
-        onSuccess();
-      } else {
-        incrementFailedAttempts();
-        if (isLockedOut()) {
-          startLockoutTimer();
+      } else if (mode === 'SETUP_STEP_2') {
+        if (completedPin === firstPin) {
+          await setPin(completedPin);
+          onSuccess();
         } else {
-          const attempts = getFailedAttempts();
-          setError(`Incorrect PIN. ${3 - attempts > 0 ? 3 - attempts + ' attempts remaining.' : ''}`);
+          setError('PINs do not match. Try again.');
+          setFirstPin('');
           setPinInput('');
-          setTimeout(() => inputRef.current?.focus(), 500);
+          setMode('SETUP_STEP_1');
+          setIsProcessing(false);
+          setTimeout(() => inputRef.current?.focus(), 300);
+        }
+
+      } else if (mode === 'VERIFY') {
+        const isValid = await verifyPin(completedPin);
+        if (isValid) {
+          resetFailedAttempts();
+          onSuccess();
+        } else {
+          incrementFailedAttempts();
+          if (isLockedOut()) {
+            setIsProcessing(false);
+            startLockoutTimer();
+          } else {
+            const attempts = getFailedAttempts();
+            setError(`Incorrect PIN. ${3 - attempts > 0 ? 3 - attempts + ' attempts remaining.' : ''}`);
+            setPinInput('');
+            setIsProcessing(false);
+            setTimeout(() => inputRef.current?.focus(), 300);
+          }
         }
       }
+    } catch (e: any) {
+      setError(e.message || 'Verification failed');
+      setIsProcessing(false);
+      setPinInput('');
+      setTimeout(() => inputRef.current?.focus(), 300);
     }
   };
 
@@ -236,6 +249,10 @@ export function PinGate({ onSuccess }: { onSuccess: () => void }) {
               {isPinVisible ? <EyeOff size={16} color={COLORS.vjText} /> : <Eye size={16} color={COLORS.vjText} />}
               <Text style={{ color: COLORS.vjText, fontWeight: '700', fontSize: 12 }}>{isPinVisible ? 'Hide PIN' : 'Show PIN'}</Text>
             </TouchableOpacity>
+
+            {isProcessing && (
+              <ActivityIndicator size="small" color={COLORS.vjAccent} style={{ marginBottom: 12 }} />
+            )}
 
             <TextInput
               ref={inputRef}

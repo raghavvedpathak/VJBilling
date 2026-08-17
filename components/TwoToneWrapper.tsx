@@ -1,8 +1,8 @@
 // components/TwoToneWrapper.tsx — Phase 2 v2.11 Canonical Component
 
 import React from 'react';
-import { View, Text, StatusBar, TouchableOpacity, KeyboardAvoidingView, Platform, useWindowDimensions } from 'react-native';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { View, Text, StatusBar, TouchableOpacity, useWindowDimensions } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { ChevronLeft } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
@@ -35,21 +35,17 @@ export function TwoToneWrapper({ title, children, showBack, actionIcon, onAction
   };
 
   return (
-    // UPPER BRAND HEADER BACKGROUND (Vibrant Royal Maroon/Crimson Theme Color)
-    <View style={{ flex: 1, backgroundColor: colors.vjHeaderBg || '#420D19' }}>
+    <View style={{ flex: 1, backgroundColor: colors.vjBg }}>
       <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
 
-      <SafeAreaView className="flex-1" edges={['top', 'left', 'right']}>
-        
-        {/* === UPPER ZONE (DARK) === */}
+      {/* UPPER ZONE: Header */}
+      <View style={{ backgroundColor: colors.vjHeaderBg || '#420D19', paddingTop: insets.top }}>
         <View 
           className="w-full self-center px-4 pt-2 pb-6"
           style={{ maxWidth: isTablet ? 920 : undefined }}
         >
-          
-          {/* HEADER BAR */}
           {(title || showBack || actionIcon) && (
-            <View className="flex-row items-center justify-between mb-6 mt-2">
+            <View className="flex-row items-center justify-between mb-4 mt-2">
               <View className="flex-row items-center gap-4 flex-1 mr-4">
                 {showBack && (
                   <TouchableOpacity 
@@ -73,31 +69,26 @@ export function TwoToneWrapper({ title, children, showBack, actionIcon, onAction
             </View>
           )}
 
-          {/* INJECTED HEADER CONTENT */}
-          {headerContent && (
-            <View className="mb-2">
-              {headerContent}
-            </View>
-          )}
+          {headerContent && <View className="mb-2">{headerContent}</View>}
         </View>
+      </View>
 
-        {/* === LOWER ZONE (LIGHT WITH ROUNDED CORNERS) === */}
-        <View className="flex-1 rounded-t-[32px] overflow-hidden" style={{ backgroundColor: colors.vjBg }}>
-          <DynamicBackground />
-          <KeyboardAvoidingView
-            behavior={Platform.OS === 'ios' ? 'padding' : 'padding'}
-            keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : (StatusBar.currentHeight || 24)}
-            className="flex-1 w-full self-center px-4 pt-4"
-            style={{ 
-              maxWidth: isTablet ? 920 : undefined,
-              paddingBottom: Math.max(insets.bottom, 16) 
-            }}
-          >
-            {children}
-          </KeyboardAvoidingView>
+      {/* LOWER ZONE */}
+      <View 
+        className="flex-1 -mt-4 rounded-t-[32px] overflow-hidden" 
+        style={{ backgroundColor: colors.vjBg }}
+      >
+        <DynamicBackground />
+        <View
+          className="flex-1 w-full self-center px-4 pt-4"
+          style={{ 
+            maxWidth: isTablet ? 920 : undefined,
+            paddingBottom: Math.max(insets.bottom, 16) 
+          }}
+        >
+          {children}
         </View>
-
-      </SafeAreaView>
+      </View>
     </View>
   );
 }

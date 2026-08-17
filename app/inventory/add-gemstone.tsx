@@ -2,6 +2,7 @@
 
 import React, { useState, useMemo } from 'react';
 import { View, Text, ScrollView, Alert, Modal, StyleSheet } from 'react-native';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import { useRouter, useFocusEffect } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { TwoToneWrapper } from '@/components/TwoToneWrapper';
@@ -112,7 +113,16 @@ export default function AddGemstoneScreen() {
 
   return (
     <TwoToneWrapper title="New Gemstone Lot" showBack>
-      <ScrollView contentContainerStyle={{ paddingTop: 32, paddingBottom: 150 }} showsVerticalScrollIndicator={false}>
+      <KeyboardAwareScrollView 
+        contentContainerStyle={{ paddingTop: 32, paddingBottom: 190 }} 
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
+        enableOnAndroid={true}
+        enableAutomaticScroll={true}
+        extraScrollHeight={120}
+        extraHeight={140}
+      >
         
         <GlassCard style={{ marginBottom: 16 }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 16 }}>
@@ -184,7 +194,7 @@ export default function AddGemstoneScreen() {
 
         <GlassButton title="Add to Inventory" onPress={handleSubmit} loading={loading} />
 
-      </ScrollView>
+      </KeyboardAwareScrollView>
 
       <Modal visible={!!successMessage} transparent animationType="fade">
         <View style={s.modalOverlayCenter}>

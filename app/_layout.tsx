@@ -151,7 +151,7 @@ function RootBootloader({ colors }: { colors: any }) {
       <StatusBar barStyle="dark-content" backgroundColor={colors.vjBg} />
       
       {/* 1. ALWAYS mount Stack so React Fiber hooks are never interrupted or reordered */}
-      <View style={StyleSheet.absoluteFill}>
+      <View style={{ flex: 1 }}>
         <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.vjBg }, animation: 'slide_from_right' }}>
           <Stack.Screen name="index" options={{ headerShown: false }} />
           <Stack.Screen name="dashboard" options={{ headerShown: false }} />

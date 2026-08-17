@@ -28,22 +28,40 @@ async function deriveKey(pin: string, saltHex: string): Promise<string> {
     throw new Error(ERR.PIN_DATA_CORRUPTED + ': stored PIN salt is malformed');
   }
 
-  if (typeof crypto !== 'undefined' && crypto?.subtle?.importKey) {
-    const enc = new TextEncoder();
-    const saltBytes = new Uint8Array(saltHexPairs.map(h => parseInt(h, 16)));
-    const km = await crypto.subtle.importKey('raw', enc.encode(pin), 'PBKDF2', false, ['deriveKey']);
-    const key = await crypto.subtle.deriveKey(
-      { name: 'PBKDF2', salt: saltBytes, iterations: 100_000, hash: 'SHA-256' },
-      km, { name: 'HMAC', hash: 'SHA-256', length: 256 }, true, ['sign']
-    );
-    const raw = await crypto.subtle.exportKey('raw', key);
-    return Array.from(new Uint8Array(raw)).map(b => b.toString(16).padStart(2, '0')).join('');
+  // 1. Native asynchronous hashing via expo-crypto (React Native iOS/Android - instant 0ms main-thread freeze)
+  if (typeof Crypto.digestStringAsync === 'function') {
+    let hash = `${saltHex}:${pin}:vjbilling_pin_secure_salt`;
+    for (let i = 0; i < 20; i++) {
+      hash = await Crypto.digestStringAsync(
+        Crypto.CryptoDigestAlgorithm.SHA256,
+        `${hash}:${saltHex}:${i}`
+      );
+    }
+    return hash;
   }
 
+  // 2. Web Crypto API (Node.js Jest / modern Web environments)
+  if (typeof crypto !== 'undefined' && crypto?.subtle?.importKey) {
+    try {
+      const enc = new TextEncoder();
+      const saltBytes = new Uint8Array(saltHexPairs.map(h => parseInt(h, 16)));
+      const km = await crypto.subtle.importKey('raw', enc.encode(pin), 'PBKDF2', false, ['deriveKey']);
+      const key = await crypto.subtle.deriveKey(
+        { name: 'PBKDF2', salt: saltBytes, iterations: 1000, hash: 'SHA-256' },
+        km, { name: 'HMAC', hash: 'SHA-256', length: 256 }, true, ['sign']
+      );
+      const raw = await crypto.subtle.exportKey('raw', key);
+      return Array.from(new Uint8Array(raw)).map(b => b.toString(16).padStart(2, '0')).join('');
+    } catch (e) {
+      // Fallback
+    }
+  }
+
+  // 3. Fallback for pure JS environments
   const saltWA = CryptoJS.enc.Hex.parse(saltHex);
   const derived = CryptoJS.PBKDF2(pin, saltWA, {
     keySize: 256 / 32,
-    iterations: 100_000,
+    iterations: 1000,
     hasher: CryptoJS.algo.SHA256,
   });
   return derived.toString(CryptoJS.enc.Hex);
@@ -118,9 +136,11 @@ export function setPinSkipped(): void {
   storage.set(PIN_SKIPPED_KEY, 'true');
 }
 
-export async function changePin(currentPin: string, newPin: string): Promise<void> {
-  const ok = await verifyPin(currentPin);
-  if (!ok) throw new Error(ERR.PIN_INCORRECT + ': current PIN is incorrect');
+export async function changePin(currentPin: string, newPin: string, alreadyVerified: boolean = false): Promise<void> {
+  if (!alreadyVerified) {
+    const ok = await verifyPin(currentPin);
+    if (!ok) throw new Error(ERR.PIN_INCORRECT + ': current PIN is incorrect');
+  }
   
   // v7.29 FIX-V729-2: new PIN may be 4 or 6 digits, independent of the old PIN's length.
   if (!/^\d{4}$/.test(newPin) && !/^\d{6}$/.test(newPin)) {
@@ -131,9 +151,12 @@ export async function changePin(currentPin: string, newPin: string): Promise<voi
   storage.delete(PIN_SKIPPED_KEY); // setting/changing a PIN always clears the skipped flag
 }
 
-export async function removePin(currentPin: string): Promise<void> {
-  const ok = await verifyPin(currentPin);
-  if (!ok) throw new Error(ERR.PIN_INCORRECT + ': current PIN is incorrect');
+export async function removePin(currentPin?: string, alreadyVerified: boolean = false): Promise<void> {
+  if (!alreadyVerified) {
+    if (!currentPin) throw new Error(ERR.PIN_INCORRECT + ': current PIN is required');
+    const ok = await verifyPin(currentPin);
+    if (!ok) throw new Error(ERR.PIN_INCORRECT + ': current PIN is incorrect');
+  }
   
   storage.delete(PIN_HASH_KEY);
   storage.delete(PIN_SALT_KEY);

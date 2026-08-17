@@ -2,6 +2,7 @@
 
 import React, { useState, useCallback } from 'react';
 import { View, Text, StyleSheet, TextInput, Alert, Modal, ScrollView } from 'react-native';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import { useRouter, useFocusEffect } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { TwoToneWrapper } from '@/components/TwoToneWrapper';
@@ -109,7 +110,17 @@ export default function CreateDesignScreen() {
   return (
     <TwoToneWrapper title="New Design" showBack headerContent={createDesignHeaderPills}>
       <View style={{ flex: 1 }}>
-        <ScrollView style={s.container} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingTop: 32, paddingBottom: 350 }} keyboardShouldPersistTaps="handled">
+        <KeyboardAwareScrollView 
+          style={s.container} 
+          showsVerticalScrollIndicator={false} 
+          contentContainerStyle={{ paddingTop: 32, paddingBottom: 190 }} 
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="on-drag"
+          enableOnAndroid={true}
+          enableAutomaticScroll={true}
+          extraScrollHeight={120}
+          extraHeight={140}
+        >
           <View style={s.card}>
             <View style={s.formGroup}>
               <Text style={s.label}>Design Name</Text>
@@ -168,7 +179,7 @@ export default function CreateDesignScreen() {
             </View>
 
           </View>
-        </ScrollView>
+        </KeyboardAwareScrollView>
         <View style={{ paddingHorizontal: 16, paddingBottom: 32, paddingTop: 16 }}>
           <GlassButton 
             title={isSubmitting ? 'Saving...' : 'Save Design'} 

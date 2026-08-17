@@ -1,6 +1,7 @@
 // app/inventory/edit-draft.tsx — Phase 2 v2.11 Canonical Screen
 import React, { useState, useEffect, useMemo } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator, ScrollView, Modal } from 'react-native';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { TwoToneWrapper } from '@/components/TwoToneWrapper';
@@ -245,7 +246,17 @@ export default function EditDraftScreen() {
           <ActivityIndicator size="large" color={COLORS.vjAccent} />
         </View>
       ) : (
-        <ScrollView style={s.container} contentContainerStyle={s.content} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+        <KeyboardAwareScrollView 
+          style={s.container} 
+          contentContainerStyle={[s.content, { paddingBottom: 190 }]} 
+          showsVerticalScrollIndicator={false} 
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="on-drag"
+          enableOnAndroid={true}
+          enableAutomaticScroll={true}
+          extraScrollHeight={120}
+          extraHeight={140}
+        >
           
           <View style={[s.card, { zIndex: 50 }]}>
             <Text style={s.sectionTitle}>Weights (Grams)</Text>
@@ -448,7 +459,7 @@ export default function EditDraftScreen() {
               </>
             )}
           </TouchableOpacity>
-        </ScrollView>
+        </KeyboardAwareScrollView>
       )}
 
       <Modal visible={!!successMessage} transparent animationType="fade">

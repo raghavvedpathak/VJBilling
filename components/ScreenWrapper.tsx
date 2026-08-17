@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { View, Text, StatusBar, TouchableOpacity, KeyboardAvoidingView, Platform, useWindowDimensions } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { ChevronLeft } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
@@ -28,6 +28,7 @@ export function ScreenWrapper({
   headerContent,
 }: ScreenWrapperProps) {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const isTablet = width >= 768;
 
@@ -50,9 +51,8 @@ export function ScreenWrapper({
       <SafeAreaView className="flex-1" edges={['top', 'left', 'right']}>
         <View 
           className="flex-1 w-full self-center px-4 pt-2"
-          style={{ maxWidth: isTablet ? 920 : undefined }}
+          style={{ maxWidth: isTablet ? 920 : undefined, paddingBottom: Math.max(insets.bottom, 16) }}
         >
-
           {/* HEADER */}
           {(title || showBack || actionIcon) && (
             <View className="flex-row items-center justify-between mb-6 mt-2">
@@ -87,11 +87,12 @@ export function ScreenWrapper({
 
           {/* BODY CONTENT */}
           <KeyboardAvoidingView
-            behavior={Platform.OS === 'ios' ? 'padding' : 'padding'}
-            keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : (StatusBar.currentHeight || 24)}
-            className="flex-1 w-full"
+            style={{ flex: 1 }}
+            behavior={Platform.OS === 'ios' ? 'padding' : undefined}
           >
-            {children}
+            <View className="flex-1 w-full">
+              {children}
+            </View>
           </KeyboardAvoidingView>
         </View>
       </SafeAreaView>

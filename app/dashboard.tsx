@@ -1,8 +1,8 @@
 // app/dashboard.tsx — Phase 2 v2.11 Canonical Screen
 
-import React, { useState, useEffect } from 'react';
-import { View, Text, TouchableOpacity, Image, ScrollView, Modal, useWindowDimensions } from 'react-native';
-import { useRouter } from 'expo-router';
+import React, { useState, useEffect, useCallback } from 'react';
+import { View, Text, TouchableOpacity, Image, ScrollView, Modal, useWindowDimensions, BackHandler, Alert } from 'react-native';
+import { useRouter, useFocusEffect } from 'expo-router';
 import { TwoToneWrapper } from '@/components/TwoToneWrapper'; 
 import { useSession } from '@/hooks/useSession';
 import { useFirmStore } from '@/store/phase1/useFirmStore';
@@ -21,6 +21,26 @@ export default function Dashboard() {
   const { firm, activeFY, isLoading, bisLogoUri } = useSession();
   
   const [showLogoutModal, setShowLogoutModal] = useState(false);
+
+  // Prevent Android hardware back button from navigating back to Welcome / Setup screen
+  useFocusEffect(
+    useCallback(() => {
+      const onBackPress = () => {
+        Alert.alert(
+          'Exit Application',
+          'Are you sure you want to exit VJ Billing?',
+          [
+            { text: 'Cancel', style: 'cancel', onPress: () => {} },
+            { text: 'Exit', style: 'destructive', onPress: () => BackHandler.exitApp() },
+          ]
+        );
+        return true;
+      };
+
+      const subscription = BackHandler.addEventListener('hardwareBackPress', onBackPress);
+      return () => subscription.remove();
+    }, [])
+  );
 
   const executeLogout = () => {
     setShowLogoutModal(false);

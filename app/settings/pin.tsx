@@ -1,7 +1,7 @@
 // app/settings/pin.tsx — Phase 2 v2.11 Canonical Screen
 
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, TouchableOpacity, ScrollView, TextInput, Keyboard, Alert } from 'react-native';
+import { View, Text, TouchableOpacity, ScrollView, TextInput, Keyboard, Alert, ActivityIndicator } from 'react-native';
 import { useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { TwoToneWrapper } from '@/components/TwoToneWrapper';
@@ -31,6 +31,7 @@ export default function PinSettingsScreen() {
   const [tempPin, setTempPin] = useState(''); // Used to hold new PIN between New and Confirm steps
   const [currentPin, setCurrentPin] = useState(''); // Used to hold current PIN when changing
   const [error, setError] = useState<string | null>(null);
+  const [isProcessing, setIsProcessing] = useState(false);
 
   const inputRef = useRef<TextInput>(null);
 
@@ -83,11 +84,13 @@ export default function PinSettingsScreen() {
   };
 
   const processCompletedPin = async (completedPin: string) => {
+    setIsProcessing(true);
     try {
       if (flow === 'TURN_ON_NEW') {
         setTempPin(completedPin);
         setPinInput('');
         setFlow('TURN_ON_CONFIRM');
+        setIsProcessing(false);
         setTimeout(() => inputRef.current?.focus(), 300);
       } else if (flow === 'TURN_ON_CONFIRM') {
         if (completedPin === tempPin) {
@@ -102,6 +105,7 @@ export default function PinSettingsScreen() {
           setTempPin('');
           setPinInput('');
           setFlow('TURN_ON_NEW');
+          setIsProcessing(false);
           setTimeout(() => inputRef.current?.focus(), 300);
         }
       } else if (flow === 'TURN_OFF_CURRENT') {
@@ -110,10 +114,11 @@ export default function PinSettingsScreen() {
            try { Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error); } catch (e) {}
            setError('Incorrect PIN.');
            setPinInput('');
+           setIsProcessing(false);
            setTimeout(() => inputRef.current?.focus(), 300);
            return;
         }
-        await removePin(completedPin);
+        await removePin(completedPin, true);
         try { Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success); } catch (e) {}
         Alert.alert("Success", "Security PIN has been turned off.");
         setHasPin(false);
@@ -124,6 +129,7 @@ export default function PinSettingsScreen() {
            try { Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error); } catch (e) {}
            setError('Incorrect PIN.');
            setPinInput('');
+           setIsProcessing(false);
            setTimeout(() => inputRef.current?.focus(), 300);
            return;
         }
@@ -131,15 +137,17 @@ export default function PinSettingsScreen() {
         setPinInput('');
         setTargetLength(6); // Reset to default 6 for new PIN
         setFlow('CHANGE_NEW');
+        setIsProcessing(false);
         setTimeout(() => inputRef.current?.focus(), 300);
       } else if (flow === 'CHANGE_NEW') {
         setTempPin(completedPin);
         setPinInput('');
         setFlow('CHANGE_CONFIRM');
+        setIsProcessing(false);
         setTimeout(() => inputRef.current?.focus(), 300);
       } else if (flow === 'CHANGE_CONFIRM') {
         if (completedPin === tempPin) {
-          await changePin(currentPin, completedPin);
+          await changePin(currentPin, completedPin, true);
           try { Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success); } catch (e) {}
           Alert.alert("Success", "Security PIN has been changed.");
           resetFlow();
@@ -149,6 +157,7 @@ export default function PinSettingsScreen() {
           setTempPin('');
           setPinInput('');
           setFlow('CHANGE_NEW');
+          setIsProcessing(false);
           setTimeout(() => inputRef.current?.focus(), 300);
         }
       }
@@ -156,6 +165,7 @@ export default function PinSettingsScreen() {
        try { Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error); } catch (err) {}
        setError(e.message);
        setPinInput('');
+       setIsProcessing(false);
        setTimeout(() => inputRef.current?.focus(), 300);
     }
   };
@@ -240,6 +250,10 @@ export default function PinSettingsScreen() {
                 ))}
               </TouchableOpacity>
               
+              {isProcessing && (
+                <ActivityIndicator size="small" color={colors.vjAccent} className="mb-4" />
+              )}
+
               <TextInput
                 ref={inputRef}
                 value={pinInput}

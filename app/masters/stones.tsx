@@ -2,6 +2,7 @@
 
 import React, { useState, useCallback } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Modal, TextInput, Alert, ActivityIndicator, KeyboardAvoidingView, Platform, useWindowDimensions } from 'react-native';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import { useRouter, useFocusEffect } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { TwoToneWrapper } from '@/components/TwoToneWrapper';
@@ -245,7 +246,13 @@ export default function StonesScreen() {
               </TouchableOpacity>
             </View>
             
-            <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+            <KeyboardAwareScrollView 
+              keyboardShouldPersistTaps="handled" 
+              showsVerticalScrollIndicator={false}
+              enableOnAndroid={true}
+              enableAutomaticScroll={true}
+              extraScrollHeight={100}
+            >
               <View style={s.formGroup}>
                 <Text style={s.label}>Stone Name</Text>
                 <TextInput 
@@ -279,7 +286,7 @@ export default function StonesScreen() {
                   disabled={isSubmitting} 
                 />
               </View>
-            </ScrollView>
+            </KeyboardAwareScrollView>
           </View>
         </KeyboardAvoidingView>
       </Modal>
@@ -314,7 +321,13 @@ export default function StonesScreen() {
               </TouchableOpacity>
             </View>
             
-            <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+            <KeyboardAwareScrollView 
+              keyboardShouldPersistTaps="handled" 
+              showsVerticalScrollIndicator={false}
+              enableOnAndroid={true}
+              enableAutomaticScroll={true}
+              extraScrollHeight={100}
+            >
               <View style={s.formGroup}>
                 <Text style={s.label}>Stone Name</Text>
                 <TextInput 
@@ -348,7 +361,7 @@ export default function StonesScreen() {
                   disabled={isSubmitting} 
                 />
               </View>
-            </ScrollView>
+            </KeyboardAwareScrollView>
           </View>
         </KeyboardAvoidingView>
       </Modal>

@@ -645,4 +645,8 @@ export function GlassPickerInput({
       </TouchableOpacity>
     </View>
   );
-}
+}
+
+// Re-export FixedGlassBar for unified access
+export * from './FixedGlassBar';
+

@@ -5,13 +5,14 @@ import {
   View, Text, ScrollView, StyleSheet, ActivityIndicator,
   TouchableOpacity, Modal, TextInput, Alert, KeyboardAvoidingView, Platform
 } from 'react-native';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import { useLocalSearchParams, useRouter, useFocusEffect } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { useStore } from 'zustand';
 import { TwoToneWrapper } from '@/components/TwoToneWrapper';
 import { useFirmStore } from '@/store/phase1/useFirmStore';
 import { appSettingsStore } from '@/store/phase1/appSettingsStore';
-import { HeaderPill, GlassCard } from '@/components/ui/Glass';
+import { HeaderPill, GlassCard, FixedGlassBar } from '@/components/ui/Glass';
 import { GlassDatePickerModal } from '@/components/ui/GlassDatePickerModal';
 import { BlurView } from 'expo-blur';
 import { inventoryDrillDownService } from '@/services/phase2/inventoryDrillDownService';
@@ -555,10 +556,15 @@ export default function ItemDetailScreen() {
   return (
     <TwoToneWrapper title="Item Detail" showBack headerContent={detailHeaderPills}>
       <View style={{ flex: 1 }}>
-        <ScrollView
+        <KeyboardAwareScrollView
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
-          contentContainerStyle={{ paddingTop: 16, paddingBottom: 130 }}
+          keyboardDismissMode="on-drag"
+          enableOnAndroid={true}
+          enableAutomaticScroll={true}
+          extraScrollHeight={120}
+          extraHeight={140}
+          contentContainerStyle={{ paddingTop: 16, paddingBottom: 190 }}
         >
           {/* === TOP BANNER (WHEN EDITING IS ACTIVE) === */}
           {isEditable && isEditing && (
@@ -1048,64 +1054,60 @@ export default function ItemDetailScreen() {
             )}
           </View>
 
-        </ScrollView>
+        </KeyboardAwareScrollView>
 
         {/* === FIXED STICKY PILL-SHAPED GLASS ACTION BAR (PERMANENTLY PINNED) === */}
         {isEditable && (
-          <View style={s.fixedPillWrapper}>
-            <View style={s.fixedPillCard}>
-              <BlurView intensity={50} tint="light" style={s.fixedPillBlurContent}>
-                {isEditing ? (
-                  <View style={s.fixedBottomBarRow}>
-                    <TouchableOpacity
-                      style={s.bottomCancelBtn}
-                      onPress={handleCancelEditing}
-                      disabled={savingInline}
-                      activeOpacity={0.7}
-                    >
-                      <X size={18} color={COLORS.vjText} />
-                      <Text style={s.bottomCancelText}>Cancel</Text>
-                    </TouchableOpacity>
+          <FixedGlassBar>
+            {isEditing ? (
+              <>
+                <TouchableOpacity
+                  style={s.bottomCancelBtn}
+                  onPress={handleCancelEditing}
+                  disabled={savingInline}
+                  activeOpacity={0.7}
+                >
+                  <X size={18} color={COLORS.vjText} />
+                  <Text style={s.bottomCancelText}>Cancel</Text>
+                </TouchableOpacity>
 
-                    <TouchableOpacity
-                      style={s.bottomSaveBtn}
-                      onPress={handleSaveInlineEditing}
-                      disabled={savingInline}
-                      activeOpacity={0.8}
-                    >
-                      {savingInline ? (
-                        <ActivityIndicator size="small" color="#fff" />
-                      ) : (
-                        <>
-                          <Check size={18} color="#fff" />
-                          <Text style={s.bottomSaveText}>Save Changes</Text>
-                        </>
-                      )}
-                    </TouchableOpacity>
-                  </View>
-                ) : (
-                  <View style={s.fixedBottomBarRow}>
-                    <TouchableOpacity
-                      style={s.bottomEditBtn}
-                      onPress={handleStartEditing}
-                      activeOpacity={0.8}
-                    >
-                      <Edit3 size={18} color="#ffffff" />
-                      <Text style={s.bottomEditText}>Edit Item Details</Text>
-                    </TouchableOpacity>
+                <TouchableOpacity
+                  style={s.bottomSaveBtn}
+                  onPress={handleSaveInlineEditing}
+                  disabled={savingInline}
+                  activeOpacity={0.8}
+                >
+                  {savingInline ? (
+                    <ActivityIndicator size="small" color="#fff" />
+                  ) : (
+                    <>
+                      <Check size={18} color="#fff" />
+                      <Text style={s.bottomSaveText}>Save Changes</Text>
+                    </>
+                  )}
+                </TouchableOpacity>
+              </>
+            ) : (
+              <>
+                <TouchableOpacity
+                  style={s.bottomEditBtn}
+                  onPress={handleStartEditing}
+                  activeOpacity={0.8}
+                >
+                  <Edit3 size={18} color="#ffffff" />
+                  <Text style={s.bottomEditText}>Edit Item Details</Text>
+                </TouchableOpacity>
 
-                    <TouchableOpacity
-                      style={s.bottomDeleteBtn}
-                      onPress={handleOpenDeleteModal}
-                      activeOpacity={0.7}
-                    >
-                      <Trash2 size={18} color={COLORS.error} />
-                    </TouchableOpacity>
-                  </View>
-                )}
-              </BlurView>
-            </View>
-          </View>
+                <TouchableOpacity
+                  style={s.bottomDeleteBtn}
+                  onPress={handleOpenDeleteModal}
+                  activeOpacity={0.7}
+                >
+                  <Trash2 size={18} color={COLORS.error} />
+                </TouchableOpacity>
+              </>
+            )}
+          </FixedGlassBar>
         )}
       </View>
 
@@ -1222,42 +1224,6 @@ const s = StyleSheet.create({
     fontSize: 14,
     fontWeight: '800',
     color: COLORS.vjText,
-  },
-
-  // --- Fixed Sticky Pill-Shaped Glass Action Bar ---
-  fixedPillWrapper: {
-    position: 'absolute',
-    bottom: 18,
-    left: 0,
-    right: 0,
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    zIndex: 99,
-  },
-  fixedPillCard: {
-    width: '100%',
-    maxWidth: 580,
-    borderRadius: 36,
-    overflow: 'hidden',
-    borderWidth: 1.5,
-    borderColor: 'rgba(212, 175, 55, 0.35)',
-    backgroundColor: '#FFFDF9',
-    shadowColor: '#5C1623',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.18,
-    shadowRadius: 16,
-    elevation: 10,
-  },
-  fixedPillBlurContent: {
-    paddingHorizontal: 8,
-    paddingVertical: 8,
-    borderRadius: 36,
-    backgroundColor: '#FFFDF9',
-  },
-  fixedBottomBarRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
   },
   bottomEditBtn: {
     flex: 1,

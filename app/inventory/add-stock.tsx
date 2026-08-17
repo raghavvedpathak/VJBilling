@@ -3,11 +3,12 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { View, Text, ScrollView, Alert, Modal, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { BlurView } from 'expo-blur';
 import * as Haptics from 'expo-haptics';
 import { TwoToneWrapper } from '@/components/TwoToneWrapper';
-import { GlassCard, GlassInput, GlassButton, GlassPickerInput } from '@/components/ui/Glass';
+import { GlassCard, GlassInput, GlassButton, GlassPickerInput, FixedGlassBar, fixedBarStyles } from '@/components/ui/Glass';
 import { GlassPickerModal, GlassPickerOption } from '@/components/ui/GlassPickerModal';
 import { GlassDatePickerModal } from '@/components/ui/GlassDatePickerModal';
 import { useFirmStore } from '@/store/phase1/useFirmStore';
@@ -251,10 +252,15 @@ export default function AddStockScreen() {
   return (
     <TwoToneWrapper title="Add Stock" showBack>
       <View style={{ flex: 1 }}>
-        <ScrollView 
+        <KeyboardAwareScrollView 
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
-          contentContainerStyle={{ paddingBottom: 110 }}
+          keyboardDismissMode="on-drag"
+          enableOnAndroid={true}
+          enableAutomaticScroll={true}
+          extraScrollHeight={120}
+          extraHeight={140}
+          contentContainerStyle={{ paddingBottom: 190 }}
         >
           <GlassCard>
           <View className="flex-row items-center justify-between mb-4">
@@ -659,59 +665,53 @@ export default function AddStockScreen() {
           </View>
         )}
 
-        </ScrollView>
+        </KeyboardAwareScrollView>
 
         {/* === FIXED STICKY PILL-SHAPED GLASS ACTION BAR === */}
-        <View style={styles.fixedPillWrapper}>
-          <View style={styles.fixedPillCard}>
-            <BlurView intensity={50} tint="light" style={styles.fixedPillBlurContent}>
-              <View style={styles.fixedBottomBarRow}>
-                <TouchableOpacity
-                  style={styles.pillSecondaryBtn}
-                  onPress={() => {
-                    try { Haptics.selectionAsync(); } catch {}
-                    setSelectedDesign(null);
-                    setSelectedCategory(null);
-                    setSelectedStone(null);
-                    setGrossWeight('');
-                    setStoneWeight('');
-                    setBeadsWeight('');
-                    setPurityPercent('');
-                    setWastagePercent('');
-                    setLocation('');
-                    setHuid('');
-                    setPurchaseRate('');
-                    setMakingCharge('');
-                    setStoneCost('');
-                    setSizeValue('');
-                    setSizeUnit('');
-                    setEntryDate(todayIso);
-                  }}
-                  activeOpacity={0.7}
-                >
-                  <RotateCcw size={16} color={COLORS.vjText} />
-                  <Text style={styles.pillSecondaryText}>Clear</Text>
-                </TouchableOpacity>
+        <FixedGlassBar>
+          <TouchableOpacity
+            style={fixedBarStyles.pillSecondaryBtn}
+            onPress={() => {
+              try { Haptics.selectionAsync(); } catch {}
+              setSelectedDesign(null);
+              setSelectedCategory(null);
+              setSelectedStone(null);
+              setGrossWeight('');
+              setStoneWeight('');
+              setBeadsWeight('');
+              setPurityPercent('');
+              setWastagePercent('');
+              setLocation('');
+              setHuid('');
+              setPurchaseRate('');
+              setMakingCharge('');
+              setStoneCost('');
+              setSizeValue('');
+              setSizeUnit('');
+              setEntryDate(todayIso);
+            }}
+            activeOpacity={0.7}
+          >
+            <RotateCcw size={16} color={COLORS.vjText} />
+            <Text style={fixedBarStyles.pillSecondaryText}>Clear</Text>
+          </TouchableOpacity>
 
-                <TouchableOpacity
-                  style={styles.pillPrimaryBtn}
-                  onPress={handleSubmit}
-                  disabled={loading}
-                  activeOpacity={0.8}
-                >
-                  {loading ? (
-                    <ActivityIndicator size="small" color="#fff" />
-                  ) : (
-                    <>
-                      <Package size={18} color="#fff" />
-                      <Text style={styles.pillPrimaryText}>Create Draft Item</Text>
-                    </>
-                  )}
-                </TouchableOpacity>
-              </View>
-            </BlurView>
-          </View>
-        </View>
+          <TouchableOpacity
+            style={fixedBarStyles.pillPrimaryBtn}
+            onPress={handleSubmit}
+            disabled={loading}
+            activeOpacity={0.8}
+          >
+            {loading ? (
+              <ActivityIndicator size="small" color="#fff" />
+            ) : (
+              <>
+                <Package size={18} color="#fff" />
+                <Text style={fixedBarStyles.pillPrimaryText}>Create Draft Item</Text>
+              </>
+            )}
+          </TouchableOpacity>
+        </FixedGlassBar>
       </View>
 
       <Modal visible={!!successSku} transparent animationType="fade">
@@ -827,74 +827,5 @@ const styles = StyleSheet.create({
     fontWeight: '900',
     color: COLORS.vjText,
     fontFamily: 'monospace',
-  },
-
-  // --- Fixed Sticky Pill-Shaped Glass Action Bar ---
-  fixedPillWrapper: {
-    position: 'absolute',
-    bottom: 18,
-    left: 0,
-    right: 0,
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    zIndex: 99,
-  },
-  fixedPillCard: {
-    width: '100%',
-    maxWidth: 580,
-    borderRadius: 36,
-    overflow: 'hidden',
-    borderWidth: 1.5,
-    borderColor: 'rgba(212, 175, 55, 0.35)',
-    backgroundColor: '#FFFDF9',
-    shadowColor: '#5C1623',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.18,
-    shadowRadius: 16,
-    elevation: 10,
-  },
-  fixedPillBlurContent: {
-    paddingHorizontal: 8,
-    paddingVertical: 8,
-    borderRadius: 36,
-    backgroundColor: '#FFFDF9',
-  },
-  fixedBottomBarRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
-  pillSecondaryBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-    backgroundColor: 'rgba(92, 22, 35, 0.06)',
-    borderWidth: 1,
-    borderColor: 'rgba(92, 22, 35, 0.15)',
-    paddingVertical: 14,
-    paddingHorizontal: 18,
-    borderRadius: 28,
-  },
-  pillSecondaryText: {
-    color: COLORS.vjText,
-    fontSize: 14,
-    fontWeight: '700',
-  },
-  pillPrimaryBtn: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    backgroundColor: COLORS.vjAccent,
-    paddingVertical: 14,
-    borderRadius: 28,
-  },
-  pillPrimaryText: {
-    color: '#ffffff',
-    fontSize: 15,
-    fontWeight: '800',
-    letterSpacing: 0.3,
   },
 });
