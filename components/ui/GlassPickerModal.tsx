@@ -144,7 +144,7 @@ export function GlassPickerModal({
     <Modal 
       visible={visible} 
       transparent 
-      animationType="slide" 
+      animationType="fade" 
       statusBarTranslucent={true}
       onRequestClose={onClose}
     >
@@ -155,8 +155,12 @@ export function GlassPickerModal({
         <TouchableOpacity style={styles.backdrop} activeOpacity={1} onPress={onClose} />
         
         <View style={[styles.sheetContainer, isTablet && styles.sheetContainerTablet]}>
-          <BlurView intensity={40} tint="light" style={styles.sheetContent}>
-            
+          {/* Modern Top Sheet Drag Handle */}
+          <View style={styles.handleWrap}>
+            <View style={styles.handleBar} />
+          </View>
+
+          <View style={styles.sheetContent}>
             {/* Header Bar */}
             <View style={styles.headerBar}>
               <View style={styles.headerTitleRow}>
@@ -176,7 +180,7 @@ export function GlassPickerModal({
 
             {/* Search Input Bar */}
             <View style={styles.searchBar}>
-              <Search size={18} color="rgba(92,22,35,0.5)" style={{ marginRight: 8 }} />
+              <Search size={18} color="#D4AF37" style={{ marginRight: 8, opacity: 0.9 }} />
               <TextInput
                 style={styles.searchInput}
                 placeholder={placeholder}
@@ -247,7 +251,7 @@ export function GlassPickerModal({
                 )
               }
             />
-          </BlurView>
+          </View>
         </View>
       </KeyboardAvoidingView>
     </Modal>
@@ -265,34 +269,51 @@ const styles = StyleSheet.create({
     padding: 24,
   },
   backdrop: {
-    ...StyleSheet.absoluteFill,
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
     backgroundColor: 'rgba(0, 0, 0, 0.45)',
   },
   sheetContainer: {
-    maxHeight: '80%',
-    minHeight: '40%',
+    maxHeight: '82%',
+    minHeight: '45%',
     width: '100%',
     borderTopLeftRadius: 28,
     borderTopRightRadius: 28,
     overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.6)',
+    borderWidth: 1.5,
+    borderColor: 'rgba(212, 175, 55, 0.25)',
+    backgroundColor: '#FFFDF9',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: -4 },
-    shadowOpacity: 0.25,
-    shadowRadius: 16,
-    elevation: 16,
-    backgroundColor: '#FCFBF8',
+    shadowOffset: { width: 0, height: -2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 10,
+    elevation: 8,
   },
   sheetContainerTablet: {
     maxWidth: 580,
     borderRadius: 28,
+    borderBottomLeftRadius: 28,
+    borderBottomRightRadius: 28,
     maxHeight: '75%',
+  },
+  handleWrap: {
+    alignItems: 'center',
+    paddingTop: 10,
+    paddingBottom: 4,
+  },
+  handleBar: {
+    width: 44,
+    height: 4.5,
+    borderRadius: 3,
+    backgroundColor: 'rgba(92, 22, 35, 0.18)',
   },
   sheetContent: {
     flex: 1,
     paddingHorizontal: 20,
-    paddingTop: 16,
+    paddingTop: 6,
   },
   headerBar: {
     flexDirection: 'row',

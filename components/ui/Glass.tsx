@@ -73,32 +73,59 @@ export function GlassInput({
   autoCorrect,
   spellCheck,
   autoComplete,
-  readOnly,
-  secureTextEntry,
+  readOnly = false,
+  secureTextEntry = false,
   onFocus,
   onBlur,
   onSubmitEditing,
 }: GlassInputProps) {
+  const inputRef = React.useRef<TextInput>(null);
+
+  const handleContainerPress = () => {
+    if (!readOnly) {
+      inputRef.current?.focus();
+    }
+  };
+
   return (
     <View className="mb-4">
       {label && (
-        <Text
-          className={`font-bold text-xs uppercase tracking-wider mb-2 ml-1 ${
-            readOnly ? 'text-vj-text/40' : 'text-vj-text/70'
-          }`}
+        <TouchableOpacity
+          activeOpacity={readOnly ? 1 : 0.7}
+          onPress={handleContainerPress}
+          disabled={readOnly}
         >
-          {label}
-        </Text>
+          <Text
+            className={`font-bold text-xs uppercase tracking-wider mb-2 ml-1 ${
+              readOnly ? 'text-vj-text/40' : 'text-vj-text/70'
+            }`}
+          >
+            {label}
+          </Text>
+        </TouchableOpacity>
       )}
-      <View
-        className={`flex-row items-center rounded-2xl px-4 py-4 border ${
+      <TouchableOpacity
+        activeOpacity={1}
+        onPress={handleContainerPress}
+        disabled={readOnly}
+        className={`flex-row items-center rounded-2xl px-4 py-3.5 border ${
           readOnly ? 'bg-gray-100/50 border-gray-300' : 'bg-white border-vj-text/30'
         }`}
       >
-        {icon && <View className="mr-3 opacity-60 text-vj-text">{icon}</View>}
+        {icon && (
+          <TouchableOpacity
+            activeOpacity={1}
+            onPress={handleContainerPress}
+            disabled={readOnly}
+            className="mr-3 opacity-60 text-vj-text"
+          >
+            {icon}
+          </TouchableOpacity>
+        )}
         <TextInput
-          className="flex-1 text-vj-text font-semibold text-base"
-          style={{ paddingVertical: 0, textAlignVertical: 'center', includeFontPadding: false }}
+          ref={inputRef}
+          className="flex-1 text-vj-text font-semibold text-base py-0"
+          style={{ textAlignVertical: 'center', includeFontPadding: false }}
           placeholder={placeholder}
           placeholderTextColor="#A0A0A0"
           value={value}
@@ -115,7 +142,7 @@ export function GlassInput({
           onBlur={onBlur}
           onSubmitEditing={onSubmitEditing}
         />
-      </View>
+      </TouchableOpacity>
     </View>
   );
 }

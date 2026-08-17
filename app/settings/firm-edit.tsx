@@ -542,7 +542,13 @@ export default function EditFirmScreen() {
     </View>
 
       {/* STATE PICKER MODAL */}
-      <Modal visible={showStatePicker} animationType="slide" transparent={true}>
+      <Modal
+        visible={showStatePicker}
+        animationType="fade"
+        transparent={true}
+        statusBarTranslucent
+        onRequestClose={() => setShowStatePicker(false)}
+      >
         <View className="flex-1 bg-black/50 justify-end">
           <View className="bg-vj-bg rounded-t-3xl h-2/3 p-6 shadow-xl">
             <View className="flex-row justify-between items-center mb-4 border-b border-black/10 pb-4">
