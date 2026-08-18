@@ -1,6 +1,4 @@
-// app/masters/edit-design.tsx — Phase 2 v2.11 Canonical Screen
-
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, Alert, Modal, ScrollView } from 'react-native';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import { useRouter, useLocalSearchParams } from 'expo-router';
@@ -8,21 +6,53 @@ import * as Haptics from 'expo-haptics';
 import { TwoToneWrapper } from '@/components/TwoToneWrapper';
 import { HeaderPill, GlassButton, GlassInput, GlassMetalBadge } from '@/components/ui/Glass';
 import { appSettingsStore } from '@/store/phase1/appSettingsStore';
-import { Edit2, CheckCircle, ShieldCheck } from 'lucide-react-native';
+import { Edit2, CheckCircle, ShieldCheck, Tag } from 'lucide-react-native';
 import { useFirmStore } from '@/store/phase1/useFirmStore';
 import { designService } from '@/services/phase2/designService';
+import { designRepository } from '@/repositories/phase2/designRepository';
 import { COLORS, getThemeColors } from '@/constants/theme';
 
 export default function EditDesignScreen() {
   const router = useRouter();
   const { activeFirmId } = useFirmStore();
   
-  const { id, initialName, initialMetal, initialThreshold } = useLocalSearchParams<{ id: string; initialName: string; initialMetal?: 'GOLD' | 'SILVER'; initialThreshold?: string }>();
+  const { id, initialName, initialMetal, initialThreshold, initialCode } = useLocalSearchParams<{ 
+    id: string; 
+    initialName?: string; 
+    initialMetal?: 'GOLD' | 'SILVER'; 
+    initialThreshold?: string;
+    initialCode?: string;
+  }>();
   
   const [newName, setNewName] = useState(initialName || '');
+  const [metal, setMetal] = useState<'GOLD' | 'SILVER'>(initialMetal || 'GOLD');
+  const [designCode, setDesignCode] = useState(initialCode || '');
   const [lowStockThreshold, setLowStockThreshold] = useState(initialThreshold || '');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+
+  // ID-Driven Database Sync on Mount
+  useEffect(() => {
+    if (!id) return;
+    let isMounted = true;
+    designRepository.getById(id)
+      .then((d) => {
+        if (isMounted && d) {
+          if (d.name) setNewName(d.name);
+          if (d.code) setDesignCode(d.code);
+          if (d.metal) setMetal(d.metal);
+          if (d.lowStockThreshold !== undefined) {
+            setLowStockThreshold(d.lowStockThreshold != null ? String(d.lowStockThreshold) : '');
+          }
+        }
+      })
+      .catch((err) => {
+        console.error('[EditDesignScreen] Failed to load design by id:', err);
+      });
+    return () => {
+      isMounted = false;
+    };
+  }, [id]);
 
   const handleEditSubmit = async () => {
     try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); } catch (e) {}
@@ -59,8 +89,11 @@ export default function EditDesignScreen() {
 
   const editDesignHeaderPills = (
     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginTop: 4 }}>
-      <HeaderPill icon={<Edit2 size={12} color={colors.vjBg} />} label={initialName || 'Design'} />
-      {initialMetal ? <HeaderPill label={initialMetal} variant={initialMetal === 'GOLD' ? 'warning' : 'default'} /> : null}
+      {designCode ? (
+        <HeaderPill icon={<Tag size={12} color={colors.vjBg} />} label={designCode} variant="warning" />
+      ) : null}
+      <HeaderPill icon={<Edit2 size={12} color={colors.vjBg} />} label={newName || 'Design'} />
+      <HeaderPill label={metal} variant={metal === 'GOLD' ? 'warning' : 'default'} />
       <HeaderPill icon={<ShieldCheck size={12} color="#4ADE80" />} label="Firm Scoped" variant="success" />
     </View>
   );
@@ -80,6 +113,16 @@ export default function EditDesignScreen() {
           extraHeight={140}
         >
           <View style={s.card}>
+            {designCode ? (
+              <View style={s.formGroup}>
+                <Text style={s.label}>Design Code (System ID)</Text>
+                <View style={s.codeBox}>
+                  <Tag size={14} color="#5C1623" style={{ marginRight: 6 }} />
+                  <Text style={s.codeText}>{designCode}</Text>
+                </View>
+              </View>
+            ) : null}
+
             <View style={s.formGroup}>
               <GlassInput 
                 label="Design Name"
@@ -90,14 +133,12 @@ export default function EditDesignScreen() {
               <Text style={s.helpText}>No special characters. Max 2 words.</Text>
             </View>
 
-            {initialMetal ? (
-              <View style={s.formGroup}>
-                <Text style={s.label}>Metal Type (Immutable)</Text>
-                <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4 }}>
-                  <GlassMetalBadge metal={initialMetal} />
-                </View>
+            <View style={s.formGroup}>
+              <Text style={s.label}>Metal Type (Immutable)</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4 }}>
+                <GlassMetalBadge metal={metal} />
               </View>
-            ) : null}
+            </View>
 
             <View style={s.formGroup}>
               <GlassInput 
@@ -192,5 +233,22 @@ const s = StyleSheet.create({
     color: 'rgba(92,22,35,0.6)',
     textAlign: 'center',
     marginBottom: 24,
+  },
+  codeBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(212, 175, 55, 0.12)',
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: 'rgba(212, 175, 55, 0.3)',
+    alignSelf: 'flex-start',
+  },
+  codeText: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#5C1623',
+    letterSpacing: 0.5,
   },
 });

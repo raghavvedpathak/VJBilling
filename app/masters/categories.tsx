@@ -108,7 +108,11 @@ export default function CategoriesScreen() {
     } catch (e) {}
     router.push({
       pathname: '/masters/edit-category',
-      params: { id: cat.id },
+      params: { 
+        id: cat.id,
+        initialName: cat.name,
+        initialCode: cat.code || '',
+      },
     });
   };
 
