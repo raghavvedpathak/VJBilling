@@ -1,5 +1,6 @@
 /* eslint-disable no-restricted-imports */
 // app/_layout.tsx — Phase 2 v2.11 Canonical Layout & Bootloader
+import 'react-native-get-random-values';
 
 import { useEffect, useState } from "react";
 import { Stack, router } from "expo-router";
