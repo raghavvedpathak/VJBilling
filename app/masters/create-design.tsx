@@ -1,15 +1,13 @@
-// app/masters/create-design.tsx — Phase 2 v2.11 Canonical Screen
-
 import React, { useState, useCallback } from 'react';
-import { View, Text, StyleSheet, TextInput, Alert, Modal, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, TextInput, Alert, Modal, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import { useRouter, useFocusEffect } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { TwoToneWrapper } from '@/components/TwoToneWrapper';
-import { HeaderPill, GlassButton, GlassPickerInput, GlassMetalSelector } from '@/components/ui/Glass';
+import { HeaderPill, GlassButton, GlassInput, GlassPickerInput, GlassMetalSelector, FixedGlassBar, fixedBarStyles } from '@/components/ui/Glass';
 import { GlassPickerModal, GlassPickerOption } from '@/components/ui/GlassPickerModal';
 import { appSettingsStore } from '@/store/phase1/appSettingsStore';
-import { Tag, CheckCircle, ShieldCheck } from 'lucide-react-native';
+import { Tag, CheckCircle, ShieldCheck, Plus } from 'lucide-react-native';
 import { useFirmStore } from '@/store/phase1/useFirmStore';
 import { categoryRepository } from '@/repositories/phase2/categoryRepository';
 import { designService } from '@/services/phase2/designService';
@@ -123,9 +121,8 @@ export default function CreateDesignScreen() {
         >
           <View style={s.card}>
             <View style={s.formGroup}>
-              <Text style={s.label}>Design Name</Text>
-              <TextInput 
-                style={s.input}
+              <GlassInput 
+                label="Design Name"
                 value={newName}
                 onChangeText={setNewName}
                 placeholder="e.g. Classic Band"
@@ -168,9 +165,8 @@ export default function CreateDesignScreen() {
             />
 
             <View style={s.formGroup}>
-              <Text style={s.label}>Low-Stock Alert Threshold (Count)</Text>
-              <TextInput 
-                style={s.input}
+              <GlassInput 
+                label="Low-Stock Alert Threshold (Count)"
                 value={lowStockThreshold}
                 onChangeText={setLowStockThreshold}
                 placeholder="e.g. 5 (Optional - alert when stock <= this)"
@@ -180,13 +176,30 @@ export default function CreateDesignScreen() {
 
           </View>
         </KeyboardAwareScrollView>
-        <View style={{ paddingHorizontal: 16, paddingBottom: 32, paddingTop: 16 }}>
-          <GlassButton 
-            title={isSubmitting ? 'Saving...' : 'Save Design'} 
-            onPress={handleAdd} 
-            disabled={isSubmitting || !selectedCategoryId} 
-          />
-        </View>
+
+        <FixedGlassBar>
+          <TouchableOpacity
+            style={fixedBarStyles.pillSecondaryBtn}
+            onPress={() => router.back()}
+            disabled={isSubmitting}
+          >
+            <Text style={fixedBarStyles.pillSecondaryText}>Cancel</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[fixedBarStyles.pillPrimaryBtn, (!selectedCategoryId || isSubmitting) && { opacity: 0.5 }]}
+            onPress={handleAdd}
+            disabled={isSubmitting || !selectedCategoryId}
+          >
+            {isSubmitting ? (
+              <ActivityIndicator color="#fff" size="small" />
+            ) : (
+              <>
+                <Plus size={18} color="#fff" />
+                <Text style={fixedBarStyles.pillPrimaryText}>Save Design</Text>
+              </>
+            )}
+          </TouchableOpacity>
+        </FixedGlassBar>
       </View>
 
       <Modal visible={!!successMessage} transparent animationType="fade">

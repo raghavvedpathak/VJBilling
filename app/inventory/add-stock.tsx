@@ -33,7 +33,8 @@ import {
   computeAbsoluteTotalCostRupees,
   rupeesToPaise,
   formatSKUDisplay,
-  getCurrencySymbol 
+  getCurrencySymbol,
+  getPurityPresets,
 } from '@/utils/calculations';
 import { COLORS } from '@/constants/theme';
 
@@ -455,65 +456,29 @@ export default function AddStockScreen() {
 
           {/* Quick Purity Preset Chips */}
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 8 }}>
-            {(selectedDesign?.metal || 'GOLD') === 'GOLD' ? (
-              [
-                { label: '22K (91.6%)', val: '91.6' },
-                { label: '18K (75%)', val: '75.0' },
-                { label: '24K (99.9%)', val: '99.9' },
-                { label: '24K (99.5%)', val: '99.50' },
-                { label: '24K (99.99%)', val: '99.99' },
-                { label: '20K (83.3%)', val: '83.3' },
-                { label: '14K (58.3%)', val: '58.3' }
-              ].map(preset => (
-                <TouchableOpacity
-                  key={preset.val}
-                  onPress={() => setPurityPercent(preset.val)}
-                  style={{
-                    backgroundColor: purityPercent === preset.val || purityPercent === preset.label.split('K')[0] ? '#D4AF37' : 'rgba(212,175,55,0.12)',
-                    paddingHorizontal: 8,
-                    paddingVertical: 4,
-                    borderRadius: 6
-                  }}
-                >
-                  <Text style={{
-                    fontSize: 11,
-                    fontWeight: '700',
-                    color: purityPercent === preset.val || purityPercent === preset.label.split('K')[0] ? '#FFF' : COLORS.vjText
-                  }}>
-                    {preset.label}
-                  </Text>
-                </TouchableOpacity>
-              ))
-            ) : (
-              [
-                { label: '92.5% Sterling', val: '92.5' },
-                { label: '99.9% Fine', val: '99.9' },
-                { label: '83.5%', val: '83.5' },
-                { label: '80.0%', val: '80.0' }
-              ].map(preset => (
-                <TouchableOpacity
-                  key={preset.val}
-                  onPress={() => {
-                    try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch (e) {}
-                    setPurityPercent(preset.val);
-                  }}
-                  style={{
-                    backgroundColor: purityPercent === preset.val ? '#D4AF37' : 'rgba(212,175,55,0.12)',
-                    paddingHorizontal: 8,
-                    paddingVertical: 4,
-                    borderRadius: 6
-                  }}
-                >
-                  <Text style={{
-                    fontSize: 11,
-                    fontWeight: '700',
-                    color: purityPercent === preset.val ? '#FFF' : COLORS.vjText
-                  }}>
-                    {preset.label}
-                  </Text>
-                </TouchableOpacity>
-              ))
-            )}
+            {getPurityPresets(selectedDesign?.metal || 'GOLD').map(preset => (
+              <TouchableOpacity
+                key={preset.id}
+                onPress={() => {
+                  try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch (e) {}
+                  setPurityPercent(preset.val);
+                }}
+                style={{
+                  backgroundColor: purityPercent === preset.val || purityPercent === preset.label.split('K')[0] ? '#D4AF37' : 'rgba(212,175,55,0.12)',
+                  paddingHorizontal: 8,
+                  paddingVertical: 4,
+                  borderRadius: 6
+                }}
+              >
+                <Text style={{
+                  fontSize: 11,
+                  fontWeight: '700',
+                  color: purityPercent === preset.val || purityPercent === preset.label.split('K')[0] ? '#FFF' : COLORS.vjText
+                }}>
+                  {preset.label}
+                </Text>
+              </TouchableOpacity>
+            ))}
           </View>
         </GlassCard>
 

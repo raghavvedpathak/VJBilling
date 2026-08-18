@@ -1,6 +1,4 @@
-// app/masters/designs.tsx — Phase 2 v2.11 Canonical Screen
-
-import React, { useState, useCallback, useEffect, useMemo } from 'react';
+import React, { useState, useCallback, useEffect, useMemo, useDeferredValue, memo } from 'react';
 import {
   View,
   Text,
@@ -16,7 +14,7 @@ import { useRouter, useFocusEffect } from 'expo-router';
 import { storageInstance } from '@/utils/storage';
 import * as Haptics from 'expo-haptics';
 import { TwoToneWrapper } from '@/components/TwoToneWrapper';
-import { HeaderPill, GlassCard, GlassButton, GlassMetalBadge } from '@/components/ui/Glass';
+import { HeaderPill, GlassCard, GlassButton, GlassMetalBadge, FixedGlassBar, fixedBarStyles } from '@/components/ui/Glass';
 import { appSettingsStore } from '@/store/phase1/appSettingsStore';
 import {
   Tag,
@@ -142,9 +140,11 @@ export default function DesignsScreen() {
     });
   };
 
+  const deferredQuery = useDeferredValue(searchQuery);
+
   const filteredDesigns = useMemo(() => {
-    if (!searchQuery.trim()) return designs;
-    const q = searchQuery.toLowerCase().trim();
+    const q = deferredQuery.toLowerCase().trim();
+    if (!q) return designs;
     return designs.filter(
       (d) =>
         d.name.toLowerCase().includes(q) ||
@@ -152,7 +152,7 @@ export default function DesignsScreen() {
         (d.metal && d.metal.toLowerCase().includes(q)) ||
         (d.categoryName && d.categoryName.toLowerCase().includes(q))
     );
-  }, [designs, searchQuery]);
+  }, [designs, deferredQuery]);
 
   const activeTheme = appSettingsStore((s: any) => s.theme);
   const colors = getThemeColors(activeTheme);
@@ -170,14 +170,26 @@ export default function DesignsScreen() {
   return (
     <TwoToneWrapper title="Design Master" showBack headerContent={designHeaderPills}>
       <View style={s.container}>
-        {/* TOP CONTROLS ROW */}
-        <View style={s.controlsRow}>
-          <View style={{ flex: 1 }}>
-            <GlassButton
-              title="Create Design"
-              onPress={() => router.push('/masters/create-design')}
-              icon={<Plus size={18} color="#fff" />}
+        {/* TOP CONTROLS ROW: SEARCH & VIEW SWITCHER */}
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 12 }}>
+          <View style={[s.searchBarContainer, { flex: 1, marginBottom: 0 }]}>
+            <Search size={16} color="#D4AF37" style={{ marginRight: 8, opacity: 0.8 }} />
+            <TextInput
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+              placeholder="Search design, code, metal, or category..."
+              placeholderTextColor="#9CA3AF"
+              style={s.searchInput}
+              autoCorrect={false}
+              autoCapitalize="none"
+              spellCheck={false}
+              returnKeyType="search"
             />
+            {Boolean(searchQuery) && (
+              <TouchableOpacity onPress={() => setSearchQuery('')} style={{ padding: 4 }}>
+                <X size={16} color="#6B7280" />
+              </TouchableOpacity>
+            )}
           </View>
 
           {/* VIEW SWITCHER */}
@@ -206,25 +218,6 @@ export default function DesignsScreen() {
             </TouchableOpacity>
           </View>
         </View>
-
-        {/* SEARCH BAR (WHEN 3+ DESIGNS) */}
-        {designs.length > 2 && (
-          <View style={s.searchBarContainer}>
-            <Search size={16} color="#D4AF37" style={{ marginRight: 8, opacity: 0.8 }} />
-            <TextInput
-              value={searchQuery}
-              onChangeText={setSearchQuery}
-              placeholder="Search design, code, metal, or category..."
-              placeholderTextColor="#9CA3AF"
-              style={s.searchInput}
-            />
-            {Boolean(searchQuery) && (
-              <TouchableOpacity onPress={() => setSearchQuery('')} style={{ padding: 4 }}>
-                <X size={16} color="#6B7280" />
-              </TouchableOpacity>
-            )}
-          </View>
-        )}
 
         {loading ? (
           <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', marginTop: 60 }}>
@@ -372,6 +365,20 @@ export default function DesignsScreen() {
             })}
           </ScrollView>
         )}
+
+        <FixedGlassBar>
+          <TouchableOpacity
+            style={fixedBarStyles.pillPrimaryBtn}
+            onPress={() => {
+              try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch (e) {}
+              router.push('/masters/create-design');
+            }}
+            activeOpacity={0.8}
+          >
+            <Plus size={18} color="#fff" />
+            <Text style={fixedBarStyles.pillPrimaryText}>Create Design</Text>
+          </TouchableOpacity>
+        </FixedGlassBar>
       </View>
 
       {/* SUCCESS MODAL */}

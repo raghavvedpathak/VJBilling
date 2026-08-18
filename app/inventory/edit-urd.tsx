@@ -10,7 +10,7 @@ import { TwoToneWrapper } from '@/components/TwoToneWrapper';
 import { GlassCard, GlassInput, GlassButton, FixedGlassBar, fixedBarStyles } from '@/components/ui/Glass';
 import { useFirmStore } from '@/store/phase1/useFirmStore';
 import { urdPurchaseService } from '@/services/phase2/urdPurchaseService';
-import { getCurrencySymbol, formatRupees, computeURDCostBreakdown, parseCleanFloat } from '@/utils/calculations';
+import { getCurrencySymbol, formatRupees, computeURDCostBreakdown, parseCleanFloat, percentToKarat, getPurityPresets } from '@/utils/calculations';
 import { User, Scale, Banknote, CheckCircle, Save, Edit3, X } from 'lucide-react-native';
 import type { URDMetalType, URDPurchase } from '@/types/phase2/phase2.types';
 import { COLORS } from '@/constants/theme';
@@ -228,64 +228,43 @@ export default function EditURDScreen() {
             onChangeText={setGrossWeight}
           />
 
-          <GlassInput
-            label="Purity (%) *"
-            placeholder="e.g. 91.6"
-            keyboardType="numeric"
-            value={purityPercent}
-            onChangeText={setPurityPercent}
-          />
+          <View style={{ marginBottom: 12 }}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+              <Text style={{ fontSize: 12, fontWeight: '700', color: 'rgba(92,22,35,0.6)', textTransform: 'uppercase' }}>Purity (%) *</Text>
+              {metalType === 'GOLD' && parseCleanFloat(purityPercent) > 0 && percentToKarat(parseCleanFloat(purityPercent)) ? (
+                <View style={{ backgroundColor: 'rgba(212,175,55,0.2)', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 }}>
+                  <Text style={{ fontSize: 11, fontWeight: '800', color: '#D4AF37' }}>
+                    {percentToKarat(parseCleanFloat(purityPercent))}K
+                  </Text>
+                </View>
+              ) : null}
+            </View>
+            <GlassInput
+              placeholder="e.g. 91.6"
+              keyboardType="numeric"
+              value={purityPercent}
+              onChangeText={setPurityPercent}
+            />
+          </View>
 
           {/* Quick Purity Preset Chips */}
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 12, marginTop: -4 }}>
-            {metalType === 'GOLD' ? (
-              [
-                { label: '22K (91.6%)', val: '91.6' },
-                { label: '18K (75%)', val: '75.0' },
-                { label: '24K (99.9%)', val: '99.9' },
-                { label: '24K (99.5%)', val: '99.50' },
-                { label: '24K (99.99%)', val: '99.99' },
-                { label: '20K (83.3%)', val: '83.3' },
-                { label: '14K (58.3%)', val: '58.3' }
-              ].map(preset => (
-                <TouchableOpacity
-                  key={preset.val}
-                  onPress={() => setPurityPercent(preset.val)}
-                  style={{
-                    backgroundColor: purityPercent === preset.val ? '#D4AF37' : 'rgba(212,175,55,0.12)',
-                    paddingHorizontal: 8,
-                    paddingVertical: 4,
-                    borderRadius: 6
-                  }}
-                >
-                  <Text style={{ fontSize: 11, fontWeight: '700', color: purityPercent === preset.val ? '#FFF' : COLORS.vjText }}>
-                    {preset.label}
-                  </Text>
-                </TouchableOpacity>
-              ))
-            ) : (
-              [
-                { label: '92.5% Sterling', val: '92.5' },
-                { label: '99.9% Fine', val: '99.9' },
-                { label: '83.5%', val: '83.5' },
-                { label: '80.0%', val: '80.0' }
-              ].map(preset => (
-                <TouchableOpacity
-                  key={preset.val}
-                  onPress={() => setPurityPercent(preset.val)}
-                  style={{
-                    backgroundColor: purityPercent === preset.val ? '#D4AF37' : 'rgba(212,175,55,0.12)',
-                    paddingHorizontal: 8,
-                    paddingVertical: 4,
-                    borderRadius: 6
-                  }}
-                >
-                  <Text style={{ fontSize: 11, fontWeight: '700', color: purityPercent === preset.val ? '#FFF' : COLORS.vjText }}>
-                    {preset.label}
-                  </Text>
-                </TouchableOpacity>
-              ))
-            )}
+            {getPurityPresets(metalType || 'GOLD').map(preset => (
+              <TouchableOpacity
+                key={preset.id}
+                onPress={() => setPurityPercent(preset.val)}
+                style={{
+                  backgroundColor: purityPercent === preset.val ? '#D4AF37' : 'rgba(212,175,55,0.12)',
+                  paddingHorizontal: 8,
+                  paddingVertical: 4,
+                  borderRadius: 6
+                }}
+              >
+                <Text style={{ fontSize: 11, fontWeight: '700', color: purityPercent === preset.val ? '#FFF' : COLORS.vjText }}>
+                  {preset.label}
+                </Text>
+              </TouchableOpacity>
+            ))}
           </View>
 
           <GlassInput

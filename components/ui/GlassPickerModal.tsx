@@ -1,6 +1,4 @@
-// components/ui/GlassPickerModal.tsx — Phase 2 v2.11 Canonical Component
-
-import React, { useState, useMemo, useEffect, useCallback } from 'react';
+import React, { useState, useMemo, useEffect, useCallback, useDeferredValue } from 'react';
 import { 
   View, 
   Text, 
@@ -98,8 +96,10 @@ export function GlassPickerModal({
     }
   }, [visible]);
 
+  const deferredQuery = useDeferredValue(searchQuery);
+
   const filteredOptions = useMemo(() => {
-    const query = searchQuery.toLowerCase().trim();
+    const query = deferredQuery.toLowerCase().trim();
     if (!query) return options;
     return options.filter(
       (opt) =>
@@ -107,7 +107,7 @@ export function GlassPickerModal({
         (opt.sublabel && opt.sublabel.toLowerCase().includes(query)) ||
         (opt.badge && opt.badge.toLowerCase().includes(query))
     );
-  }, [options, searchQuery]);
+  }, [options, deferredQuery]);
 
   const selectedOption = useMemo(() => {
     if (!selectedId) return null;
@@ -189,6 +189,9 @@ export function GlassPickerModal({
                 onChangeText={setSearchQuery}
                 autoFocus={false}
                 autoCorrect={false}
+                autoCapitalize="none"
+                spellCheck={false}
+                returnKeyType="search"
                 clearButtonMode="while-editing"
               />
               {searchQuery.length > 0 && (

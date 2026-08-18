@@ -18,10 +18,11 @@ import {
   computeCostTruthGrams,
   computeAbsoluteTotalCostRupees,
   rupeesToPaise,
-  getCurrencySymbol 
+  getCurrencySymbol,
+  getPurityPresets,
 } from '@/utils/calculations';
-import { Edit3, Save, Calculator, CheckCircle } from 'lucide-react-native';
-import { GlassButton, GlassPickerInput } from '@/components/ui/Glass';
+import { Edit3, Save, Calculator, CheckCircle, X } from 'lucide-react-native';
+import { GlassButton, GlassPickerInput, FixedGlassBar, fixedBarStyles } from '@/components/ui/Glass';
 import { GlassPickerModal, GlassPickerOption } from '@/components/ui/GlassPickerModal';
 import { COLORS } from '@/constants/theme';
 
@@ -141,6 +142,14 @@ export default function EditDraftScreen() {
       isValid: netWeightG > 0 && purity > 0
     };
   }, [grossG, stoneG, beadsG, purityPercent, wastagePercent, purchaseRate, makingCharge, stoneCost, metal]);
+
+  const computedKarat = useMemo(() => {
+    const p = parseFloat(purityPercent);
+    if (isNaN(p) || p <= 0) return '';
+    if (metal === 'SILVER') return 'SILVER';
+    const k = percentToKarat(p) || 0;
+    return k > 0 ? `${k}K` : '';
+  }, [purityPercent, metal]);
 
   const handleSave = async () => {
     if (!activeFirmId || !itemId) return;
@@ -280,7 +289,14 @@ export default function EditDraftScreen() {
             <Text style={s.sectionTitle}>Purity & Financials</Text>
             <View style={s.row}>
               <View style={[s.inputGroup, { flex: 1, paddingRight: 6 }]}>
-                <Text style={s.label}>Purity % *</Text>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                  <Text style={[s.label, { marginBottom: 0 }]}>Purity % *</Text>
+                  {computedKarat && computedKarat !== 'SILVER' ? (
+                    <View style={{ backgroundColor: 'rgba(212,175,55,0.2)', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 }}>
+                      <Text style={{ fontSize: 11, fontWeight: '800', color: '#D4AF37' }}>{computedKarat}</Text>
+                    </View>
+                  ) : null}
+                </View>
                 <TextInput style={s.input} value={purityPercent} onChangeText={setPurityPercent} keyboardType="numeric" />
               </View>
               <View style={[s.inputGroup, { flex: 1, paddingLeft: 6 }]}>
@@ -289,62 +305,29 @@ export default function EditDraftScreen() {
               </View>
             </View>
             <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 4, marginBottom: 12 }}>
-              {(metal || 'GOLD') === 'GOLD' ? (
-                [
-                  { label: '22K (91.6%)', val: '91.6' },
-                  { label: '18K (75%)', val: '75.0' },
-                  { label: '24K (99.9%)', val: '99.9' },
-                  { label: '24K (99.5%)', val: '99.50' },
-                  { label: '24K (99.99%)', val: '99.99' },
-                  { label: '20K (83.3%)', val: '83.3' },
-                  { label: '14K (58.3%)', val: '58.3' }
-                ].map(preset => (
-                  <TouchableOpacity
-                    key={preset.val}
-                    onPress={() => setPurityPercent(preset.val)}
-                    style={{
-                      backgroundColor: purityPercent === preset.val || purityPercent === preset.label.split('K')[0] ? '#D4AF37' : 'rgba(212,175,55,0.12)',
-                      paddingHorizontal: 8,
-                      paddingVertical: 4,
-                      borderRadius: 6
-                    }}
-                  >
-                    <Text style={{
-                      fontSize: 11,
-                      fontWeight: '700',
-                      color: purityPercent === preset.val || purityPercent === preset.label.split('K')[0] ? '#FFF' : COLORS.vjText
-                    }}>
-                      {preset.label}
-                    </Text>
-                  </TouchableOpacity>
-                ))
-              ) : (
-                [
-                  { label: '92.5% Sterling', val: '92.5' },
-                  { label: '99.9% Fine', val: '99.9' },
-                  { label: '83.5%', val: '83.5' },
-                  { label: '80.0%', val: '80.0' }
-                ].map(preset => (
-                  <TouchableOpacity
-                    key={preset.val}
-                    onPress={() => setPurityPercent(preset.val)}
-                    style={{
-                      backgroundColor: purityPercent === preset.val ? '#D4AF37' : 'rgba(212,175,55,0.12)',
-                      paddingHorizontal: 8,
-                      paddingVertical: 4,
-                      borderRadius: 6
-                    }}
-                  >
-                    <Text style={{
-                      fontSize: 11,
-                      fontWeight: '700',
-                      color: purityPercent === preset.val ? '#FFF' : COLORS.vjText
-                    }}>
-                      {preset.label}
-                    </Text>
-                  </TouchableOpacity>
-                ))
-              )}
+              {getPurityPresets(metal || 'GOLD').map(preset => (
+                <TouchableOpacity
+                  key={preset.id}
+                  onPress={() => {
+                    try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch (e) {}
+                    setPurityPercent(preset.val);
+                  }}
+                  style={{
+                    backgroundColor: purityPercent === preset.val || purityPercent === preset.label.split('K')[0] ? '#D4AF37' : 'rgba(212,175,55,0.12)',
+                    paddingHorizontal: 8,
+                    paddingVertical: 4,
+                    borderRadius: 6
+                  }}
+                >
+                  <Text style={{
+                    fontSize: 11,
+                    fontWeight: '700',
+                    color: purityPercent === preset.val || purityPercent === preset.label.split('K')[0] ? '#FFF' : COLORS.vjText
+                  }}>
+                    {preset.label}
+                  </Text>
+                </TouchableOpacity>
+              ))}
             </View>
             <View style={s.row}>
               <View style={[s.inputGroup, { flex: 1, paddingRight: 6 }]}>
@@ -445,21 +428,34 @@ export default function EditDraftScreen() {
             </View>
           )}
 
+          <View style={{ height: 40 }} />
+        </KeyboardAwareScrollView>
+      )}
+
+      {!loading && !errorMessage && (
+        <FixedGlassBar>
           <TouchableOpacity 
-            style={[s.saveBtn, saving && s.saveBtnDisabled]} 
+            style={fixedBarStyles.pillSecondaryBtn} 
+            onPress={() => router.back()}
+            disabled={saving}
+          >
+            <Text style={fixedBarStyles.pillSecondaryText}>Cancel</Text>
+          </TouchableOpacity>
+          <TouchableOpacity 
+            style={fixedBarStyles.pillPrimaryBtn} 
             onPress={handleSave}
             disabled={saving}
           >
             {saving ? (
-              <ActivityIndicator color="#fff" />
+              <ActivityIndicator color="#fff" size="small" />
             ) : (
               <>
-                <Save size={20} color="#fff" />
-                <Text style={s.saveBtnText}>Save Correction</Text>
+                <Save size={18} color="#fff" />
+                <Text style={fixedBarStyles.pillPrimaryText}>Save Correction</Text>
               </>
             )}
           </TouchableOpacity>
-        </KeyboardAwareScrollView>
+        </FixedGlassBar>
       )}
 
       <Modal visible={!!successMessage} transparent animationType="fade">

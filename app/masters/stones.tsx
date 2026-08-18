@@ -6,7 +6,7 @@ import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view
 import { useRouter, useFocusEffect } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { TwoToneWrapper } from '@/components/TwoToneWrapper';
-import { HeaderPill, GlassCard, GlassButton } from '@/components/ui/Glass';
+import { HeaderPill, GlassCard, GlassButton, GlassInput, FixedGlassBar, fixedBarStyles } from '@/components/ui/Glass';
 import { appSettingsStore } from '@/store/phase1/appSettingsStore';
 import { Gem, Plus, X, Trash2, Edit3, LayoutGrid, List as ListIcon, CheckCircle, ShieldCheck } from 'lucide-react-native';
 import { useFirmStore } from '@/store/phase1/useFirmStore';
@@ -158,10 +158,7 @@ export default function StonesScreen() {
   return (
     <TwoToneWrapper title="Stone Master" showBack headerContent={stoneHeaderPills}>
       <View style={s.container}>
-        <View style={s.controlsRow}>
-          <View style={{ flex: 1, marginRight: 12 }}>
-            <GlassButton title="Add Stone Type" onPress={() => setShowAddModal(true)} icon={<Plus size={18} color="#fff" />} />
-          </View>
+        <View style={{ flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center', marginBottom: 12 }}>
           <View style={s.toggleContainer}>
             <TouchableOpacity onPress={() => setViewMode('list')} style={[s.toggleIconBtn, viewMode === 'list' && s.toggleIconActive]}>
               <ListIcon size={20} color={viewMode === 'list' ? '#D4AF37' : COLORS.vjText} style={{ opacity: viewMode === 'list' ? 1 : 0.6 }} />
@@ -179,7 +176,7 @@ export default function StonesScreen() {
             style={{ marginTop: 8 }} 
             showsVerticalScrollIndicator={false} 
             contentContainerStyle={[
-              { paddingBottom: 100 },
+              { paddingBottom: 150 },
               viewMode === 'grid' && { flexDirection: 'row', flexWrap: 'wrap', gap }
             ]}
           >
@@ -214,6 +211,20 @@ export default function StonesScreen() {
             })}
           </ScrollView>
         )}
+
+        <FixedGlassBar>
+          <TouchableOpacity
+            style={fixedBarStyles.pillPrimaryBtn}
+            onPress={() => {
+              try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch (e) {}
+              setShowAddModal(true);
+            }}
+            activeOpacity={0.8}
+          >
+            <Plus size={18} color="#fff" />
+            <Text style={fixedBarStyles.pillPrimaryText}>Add Stone Type</Text>
+          </TouchableOpacity>
+        </FixedGlassBar>
       </View>
 
       {/* ADD STONE MODAL */}
@@ -254,13 +265,11 @@ export default function StonesScreen() {
               extraScrollHeight={100}
             >
               <View style={s.formGroup}>
-                <Text style={s.label}>Stone Name</Text>
-                <TextInput 
-                  style={s.input}
+                <GlassInput 
+                  label="Stone Name"
                   value={newName}
                   onChangeText={setNewName}
                   placeholder="e.g. VS1 Round Diamond"
-                  placeholderTextColor="rgba(92,22,35,0.4)"
                 />
               </View>
 
@@ -329,13 +338,11 @@ export default function StonesScreen() {
               extraScrollHeight={100}
             >
               <View style={s.formGroup}>
-                <Text style={s.label}>Stone Name</Text>
-                <TextInput 
-                  style={s.input}
+                <GlassInput 
+                  label="Stone Name"
                   value={editName}
                   onChangeText={setEditName}
                   placeholder="e.g. VS1 Round Diamond"
-                  placeholderTextColor="rgba(92,22,35,0.4)"
                 />
               </View>
 

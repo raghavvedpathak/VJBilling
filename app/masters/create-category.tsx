@@ -1,14 +1,12 @@
-// app/masters/create-category.tsx — Phase 2 v2.11 Canonical Screen
-
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TextInput, Alert, Modal, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, TextInput, Alert, Modal, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import { useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { TwoToneWrapper } from '@/components/TwoToneWrapper';
-import { HeaderPill, GlassButton, GlassMetalSelector } from '@/components/ui/Glass';
+import { HeaderPill, GlassButton, GlassInput, GlassMetalSelector, FixedGlassBar, fixedBarStyles } from '@/components/ui/Glass';
 import { appSettingsStore } from '@/store/phase1/appSettingsStore';
-import { Layers, CheckCircle, ShieldCheck } from 'lucide-react-native';
+import { Layers, CheckCircle, ShieldCheck, Plus } from 'lucide-react-native';
 import { useFirmStore } from '@/store/phase1/useFirmStore';
 import { categoryService } from '@/services/phase2/categoryService';
 import { COLORS, getThemeColors } from '@/constants/theme';
@@ -79,9 +77,8 @@ export default function CreateCategoryScreen() {
         >
           <View style={s.card}>
             <View style={s.formGroup}>
-              <Text style={s.label}>Category Name</Text>
-              <TextInput 
-                style={s.input}
+              <GlassInput 
+                label="Category Name"
                 value={newName}
                 onChangeText={setNewName}
                 placeholder="e.g. Gold Rings"
@@ -94,13 +91,30 @@ export default function CreateCategoryScreen() {
             />
           </View>
         </KeyboardAwareScrollView>
-        <View style={{ paddingHorizontal: 16, paddingBottom: 32, paddingTop: 16 }}>
-          <GlassButton 
-            title={isSubmitting ? 'Saving...' : 'Save Category'} 
-            onPress={handleAdd} 
-            disabled={isSubmitting} 
-          />
-        </View>
+
+        <FixedGlassBar>
+          <TouchableOpacity
+            style={fixedBarStyles.pillSecondaryBtn}
+            onPress={() => router.back()}
+            disabled={isSubmitting}
+          >
+            <Text style={fixedBarStyles.pillSecondaryText}>Cancel</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={fixedBarStyles.pillPrimaryBtn}
+            onPress={handleAdd}
+            disabled={isSubmitting}
+          >
+            {isSubmitting ? (
+              <ActivityIndicator color="#fff" size="small" />
+            ) : (
+              <>
+                <Plus size={18} color="#fff" />
+                <Text style={fixedBarStyles.pillPrimaryText}>Save Category</Text>
+              </>
+            )}
+          </TouchableOpacity>
+        </FixedGlassBar>
       </View>
 
       <Modal visible={!!successMessage} transparent animationType="fade">

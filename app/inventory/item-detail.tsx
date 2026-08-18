@@ -30,7 +30,8 @@ import {
   formatSKUDisplay,
   formatWeightMg as formatWeight,
   resolveFineWeightMg,
-  computeFineGoldChargedMg
+  computeFineGoldChargedMg,
+  getPurityPresets,
 } from '@/utils/calculations';
 import { format, parseISO } from 'date-fns';
 import { formatDate } from '@/utils/formatDate';
@@ -659,6 +660,13 @@ export default function ItemDetailScreen() {
                 <View style={s.detailLabelRow}>
                   <Percent size={14} color={COLORS.vjAccent} />
                   <Text style={s.detailLabel}>Purity Grade</Text>
+                  {isEditing && item.metal === 'GOLD' && editPurityKarat ? (
+                    <View style={{ backgroundColor: 'rgba(212,175,55,0.2)', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4, marginLeft: 8 }}>
+                      <Text style={{ fontSize: 11, fontWeight: '800', color: '#D4AF37' }}>
+                        {editPurityKarat}K
+                      </Text>
+                    </View>
+                  ) : null}
                 </View>
                 {isEditing ? (
                   <View style={{ width: '100%', gap: 8 }}>
@@ -677,34 +685,22 @@ export default function ItemDetailScreen() {
                       placeholderTextColor="rgba(92,22,35,0.35)"
                     />
                     <View style={s.unitSelectorRow}>
-                      {(item.metal === 'GOLD'
-                        ? [
-                            { label: '22K (91.6%)', pct: '91.6', k: 22 },
-                            { label: '18K (75.0%)', pct: '75.0', k: 18 },
-                            { label: '24K (99.9%)', pct: '99.9', k: 24 },
-                            { label: '14K (58.5%)', pct: '58.5', k: 14 },
-                          ]
-                        : [
-                            { label: 'Silver 92.5%', pct: '92.5', k: null },
-                            { label: 'Silver 99.9%', pct: '99.9', k: null },
-                            { label: 'Silver 80.0%', pct: '80.0', k: null },
-                          ]
-                      ).map((preset) => (
+                      {getPurityPresets(item.metal || 'GOLD').map((preset) => (
                         <TouchableOpacity
-                          key={preset.label}
+                          key={preset.id}
                           style={[
                             s.unitChip,
-                            editPurityPercent === preset.pct && s.unitChipSelected,
+                            editPurityPercent === preset.val && s.unitChipSelected,
                           ]}
                           onPress={() => {
-                            setEditPurityPercent(preset.pct);
-                            setEditPurityKarat(preset.k);
+                            setEditPurityPercent(preset.val);
+                            setEditPurityKarat(preset.karat);
                           }}
                         >
                           <Text
                             style={[
                               s.unitChipText,
-                              editPurityPercent === preset.pct && s.unitChipTextSelected,
+                              editPurityPercent === preset.val && s.unitChipTextSelected,
                             ]}
                           >
                             {preset.label}

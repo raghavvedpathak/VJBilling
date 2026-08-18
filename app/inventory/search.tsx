@@ -246,6 +246,8 @@ export default function InventorySearchScreen() {
             returnKeyType="search"
             autoFocus
             autoCapitalize="characters"
+            autoCorrect={false}
+            spellCheck={false}
           />
           {isSearching ? (
             <ActivityIndicator size="small" color="#D4AF37" style={s.spinner} />

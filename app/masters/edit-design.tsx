@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, Alert, Modal, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, Alert, Modal, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { TwoToneWrapper } from '@/components/TwoToneWrapper';
-import { HeaderPill, GlassButton, GlassInput, GlassMetalBadge } from '@/components/ui/Glass';
+import { HeaderPill, GlassButton, GlassInput, GlassMetalBadge, FixedGlassBar, fixedBarStyles } from '@/components/ui/Glass';
 import { appSettingsStore } from '@/store/phase1/appSettingsStore';
-import { Edit2, CheckCircle, ShieldCheck, Tag } from 'lucide-react-native';
+import { Edit2, CheckCircle, ShieldCheck, Tag, Save } from 'lucide-react-native';
 import { useFirmStore } from '@/store/phase1/useFirmStore';
 import { designService } from '@/services/phase2/designService';
 import { designRepository } from '@/repositories/phase2/designRepository';
@@ -151,13 +151,30 @@ export default function EditDesignScreen() {
             </View>
           </View>
         </KeyboardAwareScrollView>
-        <View style={{ paddingHorizontal: 24, paddingBottom: 32, paddingTop: 16 }}>
-          <GlassButton 
-            title={isSubmitting ? 'Saving...' : 'Update Design'} 
-            onPress={handleEditSubmit} 
-            disabled={isSubmitting} 
-          />
-        </View>
+
+        <FixedGlassBar>
+          <TouchableOpacity
+            style={fixedBarStyles.pillSecondaryBtn}
+            onPress={() => router.back()}
+            disabled={isSubmitting}
+          >
+            <Text style={fixedBarStyles.pillSecondaryText}>Cancel</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={fixedBarStyles.pillPrimaryBtn}
+            onPress={handleEditSubmit}
+            disabled={isSubmitting}
+          >
+            {isSubmitting ? (
+              <ActivityIndicator color="#fff" size="small" />
+            ) : (
+              <>
+                <Save size={18} color="#fff" />
+                <Text style={fixedBarStyles.pillPrimaryText}>Update Design</Text>
+              </>
+            )}
+          </TouchableOpacity>
+        </FixedGlassBar>
       </View>
 
       <Modal visible={!!successMessage} transparent animationType="fade">

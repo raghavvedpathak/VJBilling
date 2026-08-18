@@ -1,6 +1,4 @@
-// app/masters/categories.tsx — Phase 2 v2.11 Canonical Screen
-
-import React, { useState, useCallback, useEffect, useMemo } from 'react';
+import React, { useState, useCallback, useEffect, useMemo, useDeferredValue, memo } from 'react';
 import {
   View,
   Text,
@@ -16,7 +14,7 @@ import { useRouter, useFocusEffect } from 'expo-router';
 import { storageInstance } from '@/utils/storage';
 import * as Haptics from 'expo-haptics';
 import { TwoToneWrapper } from '@/components/TwoToneWrapper';
-import { HeaderPill, GlassCard, GlassButton } from '@/components/ui/Glass';
+import { HeaderPill, GlassCard, GlassButton, FixedGlassBar, fixedBarStyles } from '@/components/ui/Glass';
 import { appSettingsStore } from '@/store/phase1/appSettingsStore';
 import {
   Layers,
@@ -116,15 +114,17 @@ export default function CategoriesScreen() {
     });
   };
 
+  const deferredQuery = useDeferredValue(searchQuery);
+
   const filteredCategories = useMemo(() => {
-    if (!searchQuery.trim()) return categories;
-    const q = searchQuery.toLowerCase().trim();
+    const q = deferredQuery.toLowerCase().trim();
+    if (!q) return categories;
     return categories.filter(
       (c) =>
         c.name.toLowerCase().includes(q) ||
         (c.code && c.code.toLowerCase().includes(q))
     );
-  }, [categories, searchQuery]);
+  }, [categories, deferredQuery]);
 
   const activeTheme = appSettingsStore((s: any) => s.theme);
   const colors = getThemeColors(activeTheme);
@@ -142,14 +142,26 @@ export default function CategoriesScreen() {
   return (
     <TwoToneWrapper title="Category Master" showBack headerContent={categoryHeaderPills}>
       <View style={s.container}>
-        {/* TOP CONTROLS ROW */}
-        <View style={s.controlsRow}>
-          <View style={{ flex: 1 }}>
-            <GlassButton
-              title="Create Category"
-              onPress={() => router.push('/masters/create-category')}
-              icon={<Plus size={18} color="#fff" />}
+        {/* TOP CONTROLS ROW: SEARCH & VIEW SWITCHER */}
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 12 }}>
+          <View style={[s.searchBarContainer, { flex: 1, marginBottom: 0 }]}>
+            <Search size={16} color="#D4AF37" style={{ marginRight: 8, opacity: 0.8 }} />
+            <TextInput
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+              placeholder="Search category name or code..."
+              placeholderTextColor="#9CA3AF"
+              style={s.searchInput}
+              autoCorrect={false}
+              autoCapitalize="none"
+              spellCheck={false}
+              returnKeyType="search"
             />
+            {Boolean(searchQuery) && (
+              <TouchableOpacity onPress={() => setSearchQuery('')} style={{ padding: 4 }}>
+                <X size={16} color="#6B7280" />
+              </TouchableOpacity>
+            )}
           </View>
 
           {/* VIEW SWITCHER */}
@@ -178,25 +190,6 @@ export default function CategoriesScreen() {
             </TouchableOpacity>
           </View>
         </View>
-
-        {/* SEARCH BAR (WHEN 3+ CATEGORIES) */}
-        {categories.length > 2 && (
-          <View style={s.searchBarContainer}>
-            <Search size={16} color="#D4AF37" style={{ marginRight: 8, opacity: 0.8 }} />
-            <TextInput
-              value={searchQuery}
-              onChangeText={setSearchQuery}
-              placeholder="Search category name or code..."
-              placeholderTextColor="#9CA3AF"
-              style={s.searchInput}
-            />
-            {Boolean(searchQuery) && (
-              <TouchableOpacity onPress={() => setSearchQuery('')} style={{ padding: 4 }}>
-                <X size={16} color="#6B7280" />
-              </TouchableOpacity>
-            )}
-          </View>
-        )}
 
         {loading ? (
           <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', marginTop: 60 }}>
@@ -336,6 +329,20 @@ export default function CategoriesScreen() {
             })}
           </ScrollView>
         )}
+
+        <FixedGlassBar>
+          <TouchableOpacity
+            style={fixedBarStyles.pillPrimaryBtn}
+            onPress={() => {
+              try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch (e) {}
+              router.push('/masters/create-category');
+            }}
+            activeOpacity={0.8}
+          >
+            <Plus size={18} color="#fff" />
+            <Text style={fixedBarStyles.pillPrimaryText}>Create Category</Text>
+          </TouchableOpacity>
+        </FixedGlassBar>
       </View>
 
       {/* SUCCESS MODAL */}

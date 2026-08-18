@@ -1,12 +1,12 @@
 // app/inventory/add-gemstone.tsx — Phase 2 v2.11 Canonical Screen
 
 import React, { useState, useMemo } from 'react';
-import { View, Text, ScrollView, Alert, Modal, StyleSheet } from 'react-native';
+import { View, Text, ScrollView, Alert, Modal, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import { useRouter, useFocusEffect } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { TwoToneWrapper } from '@/components/TwoToneWrapper';
-import { GlassCard, GlassInput, GlassButton, GlassPickerInput } from '@/components/ui/Glass';
+import { GlassCard, GlassInput, GlassButton, GlassPickerInput, FixedGlassBar, fixedBarStyles } from '@/components/ui/Glass';
 import { GlassPickerModal, GlassPickerOption } from '@/components/ui/GlassPickerModal';
 import { useFirmStore } from '@/store/phase1/useFirmStore';
 import { gemstoneLotService } from '@/services/phase2/gemstoneLotService';
@@ -16,7 +16,7 @@ import {
   computeGemstoneTotalPaise 
 } from '@/utils/purity.constants';
 import { getCurrencySymbol, rupeesToPaise } from '@/utils/currency';
-import { Gem, Diamond, Banknote, CheckCircle } from 'lucide-react-native';
+import { Gem, Diamond, Banknote, CheckCircle, Plus } from 'lucide-react-native';
 import type { Stone } from '@/types/phase2/phase2.types';
 import { COLORS } from '@/constants/theme';
 
@@ -192,9 +192,32 @@ export default function AddGemstoneScreen() {
           </View>
         </GlassCard>
 
-        <GlassButton title="Add to Inventory" onPress={handleSubmit} loading={loading} />
-
+        <View style={{ height: 40 }} />
       </KeyboardAwareScrollView>
+
+      <FixedGlassBar>
+        <TouchableOpacity
+          style={fixedBarStyles.pillSecondaryBtn}
+          onPress={() => router.back()}
+          disabled={loading}
+        >
+          <Text style={fixedBarStyles.pillSecondaryText}>Cancel</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={fixedBarStyles.pillPrimaryBtn}
+          onPress={handleSubmit}
+          disabled={loading}
+        >
+          {loading ? (
+            <ActivityIndicator color="#fff" size="small" />
+          ) : (
+            <>
+              <Plus size={18} color="#fff" />
+              <Text style={fixedBarStyles.pillPrimaryText}>Add to Inventory</Text>
+            </>
+          )}
+        </TouchableOpacity>
+      </FixedGlassBar>
 
       <Modal visible={!!successMessage} transparent animationType="fade">
         <View style={s.modalOverlayCenter}>

@@ -19,6 +19,51 @@ export const PURITY_MAP: Record<number, number> = {
 export const SILVER_PURITY_GRADES: number[] = [80.0, 83.5, 92.5, 95.8, 97.0, 99.0, 99.9]; // BIS IS 2112:2025
 export const GOLD_PURITY_GRADES: number[] = Object.values(PURITY_MAP);
 
+export interface PurityPreset {
+  id: string;
+  label: string;
+  val: string;
+  karat: number | null;
+  metal: 'GOLD' | 'SILVER';
+}
+
+export const GOLD_PURITY_PRESETS: PurityPreset[] = [
+  { id: 'gold_24k_9999', label: '24K (99.99%)', val: '99.99', karat: 24, metal: 'GOLD' },
+  { id: 'gold_24k_999', label: '24K (99.9%)', val: '99.9', karat: 24, metal: 'GOLD' },
+  { id: 'gold_24ks_995', label: '24KS (99.5%)', val: '99.50', karat: 24, metal: 'GOLD' },
+  { id: 'gold_23k_958', label: '23K (95.8%)', val: '95.8', karat: 23, metal: 'GOLD' },
+  { id: 'gold_22k_916', label: '22K (91.6%)', val: '91.6', karat: 22, metal: 'GOLD' },
+  { id: 'gold_21k_875', label: '21K (87.5%)', val: '87.5', karat: 21, metal: 'GOLD' },
+  { id: 'gold_20k_833', label: '20K (83.3%)', val: '83.3', karat: 20, metal: 'GOLD' },
+  { id: 'gold_18k_750', label: '18K (75%)', val: '75.0', karat: 18, metal: 'GOLD' },
+  { id: 'gold_14k_583', label: '14K (58.3%)', val: '58.3', karat: 14, metal: 'GOLD' },
+  { id: 'gold_10k_417', label: '10K (41.7%)', val: '41.7', karat: 10, metal: 'GOLD' },
+  { id: 'gold_9k_375', label: '9K (37.5%)', val: '37.5', karat: 9, metal: 'GOLD' },
+];
+
+export const SILVER_PURITY_PRESETS: PurityPreset[] = [
+  { id: 'silver_999', label: '99.9% Fine', val: '99.9', karat: null, metal: 'SILVER' },
+  { id: 'silver_990', label: '99.0%', val: '99.0', karat: null, metal: 'SILVER' },
+  { id: 'silver_970', label: '97.0%', val: '97.0', karat: null, metal: 'SILVER' },
+  { id: 'silver_958', label: '95.8% Britannia', val: '95.8', karat: null, metal: 'SILVER' },
+  { id: 'silver_925', label: '92.5% Sterling', val: '92.5', karat: null, metal: 'SILVER' },
+  { id: 'silver_835', label: '83.5%', val: '83.5', karat: null, metal: 'SILVER' },
+  { id: 'silver_800', label: '80.0%', val: '80.0', karat: null, metal: 'SILVER' },
+];
+
+export const PURITY_PRESETS: Record<'GOLD' | 'SILVER', PurityPreset[]> = {
+  GOLD: GOLD_PURITY_PRESETS,
+  SILVER: SILVER_PURITY_PRESETS,
+};
+
+export function getPurityPresets(metal: 'GOLD' | 'SILVER' = 'GOLD'): PurityPreset[] {
+  return PURITY_PRESETS[metal] || GOLD_PURITY_PRESETS;
+}
+
+export function getPurityPresetById(id: string): PurityPreset | undefined {
+  return [...GOLD_PURITY_PRESETS, ...SILVER_PURITY_PRESETS].find(p => p.id === id);
+}
+
 export function isStandardPurityGrade(purityPercent: number, metal: 'GOLD' | 'SILVER'): boolean {
   const grades = metal === 'SILVER' ? SILVER_PURITY_GRADES : GOLD_PURITY_GRADES;
   return grades.some(g => Math.abs(g - purityPercent) <= 0.01);

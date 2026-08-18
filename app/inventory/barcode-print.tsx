@@ -7,7 +7,7 @@ import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 import * as Haptics from 'expo-haptics';
 import { TwoToneWrapper } from '@/components/TwoToneWrapper';
-import { HeaderPill, GlassCard, GlassButton } from '@/components/ui/Glass';
+import { HeaderPill, GlassCard, GlassButton, FixedGlassBar, fixedBarStyles } from '@/components/ui/Glass';
 import { appSettingsStore } from '@/store/phase1/appSettingsStore';
 import { useFirmStore } from '@/store/phase1/useFirmStore';
 import { barcodeLabelService } from '@/services/phase2/barcodeLabelService';
@@ -325,23 +325,34 @@ export default function BarcodePrintScreen() {
             Printing or saving this label will securely log a <Text style={{ fontWeight: '800' }}>BARCODE_REPRINTED</Text> event in the item's timeline to ensure audit traceability.
           </Text>
         </View>
-        <View style={{ gap: 12 }}>
-          <GlassButton 
-            title={isProcessing ? 'Processing...' : 'Print Thermal Label'} 
-            onPress={handlePrint} 
-            disabled={isProcessing}
-            icon={!isProcessing ? <Printer size={20} color="#fff" /> : undefined}
-          />
-          <TouchableOpacity 
-            onPress={handleSaveToDevice}
-            disabled={isProcessing}
-            style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 16, borderRadius: 12, backgroundColor: 'rgba(184,115,51,0.1)' }}
-          >
-            <Share size={20} color={COLORS.vjAccent} />
-            <Text style={{ fontSize: 16, fontWeight: '700', color: COLORS.vjAccent, textAlign: 'center' }}>Save / Share PDF Tag</Text>
-          </TouchableOpacity>
-        </View>
+        <View style={{ height: 60 }} />
       </View>
+
+      <FixedGlassBar>
+        <TouchableOpacity
+          style={fixedBarStyles.pillSecondaryBtn}
+          onPress={handleSaveToDevice}
+          disabled={isProcessing}
+        >
+          <Share size={16} color={COLORS.vjText} />
+          <Text style={fixedBarStyles.pillSecondaryText}>Share PDF</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={fixedBarStyles.pillPrimaryBtn}
+          onPress={handlePrint}
+          disabled={isProcessing}
+        >
+          {isProcessing ? (
+            <ActivityIndicator color="#fff" size="small" />
+          ) : (
+            <>
+              <Printer size={18} color="#fff" />
+              <Text style={fixedBarStyles.pillPrimaryText}>Print Label</Text>
+            </>
+          )}
+        </TouchableOpacity>
+      </FixedGlassBar>
+
       <Modal visible={!!successMessage} transparent animationType="fade">
         <View style={s.modalOverlayCenter}>
           <View style={s.successModalContent}>
