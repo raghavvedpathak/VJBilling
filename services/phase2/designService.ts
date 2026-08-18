@@ -11,8 +11,7 @@ import { getDeviceId } from '@/utils/deviceId';
 import { now } from '@/utils/now';
 import { sanitizeText } from '@/utils/sanitize';
 import { ERR } from '@/constants/errorCodes';
-import 'react-native-get-random-values';
-import { v4 as uuidv4 } from 'uuid';
+import * as Crypto from 'expo-crypto';
 import { eq, and, desc } from 'drizzle-orm';
 import { designs, designCategoryMap } from '@/db/schema';
 import type { CreateDesignInput, Design, DrizzleTransaction } from '@/types/phase2/phase2.types';
@@ -104,7 +103,7 @@ export const designService = {
 
       try {
         const design = designRepository.insert(tx, {
-          id: uuidv4(),
+          id: Crypto.randomUUID(),
           firmId,
           name: sanitizedName,
           code,

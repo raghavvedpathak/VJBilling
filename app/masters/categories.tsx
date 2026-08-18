@@ -13,7 +13,7 @@ import {
   TextInput,
 } from 'react-native';
 import { useRouter, useFocusEffect } from 'expo-router';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { storageInstance } from '@/utils/storage';
 import * as Haptics from 'expo-haptics';
 import { TwoToneWrapper } from '@/components/TwoToneWrapper';
 import { HeaderPill, GlassCard, GlassButton } from '@/components/ui/Glass';
@@ -57,7 +57,7 @@ export default function CategoriesScreen() {
   const [viewMode, setViewModeState] = useState<'list' | 'grid'>('list');
 
   useEffect(() => {
-    AsyncStorage.getItem('categoryViewMode').then((mode) => {
+    Promise.resolve(storageInstance.getItem('categoryViewMode')).then((mode) => {
       if (mode === 'grid' || mode === 'list') {
         setViewModeState(mode);
       }
@@ -69,7 +69,7 @@ export default function CategoriesScreen() {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     } catch (e) {}
     setViewModeState(mode);
-    AsyncStorage.setItem('categoryViewMode', mode);
+    storageInstance.setItem('categoryViewMode', mode);
   };
 
   const [successMessage, setSuccessMessage] = useState<string | null>(null);

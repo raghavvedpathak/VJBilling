@@ -90,3 +90,5 @@ try {
 
 // Export the singleton instance
 export const storage = storageInstance;
+export { storageInstance };
+export default storageInstance;

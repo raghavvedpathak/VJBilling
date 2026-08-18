@@ -13,7 +13,7 @@ import {
   TextInput,
 } from 'react-native';
 import { useRouter, useFocusEffect } from 'expo-router';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { storageInstance } from '@/utils/storage';
 import * as Haptics from 'expo-haptics';
 import { TwoToneWrapper } from '@/components/TwoToneWrapper';
 import { HeaderPill, GlassCard, GlassButton, GlassMetalBadge } from '@/components/ui/Glass';
@@ -62,7 +62,7 @@ export default function DesignsScreen() {
   const [viewMode, setViewModeState] = useState<'list' | 'grid'>('list');
 
   useEffect(() => {
-    AsyncStorage.getItem('designViewMode').then((mode) => {
+    Promise.resolve(storageInstance.getItem('designViewMode')).then((mode) => {
       if (mode === 'grid' || mode === 'list') {
         setViewModeState(mode);
       }
@@ -74,7 +74,7 @@ export default function DesignsScreen() {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     } catch (e) {}
     setViewModeState(mode);
-    AsyncStorage.setItem('designViewMode', mode);
+    storageInstance.setItem('designViewMode', mode);
   };
 
   const [successMessage, setSuccessMessage] = useState<string | null>(null);

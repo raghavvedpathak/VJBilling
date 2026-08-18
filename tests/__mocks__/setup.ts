@@ -145,4 +145,23 @@ jest.mock('expo-sharing', () => ({
   shareAsync: async () => {},
 }));
 
+// ─── 10. MOCK: react-native-nitro-modules ─────────────────────────────────────
+
+jest.mock('react-native-nitro-modules', () => ({
+  NitroModules: {
+    getNativeModule: jest.fn(),
+    createHybridObject: jest.fn(),
+    hasNativeModule: jest.fn(() => false),
+  },
+}));
+
+// ─── 11. MOCK: react-native-worklets ──────────────────────────────────────────
+
+jest.mock('react-native-worklets', () => ({
+  useWorkletCallback: (fn: any) => fn,
+  createWorklet: (fn: any) => fn,
+  runOnJS: (fn: any) => fn,
+  runOnUI: (fn: any) => fn,
+}));
+
 export {};
