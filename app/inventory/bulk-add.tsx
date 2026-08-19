@@ -66,20 +66,37 @@ const BulkItemRow = ({ index, row, updateRow, removeRow, stones, metal, openPick
 
     const fineGoldChargedMg = computeFineGoldChargedMg(netWeightMg, purity, wastage);
     const costTruth = computeCostTruthGrams(fineGoldChargedMg, fineWeightMg);
-
     const effectivePricePerGram = computeEffectivePricePerGram(rate, purity, wastage);
     const absoluteTotalCost = computeAbsoluteTotalCostRupees(netWeightG, effectivePricePerGram, making, stoneC);
+    const metalCostRupees = netWeightG * effectivePricePerGram;
 
     const hasCostData = rate > 0 || making > 0 || stoneC > 0;
 
+    const finParts: string[] = [];
+    if (rate > 0) finParts.push(`Metal: ${getCurrencySymbol()}${metalCostRupees.toLocaleString('en-IN', { maximumFractionDigits: 0 })}`);
+    if (making > 0) finParts.push(`Labour: ${getCurrencySymbol()}${making.toLocaleString('en-IN')}`);
+    if (stoneC > 0) finParts.push(`Stone: ${getCurrencySymbol()}${stoneC.toLocaleString('en-IN')}`);
+    const financialBreakdownText = finParts.length > 0 ? finParts.join(' + ') : 'Base Metal Cost';
+
+    let weightBreakdownText = `Gross: ${gross.toFixed(3)}g`;
+    if (stone > 0 || beads > 0) {
+      const deductions: string[] = [];
+      if (stone > 0) deductions.push(`Stone: ${stone.toFixed(3)}g`);
+      if (beads > 0) deductions.push(`Beads: ${beads.toFixed(3)}g`);
+      weightBreakdownText = `Gross: ${gross.toFixed(3)}g - ${deductions.join(' - ')}`;
+    }
+
     return {
       netWeight: netWeightG,
+      weightBreakdown: weightBreakdownText,
       purityRaw: purity,
       wastageRaw: wastage,
       totalTouch: purity + wastage,
       vaultTruth,
+      wastageMetal: costTruth - vaultTruth,
       costTruth,
       hasCostData,
+      financialBreakdown: financialBreakdownText,
       pricePerGram: effectivePricePerGram,
       totalAmount: absoluteTotalCost,
       isValid: netWeightG > 0 && purity > 0
@@ -122,10 +139,9 @@ const BulkItemRow = ({ index, row, updateRow, removeRow, stones, metal, openPick
           />
         </View>
         <View style={s.inputCol}><GlassInput label="Wastage %" value={row.wastagePercent} onChangeText={(t: string) => updateRow(index, 'wastagePercent', t)} keyboardType="numeric" /></View>
-        <View style={s.inputCol}><GlassInput label={`Rate/g (${getCurrencySymbol()})`} value={row.purchaseRate} onChangeText={(t: string) => updateRow(index, 'purchaseRate', t)} keyboardType="numeric" /></View>
       </View>
 
-      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 4, marginBottom: 12 }}>
+      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 12 }}>
         {getPurityPresets(metal || 'GOLD').map(preset => (
           <TouchableOpacity
             key={preset.id}
@@ -152,8 +168,9 @@ const BulkItemRow = ({ index, row, updateRow, removeRow, stones, metal, openPick
       </View>
 
       <View style={s.inputGrid}>
-        <View style={s.inputCol}><GlassInput label={`Making Chg (${getCurrencySymbol()})`} value={row.makingCharge} onChangeText={(t: string) => updateRow(index, 'makingCharge', t)} keyboardType="numeric" /></View>
-        <View style={s.inputCol}><GlassInput label={`Stone Cost (${getCurrencySymbol()})`} value={row.stoneCost} onChangeText={(t: string) => updateRow(index, 'stoneCost', t)} keyboardType="numeric" /></View>
+        <View style={s.inputCol}><GlassInput label={`Rate (${getCurrencySymbol()})`} value={row.purchaseRate} onChangeText={(t: string) => updateRow(index, 'purchaseRate', t)} keyboardType="numeric" /></View>
+        <View style={s.inputCol}><GlassInput label={`Making (${getCurrencySymbol()})`} value={row.makingCharge} onChangeText={(t: string) => updateRow(index, 'makingCharge', t)} keyboardType="numeric" /></View>
+        <View style={s.inputCol}><GlassInput label={`Stn Cost (${getCurrencySymbol()})`} value={row.stoneCost} onChangeText={(t: string) => updateRow(index, 'stoneCost', t)} keyboardType="numeric" /></View>
       </View>
 
       <View style={s.inputGrid}>
@@ -163,7 +180,13 @@ const BulkItemRow = ({ index, row, updateRow, removeRow, stones, metal, openPick
 
       <View style={s.inputGrid}>
         <View style={s.inputCol}>
-          <GlassInput label="Size Value" value={row.sizeValue} onChangeText={(t: string) => updateRow(index, 'sizeValue', t)} keyboardType="numeric" placeholder="e.g. 18" />
+          <GlassInput 
+            label="Size Value" 
+            placeholder="e.g. 18"
+            value={row.sizeValue} 
+            onChangeText={(t: string) => updateRow(index, 'sizeValue', t)} 
+            keyboardType="numeric" 
+          />
         </View>
         <View style={s.inputCol}>
           <GlassPickerInput
@@ -226,41 +249,111 @@ const BulkItemRow = ({ index, row, updateRow, removeRow, stones, metal, openPick
         />
       </View>
 
+      {/* Mandated UI Display — Modern Luxury Live Cost Preview */}
       {calculations.isValid && (
-        <View style={s.liveMathBox}>
-          <View style={s.mathHeader}>
-            <Calculator size={14} color="#D4AF37" />
-            <Text style={s.mathTitle}>Live Cost Breakdown</Text>
-          </View>
-          <View style={s.mathRow}>
-            <Text style={s.mathLabel}>Net Wt:</Text>
-            <Text style={s.mathValue}>{calculations.netWeight.toFixed(3)} g</Text>
-          </View>
-          <View style={s.mathRow}>
-            <Text style={s.mathLabel}>Total Touch:</Text>
-            <Text style={s.mathValue}>{calculations.purityRaw}% + {calculations.wastageRaw}% = {calculations.totalTouch.toFixed(2)}%</Text>
-          </View>
-          <View style={s.mathRow}>
-            <Text style={s.mathLabel}>Vault Truth (Fine):</Text>
-            <Text style={[s.mathValue, { color: '#047857' }]}>{calculations.vaultTruth.toFixed(3)} g</Text>
-          </View>
-          <View style={s.mathRow}>
-            <Text style={s.mathLabel}>Cost Truth (Fine):</Text>
-            <Text style={[s.mathValue, { color: '#B45309' }]}>{calculations.costTruth.toFixed(3)} g</Text>
-          </View>
+        <View className="mb-2 mt-4" style={{ zIndex: 10 }}>
+          <GlassCard style={{ backgroundColor: 'rgba(252,251,248, 0.98)', borderColor: '#D4AF37', borderWidth: 1.5, padding: 16 }}>
+            {/* Top Header Row with Live Audit Badge */}
+            <View className="flex-row items-center justify-between mb-3 pb-2.5 border-b border-black/5">
+              <View className="flex-row items-center gap-2">
+                <View className="w-7 h-7 rounded-lg items-center justify-center bg-amber-500/15 border border-amber-500/30">
+                  <Calculator size={16} color="#D4AF37" />
+                </View>
+                <View>
+                  <Text className="text-xs font-black uppercase tracking-wider text-vj-accent">Live Cost Breakdown</Text>
+                  <Text className="text-[10px] text-vj-text/50 font-semibold">Real-Time Inventory Accounting</Text>
+                </View>
+              </View>
+              <View className="flex-row items-center gap-1.5 px-2 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20">
+                <View className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                <Text className="text-[9px] font-black text-emerald-800 uppercase tracking-widest">LIVE</Text>
+              </View>
+            </View>
 
-          {calculations.hasCostData && (
-            <>
-              <View style={s.mathRow}>
-                <Text style={s.mathLabel}>Effective Price/g:</Text>
-                <Text style={s.mathValue}>{getCurrencySymbol()} {calculations.pricePerGram.toLocaleString('en-IN', { maximumFractionDigits: 2 })}</Text>
+            {/* Dual Stat Tiles: Net Weight & Total Touch */}
+            <View className="flex-row gap-2.5 mb-3">
+              {/* Tile 1: Net Weight */}
+              <View className="flex-1 p-2.5 rounded-xl bg-black/[0.02] border border-black/5">
+                <Text className="text-[10px] font-bold text-vj-text/50 uppercase tracking-wider">Net Weight</Text>
+                <Text className="text-base font-black text-vj-text font-mono mt-0.5">{calculations.netWeight.toFixed(3)} g</Text>
+                <Text className="text-[9px] text-vj-text/55 font-semibold mt-0.5" numberOfLines={1}>
+                  {calculations.weightBreakdown}
+                </Text>
               </View>
-              <View style={s.mathRow}>
-                <Text style={s.mathLabel}>Est. Total ({getCurrencySymbol()}):</Text>
-                <Text style={s.mathHighlight}>{getCurrencySymbol()} {calculations.totalAmount.toLocaleString('en-IN', { maximumFractionDigits: 2 })}</Text>
+
+              {/* Tile 2: Total Touch */}
+              <View className="flex-1 p-2.5 rounded-xl bg-black/[0.02] border border-black/5">
+                <View className="flex-row items-center justify-between">
+                  <Text className="text-[10px] font-bold text-vj-text/50 uppercase tracking-wider">Total Touch</Text>
+                  <Text className="text-xs font-black text-vj-accent font-mono">{calculations.totalTouch.toFixed(2)}%</Text>
+                </View>
+                <View className="mt-1 bg-vj-accent/10 px-1.5 py-0.5 rounded self-start">
+                  <Text className="text-[9px] font-black text-vj-accent font-mono">
+                    {calculations.purityRaw}% Purity + {calculations.wastageRaw}% Wastage
+                  </Text>
+                </View>
               </View>
-            </>
-          )}
+            </View>
+
+            {/* 3-Way Fine Metal Flow Bar (Vault Truth + Wastage = Cost Truth) */}
+            <View className="mb-3 p-3 rounded-2xl bg-black/[0.02] border border-black/5">
+              <Text className="text-[10px] font-black uppercase tracking-widest text-vj-text/60 mb-2">
+                Fine Metal Accounting ({metal || 'GOLD'})
+              </Text>
+              
+              <View className="flex-row items-center justify-between gap-1">
+                {/* Vault Fine */}
+                <View className="flex-1 p-2 rounded-xl bg-emerald-500/10 border border-emerald-500/20 items-center">
+                  <Text className="text-[9px] font-black text-emerald-800 uppercase tracking-tight">Vault Fine</Text>
+                  <Text className="text-xs font-black text-emerald-700 font-mono mt-0.5">{calculations.vaultTruth.toFixed(3)} g</Text>
+                  <Text className="text-[8px] font-semibold text-emerald-800/70 mt-0.5">Physical</Text>
+                </View>
+
+                <Text className="text-xs font-black text-vj-text/40">+</Text>
+
+                {/* Wastage Fine */}
+                <View className="flex-1 p-2 rounded-xl bg-rose-500/10 border border-rose-500/20 items-center">
+                  <Text className="text-[9px] font-black text-rose-800 uppercase tracking-tight">
+                    Wastage
+                  </Text>
+                  <Text className="text-xs font-black text-rose-700 font-mono mt-0.5">{calculations.wastageMetal.toFixed(3)} g</Text>
+                  <Text className="text-[8px] font-semibold text-rose-800/70 mt-0.5">Supplier</Text>
+                </View>
+
+                <Text className="text-xs font-black text-vj-text/40">=</Text>
+
+                {/* Cost Truth (Billed) */}
+                <View className="flex-1 p-2 rounded-xl bg-amber-500/15 border border-amber-500/30 items-center">
+                  <Text className="text-[9px] font-black text-amber-900 uppercase tracking-tight">Billed Fine</Text>
+                  <Text className="text-xs font-black text-amber-800 font-mono mt-0.5">{calculations.costTruth.toFixed(3)} g</Text>
+                  <Text className="text-[8px] font-semibold text-amber-800/70 mt-0.5">Cost Truth</Text>
+                </View>
+              </View>
+            </View>
+
+            {/* Financials Hero Banner (When Rate/Making entered) */}
+            {calculations.hasCostData && (
+              <View className="p-3 rounded-2xl bg-amber-500/10 border border-amber-500/30">
+                <View className="flex-row justify-between items-center pb-1.5 border-b border-amber-500/15">
+                  <Text className="text-[11px] text-vj-text/70 font-bold">Effective Price / g:</Text>
+                  <Text className="text-xs font-black text-vj-text font-mono">
+                    {getCurrencySymbol()} {calculations.pricePerGram.toLocaleString('en-IN', { maximumFractionDigits: 2 })}
+                  </Text>
+                </View>
+                <View className="flex-row justify-between items-center pt-2">
+                  <View className="flex-1 pr-2">
+                    <Text className="text-xs font-black text-vj-text uppercase tracking-wider">EST. Total</Text>
+                    <Text className="text-[10px] text-vj-text/60 font-semibold mt-0.5">
+                      {calculations.financialBreakdown}
+                    </Text>
+                  </View>
+                  <Text className="text-base font-black font-mono text-amber-950">
+                    {getCurrencySymbol()} {calculations.totalAmount.toLocaleString('en-IN', { maximumFractionDigits: 2 })}
+                  </Text>
+                </View>
+              </View>
+            )}
+          </GlassCard>
         </View>
       )}
       </GlassCard>

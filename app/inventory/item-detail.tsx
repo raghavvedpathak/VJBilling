@@ -184,12 +184,6 @@ export default function ItemDetailScreen() {
   const [editReason, setEditReason] = useState('');
   const [savingInline, setSavingInline] = useState(false);
 
-  // Add / Correct HUID State (kept as Modal for standalone access)
-  const [isHuidModalVisible, setHuidModalVisible] = useState(false);
-  const [huidInput, setHuidInput] = useState('');
-  const [huidReason, setHuidReason] = useState('');
-  const [submittingHuid, setSubmittingHuid] = useState(false);
-
   // Delete Item State (kept as Modal for safety & typing confirm)
   const [isDeleteModalVisible, setDeleteModalVisible] = useState(false);
   const [deleteReason, setDeleteReason] = useState('');
@@ -351,45 +345,7 @@ export default function ItemDetailScreen() {
     }
   };
 
-  // --- HUID & Delete Handlers ---
-  const handleOpenHuidModal = useCallback(() => {
-    setHuidInput(item?.huid || '');
-    setHuidReason('');
-    setHuidModalVisible(true);
-  }, [item]);
-
-  const handleSaveHuid = async () => {
-    if (!activeFirmId || !itemId || !item) return;
-    const huidUpper = huidInput.trim().toUpperCase();
-    if (!/^[A-Z0-9]{6}$/.test(huidUpper)) {
-      Alert.alert('Invalid HUID', 'HUID must be exactly 6 uppercase alphanumeric characters.');
-      return;
-    }
-
-    setSubmittingHuid(true);
-    try {
-      if (item.huid === null) {
-        await itemService.addHUID(itemId, activeFirmId, huidUpper);
-        Alert.alert('Success', 'HUID assigned successfully.');
-      } else {
-        if (!huidReason.trim()) {
-          Alert.alert('Reason Required', 'Please enter a reason for correcting the HUID.');
-          setSubmittingHuid(false);
-          return;
-        }
-        await itemService.correctHUID(itemId, activeFirmId, huidUpper, huidReason.trim());
-        Alert.alert('Success', 'HUID corrected successfully.');
-      }
-      setHuidModalVisible(false);
-      const detail = await inventoryDrillDownService.getItemDetail(activeFirmId, itemId);
-      setItem(detail);
-    } catch (e: any) {
-      Alert.alert('Error', e.message || 'Failed to update HUID');
-    } finally {
-      setSubmittingHuid(false);
-    }
-  };
-
+  // --- Delete Modal Handlers ---
   const handleOpenDeleteModal = useCallback(() => {
     setDeleteReason('');
     setDeleteModalVisible(true);
@@ -485,17 +441,41 @@ export default function ItemDetailScreen() {
 
     const effectivePricePerGram = computeEffectivePricePerGram(rate, livePurityPercent, wastagePercent);
     const hasCostData = rate > 0 || making > 0 || stoneC > 0;
-    const totalAmount = computeAbsoluteTotalCostRupees(costTruth, rate, making, stoneC);
+    const netWeightG = netWeightMg / 1000;
+    const totalAmount = computeAbsoluteTotalCostRupees(netWeightG, effectivePricePerGram, making, stoneC);
+    const metalCostRupees = netWeightG * effectivePricePerGram;
 
     const purityDisplayStr = getDisplayPurity(livePurityPercent, livePurityKarat, item.metal);
 
+    const finParts: string[] = [];
+    if (rate > 0) finParts.push(`Metal: ${getCurrencySymbol()}${metalCostRupees.toLocaleString('en-IN', { maximumFractionDigits: 0 })}`);
+    if (making > 0) finParts.push(`Labour: ${getCurrencySymbol()}${making.toLocaleString('en-IN')}`);
+    if (stoneC > 0) finParts.push(`Stone: ${getCurrencySymbol()}${stoneC.toLocaleString('en-IN')}`);
+    const financialBreakdownText = finParts.length > 0 ? finParts.join(' + ') : 'Base Metal Cost';
+
+    let weightBreakdownText = `Gross: ${gGrams.toFixed(3)}g`;
+    if (sGrams > 0 || bGrams > 0) {
+      const deductions: string[] = [];
+      if (sGrams > 0) deductions.push(`Stone: ${sGrams.toFixed(3)}g`);
+      if (bGrams > 0) deductions.push(`Beads: ${bGrams.toFixed(3)}g`);
+      weightBreakdownText = `Gross: ${gGrams.toFixed(3)}g - ${deductions.join(' - ')}`;
+    }
+
     return {
       grossMg: Math.round(gGrams * 1000),
+      grossGrams: gGrams,
       stoneMg: Math.round(sGrams * 1000),
+      stoneGrams: sGrams,
       beadsMg: Math.round(bGrams * 1000),
+      beadsGrams: bGrams,
       netMg: netWeightMg,
+      netGrams: netWeightG,
       fineMg: fineWeightMg,
+      weightBreakdown: weightBreakdownText,
       purityPercent: livePurityPercent,
+      purityRaw: livePurityPercent,
+      wastageRaw: wastagePercent,
+      totalTouch: (livePurityPercent + wastagePercent).toFixed(2) + '%',
       purityKarat: livePurityKarat,
       purityDisplay: purityDisplayStr,
       wastagePercent,
@@ -507,7 +487,9 @@ export default function ItemDetailScreen() {
       stoneC,
       effectivePricePerGram,
       hasCostData,
+      financialBreakdown: financialBreakdownText,
       totalAmount,
+      isValid: netWeightG > 0 && livePurityPercent > 0,
     };
   }, [
     item, isEditing,
@@ -714,9 +696,6 @@ export default function ItemDetailScreen() {
                 )}
               </View>
 
-              {/* LIVE COMPUTED FINE WEIGHT */}
-              <DetailRow label="Vault Truth (Fine Weight)" value={liveCalculations.vaultTruth.toFixed(3) + ' g'} valueColor="#047857" style={s.highlightGreenRow} icon={<Award size={14} color="#047857" />} />
-              
               {/* WASTAGE PERCENT */}
               <View style={s.detailRow}>
                 <View style={s.detailLabelRow}>
@@ -737,11 +716,120 @@ export default function ItemDetailScreen() {
                 )}
               </View>
 
-              <DetailRow label={item.metal === 'GOLD' ? 'Wastage Gold' : 'Wastage Silver'} subLabel={`= ${(liveCalculations.netMg / 1000).toFixed(3)} g × ${liveCalculations.wastagePercent.toFixed(2)}%`} value={liveCalculations.wastageGold.toFixed(3) + ' g'} valueColor="#B91C1C" style={s.highlightRedRow} icon={<Coins size={14} color="#B91C1C" />} />
-              <DetailRow label="Cost Truth (Fine)" subLabel={`= ${(liveCalculations.netMg / 1000).toFixed(3)} g × ${(liveCalculations.purityPercent + liveCalculations.wastagePercent).toFixed(2)}%`} value={liveCalculations.costTruth.toFixed(3) + ' g'} valueColor="#B45309" style={s.highlightOrangeRow} icon={<Calculator size={14} color="#B45309" />} />
-              
-              <View style={s.divider} />
-              <Text style={[s.sectionTitle, { marginTop: 8, marginLeft: 14 }]}>Item Identity & Attributes</Text>
+            </View>
+          </View>
+
+          {/* === MANDATED UI DISPLAY — MODERN LUXURY LIVE COST BREAKDOWN === */}
+          {liveCalculations.isValid && (
+            <View className="px-4 mb-4 mt-1" style={{ zIndex: 10 }}>
+              <GlassCard style={{ backgroundColor: 'rgba(252,251,248, 0.98)', borderColor: '#D4AF37', borderWidth: 1.5, padding: 16 }}>
+                {/* Top Header Row with Live Audit Badge */}
+                <View className="flex-row items-center justify-between mb-3 pb-2.5 border-b border-black/5">
+                  <View className="flex-row items-center gap-2">
+                    <View className="w-7 h-7 rounded-lg items-center justify-center bg-amber-500/15 border border-amber-500/30">
+                      <Calculator size={16} color="#D4AF37" />
+                    </View>
+                    <View>
+                      <Text className="text-xs font-black uppercase tracking-wider text-vj-accent">Live Cost Breakdown</Text>
+                      <Text className="text-[10px] text-vj-text/50 font-semibold">Real-Time Inventory Accounting</Text>
+                    </View>
+                  </View>
+                  <View className="flex-row items-center gap-1.5 px-2 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20">
+                    <View className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                    <Text className="text-[9px] font-black text-emerald-800 uppercase tracking-widest">LIVE</Text>
+                  </View>
+                </View>
+
+                {/* Dual Stat Tiles: Net Weight & Total Touch */}
+                <View className="flex-row gap-2.5 mb-3">
+                  {/* Tile 1: Net Weight */}
+                  <View className="flex-1 p-2.5 rounded-xl bg-black/[0.02] border border-black/5">
+                    <Text className="text-[10px] font-bold text-vj-text/50 uppercase tracking-wider">Net Weight</Text>
+                    <Text className="text-base font-black text-vj-text font-mono mt-0.5">{formatWeight(liveCalculations.netMg)}</Text>
+                    <Text className="text-[9px] text-vj-text/55 font-semibold mt-0.5" numberOfLines={1}>
+                      {liveCalculations.weightBreakdown}
+                    </Text>
+                  </View>
+
+                  {/* Tile 2: Total Touch */}
+                  <View className="flex-1 p-2.5 rounded-xl bg-black/[0.02] border border-black/5">
+                    <View className="flex-row items-center justify-between">
+                      <Text className="text-[10px] font-bold text-vj-text/50 uppercase tracking-wider">Total Touch</Text>
+                      <Text className="text-xs font-black text-vj-accent font-mono">{liveCalculations.totalTouch}</Text>
+                    </View>
+                    <View className="mt-1 bg-vj-accent/10 px-1.5 py-0.5 rounded self-start">
+                      <Text className="text-[9px] font-black text-vj-accent font-mono">
+                        {liveCalculations.purityRaw}% Purity + {liveCalculations.wastageRaw}% Wastage
+                      </Text>
+                    </View>
+                  </View>
+                </View>
+
+                {/* 3-Way Fine Metal Flow Bar (Vault Truth + Wastage = Cost Truth) */}
+                <View className="mb-3 p-3 rounded-2xl bg-black/[0.02] border border-black/5">
+                  <Text className="text-[10px] font-black uppercase tracking-widest text-vj-text/60 mb-2">
+                    Fine Metal Accounting ({item.metal || 'GOLD'})
+                  </Text>
+                  
+                  <View className="flex-row items-center justify-between gap-1">
+                    {/* Vault Fine */}
+                    <View className="flex-1 p-2 rounded-xl bg-emerald-500/10 border border-emerald-500/20 items-center">
+                      <Text className="text-[9px] font-black text-emerald-800 uppercase tracking-tight">Vault Fine</Text>
+                      <Text className="text-xs font-black text-emerald-700 font-mono mt-0.5">{liveCalculations.vaultTruth.toFixed(3)} g</Text>
+                      <Text className="text-[8px] font-semibold text-emerald-800/70 mt-0.5">Physical</Text>
+                    </View>
+
+                    <Text className="text-xs font-black text-vj-text/40">+</Text>
+
+                    {/* Wastage Fine */}
+                    <View className="flex-1 p-2 rounded-xl bg-rose-500/10 border border-rose-500/20 items-center">
+                      <Text className="text-[9px] font-black text-rose-800 uppercase tracking-tight">
+                        Wastage
+                      </Text>
+                      <Text className="text-xs font-black text-rose-700 font-mono mt-0.5">{liveCalculations.wastageGold.toFixed(3)} g</Text>
+                      <Text className="text-[8px] font-semibold text-rose-800/70 mt-0.5">Supplier</Text>
+                    </View>
+
+                    <Text className="text-xs font-black text-vj-text/40">=</Text>
+
+                    {/* Cost Truth (Billed) */}
+                    <View className="flex-1 p-2 rounded-xl bg-amber-500/15 border border-amber-500/30 items-center">
+                      <Text className="text-[9px] font-black text-amber-900 uppercase tracking-tight">Billed Fine</Text>
+                      <Text className="text-xs font-black text-amber-800 font-mono mt-0.5">{liveCalculations.costTruth.toFixed(3)} g</Text>
+                      <Text className="text-[8px] font-semibold text-amber-800/70 mt-0.5">Cost Truth</Text>
+                    </View>
+                  </View>
+                </View>
+
+                {/* Financials Hero Banner (When Rate/Making entered) */}
+                {liveCalculations.hasCostData && (
+                  <View className="p-3 rounded-2xl bg-amber-500/10 border border-amber-500/30">
+                    <View className="flex-row justify-between items-center pb-1.5 border-b border-amber-500/15">
+                      <Text className="text-[11px] text-vj-text/70 font-bold">Effective Price / g:</Text>
+                      <Text className="text-xs font-black text-vj-text font-mono">
+                        {getCurrencySymbol()} {liveCalculations.effectivePricePerGram.toLocaleString('en-IN', { maximumFractionDigits: 2 })}
+                      </Text>
+                    </View>
+                    <View className="flex-row justify-between items-center pt-2">
+                      <View className="flex-1 pr-2">
+                        <Text className="text-xs font-black text-vj-text uppercase tracking-wider">EST. Total</Text>
+                        <Text className="text-[10px] text-vj-text/60 font-semibold mt-0.5">
+                          {liveCalculations.financialBreakdown}
+                        </Text>
+                      </View>
+                      <Text className="text-base font-black font-mono text-amber-950">
+                        {getCurrencySymbol()} {liveCalculations.totalAmount.toLocaleString('en-IN', { maximumFractionDigits: 2 })}
+                      </Text>
+                    </View>
+                  </View>
+                )}
+              </GlassCard>
+            </View>
+          )}
+          {/* === ITEM IDENTITY & ATTRIBUTES CARD === */}
+          <View style={s.section}>
+            <Text style={s.sectionTitle}>Item Identity & Attributes</Text>
+            <View style={s.sectionCard}>
 
               {/* SIZE & UNIT */}
               <View style={[s.detailRow, isEditing && { flexDirection: 'column', alignItems: 'flex-start', gap: 8 }]}>
@@ -798,14 +886,15 @@ export default function ItemDetailScreen() {
                     />
                   </View>
                 ) : (
-                  <View style={{flexDirection: 'row', alignItems: 'center', gap: 6}}>
-                    <Text style={s.detailValue}>{item.huid || '—'}</Text>
-                    {isEditable && (
-                      <TouchableOpacity activeOpacity={0.7} onPress={handleOpenHuidModal}>
-                        <Text style={{color: COLORS.vjAccent, fontSize: 13, fontWeight: '700'}}>
-                          {item.huid === null ? '✎ Add HUID' : '✎ Correct HUID'}
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                    {item.huid ? (
+                      <View style={{ backgroundColor: 'rgba(212, 175, 55, 0.12)', borderColor: 'rgba(212, 175, 55, 0.3)', borderWidth: 1, paddingHorizontal: 8, paddingVertical: 2, borderRadius: 6 }}>
+                        <Text style={{ fontSize: 13, fontWeight: '800', color: COLORS.vjAccent, letterSpacing: 0.5 }}>
+                          {item.huid}
                         </Text>
-                      </TouchableOpacity>
+                      </View>
+                    ) : (
+                      <Text style={[s.detailValue, { color: 'rgba(92,22,35,0.4)' }]}>Not Assigned</Text>
                     )}
                   </View>
                 )}
@@ -974,28 +1063,6 @@ export default function ItemDetailScreen() {
                 )}
               </View>
 
-              <View style={s.divider} />
-              
-              {/* LIVE COMPUTED EFFECTIVE PRICE */}
-              <DetailRow
-                label="Effective Rate / Gram"
-                subLabel="= Rate ÷ ((Purity + Wastage) ÷ 100)"
-                value={liveCalculations.effectivePricePerGram > 0 ? getCurrencySymbol() + liveCalculations.effectivePricePerGram.toFixed(2) + '/g' : '—'}
-                valueColor="#047857"
-                style={s.highlightGreenRow}
-                icon={<Coins size={14} color="#047857" />}
-              />
-
-              {/* LIVE COMPUTED TOTAL AMOUNT */}
-              <DetailRow
-                label="Total Computed Cost"
-                subLabel="= (Cost Truth × Rate) + Making + Stone"
-                value={liveCalculations.hasCostData ? getCurrencySymbol() + liveCalculations.totalAmount.toFixed(2) : '—'}
-                valueColor={COLORS.vjAccent}
-                style={s.highlightGoldRow}
-                icon={<Calculator size={14} color={COLORS.vjAccent} />}
-              />
-
             </View>
           </View>
 
@@ -1106,50 +1173,6 @@ export default function ItemDetailScreen() {
           </FixedGlassBar>
         )}
       </View>
-
-      {/* Add / Correct HUID Modal */}
-      <Modal visible={isHuidModalVisible} transparent animationType="fade">
-        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={s.modalOverlay}>
-          <ScrollView contentContainerStyle={s.modalScrollContent} keyboardShouldPersistTaps="handled">
-            <View style={s.modalContent}>
-              <Text style={s.modalTitle}>{item.huid === null ? 'Add HUID' : 'Correct HUID'}</Text>
-              
-              <Text style={s.modalLabel}>HUID (6 uppercase chars) *</Text>
-              <TextInput 
-                style={s.modalInput}
-                value={huidInput}
-                onChangeText={setHuidInput}
-                placeholder="e.g. A1B2C3"
-                autoCapitalize="characters"
-                maxLength={6}
-                editable={!submittingHuid}
-              />
-
-              {item.huid !== null && (
-                <>
-                  <Text style={s.modalLabel}>Reason for Correction *</Text>
-                  <TextInput 
-                    style={s.modalInput}
-                    value={huidReason}
-                    onChangeText={setHuidReason}
-                    placeholder="e.g. Transposition typo on initial entry"
-                    editable={!submittingHuid}
-                  />
-                </>
-              )}
-
-              <View style={s.modalActions}>
-                <TouchableOpacity style={s.modalBtnSecondary} onPress={() => setHuidModalVisible(false)} disabled={submittingHuid}>
-                  <Text style={s.modalBtnTextSecondary}>Cancel</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={s.modalBtnPrimary} onPress={handleSaveHuid} disabled={submittingHuid}>
-                  {submittingHuid ? <ActivityIndicator color="#fff" /> : <Text style={s.modalBtnTextPrimary}>Save</Text>}
-                </TouchableOpacity>
-              </View>
-            </View>
-          </ScrollView>
-        </KeyboardAvoidingView>
-      </Modal>
 
       {/* Delete Item Modal */}
       <Modal visible={isDeleteModalVisible} transparent animationType="fade">

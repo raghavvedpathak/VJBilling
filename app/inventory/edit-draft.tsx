@@ -21,8 +21,8 @@ import {
   getCurrencySymbol,
   getPurityPresets,
 } from '@/utils/calculations';
-import { Edit3, Save, Calculator, CheckCircle, X } from 'lucide-react-native';
-import { GlassButton, GlassPickerInput, FixedGlassBar, fixedBarStyles } from '@/components/ui/Glass';
+import { Edit3, Save, Calculator, CheckCircle, X, Package } from 'lucide-react-native';
+import { GlassButton, GlassPickerInput, FixedGlassBar, fixedBarStyles, HeaderPill, GlassCard } from '@/components/ui/Glass';
 import { GlassPickerModal, GlassPickerOption } from '@/components/ui/GlassPickerModal';
 import { COLORS } from '@/constants/theme';
 
@@ -132,14 +132,36 @@ export default function EditDraftScreen() {
     
     const effectivePricePerGram = computeEffectivePricePerGram(rate, purity, wastage);
     const absoluteTotalCost = computeAbsoluteTotalCostRupees(netWeightG, effectivePricePerGram, making, stoneC);
+    const metalCostRupees = netWeightG * effectivePricePerGram;
+
+    const finParts: string[] = [];
+    if (rate > 0) finParts.push(`Metal: ${getCurrencySymbol()}${metalCostRupees.toLocaleString('en-IN', { maximumFractionDigits: 0 })}`);
+    if (making > 0) finParts.push(`Labour: ${getCurrencySymbol()}${making.toLocaleString('en-IN')}`);
+    if (stoneC > 0) finParts.push(`Stone: ${getCurrencySymbol()}${stoneC.toLocaleString('en-IN')}`);
+    const financialBreakdownText = finParts.length > 0 ? finParts.join(' + ') : 'Base Metal Cost';
+
+    let weightBreakdownText = `Gross: ${gross.toFixed(3)}g`;
+    if (stone > 0 || beads > 0) {
+      const deductions: string[] = [];
+      if (stone > 0) deductions.push(`Stone: ${stone.toFixed(3)}g`);
+      if (beads > 0) deductions.push(`Beads: ${beads.toFixed(3)}g`);
+      weightBreakdownText = `Gross: ${gross.toFixed(3)}g - ${deductions.join(' - ')}`;
+    }
 
     return {
+      isValid: netWeightG > 0 && purity > 0,
       netWeight: netWeightG.toFixed(3) + ' g',
+      weightBreakdown: weightBreakdownText,
+      purityRaw: purity,
+      wastageRaw: wastage,
       totalTouch: (purity + wastage).toFixed(2) + '%',
+      vaultTruth: vaultTruth.toFixed(3) + ' g',
+      wastageMetal: (costTruth - vaultTruth).toFixed(3) + ' g',
+      costTruth: costTruth.toFixed(3) + ' g',
+      hasCostData: rate > 0 || making > 0 || stoneC > 0,
+      financialBreakdown: financialBreakdownText,
       pricePerGram: effectivePricePerGram,
       totalAmount: absoluteTotalCost,
-      hasCostData: rate > 0 || making > 0 || stoneC > 0,
-      isValid: netWeightG > 0 && purity > 0
     };
   }, [grossG, stoneG, beadsG, purityPercent, wastagePercent, purchaseRate, makingCharge, stoneCost, metal]);
 
@@ -236,227 +258,296 @@ export default function EditDraftScreen() {
     }
   };
 
-  const headerContent = (
-    <View>
-      <View style={s.headerIconRow}>
-        <View style={s.headerIconCircle}>
-          <Edit3 size={28} color={COLORS.vjBg} />
-        </View>
-      </View>
-      <Text style={s.headerTitle} numberOfLines={1}>Edit Draft</Text>
-      <Text style={s.headerSubtitle}>{sku || 'Loading...'}</Text>
+  const draftHeaderPills = (
+    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginTop: 4 }}>
+      <HeaderPill icon={<Edit3 size={12} color={COLORS.vjBg} />} label={sku || 'Draft Item'} />
+      <HeaderPill icon={<Package size={12} color="#D97706" />} label="DRAFT CORRECTION" variant="warning" />
     </View>
   );
 
   return (
-    <TwoToneWrapper title="" showBack headerContent={headerContent}>
-      {loading ? (
-        <View style={s.center}>
-          <ActivityIndicator size="large" color={COLORS.vjAccent} />
-        </View>
-      ) : (
-        <KeyboardAwareScrollView 
-          style={s.container} 
-          contentContainerStyle={[s.content, { paddingBottom: 190 }]} 
-          showsVerticalScrollIndicator={false} 
-          keyboardShouldPersistTaps="handled"
-          keyboardDismissMode="on-drag"
-          enableOnAndroid={true}
-          enableAutomaticScroll={true}
-          extraScrollHeight={120}
-          extraHeight={140}
-        >
-          
-          <View style={[s.card, { zIndex: 50 }]}>
-            <Text style={s.sectionTitle}>Weights (Grams)</Text>
-            <View style={s.row}>
-              <View style={[s.inputGroup, { flex: 1, paddingRight: 6 }]}>
-                <Text style={s.label}>Gross Wt *</Text>
-                <TextInput style={s.input} value={grossG} onChangeText={setGrossG} keyboardType="numeric" />
-              </View>
-              <View style={[s.inputGroup, { flex: 1, paddingHorizontal: 6 }]}>
-                <Text style={s.label}>Stone Wt</Text>
-                <TextInput style={s.input} value={stoneG} onChangeText={setStoneG} keyboardType="numeric" />
-              </View>
-              <View style={[s.inputGroup, { flex: 1, paddingLeft: 6 }]}>
-                <Text style={s.label}>Beads Wt</Text>
-                <TextInput style={s.input} value={beadsG} onChangeText={setBeadsG} keyboardType="numeric" />
-              </View>
-            </View>
+    <TwoToneWrapper title="Edit Draft" showBack headerContent={draftHeaderPills}>
+      <View style={{ flex: 1 }}>
+        {loading ? (
+          <View style={s.center}>
+            <ActivityIndicator size="large" color={COLORS.vjAccent} />
           </View>
-
-          <View style={[s.card, { zIndex: 40 }]}>
-            <Text style={s.sectionTitle}>Purity & Financials</Text>
-            <View style={s.row}>
-              <View style={[s.inputGroup, { flex: 1, paddingRight: 6 }]}>
-                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-                  <Text style={[s.label, { marginBottom: 0 }]}>Purity % *</Text>
-                  {computedKarat && computedKarat !== 'SILVER' ? (
-                    <View style={{ backgroundColor: 'rgba(212,175,55,0.2)', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 }}>
-                      <Text style={{ fontSize: 11, fontWeight: '800', color: '#D4AF37' }}>{computedKarat}</Text>
-                    </View>
-                  ) : null}
-                </View>
-                <TextInput style={s.input} value={purityPercent} onChangeText={setPurityPercent} keyboardType="numeric" />
-              </View>
-              <View style={[s.inputGroup, { flex: 1, paddingLeft: 6 }]}>
-                <Text style={s.label}>Wastage %</Text>
-                <TextInput style={s.input} value={wastagePercent} onChangeText={setWastagePercent} keyboardType="numeric" />
-              </View>
-            </View>
-            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 4, marginBottom: 12 }}>
-              {getPurityPresets(metal || 'GOLD').map(preset => (
-                <TouchableOpacity
-                  key={preset.id}
-                  onPress={() => {
-                    try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch (e) {}
-                    setPurityPercent(preset.val);
-                  }}
-                  style={{
-                    backgroundColor: purityPercent === preset.val || purityPercent === preset.label.split('K')[0] ? '#D4AF37' : 'rgba(212,175,55,0.12)',
-                    paddingHorizontal: 8,
-                    paddingVertical: 4,
-                    borderRadius: 6
-                  }}
-                >
-                  <Text style={{
-                    fontSize: 11,
-                    fontWeight: '700',
-                    color: purityPercent === preset.val || purityPercent === preset.label.split('K')[0] ? '#FFF' : COLORS.vjText
-                  }}>
-                    {preset.label}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-            <View style={s.row}>
-              <View style={[s.inputGroup, { flex: 1, paddingRight: 6 }]}>
-                <Text style={s.label}>Rate ({getCurrencySymbol()})</Text>
-                <TextInput style={s.input} value={purchaseRate} onChangeText={setPurchaseRate} keyboardType="numeric" />
-              </View>
-              <View style={[s.inputGroup, { flex: 1, paddingHorizontal: 6 }]}>
-                <Text style={s.label}>Making ({getCurrencySymbol()})</Text>
-                <TextInput style={s.input} value={makingCharge} onChangeText={setMakingCharge} keyboardType="numeric" />
-              </View>
-              <View style={[s.inputGroup, { flex: 1, paddingLeft: 6 }]}>
-                <Text style={s.label}>Stn Cost ({getCurrencySymbol()})</Text>
-                <TextInput style={s.input} value={stoneCost} onChangeText={setStoneCost} keyboardType="numeric" />
-              </View>
-            </View>
-          </View>
-
-          <View style={[s.card, { zIndex: 30 }]}>
-            <Text style={s.sectionTitle}>Tracking</Text>
-            <View style={s.row}>
-              <View style={[s.inputGroup, { flex: 1, paddingRight: 6 }]}>
-                <Text style={s.label}>Location</Text>
-                <TextInput style={s.input} value={location} onChangeText={setLocation} autoCapitalize="characters" />
-              </View>
-              <View style={[s.inputGroup, { flex: 1, paddingLeft: 6 }]}>
-                <Text style={s.label}>BIS HUID</Text>
-                <TextInput style={s.input} value={huid} onChangeText={setHuid} autoCapitalize="characters" maxLength={6} />
-              </View>
-            </View>
-            <View style={[s.row, { marginTop: 12, zIndex: 10 }]}>
-              <View style={[s.inputGroup, { flex: 1, paddingRight: 6 }]}>
-                <Text style={s.label}>Size Value</Text>
-                <TextInput style={s.input} value={sizeValue} onChangeText={setSizeValue} keyboardType="numeric" placeholder="e.g. 18" />
-              </View>
-              <View style={[s.inputGroup, { flex: 1, paddingLeft: 6 }]}>
-                <GlassPickerInput
-                  label="Size Unit"
-                  placeholder="Select Unit..."
-                  selectedLabel={
-                    sizeUnit
-                      ? { INCH: 'Inches (INCH)', MM: 'Millimeters (MM)', CM: 'Centimeters (CM)', RING_SIZE: 'Ring Size' }[sizeUnit] || sizeUnit
-                      : null
-                  }
-                  onPress={() => {
-                    setPickerModal({
-                      visible: true,
-                      title: 'Select Size Unit',
-                      placeholder: 'Search unit...',
-                      selectedId: sizeUnit || null,
-                      options: [
-                        { id: 'INCH', label: 'Inches (INCH)' },
-                        { id: 'MM', label: 'Millimeters (MM)' },
-                        { id: 'CM', label: 'Centimeters (CM)' },
-                        { id: 'RING_SIZE', label: 'Ring Size' },
-                      ],
-                      onSelect: (opt) => {
-                        if (!opt) return setSizeUnit('');
-                        setSizeUnit(opt.id);
-                      },
-                    });
-                  }}
-                />
-              </View>
-            </View>
-          </View>
-
-          {liveWastageSeparation.isValid && (
-            <View className="mb-5 mt-2">
-              <View style={[s.card, { backgroundColor: 'rgba(92,22,35, 0.04)', borderColor: '#D4AF37', marginBottom: 0 }]}>
-                <View className="flex-row items-center gap-2 mb-3">
-                  <Calculator size={18} color="#D4AF37" />
-                  <Text className="text-xs font-black uppercase tracking-wider text-vj-accent">Live Cost Breakdown</Text>
-                </View>
-                
-                <View className="flex-row justify-between py-1 border-b border-black/5">
-                  <Text className="text-xs text-vj-text/60 font-medium">Net Weight:</Text>
-                  <Text className="text-xs text-vj-text font-bold font-mono">{liveWastageSeparation.netWeight}</Text>
-                </View>
-
-                <View className="flex-row justify-between py-1 border-b border-black/5">
-                  <Text className="text-xs text-vj-text/60 font-medium">Total Touch (Purity + Wastage):</Text>
-                  <Text className="text-xs text-vj-text font-bold font-mono">{liveWastageSeparation.totalTouch}</Text>
-                </View>
-
-                {liveWastageSeparation.hasCostData && (
-                  <>
-                    <View className="flex-row justify-between py-1 mt-2 border-b border-black/5">
-                      <Text className="text-xs text-vj-text/60 font-medium">Effective Price/g:</Text>
-                      <Text className="text-xs text-vj-text font-bold font-mono">{getCurrencySymbol()} {liveWastageSeparation.pricePerGram.toLocaleString('en-IN', { maximumFractionDigits: 2 })}</Text>
-                    </View>
-                    <View className="flex-row justify-between pt-2">
-                      <Text className="text-sm text-vj-text font-black">Est. Total Cost ({getCurrencySymbol()}):</Text>
-                      <Text className="text-sm font-black font-mono text-amber-900">{getCurrencySymbol()} {liveWastageSeparation.totalAmount.toLocaleString('en-IN', { maximumFractionDigits: 2 })}</Text>
-                    </View>
-                  </>
-                )}
-              </View>
-            </View>
-          )}
-
-          <View style={{ height: 40 }} />
-        </KeyboardAwareScrollView>
-      )}
-
-      {!loading && !errorMessage && (
-        <FixedGlassBar>
-          <TouchableOpacity 
-            style={fixedBarStyles.pillSecondaryBtn} 
-            onPress={() => router.back()}
-            disabled={saving}
+        ) : (
+          <KeyboardAwareScrollView 
+            showsVerticalScrollIndicator={false} 
+            keyboardShouldPersistTaps="handled"
+            keyboardDismissMode="on-drag"
+            enableOnAndroid={true}
+            enableAutomaticScroll={true}
+            extraScrollHeight={120}
+            extraHeight={140}
+            contentContainerStyle={{ paddingBottom: 220, paddingTop: 6 }}
           >
-            <Text style={fixedBarStyles.pillSecondaryText}>Cancel</Text>
-          </TouchableOpacity>
-          <TouchableOpacity 
-            style={fixedBarStyles.pillPrimaryBtn} 
-            onPress={handleSave}
-            disabled={saving}
-          >
-            {saving ? (
-              <ActivityIndicator color="#fff" size="small" />
-            ) : (
-              <>
-                <Save size={18} color="#fff" />
-                <Text style={fixedBarStyles.pillPrimaryText}>Save Correction</Text>
-              </>
+            
+            <View style={[s.card, { zIndex: 50 }]}>
+              <Text style={s.sectionTitle}>Weights (Grams)</Text>
+              <View style={s.row}>
+                <View style={[s.inputGroup, { flex: 1, paddingRight: 6 }]}>
+                  <Text style={s.label}>Gross Wt *</Text>
+                  <TextInput style={s.input} value={grossG} onChangeText={setGrossG} keyboardType="numeric" />
+                </View>
+                <View style={[s.inputGroup, { flex: 1, paddingHorizontal: 6 }]}>
+                  <Text style={s.label}>Stone Wt</Text>
+                  <TextInput style={s.input} value={stoneG} onChangeText={setStoneG} keyboardType="numeric" />
+                </View>
+                <View style={[s.inputGroup, { flex: 1, paddingLeft: 6 }]}>
+                  <Text style={s.label}>Beads Wt</Text>
+                  <TextInput style={s.input} value={beadsG} onChangeText={setBeadsG} keyboardType="numeric" />
+                </View>
+              </View>
+            </View>
+
+            <View style={[s.card, { zIndex: 40 }]}>
+              <Text style={s.sectionTitle}>Purity & Financials</Text>
+              <View style={s.row}>
+                <View style={[s.inputGroup, { flex: 1, paddingRight: 6 }]}>
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                    <Text style={[s.label, { marginBottom: 0 }]}>Purity % *</Text>
+                    {computedKarat && computedKarat !== 'SILVER' ? (
+                      <View style={{ backgroundColor: 'rgba(212,175,55,0.2)', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 }}>
+                        <Text style={{ fontSize: 11, fontWeight: '800', color: '#D4AF37' }}>{computedKarat}</Text>
+                      </View>
+                    ) : null}
+                  </View>
+                  <TextInput style={s.input} value={purityPercent} onChangeText={setPurityPercent} keyboardType="numeric" />
+                </View>
+                <View style={[s.inputGroup, { flex: 1, paddingLeft: 6 }]}>
+                  <Text style={s.label}>Wastage %</Text>
+                  <TextInput style={s.input} value={wastagePercent} onChangeText={setWastagePercent} keyboardType="numeric" />
+                </View>
+              </View>
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 4, marginBottom: 12 }}>
+                {getPurityPresets(metal || 'GOLD').map(preset => (
+                  <TouchableOpacity
+                    key={preset.id}
+                    onPress={() => {
+                      try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch (e) {}
+                      setPurityPercent(preset.val);
+                    }}
+                    style={{
+                      backgroundColor: purityPercent === preset.val || purityPercent === preset.label.split('K')[0] ? '#D4AF37' : 'rgba(212,175,55,0.12)',
+                      paddingHorizontal: 8,
+                      paddingVertical: 4,
+                      borderRadius: 6
+                    }}
+                  >
+                    <Text style={{
+                      fontSize: 11,
+                      fontWeight: '700',
+                      color: purityPercent === preset.val || purityPercent === preset.label.split('K')[0] ? '#FFF' : COLORS.vjText
+                    }}>
+                      {preset.label}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+              <View style={s.row}>
+                <View style={[s.inputGroup, { flex: 1, paddingRight: 6 }]}>
+                  <Text style={s.label}>Rate ({getCurrencySymbol()})</Text>
+                  <TextInput style={s.input} value={purchaseRate} onChangeText={setPurchaseRate} keyboardType="numeric" />
+                </View>
+                <View style={[s.inputGroup, { flex: 1, paddingHorizontal: 6 }]}>
+                  <Text style={s.label}>Making ({getCurrencySymbol()})</Text>
+                  <TextInput style={s.input} value={makingCharge} onChangeText={setMakingCharge} keyboardType="numeric" />
+                </View>
+                <View style={[s.inputGroup, { flex: 1, paddingLeft: 6 }]}>
+                  <Text style={s.label}>Stn Cost ({getCurrencySymbol()})</Text>
+                  <TextInput style={s.input} value={stoneCost} onChangeText={setStoneCost} keyboardType="numeric" />
+                </View>
+              </View>
+            </View>
+
+            <View style={[s.card, { zIndex: 30 }]}>
+              <Text style={s.sectionTitle}>Tracking</Text>
+              <View style={s.row}>
+                <View style={[s.inputGroup, { flex: 1, paddingRight: 6 }]}>
+                  <Text style={s.label}>Location</Text>
+                  <TextInput style={s.input} value={location} onChangeText={setLocation} autoCapitalize="characters" />
+                </View>
+                <View style={[s.inputGroup, { flex: 1, paddingLeft: 6 }]}>
+                  <Text style={s.label}>BIS HUID</Text>
+                  <TextInput style={s.input} value={huid} onChangeText={setHuid} autoCapitalize="characters" maxLength={6} />
+                </View>
+              </View>
+              <View style={[s.row, { marginTop: 12, zIndex: 10 }]}>
+                <View style={[s.inputGroup, { flex: 1, paddingRight: 6 }]}>
+                  <Text style={s.label}>Size Value</Text>
+                  <TextInput style={s.input} value={sizeValue} onChangeText={setSizeValue} keyboardType="numeric" placeholder="e.g. 18" />
+                </View>
+                <View style={[s.inputGroup, { flex: 1, paddingLeft: 6 }]}>
+                  <GlassPickerInput
+                    label="Size Unit"
+                    placeholder="Select Unit..."
+                    selectedLabel={
+                      sizeUnit
+                        ? { INCH: 'Inches (INCH)', MM: 'Millimeters (MM)', CM: 'Centimeters (CM)', RING_SIZE: 'Ring Size' }[sizeUnit] || sizeUnit
+                        : null
+                    }
+                    onPress={() => {
+                      setPickerModal({
+                        visible: true,
+                        title: 'Select Size Unit',
+                        placeholder: 'Search unit...',
+                        selectedId: sizeUnit || null,
+                        options: [
+                          { id: 'INCH', label: 'Inches (INCH)' },
+                          { id: 'MM', label: 'Millimeters (MM)' },
+                          { id: 'CM', label: 'Centimeters (CM)' },
+                          { id: 'RING_SIZE', label: 'Ring Size' },
+                        ],
+                        onSelect: (opt) => {
+                          if (!opt) return setSizeUnit('');
+                          setSizeUnit(opt.id);
+                        },
+                      });
+                    }}
+                  />
+                </View>
+              </View>
+            </View>
+
+            {/* Mandated UI Display — Modern Luxury Live Cost Preview */}
+            {liveWastageSeparation.isValid && (
+              <View className="px-1 mb-4 mt-2" style={{ zIndex: 10 }}>
+                <GlassCard style={{ backgroundColor: 'rgba(252,251,248, 0.98)', borderColor: '#D4AF37', borderWidth: 1.5, padding: 16 }}>
+                  {/* Top Header Row with Live Audit Badge */}
+                  <View className="flex-row items-center justify-between mb-3 pb-2.5 border-b border-black/5">
+                    <View className="flex-row items-center gap-2">
+                      <View className="w-7 h-7 rounded-lg items-center justify-center bg-amber-500/15 border border-amber-500/30">
+                        <Calculator size={16} color="#D4AF37" />
+                      </View>
+                      <View>
+                        <Text className="text-xs font-black uppercase tracking-wider text-vj-accent">Live Cost Breakdown</Text>
+                        <Text className="text-[10px] text-vj-text/50 font-semibold">Real-Time Inventory Accounting</Text>
+                      </View>
+                    </View>
+                    <View className="flex-row items-center gap-1.5 px-2 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20">
+                      <View className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                      <Text className="text-[9px] font-black text-emerald-800 uppercase tracking-widest">LIVE</Text>
+                    </View>
+                  </View>
+
+                  {/* Dual Stat Tiles: Net Weight & Total Touch */}
+                  <View className="flex-row gap-2.5 mb-3">
+                    {/* Tile 1: Net Weight */}
+                    <View className="flex-1 p-2.5 rounded-xl bg-black/[0.02] border border-black/5">
+                      <Text className="text-[10px] font-bold text-vj-text/50 uppercase tracking-wider">Net Weight</Text>
+                      <Text className="text-base font-black text-vj-text font-mono mt-0.5">{liveWastageSeparation.netWeight}</Text>
+                      <Text className="text-[9px] text-vj-text/55 font-semibold mt-0.5" numberOfLines={1}>
+                        {liveWastageSeparation.weightBreakdown}
+                      </Text>
+                    </View>
+
+                    {/* Tile 2: Total Touch */}
+                    <View className="flex-1 p-2.5 rounded-xl bg-black/[0.02] border border-black/5">
+                      <View className="flex-row items-center justify-between">
+                        <Text className="text-[10px] font-bold text-vj-text/50 uppercase tracking-wider">Total Touch</Text>
+                        <Text className="text-xs font-black text-vj-accent font-mono">{liveWastageSeparation.totalTouch}</Text>
+                      </View>
+                      <View className="mt-1 bg-vj-accent/10 px-1.5 py-0.5 rounded self-start">
+                        <Text className="text-[9px] font-black text-vj-accent font-mono">
+                          {liveWastageSeparation.purityRaw}% Purity + {liveWastageSeparation.wastageRaw}% Wastage
+                        </Text>
+                      </View>
+                    </View>
+                  </View>
+
+                  {/* 3-Way Fine Metal Flow Bar (Vault Truth + Wastage = Cost Truth) */}
+                  <View className="mb-3 p-3 rounded-2xl bg-black/[0.02] border border-black/5">
+                    <Text className="text-[10px] font-black uppercase tracking-widest text-vj-text/60 mb-2">
+                      Fine Metal Accounting ({metal})
+                    </Text>
+                    
+                    <View className="flex-row items-center justify-between gap-1">
+                      {/* Vault Fine */}
+                      <View className="flex-1 p-2 rounded-xl bg-emerald-500/10 border border-emerald-500/20 items-center">
+                        <Text className="text-[9px] font-black text-emerald-800 uppercase tracking-tight">Vault Fine</Text>
+                        <Text className="text-xs font-black text-emerald-700 font-mono mt-0.5">{liveWastageSeparation.vaultTruth}</Text>
+                        <Text className="text-[8px] font-semibold text-emerald-800/70 mt-0.5">Physical</Text>
+                      </View>
+
+                      <Text className="text-xs font-black text-vj-text/40">+</Text>
+
+                      {/* Wastage Fine */}
+                      <View className="flex-1 p-2 rounded-xl bg-rose-500/10 border border-rose-500/20 items-center">
+                        <Text className="text-[9px] font-black text-rose-800 uppercase tracking-tight">
+                          Wastage
+                        </Text>
+                        <Text className="text-xs font-black text-rose-700 font-mono mt-0.5">{liveWastageSeparation.wastageMetal}</Text>
+                        <Text className="text-[8px] font-semibold text-rose-800/70 mt-0.5">Supplier</Text>
+                      </View>
+
+                      <Text className="text-xs font-black text-vj-text/40">=</Text>
+
+                      {/* Cost Truth (Billed) */}
+                      <View className="flex-1 p-2 rounded-xl bg-amber-500/15 border border-amber-500/30 items-center">
+                        <Text className="text-[9px] font-black text-amber-900 uppercase tracking-tight">Billed Fine</Text>
+                        <Text className="text-xs font-black text-amber-800 font-mono mt-0.5">{liveWastageSeparation.costTruth}</Text>
+                        <Text className="text-[8px] font-semibold text-amber-800/70 mt-0.5">Cost Truth</Text>
+                      </View>
+                    </View>
+                  </View>
+
+                  {/* Financials Hero Banner (When Rate/Making entered) */}
+                  {liveWastageSeparation.hasCostData && (
+                    <View className="p-3 rounded-2xl bg-amber-500/10 border border-amber-500/30">
+                      <View className="flex-row justify-between items-center pb-1.5 border-b border-amber-500/15">
+                        <Text className="text-[11px] text-vj-text/70 font-bold">Effective Price / g:</Text>
+                        <Text className="text-xs font-black text-vj-text font-mono">
+                          {getCurrencySymbol()} {liveWastageSeparation.pricePerGram.toLocaleString('en-IN', { maximumFractionDigits: 2 })}
+                        </Text>
+                      </View>
+                      <View className="flex-row justify-between items-center pt-2">
+                        <View className="flex-1 pr-2">
+                          <Text className="text-xs font-black text-vj-text uppercase tracking-wider">EST. Total</Text>
+                          <Text className="text-[10px] text-vj-text/60 font-semibold mt-0.5">
+                            {liveWastageSeparation.financialBreakdown}
+                          </Text>
+                        </View>
+                        <Text className="text-base font-black font-mono text-amber-950">
+                          {getCurrencySymbol()} {liveWastageSeparation.totalAmount.toLocaleString('en-IN', { maximumFractionDigits: 2 })}
+                        </Text>
+                      </View>
+                    </View>
+                  )}
+                </GlassCard>
+              </View>
             )}
-          </TouchableOpacity>
-        </FixedGlassBar>
-      )}
+
+          </KeyboardAwareScrollView>
+        )}
+
+        {!loading && !errorMessage && (
+          <FixedGlassBar>
+            <TouchableOpacity 
+              style={fixedBarStyles.pillSecondaryBtn} 
+              onPress={() => router.back()}
+              disabled={saving}
+            >
+              <Text style={fixedBarStyles.pillSecondaryText}>Cancel</Text>
+            </TouchableOpacity>
+            <TouchableOpacity 
+              style={fixedBarStyles.pillPrimaryBtn} 
+              onPress={handleSave}
+              disabled={saving}
+            >
+              {saving ? (
+                <ActivityIndicator color="#fff" size="small" />
+              ) : (
+                <>
+                  <Save size={18} color="#fff" />
+                  <Text style={fixedBarStyles.pillPrimaryText}>Save Correction</Text>
+                </>
+              )}
+            </TouchableOpacity>
+          </FixedGlassBar>
+        )}
+      </View>
 
       <Modal visible={!!successMessage} transparent animationType="fade">
         <View style={s.modalOverlayCenter}>

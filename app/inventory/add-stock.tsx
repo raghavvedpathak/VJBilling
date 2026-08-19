@@ -165,10 +165,26 @@ export default function AddStockScreen() {
     
     const effectivePricePerGram = computeEffectivePricePerGram(rate, p, w);
     const absoluteTotalCost = computeAbsoluteTotalCostRupees(netWeightG, effectivePricePerGram, making, stoneC);
+    const metalCostRupees = netWeightG * effectivePricePerGram;
+
+    const finParts: string[] = [];
+    if (rate > 0) finParts.push(`Metal: ${getCurrencySymbol()}${metalCostRupees.toLocaleString('en-IN', { maximumFractionDigits: 0 })}`);
+    if (making > 0) finParts.push(`Labour: ${getCurrencySymbol()}${making.toLocaleString('en-IN')}`);
+    if (stoneC > 0) finParts.push(`Stone: ${getCurrencySymbol()}${stoneC.toLocaleString('en-IN')}`);
+    const financialBreakdownText = finParts.length > 0 ? finParts.join(' + ') : 'Base Metal Cost';
+
+    let weightBreakdownText = `Gross: ${g.toFixed(3)}g`;
+    if (s > 0 || b > 0) {
+      const deductions: string[] = [];
+      if (s > 0) deductions.push(`Stone: ${s.toFixed(3)}g`);
+      if (b > 0) deductions.push(`Beads: ${b.toFixed(3)}g`);
+      weightBreakdownText = `Gross: ${g.toFixed(3)}g - ${deductions.join(' - ')}`;
+    }
 
     return {
       isValid: netWeightG > 0 && p > 0,
       netWeight: netWeightG.toFixed(3) + ' g',
+      weightBreakdown: weightBreakdownText,
       purityRaw: p,
       wastageRaw: w,
       totalTouch: (p + w).toFixed(2) + '%',
@@ -176,6 +192,7 @@ export default function AddStockScreen() {
       wastageGold: (costTruth - vaultTruth).toFixed(3) + ' g',
       costTruth: costTruth.toFixed(3) + ' g',
       hasCostData: rate > 0 || making > 0 || stoneC > 0,
+      financialBreakdown: financialBreakdownText,
       pricePerGram: effectivePricePerGram,
       totalAmount: absoluteTotalCost,
     };
@@ -573,58 +590,109 @@ export default function AddStockScreen() {
           </View>
         </GlassCard>
 
-        {/* Mandated UI Display — Live Cost Preview */}
+        {/* Mandated UI Display — Modern Luxury Live Cost Preview */}
         {liveWastageSeparation.isValid && (
           <View className="px-1 mb-4 mt-2" style={{ zIndex: 10 }}>
-            <GlassCard style={{ backgroundColor: 'rgba(252,251,248, 0.95)', borderColor: '#D4AF37', borderWidth: 1 }}>
-              <View className="flex-row items-center gap-2 mb-3">
-                <Calculator size={18} color="#D4AF37" />
-                <Text className="text-xs font-black uppercase tracking-wider text-vj-accent">Live Cost Breakdown</Text>
-              </View>
-              
-              <View className="flex-row justify-between py-1 border-b border-black/5">
-                <Text className="text-xs text-vj-text/60 font-medium">Net Weight:</Text>
-                <Text className="text-xs text-vj-text font-bold font-mono">{liveWastageSeparation.netWeight}</Text>
+            <GlassCard style={{ backgroundColor: 'rgba(252,251,248, 0.98)', borderColor: '#D4AF37', borderWidth: 1.5, padding: 16 }}>
+              {/* Top Header Row with Live Audit Badge */}
+              <View className="flex-row items-center justify-between mb-3 pb-2.5 border-b border-black/5">
+                <View className="flex-row items-center gap-2">
+                  <View className="w-7 h-7 rounded-lg items-center justify-center bg-amber-500/15 border border-amber-500/30">
+                    <Calculator size={16} color="#D4AF37" />
+                  </View>
+                  <View>
+                    <Text className="text-xs font-black uppercase tracking-wider text-vj-accent">Live Cost Breakdown</Text>
+                    <Text className="text-[10px] text-vj-text/50 font-semibold">Real-Time Inventory Accounting</Text>
+                  </View>
+                </View>
+                <View className="flex-row items-center gap-1.5 px-2 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20">
+                  <View className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                  <Text className="text-[9px] font-black text-emerald-800 uppercase tracking-widest">LIVE</Text>
+                </View>
               </View>
 
-              <View className="flex-row justify-between items-center py-2 border-b border-black/5">
-                <View className="flex-1 pr-2">
-                  <Text className="text-xs text-vj-text/60 font-medium">Total Touch:</Text>
-                  <Text className="text-[10px] text-vj-accent font-bold mt-1 bg-vj-accent/10 self-start px-2 py-0.5 rounded-full overflow-hidden">
-                    {liveWastageSeparation.purityRaw}% Purity + {liveWastageSeparation.wastageRaw}% Wastage
+              {/* Dual Stat Tiles: Net Weight & Total Touch */}
+              <View className="flex-row gap-2.5 mb-3">
+                {/* Tile 1: Net Weight */}
+                <View className="flex-1 p-2.5 rounded-xl bg-black/[0.02] border border-black/5">
+                  <Text className="text-[10px] font-bold text-vj-text/50 uppercase tracking-wider">Net Weight</Text>
+                  <Text className="text-base font-black text-vj-text font-mono mt-0.5">{liveWastageSeparation.netWeight}</Text>
+                  <Text className="text-[9px] text-vj-text/55 font-semibold mt-0.5" numberOfLines={1}>
+                    {liveWastageSeparation.weightBreakdown}
                   </Text>
                 </View>
-                <Text className="text-sm text-vj-text font-black font-mono">{liveWastageSeparation.totalTouch}</Text>
+
+                {/* Tile 2: Total Touch */}
+                <View className="flex-1 p-2.5 rounded-xl bg-black/[0.02] border border-black/5">
+                  <View className="flex-row items-center justify-between">
+                    <Text className="text-[10px] font-bold text-vj-text/50 uppercase tracking-wider">Total Touch</Text>
+                    <Text className="text-xs font-black text-vj-accent font-mono">{liveWastageSeparation.totalTouch}</Text>
+                  </View>
+                  <View className="mt-1 bg-vj-accent/10 px-1.5 py-0.5 rounded self-start">
+                    <Text className="text-[9px] font-black text-vj-accent font-mono">
+                      {liveWastageSeparation.purityRaw}% Purity + {liveWastageSeparation.wastageRaw}% Wastage
+                    </Text>
+                  </View>
+                </View>
               </View>
 
-              <View className="flex-row justify-between py-1 border-b border-black/5">
-                <Text className="text-xs text-vj-text/60 font-medium flex-1 pr-2">Vault Truth (Fine):</Text>
-                <Text className="text-xs text-emerald-700 font-bold font-mono">{liveWastageSeparation.vaultTruth}</Text>
-              </View>
-
-              <View className="flex-row justify-between py-1 border-b border-black/5">
-                <Text className="text-xs text-vj-text/60 font-medium flex-1 pr-2">
-                  {selectedDesign?.metal === 'SILVER' ? 'Wastage Silver:' : 'Wastage Gold:'}
+              {/* 3-Way Fine Metal Flow Bar (Vault Truth + Wastage = Cost Truth) */}
+              <View className="mb-3 p-3 rounded-2xl bg-black/[0.02] border border-black/5">
+                <Text className="text-[10px] font-black uppercase tracking-widest text-vj-text/60 mb-2">
+                  Fine Metal Accounting ({selectedDesign?.metal || 'GOLD'})
                 </Text>
-                <Text className="text-xs text-rose-700 font-bold font-mono">{liveWastageSeparation.wastageGold}</Text>
+                
+                <View className="flex-row items-center justify-between gap-1">
+                  {/* Vault Fine */}
+                  <View className="flex-1 p-2 rounded-xl bg-emerald-500/10 border border-emerald-500/20 items-center">
+                    <Text className="text-[9px] font-black text-emerald-800 uppercase tracking-tight">Vault Fine</Text>
+                    <Text className="text-xs font-black text-emerald-700 font-mono mt-0.5">{liveWastageSeparation.vaultTruth}</Text>
+                    <Text className="text-[8px] font-semibold text-emerald-800/70 mt-0.5">Physical</Text>
+                  </View>
+
+                  <Text className="text-xs font-black text-vj-text/40">+</Text>
+
+                  {/* Wastage Fine */}
+                  <View className="flex-1 p-2 rounded-xl bg-rose-500/10 border border-rose-500/20 items-center">
+                    <Text className="text-[9px] font-black text-rose-800 uppercase tracking-tight">
+                      Wastage
+                    </Text>
+                    <Text className="text-xs font-black text-rose-700 font-mono mt-0.5">{liveWastageSeparation.wastageGold}</Text>
+                    <Text className="text-[8px] font-semibold text-rose-800/70 mt-0.5">Supplier</Text>
+                  </View>
+
+                  <Text className="text-xs font-black text-vj-text/40">=</Text>
+
+                  {/* Cost Truth (Billed) */}
+                  <View className="flex-1 p-2 rounded-xl bg-amber-500/15 border border-amber-500/30 items-center">
+                    <Text className="text-[9px] font-black text-amber-900 uppercase tracking-tight">Billed Fine</Text>
+                    <Text className="text-xs font-black text-amber-800 font-mono mt-0.5">{liveWastageSeparation.costTruth}</Text>
+                    <Text className="text-[8px] font-semibold text-amber-800/70 mt-0.5">Cost Truth</Text>
+                  </View>
+                </View>
               </View>
 
-              <View className="flex-row justify-between py-1 border-b border-black/5">
-                <Text className="text-xs text-vj-text/60 font-medium flex-1 pr-2">Cost Truth (Fine):</Text>
-                <Text className="text-xs text-amber-700 font-bold font-mono">{liveWastageSeparation.costTruth}</Text>
-              </View>
-
+              {/* Financials Hero Banner (When Rate/Making entered) */}
               {liveWastageSeparation.hasCostData && (
-                <>
-                  <View className="flex-row justify-between py-1 mt-2 border-b border-black/5">
-                    <Text className="text-xs text-vj-text/60 font-medium">Effective Price/g:</Text>
-                    <Text className="text-xs text-vj-text font-bold font-mono">{getCurrencySymbol()} {liveWastageSeparation.pricePerGram.toLocaleString('en-IN', { maximumFractionDigits: 2 })}</Text>
+                <View className="p-3 rounded-2xl bg-amber-500/10 border border-amber-500/30">
+                  <View className="flex-row justify-between items-center pb-1.5 border-b border-amber-500/15">
+                    <Text className="text-[11px] text-vj-text/70 font-bold">Effective Price / g:</Text>
+                    <Text className="text-xs font-black text-vj-text font-mono">
+                      {getCurrencySymbol()} {liveWastageSeparation.pricePerGram.toLocaleString('en-IN', { maximumFractionDigits: 2 })}
+                    </Text>
                   </View>
-                  <View className="flex-row justify-between pt-2">
-                    <Text className="text-sm text-vj-text font-black">Est. Total Cost ({getCurrencySymbol()}):</Text>
-                    <Text className="text-sm font-black font-mono text-amber-900">{getCurrencySymbol()} {liveWastageSeparation.totalAmount.toLocaleString('en-IN', { maximumFractionDigits: 2 })}</Text>
+                  <View className="flex-row justify-between items-center pt-2">
+                    <View className="flex-1 pr-2">
+                      <Text className="text-xs font-black text-vj-text uppercase tracking-wider">EST. Total</Text>
+                      <Text className="text-[10px] text-vj-text/60 font-semibold mt-0.5">
+                        {liveWastageSeparation.financialBreakdown}
+                      </Text>
+                    </View>
+                    <Text className="text-base font-black font-mono text-amber-950">
+                      {getCurrencySymbol()} {liveWastageSeparation.totalAmount.toLocaleString('en-IN', { maximumFractionDigits: 2 })}
+                    </Text>
                   </View>
-                </>
+                </View>
               )}
             </GlassCard>
           </View>
