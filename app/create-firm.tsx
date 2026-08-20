@@ -10,18 +10,17 @@ import {
   Image,
   Modal,
   ActivityIndicator,
-  Platform,
 } from 'react-native';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import { useRouter } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
-import * as FileSystem from 'expo-file-system/legacy';
 import { TwoToneWrapper } from '@/components/TwoToneWrapper';
 import { GlassCard, GlassInput, GlassButton, FixedGlassBar, fixedBarStyles } from '@/components/ui/Glass';
 import { firmService } from '@/services/phase1/firmService';
 import { useFirmStore } from '@/store/phase1/useFirmStore';
 import { INDIAN_STATES } from '@/utils/indianStates';
 import { formatGSTINInput, getGSTINKeyboardType, validateGSTIN } from '@/utils/validateGSTIN';
+import { validatePincode } from '@/utils/validatePincode';
 import { processAndSaveFirmImage } from '@/utils/processFirmImage';
 import { useUnsavedChangesGuard } from '@/hooks/useUnsavedChangesGuard';
 import {
@@ -43,9 +42,8 @@ import {
 import { COLORS } from '@/constants/theme';
 
 // ============================================================================
-// G58 SPEC CONSTANTS — DO NOT change these values.
+// G58 SPEC CONSTANTS
 // max 1024x1024, max 2MB, quality 0.8
-// saved to DocumentDirectory/logos/firm_{firmId}.png
 // ============================================================================
 const LOGO_QUALITY = 0.8;
 
@@ -123,13 +121,13 @@ export default function CreateFirmScreen() {
   };
 
   const handleImageSelection = async (field: 'firmLogoUri' | 'bisLogoUri', source: 'camera' | 'gallery') => {
-    let result;
     const options: ImagePicker.ImagePickerOptions = {
       mediaTypes: ['images'],
       allowsEditing: true,
       quality: LOGO_QUALITY,
     };
 
+    let result;
     if (source === 'camera') {
       const permission = await ImagePicker.requestCameraPermissionsAsync();
       if (!permission.granted) {
@@ -151,21 +149,44 @@ export default function CreateFirmScreen() {
     }
   };
 
-  const validateBis = (licence: string) => /^[A-Z0-9\/\-]{8,}$/.test(licence);
+  const validateBis = (licence: string) => /^[A-Z0-9\/\-]{8,}$/.test(licence.trim().toUpperCase());
 
   const handleSave = async () => {
     if (
-      !form.name ||
-      !form.firmCode ||
-      !form.proprietor ||
-      !form.phone1 ||
-      !form.addressLine1 ||
-      !form.city ||
-      !form.pincode
+      !form.name.trim() ||
+      !form.firmCode.trim() ||
+      !form.proprietor.trim() ||
+      !form.phone1.trim() ||
+      !form.addressLine1.trim() ||
+      !form.city.trim() ||
+      !form.pincode.trim()
     ) {
       setErrorMessage('Please fill all required fields.');
       return;
     }
+
+    if (!/^[0-9]{10}$/.test(form.phone1.trim())) {
+      setErrorMessage('Primary Mobile must be exactly 10 numeric digits.');
+      return;
+    }
+
+    if (form.phone2 && !/^[0-9]{10}$/.test(form.phone2.trim())) {
+      setErrorMessage('Phone 2 must be exactly 10 numeric digits.');
+      return;
+    }
+
+    if (form.phone3 && !/^[0-9]{10}$/.test(form.phone3.trim())) {
+      setErrorMessage('Phone 3 must be exactly 10 numeric digits.');
+      return;
+    }
+
+    try {
+      validatePincode(form.pincode);
+    } catch (err: any) {
+      setErrorMessage(err.message || 'Invalid 6-digit pincode.');
+      return;
+    }
+
     if (form.bisLicence && !validateBis(form.bisLicence)) {
       setErrorMessage('Please enter a valid BIS Licence Number.');
       return;
@@ -189,21 +210,21 @@ export default function CreateFirmScreen() {
       setLoading(true);
 
       const newFirm = await firmService.createFirm({
-        name: form.name,
-        firmCode: form.firmCode.toUpperCase(),
-        proprietor: form.proprietor,
-        gstin: form.gstin || null,
-        bisLicence: form.bisLicence || null,
+        name: form.name.trim(),
+        firmCode: form.firmCode.trim().toUpperCase(),
+        proprietor: form.proprietor.trim(),
+        gstin: form.gstin.trim().toUpperCase() || null,
+        bisLicence: form.bisLicence.trim().toUpperCase() || null,
         bisLogoUri: form.bisLogoUri,
-        phone1: form.phone1,
-        phone2: form.phone2 || null,
-        phone3: form.phone3 || null,
-        addressLine1: form.addressLine1,
-        addressLine2: form.addressLine2 || null,
-        city: form.city,
+        phone1: form.phone1.trim(),
+        phone2: form.phone2.trim() || null,
+        phone3: form.phone3.trim() || null,
+        addressLine1: form.addressLine1.trim(),
+        addressLine2: form.addressLine2.trim() || null,
+        city: form.city.trim(),
         stateCode: form.stateCode,
         stateName: form.stateName,
-        pincode: form.pincode,
+        pincode: form.pincode.trim(),
       });
 
       if (form.firmLogoUri) {
@@ -216,7 +237,7 @@ export default function CreateFirmScreen() {
       if (form.bisLogoUri && form.bisLicence) {
         const savedBisLogoPath = await processAndSaveFirmImage(form.bisLogoUri, 'bis_firm', newFirm.id);
         if (savedBisLogoPath) {
-          await firmService.updateFirm(newFirm.id, { bisLogoUri: savedBisLogoPath, bisLicence: form.bisLicence });
+          await firmService.updateFirm(newFirm.id, { bisLogoUri: savedBisLogoPath, bisLicence: form.bisLicence.trim().toUpperCase() });
         }
       }
 
@@ -229,7 +250,6 @@ export default function CreateFirmScreen() {
     }
   };
 
-  // Transparent Glass Logo Picker
   const hasBisLicence = Boolean(form.bisLicence && form.bisLicence.trim());
 
   return (
@@ -271,7 +291,7 @@ export default function CreateFirmScreen() {
                       resizeMode="cover"
                       onError={() => {
                         console.warn('[CreateFirm] Failed to load logo preview thumbnail.');
-                        setForm((prev: typeof form) => ({ ...prev, firmLogoUri: null }));
+                        setForm((prev) => ({ ...prev, firmLogoUri: null }));
                       }}
                     />
                   ) : (
@@ -296,7 +316,7 @@ export default function CreateFirmScreen() {
                 </TouchableOpacity>
               </View>
 
-              {/* 2. BIS HALLMARK LOGO (APPEARS ONLY WHEN BIS LICENCE NO IS ADDED) */}
+              {/* 2. BIS HALLMARK LOGO */}
               {hasBisLicence && (
                 <View className="items-center">
                   <TouchableOpacity
@@ -311,7 +331,7 @@ export default function CreateFirmScreen() {
                         resizeMode="contain"
                         onError={() => {
                           console.warn('[CreateFirm] Failed to load BIS logo thumbnail.');
-                          setForm((prev: typeof form) => ({ ...prev, bisLogoUri: null }));
+                          setForm((prev) => ({ ...prev, bisLogoUri: null }));
                         }}
                       />
                     ) : (
@@ -336,193 +356,194 @@ export default function CreateFirmScreen() {
               )}
             </View>
           </GlassCard>
+
           {/* CARD 1: STORE IDENTITY */}
           <GlassCard>
-          <View className="flex-row items-center gap-2 mb-4 pb-2.5 border-b border-vj-text/10">
-            <View className="bg-amber-500/15 p-2 rounded-xl border border-amber-500/25">
-              <Building2 size={18} color="#D4AF37" />
-            </View>
-            <Text className="text-vj-text font-black text-sm uppercase tracking-wider">
-              Store Profile
-            </Text>
-          </View>
-
-          <GlassInput
-            label="Firm Name *"
-            icon={<Building2 size={18} color="#D4AF37" />}
-            value={form.name}
-            onChangeText={(t) => setForm({ ...form, name: t })}
-          />
-          <GlassInput
-            label="Firm Code *"
-            icon={<Tag size={18} color="#D4AF37" />}
-            value={form.firmCode}
-            onChangeText={(t) => setForm({ ...form, firmCode: t })}
-            maxLength={10}
-            autoCapitalize="characters"
-          />
-          <GlassInput
-            label="Proprietor *"
-            icon={<User size={18} color="#D4AF37" />}
-            value={form.proprietor}
-            onChangeText={(t) => setForm({ ...form, proprietor: t })}
-          />
-        </GlassCard>
-
-        {/* CARD 2: COMPLIANCE & TAX */}
-        <GlassCard>
-          <View className="flex-row items-center gap-2 mb-4 pb-2.5 border-b border-vj-text/10">
-            <View className="bg-amber-500/15 p-2 rounded-xl border border-amber-500/25">
-              <ShieldCheck size={18} color="#D4AF37" />
-            </View>
-            <Text className="text-vj-text font-black text-sm uppercase tracking-wider">
-              Compliance & Tax
-            </Text>
-          </View>
-
-          <GlassInput
-            label="GSTIN (Optional)"
-            icon={<Hash size={18} color="#D4AF37" />}
-            placeholder="e.g. 27ASDFG1234A1Z5"
-            value={form.gstin}
-            onChangeText={handleGstinChange}
-            keyboardType={getGSTINKeyboardType(form.gstin.length)}
-            maxLength={15}
-            autoCapitalize="characters"
-            autoCorrect={false}
-            spellCheck={false}
-            autoComplete="off"
-          />
-          
-          {/* Glass Alert Caution Banner */}
-          <View className="mb-4 p-3.5 bg-amber-500/10 rounded-2xl border border-amber-500/25 flex-row items-center gap-2.5">
-            <AlertTriangle size={18} color="#D97706" />
-            <Text className="text-[11px] text-amber-900 font-extrabold flex-1 leading-tight uppercase tracking-wide">
-              GSTIN locks invoice tax mode permanently once registered.
-            </Text>
-          </View>
-
-          <GlassInput
-            label="BIS Licence (Optional)"
-            icon={<ShieldCheck size={18} color="#D4AF37" />}
-            value={form.bisLicence}
-            onChangeText={(t) => setForm({ ...form, bisLicence: t })}
-          />
-
-          {!form.bisLicence ? (
-            <View className="mt-1 px-1">
-              <Text className="text-[11px] text-vj-text/50 font-medium italic">
-                Enter BIS Licence to enable BIS Hallmark logo upload in header.
+            <View className="flex-row items-center gap-2 mb-4 pb-2.5 border-b border-vj-text/10">
+              <View className="bg-amber-500/15 p-2 rounded-xl border border-amber-500/25">
+                <Building2 size={18} color="#D4AF37" />
+              </View>
+              <Text className="text-vj-text font-black text-sm uppercase tracking-wider">
+                Store Profile
               </Text>
             </View>
-          ) : (
-            <View className="mt-1 px-1 flex-row items-center gap-1.5">
-              <ShieldCheck size={14} color="#D4AF37" />
-              <Text className="text-[11px] text-amber-800 font-bold">
-                BIS Hallmark Logo upload unlocked in header above ↑
+
+            <GlassInput
+              label="Firm Name *"
+              icon={<Building2 size={18} color="#D4AF37" />}
+              value={form.name}
+              onChangeText={(t) => setForm({ ...form, name: t })}
+            />
+            <GlassInput
+              label="Firm Code *"
+              icon={<Tag size={18} color="#D4AF37" />}
+              value={form.firmCode}
+              onChangeText={(t) => setForm({ ...form, firmCode: t })}
+              maxLength={10}
+              autoCapitalize="characters"
+            />
+            <GlassInput
+              label="Proprietor *"
+              icon={<User size={18} color="#D4AF37" />}
+              value={form.proprietor}
+              onChangeText={(t) => setForm({ ...form, proprietor: t })}
+            />
+          </GlassCard>
+
+          {/* CARD 2: COMPLIANCE & TAX */}
+          <GlassCard>
+            <View className="flex-row items-center gap-2 mb-4 pb-2.5 border-b border-vj-text/10">
+              <View className="bg-amber-500/15 p-2 rounded-xl border border-amber-500/25">
+                <ShieldCheck size={18} color="#D4AF37" />
+              </View>
+              <Text className="text-vj-text font-black text-sm uppercase tracking-wider">
+                Compliance & Tax
               </Text>
             </View>
-          )}
-        </GlassCard>
 
-        {/* CARD 3: LOCATION & CONTACT */}
-        <GlassCard>
-          <View className="flex-row items-center gap-2 mb-4 pb-2.5 border-b border-vj-text/10">
-            <View className="bg-amber-500/15 p-2 rounded-xl border border-amber-500/25">
-              <MapPin size={18} color="#D4AF37" />
+            <GlassInput
+              label="GSTIN (Optional)"
+              icon={<Hash size={18} color="#D4AF37" />}
+              placeholder="e.g. 27ASDFG1234A1Z5"
+              value={form.gstin}
+              onChangeText={handleGstinChange}
+              keyboardType={getGSTINKeyboardType(form.gstin.length)}
+              maxLength={15}
+              autoCapitalize="characters"
+              autoCorrect={false}
+              spellCheck={false}
+              autoComplete="off"
+            />
+            
+            <View className="mb-4 p-3.5 bg-amber-500/10 rounded-2xl border border-amber-500/25 flex-row items-center gap-2.5">
+              <AlertTriangle size={18} color="#D97706" />
+              <Text className="text-[11px] text-amber-900 font-extrabold flex-1 leading-tight uppercase tracking-wide">
+                GSTIN locks invoice tax mode permanently once registered.
+              </Text>
             </View>
-            <Text className="text-vj-text font-black text-sm uppercase tracking-wider">
-              Location & Contact
-            </Text>
-          </View>
 
-          <GlassInput
-            label="Primary Mobile *"
-            icon={<Phone size={18} color="#D4AF37" />}
-            value={form.phone1}
-            onChangeText={(t) => setForm({ ...form, phone1: t })}
-            keyboardType="numeric"
-            maxLength={10}
-          />
-          <View className="flex-row gap-3">
-            <View className="flex-1">
-              <GlassInput
-                label="Phone 2"
-                value={form.phone2}
-                onChangeText={(t) => setForm({ ...form, phone2: t })}
-                keyboardType="numeric"
-                maxLength={10}
-              />
-            </View>
-            <View className="flex-1">
-              <GlassInput
-                label="Phone 3"
-                value={form.phone3}
-                onChangeText={(t) => setForm({ ...form, phone3: t })}
-                keyboardType="numeric"
-                maxLength={10}
-              />
-            </View>
-          </View>
+            <GlassInput
+              label="BIS Licence (Optional)"
+              icon={<ShieldCheck size={18} color="#D4AF37" />}
+              value={form.bisLicence}
+              onChangeText={(t) => setForm({ ...form, bisLicence: t })}
+              autoCapitalize="characters"
+            />
 
-          <GlassInput
-            label="Address Line 1 *"
-            icon={<MapPin size={18} color="#D4AF37" />}
-            value={form.addressLine1}
-            onChangeText={(t) => setForm({ ...form, addressLine1: t })}
-          />
-          <GlassInput
-            label="Address Line 2"
-            value={form.addressLine2}
-            onChangeText={(t) => setForm({ ...form, addressLine2: t })}
-          />
-
-          {/* State Selector Trigger */}
-          <View className="mb-4">
-            <Text className="text-vj-text/70 font-bold text-xs uppercase tracking-wider mb-2 ml-1">
-              State / Jurisdiction *
-            </Text>
-            <TouchableOpacity
-              onPress={() => setShowStatePicker(true)}
-              activeOpacity={0.8}
-              className="flex-row items-center justify-between bg-white rounded-2xl px-4 py-4 border border-vj-text/30"
-            >
-              <View className="flex-row items-center gap-2">
-                <View className="px-2.5 py-0.5 rounded-md bg-amber-500/15 border border-amber-500/25">
-                  <Text className="text-amber-900 font-extrabold text-xs">
-                    {form.stateCode}
-                  </Text>
-                </View>
-                <Text className="text-vj-text font-semibold text-base">
-                  {form.stateName}
+            {!form.bisLicence ? (
+              <View className="mt-1 px-1">
+                <Text className="text-[11px] text-vj-text/50 font-medium italic">
+                  Enter BIS Licence to enable BIS Hallmark logo upload in header.
                 </Text>
               </View>
-              <ChevronDown size={20} color="#D4AF37" />
-            </TouchableOpacity>
-          </View>
+            ) : (
+              <View className="mt-1 px-1 flex-row items-center gap-1.5">
+                <ShieldCheck size={14} color="#D4AF37" />
+                <Text className="text-[11px] text-amber-800 font-bold">
+                  BIS Hallmark Logo upload unlocked in header above ↑
+                </Text>
+              </View>
+            )}
+          </GlassCard>
 
-          <View className="flex-row gap-3">
-            <View className="flex-1">
-              <GlassInput
-                label="City *"
-                value={form.city}
-                onChangeText={(t) => setForm({ ...form, city: t })}
-              />
+          {/* CARD 3: LOCATION & CONTACT */}
+          <GlassCard>
+            <View className="flex-row items-center gap-2 mb-4 pb-2.5 border-b border-vj-text/10">
+              <View className="bg-amber-500/15 p-2 rounded-xl border border-amber-500/25">
+                <MapPin size={18} color="#D4AF37" />
+              </View>
+              <Text className="text-vj-text font-black text-sm uppercase tracking-wider">
+                Location & Contact
+              </Text>
             </View>
-            <View className="flex-1">
-              <GlassInput
-                label="Pincode *"
-                value={form.pincode}
-                onChangeText={(t) => setForm({ ...form, pincode: t })}
-                keyboardType="numeric"
-                maxLength={6}
-              />
-            </View>
-          </View>
-        </GlassCard>
-      </KeyboardAwareScrollView>
 
-        {/* === FIXED STICKY PILL-SHAPED GLASS ACTION BAR === */}
+            <GlassInput
+              label="Primary Mobile *"
+              icon={<Phone size={18} color="#D4AF37" />}
+              value={form.phone1}
+              onChangeText={(t) => setForm({ ...form, phone1: t })}
+              keyboardType="numeric"
+              maxLength={10}
+            />
+            <View className="flex-row gap-3">
+              <View className="flex-1">
+                <GlassInput
+                  label="Phone 2"
+                  value={form.phone2}
+                  onChangeText={(t) => setForm({ ...form, phone2: t })}
+                  keyboardType="numeric"
+                  maxLength={10}
+                />
+              </View>
+              <View className="flex-1">
+                <GlassInput
+                  label="Phone 3"
+                  value={form.phone3}
+                  onChangeText={(t) => setForm({ ...form, phone3: t })}
+                  keyboardType="numeric"
+                  maxLength={10}
+                />
+              </View>
+            </View>
+
+            <GlassInput
+              label="Address Line 1 *"
+              icon={<MapPin size={18} color="#D4AF37" />}
+              value={form.addressLine1}
+              onChangeText={(t) => setForm({ ...form, addressLine1: t })}
+            />
+            <GlassInput
+              label="Address Line 2"
+              value={form.addressLine2}
+              onChangeText={(t) => setForm({ ...form, addressLine2: t })}
+            />
+
+            {/* State Selector Trigger */}
+            <View className="mb-4">
+              <Text className="text-vj-text/70 font-bold text-xs uppercase tracking-wider mb-2 ml-1">
+                State / Jurisdiction *
+              </Text>
+              <TouchableOpacity
+                onPress={() => setShowStatePicker(true)}
+                activeOpacity={0.8}
+                className="flex-row items-center justify-between bg-white rounded-2xl px-4 py-4 border border-vj-text/30"
+              >
+                <View className="flex-row items-center gap-2">
+                  <View className="px-2.5 py-0.5 rounded-md bg-amber-500/15 border border-amber-500/25">
+                    <Text className="text-amber-900 font-extrabold text-xs">
+                      {form.stateCode}
+                    </Text>
+                  </View>
+                  <Text className="text-vj-text font-semibold text-base">
+                    {form.stateName}
+                  </Text>
+                </View>
+                <ChevronDown size={20} color="#D4AF37" />
+              </TouchableOpacity>
+            </View>
+
+            <View className="flex-row gap-3">
+              <View className="flex-1">
+                <GlassInput
+                  label="City *"
+                  value={form.city}
+                  onChangeText={(t) => setForm({ ...form, city: t })}
+                />
+              </View>
+              <View className="flex-1">
+                <GlassInput
+                  label="Pincode *"
+                  value={form.pincode}
+                  onChangeText={(t) => setForm({ ...form, pincode: t })}
+                  keyboardType="numeric"
+                  maxLength={6}
+                />
+              </View>
+            </View>
+          </GlassCard>
+        </KeyboardAwareScrollView>
+
+        {/* FIXED STICKY ACTION BAR */}
         <FixedGlassBar>
           <TouchableOpacity
             style={fixedBarStyles.pillPrimaryBtn}
@@ -638,4 +659,4 @@ export default function CreateFirmScreen() {
 
     </TwoToneWrapper>
   );
-}
+}

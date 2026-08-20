@@ -1,6 +1,7 @@
 // services/phase1/bootstrapService.ts
 // Phase 1 Master Bootstrap Sequence — Steps 0–12
-// v7.24 FIX-VSEC-14: AES-256-GCM Encrypted Pre-Migration Snapshot
+// v7.7 VERIFY-BOOT-CACHE / v7.14 FIX-V714-4: 30-minute verification cache + crash flag
+// v7.24 FIX-VSEC-14: AES-256-GCM Encrypted Pre-Migration Snapshot (100,000 PBKDF2 iterations)
 // v7.26 FIX-V726-6: Uses getDeviceDerivedKeyMaterial() from utils/deviceKey
 
 import { safeModeService, bootstrapComplete } from '@/services/phase1/safeModeService';
@@ -15,22 +16,29 @@ import * as FileSystem from 'expo-file-system/legacy';
 import { STORAGE_PATHS } from '@/constants';
 import { storage } from '@/utils/storage';
 import { eq, isNotNull } from 'drizzle-orm';
-import { differenceInDays, parseISO } from 'date-fns';
+import { differenceInDays, differenceInMinutes, parseISO } from 'date-fns';
 import { purgeExpiredAuditLogs } from '@/services/phase1/auditRetentionService';
 import { appSettingsStore } from '@/store/phase1/appSettingsStore';
 import CryptoJS from 'crypto-js';
 import * as Crypto from 'expo-crypto';
 
-import { BACKUP_DIR } from '@/services/phase1/backupService';
-export const PRE_MIGRATION_SNAPSHOT_PATH = BACKUP_DIR + 'vjbilling_premigration_snapshot.enc';
+export const PRE_MIGRATION_SNAPSHOT_PATH = STORAGE_PATHS.PRE_MIGRATION_SNAPSHOT;
 
 let premigrationSnapshotFailed = false;
 let premigrationSnapshotCreated = false;
 
+function getSafeDeviceId(): string {
+  try {
+    return getDeviceId();
+  } catch {
+    return 'DEV-DEVICE-ID';
+  }
+}
+
 export const bootstrapService = {
 
   // ==========================================================================
-  // STEP 0: PRE-MIGRATION SNAPSHOT (AES-256-GCM Encrypted)
+  // STEP 0: PRE-MIGRATION SNAPSHOT (AES-256-GCM Encrypted — 100,000 Iterations)
   // ==========================================================================
   async takePreMigrationSnapshot(): Promise<void> {
     console.log('[Bootstrap] Step 0: Executing Encrypted Pre-Migration Snapshot...');
@@ -87,6 +95,7 @@ export const bootstrapService = {
       };
 
       let encryptedBlob = '';
+      const iterations = 100000; // v7.24 FIX-VSEC-14: standard 100,000 PBKDF2 iterations
 
       if (typeof crypto !== 'undefined' && crypto?.subtle?.importKey) {
         const enc = new TextEncoder();
@@ -99,7 +108,7 @@ export const bootstrapService = {
         );
 
         const key = await crypto.subtle.deriveKey(
-          { name: 'PBKDF2', salt: saltBytes as any, iterations: 1000, hash: 'SHA-256' },
+          { name: 'PBKDF2', salt: saltBytes as any, iterations, hash: 'SHA-256' },
           keyMaterial,
           { name: 'AES-GCM', length: 256 },
           false,
@@ -116,7 +125,7 @@ export const bootstrapService = {
           iv: toBase64(ivBytes),
           salt: toBase64(saltBytes),
           ciphertext: toBase64(new Uint8Array(cipherBuffer)),
-          iterations: 1000,
+          iterations,
           timestamp: new Date().toISOString(),
         });
       } else {
@@ -126,7 +135,7 @@ export const bootstrapService = {
 
         const derivedKey = CryptoJS.PBKDF2(keyMaterialWA, saltWA, {
           keySize: 256 / 32,
-          iterations: 1000,
+          iterations,
           hasher: CryptoJS.algo.SHA256,
         });
 
@@ -140,12 +149,12 @@ export const bootstrapService = {
           iv: toBase64(ivBytes),
           salt: toBase64(saltBytes),
           ciphertext: encrypted.toString(),
-          iterations: 1000,
+          iterations,
           timestamp: new Date().toISOString(),
         });
       }
 
-      await FileSystem.makeDirectoryAsync(BACKUP_DIR, { intermediates: true });
+      await FileSystem.makeDirectoryAsync(STORAGE_PATHS.BACKUP_DIR, { intermediates: true });
       await FileSystem.writeAsStringAsync(PRE_MIGRATION_SNAPSHOT_PATH, encryptedBlob, { 
         encoding: FileSystem.EncodingType.UTF8 
       });
@@ -166,6 +175,10 @@ export const bootstrapService = {
   async initApp(): Promise<'DASHBOARD' | 'SETUP' | 'SAFE_MODE' | 'DATABASE_ERROR' | 'DASHBOARD_WARNING'> {
     console.log('[Bootstrap] Starting Phase 1 Sequence...');
 
+    // Inspect previous crash state before setting current boot interrupted flag
+    const previousBootWasInterrupted = storage.getString('vjbilling_boot_was_interrupted') === 'true';
+    storage.set('vjbilling_boot_was_interrupted', 'true');
+
     try {
       // Step 3: Purge ALL leases on restart
       db.transaction((tx) => {
@@ -173,11 +186,9 @@ export const bootstrapService = {
       });
 
       // Step 4: Initialize device identity if missing
-      await getOrGenerateDeviceId();
+      getOrGenerateDeviceId();
 
-      // Step 5: Set crash flag via MMKV
-      storage.set('vjbilling_boot_was_interrupted', 'true');
-      
+      // Step 5: Safe Mode row guard and DB state loading
       const safeModeRows = db.select().from(safeModeState).limit(1).all();
 
       if (safeModeRows.length === 0) {
@@ -212,7 +223,7 @@ export const bootstrapService = {
       // Audit for Step 0 snapshot creation
       if (premigrationSnapshotCreated) {
         try {
-          const deviceId = await getDeviceId().catch(() => 'DEV-DEVICE-ID');
+          const deviceId = getSafeDeviceId();
           db.transaction((tx) => {
             auditRepository.create(
               {
@@ -233,7 +244,7 @@ export const bootstrapService = {
       // Deferred audit for Step 0 snapshot failure
       if (premigrationSnapshotFailed) {
         try {
-          const deviceId = await getDeviceId().catch(() => 'DEV-DEVICE-ID');
+          const deviceId = getSafeDeviceId();
           db.transaction((tx) => {
             auditRepository.create(
               {
@@ -251,7 +262,7 @@ export const bootstrapService = {
         }
       }
 
-      // Step 7b: Mark bootstrap complete
+      // Step 7b: Mark bootstrap complete & clear crash flag
       bootstrapComplete.value = true;
       storage.set('vjbilling_boot_was_interrupted', 'false');
 
@@ -285,7 +296,7 @@ export const bootstrapService = {
           if (firm.firmLogoRef) {
             const info = await FileSystem.getInfoAsync(firm.firmLogoRef);
             if (!info.exists) {
-              const deviceId = await getDeviceId().catch(() => 'DEV-DEVICE-ID');
+              const deviceId = getSafeDeviceId();
               db.transaction((tx) => {
                 tx.update(firms).set({ firmLogoRef: null }).where(eq(firms.id, firm.id)).run();
                 auditRepository.create(
@@ -308,7 +319,7 @@ export const bootstrapService = {
           if (logo.fileRef) {
             const info = await FileSystem.getInfoAsync(logo.fileRef);
             if (!info.exists) {
-              const deviceId = await getDeviceId().catch(() => 'DEV-DEVICE-ID');
+              const deviceId = getSafeDeviceId();
               db.transaction((tx) => {
                 tx.update(bisLogos)
                   .set({
@@ -337,14 +348,34 @@ export const bootstrapService = {
         console.log('[Bootstrap] G62 complete. Logos missing:', logosWereMissing);
       }
 
-      // Step 9: Run Verify My Data (silent)
-      const { status: verifyStatus } = await verifyService.runVerify();
+      // Step 9: Run Verify My Data (v7.7 VERIFY-BOOT-CACHE)
+      let verifyStatus: 'HEALTHY' | 'WARNING' | 'CRITICAL' = 'HEALTHY';
+      const lastVerifyStatus = storage.getString('vjbilling_last_verify_status') as 'HEALTHY' | 'WARNING' | 'CRITICAL' | undefined;
+      const lastVerifyAt = storage.getString('vjbilling_last_verify_at');
+      
+      const isCacheValid = 
+        !previousBootWasInterrupted &&
+        lastVerifyStatus === 'HEALTHY' &&
+        !!lastVerifyAt &&
+        differenceInMinutes(new Date(), parseISO(lastVerifyAt)) < 30;
 
+      if (isCacheValid) {
+        console.log('[Bootstrap] Step 9: VERIFY-BOOT-CACHE hit. Bypassing 9-query full-table scan.');
+        verifyStatus = 'HEALTHY';
+      } else {
+        console.log('[Bootstrap] Step 9: Running full Verify My Data integrity scan...');
+        const result = await verifyService.runVerify();
+        verifyStatus = result.status;
+        storage.set('vjbilling_last_verify_status', verifyStatus);
+        storage.set('vjbilling_last_verify_at', new Date().toISOString());
+      }
+
+      // Clean up emergency pre-migration snapshots upon successful bootstrap
       try {
         const snapshotInfo = await FileSystem.getInfoAsync(PRE_MIGRATION_SNAPSHOT_PATH);
         if (snapshotInfo.exists) {
           await FileSystem.deleteAsync(PRE_MIGRATION_SNAPSHOT_PATH, { idempotent: true });
-          const deviceId = await getDeviceId().catch(() => 'DEV-DEVICE-ID');
+          const deviceId = getSafeDeviceId();
           db.transaction((tx) => {
             auditRepository.create(
               {
@@ -358,8 +389,8 @@ export const bootstrapService = {
           });
           console.log('[Bootstrap] Cleaned up stale pre-migration snapshot and recorded purge audit event.');
         }
-        if (STORAGE_PATHS.PRE_MIGRATION_SNAPSHOT) {
-          await FileSystem.deleteAsync(STORAGE_PATHS.PRE_MIGRATION_SNAPSHOT, { idempotent: true });
+        if (STORAGE_PATHS.PRE_MIGRATION_SNAPSHOT_LEGACY) {
+          await FileSystem.deleteAsync(STORAGE_PATHS.PRE_MIGRATION_SNAPSHOT_LEGACY, { idempotent: true }).catch(() => {});
         }
       } catch (cleanupError) {
         console.warn('[Bootstrap] Failed to clean up snapshot (non-fatal):', cleanupError);
@@ -383,3 +414,9 @@ export const bootstrapService = {
     }
   },
 };
+
+export async function bootstrapDatabase(): Promise<'DASHBOARD' | 'SETUP' | 'SAFE_MODE' | 'DATABASE_ERROR' | 'DASHBOARD_WARNING'> {
+  return bootstrapService.initApp();
+}
+
+export default bootstrapService;

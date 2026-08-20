@@ -2,7 +2,7 @@
 // v7.29 FIX-VSEC-3, FIX-V729-1, FIX-V729-2 — Step R Test Matrix
 // Validates 4/6 digit selection, skip logic, exponential lockouts, and PIN changes.
 
-// 🌟🌟🌟 CRYPTO MOCK FOR JEST 🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟
+// ─── CRYPTO MOCK FOR JEST ───────────────────────────────────────────────────
 jest.mock('expo-crypto', () => ({
   CryptoDigestAlgorithm: { SHA256: 'SHA-256' },
   digestStringAsync: jest.fn(async (algorithm, data) => {
@@ -14,14 +14,13 @@ jest.mock('expo-crypto', () => ({
 }));
 
 // ─── STORAGE MOCK FOR JEST ───────────────────────────────────────────────────
-jest.mock('../../utils/storage', () => {
+jest.mock('@/utils/storage', () => {
   let store: Record<string, string> = {};
   return {
     storage: {
       getString: jest.fn((key: string) => store[key]),
       set: jest.fn((key: string, val: string) => { store[key] = val; }),
       delete: jest.fn((key: string) => { delete store[key]; }),
-      // Helper for tests to reset state
       clearAll: () => { store = {}; }
     }
   };
@@ -46,7 +45,7 @@ import { storage } from '@/utils/storage';
 // ─── TEST SETUP ──────────────────────────────────────────────────────────────
 beforeEach(() => {
   (storage as any).clearAll();
-  jest.useFakeTimers(); // Required for testing lockout math
+  jest.useFakeTimers();
 });
 
 afterEach(() => {
@@ -90,7 +89,6 @@ describe('PIN Security Engine (v7.29)', () => {
       await setPin('123456');
       expect(await verifyPin('654321')).toBe(false);
       
-      // Simulating the UI layer calling incrementFailedAttempts on false
       incrementFailedAttempts();
       expect(getFailedAttempts()).toBe(1);
     });
@@ -103,11 +101,9 @@ describe('PIN Security Engine (v7.29)', () => {
       
       expect(isLockedOut()).toBe(true);
       
-      // Fast forward 29 seconds (still locked)
       jest.advanceTimersByTime(29 * 1000);
       expect(isLockedOut()).toBe(true);
       
-      // Fast forward 2 more seconds (31s total -> unlocked)
       jest.advanceTimersByTime(2 * 1000);
       expect(isLockedOut()).toBe(false);
     });
@@ -116,15 +112,15 @@ describe('PIN Security Engine (v7.29)', () => {
       await setPin('123456');
       incrementFailedAttempts(); // 1
       incrementFailedAttempts(); // 2
-      incrementFailedAttempts(); // 3 (30s lockout)
-      incrementFailedAttempts(); // 4 (60s lockout)
+      incrementFailedAttempts(); // 3 (30s)
+      incrementFailedAttempts(); // 4 (60s)
       
       expect(isLockedOut()).toBe(true);
       
       jest.advanceTimersByTime(59 * 1000);
       expect(isLockedOut()).toBe(true);
       
-      jest.advanceTimersByTime(2 * 1000); // 61s total
+      jest.advanceTimersByTime(2 * 1000);
       expect(isLockedOut()).toBe(false);
     });
 
@@ -132,7 +128,7 @@ describe('PIN Security Engine (v7.29)', () => {
       await setPin('123456');
       incrementFailedAttempts();
       incrementFailedAttempts();
-      incrementFailedAttempts(); // Locked out
+      incrementFailedAttempts();
       
       expect(isLockedOut()).toBe(true);
       resetFailedAttempts();
@@ -170,7 +166,6 @@ describe('PIN Security Engine (v7.29)', () => {
       await setPin('1234');
       await expect(changePin('9999', '123456')).rejects.toThrow('PIN_INCORRECT');
       
-      // Ensure the old pin is still active
       expect(await verifyPin('1234')).toBe(true);
       expect(getPinLength()).toBe(4);
     });

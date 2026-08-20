@@ -1,4 +1,4 @@
-// utils/deviceId.ts — Phase 2 v2.11 Canonical Device Identity
+// utils/deviceId.ts — Phase 1 v7.38 Canonical Device Identity & Key Derivation
 
 import { storage } from './storage';
 import * as Crypto from 'expo-crypto';
@@ -13,9 +13,10 @@ export const generateId = () => Crypto.randomUUID();
 
 /**
  * Returns the persisted device ID from MMKV.
+ * Synchronous per Step B specification.
  * Throws if not initialized.
  */
-export async function getDeviceId(): Promise<string> {
+export function getDeviceId(): string {
   const deviceId = storage.getString(DEVICE_ID_KEY);
   if (!deviceId) throw new Error('DEVICE_ID_NOT_INITIALIZED');
   return deviceId;
@@ -23,10 +24,11 @@ export async function getDeviceId(): Promise<string> {
 
 /**
  * Phase A: Generate and persist device ID — NO audit log.
+ * Synchronous per Step B specification.
  * Called early in bootstrap before DB is ready.
  * Safe from circular dependencies (does not touch auditRepository).
  */
-export async function getOrGenerateDeviceId(): Promise<string> {
+export function getOrGenerateDeviceId(): string {
   const existingId = storage.getString(DEVICE_ID_KEY);
 
   if (!existingId) {
@@ -51,21 +53,32 @@ export async function auditDeviceIdIfNew(): Promise<void> {
 
     if (!hasEvent) {
       console.log('[DeviceID] Phase B: Detected un-audited device identity. Logging now.');
-      const deviceId = await getDeviceId();
+      const deviceId = getDeviceId();
       const deviceName = Device.modelName || 'Unknown Device';
       const osName = Device.osName || 'Unknown OS';
 
-      auditRepository.create({
-        firmId: null,
-        eventType: 'DEVICE_ID_GENERATED',
-        payload: JSON.stringify({
-          deviceId,
-          generatedAt: now(),
-          deviceName,
-          os: osName,
-        }),
+      const payload = JSON.stringify({
         deviceId,
+        generatedAt: now(),
+        deviceName,
+        os: osName,
       });
+
+      if (typeof (auditRepository as any).log === 'function') {
+        (auditRepository as any).log(null, {
+          eventType: 'DEVICE_ID_GENERATED',
+          firmId: null,
+          payload,
+          deviceId,
+        });
+      } else if (typeof (auditRepository as any).create === 'function') {
+        (auditRepository as any).create({
+          firmId: null,
+          eventType: 'DEVICE_ID_GENERATED',
+          payload,
+          deviceId,
+        });
+      }
     }
   } catch (e) {
     console.error('[DeviceID] Phase B Audit Failed (Non-fatal):', e);
@@ -76,24 +89,24 @@ export async function auditDeviceIdIfNew(): Promise<void> {
  * Derives a consistent Uint8Array from a canonical secret for portable unpassworded backups.
  */
 export async function getCanonicalBackupKeyMaterial(): Promise<Uint8Array> {
-  const hexHash = await Crypto.digestStringAsync(
-    Crypto.CryptoDigestAlgorithm.SHA256,
-    'vjbilling_canonical_backup_secret_v1'
-  );
   const enc = new TextEncoder();
-  return enc.encode(hexHash);
+  const raw = await crypto.subtle.digest(
+    'SHA-256',
+    enc.encode('vjbilling_canonical_backup_secret_v1')
+  );
+  return new Uint8Array(raw);
 }
 
 /**
- * Derives a consistent Uint8Array from the Device ID (or provided overrideDeviceId) for use as 
- * raw key material when an automated backup runs without a user password.
+ * Derives a consistent 32-byte Uint8Array from the Device ID (or provided overrideDeviceId)
+ * for use as raw key material when an automated backup runs without a user password (FIX-V726-6).
  */
 export async function getDeviceDerivedKeyMaterial(overrideDeviceId?: string): Promise<Uint8Array> {
-  const deviceId = overrideDeviceId || await getDeviceId();
-  const hexHash = await Crypto.digestStringAsync(
-    Crypto.CryptoDigestAlgorithm.SHA256,
-    'vjbilling_device_key_v1:' + deviceId
-  );
+  const deviceId = overrideDeviceId || getDeviceId();
   const enc = new TextEncoder();
-  return enc.encode(hexHash);
+  const raw = await crypto.subtle.digest(
+    'SHA-256',
+    enc.encode('vjbilling_device_key_v1:' + deviceId)
+  );
+  return new Uint8Array(raw);
 }

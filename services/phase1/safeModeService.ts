@@ -23,7 +23,12 @@ export const bootstrapComplete = { value: false };
 export const safeModeService = {
   async activate(reason: SafeModeTrigger, details?: object) {
     const currentTime = now();
-    const deviceId = await getDeviceId().catch(() => 'DEV-DEVICE-ID');
+    let deviceId: string;
+    try {
+      deviceId = getDeviceId();
+    } catch {
+      deviceId = 'DEV-DEVICE-ID';
+    }
     const targetDb = getDb();
 
     targetDb.transaction((tx: any) => {
@@ -46,16 +51,29 @@ export const safeModeService = {
       );
     });
 
-    safeModeStore.getState().setState({
-      isActive: true,
-      reason: reason,
-      activatedAt: currentTime,
-    });
+    if (typeof (safeModeStore.getState() as any).setState === 'function') {
+      (safeModeStore.getState() as any).setState({
+        isActive: true,
+        reason: reason,
+        activatedAt: currentTime,
+      });
+    } else {
+      safeModeStore.setState({
+        isActive: true,
+        reason: reason,
+        activatedAt: currentTime,
+      });
+    }
   },
 
   async clear() {
     const currentTime = now();
-    const deviceId = await getDeviceId().catch(() => 'DEV-DEVICE-ID');
+    let deviceId: string;
+    try {
+      deviceId = getDeviceId();
+    } catch {
+      deviceId = 'DEV-DEVICE-ID';
+    }
     const targetDb = getDb();
 
     targetDb.transaction((tx: any) => {
@@ -78,22 +96,38 @@ export const safeModeService = {
       );
     });
 
-    safeModeStore.getState().setState({
-      isActive: false,
-      reason: null,
-      activatedAt: null,
-    });
+    if (typeof (safeModeStore.getState() as any).setState === 'function') {
+      (safeModeStore.getState() as any).setState({
+        isActive: false,
+        reason: null,
+        activatedAt: null,
+      });
+    } else {
+      safeModeStore.setState({
+        isActive: false,
+        reason: null,
+        activatedAt: null,
+      });
+    }
   },
 
   loadState() {
     const state = safeModeRepository.get();
 
     if (state && state.isActive === 1) {
-      safeModeStore.getState().setState({
-        isActive: true,
-        reason: state.reason as SafeModeTrigger,
-        activatedAt: state.activatedAt,
-      });
+      if (typeof (safeModeStore.getState() as any).setState === 'function') {
+        (safeModeStore.getState() as any).setState({
+          isActive: true,
+          reason: state.reason as SafeModeTrigger,
+          activatedAt: state.activatedAt,
+        });
+      } else {
+        safeModeStore.setState({
+          isActive: true,
+          reason: state.reason as SafeModeTrigger,
+          activatedAt: state.activatedAt,
+        });
+      }
     }
   },
 
@@ -113,3 +147,4 @@ export const activateSafeMode = safeModeService.activate.bind(safeModeService);
 export const clearSafeMode = safeModeService.clear.bind(safeModeService);
 export const assertNotInSafeMode = safeModeService.assertNotInSafeMode.bind(safeModeService);
 export const loadSafeModeState = safeModeService.loadState.bind(safeModeService);
+export default safeModeService;

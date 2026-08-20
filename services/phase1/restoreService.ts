@@ -1,4 +1,13 @@
-// services/restoreService.ts — Phase 2 v2.11 Canonical Implementation
+// services/phase1/restoreService.ts — Phase 1 & 2 Canonical Restore Service
+// v7.24 FIX-V724-3: AES-256-GCM Decryption + CHECKSUM_MISMATCH on auth tag failure
+// v7.26 FIX-V726-2 / FIX-V726-3 / FIX-V726-5: (encryptedFileContent, password) signature + optional password
+// v7.27 FIX-V727-1: passwordProtected === true guard precision
+// v7.36 FIX-V736-1 / FIX-V736-2: Embedded Logo Asset Restoration (logoAssets) + legacy FileSystem import
+//
+// CONSTITUTIONAL RULES:
+//   - restore() MUST NOT call assertNotInSafeMode() (PATH 2 Safe Mode resolution).
+//   - restore() MUST call assertNoActiveLease().
+//   - audit_delete_gate must be opened/closed inside the restore transaction.
 
 import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system/legacy';
@@ -32,6 +41,14 @@ import { SCHEMA_VERSION } from '@/constants';
 import { ERR } from '@/constants/errorCodes';
 import type { BackupEnvelope } from '@/services/phase1/backupService';
 
+function getSafeDeviceId(): string {
+  try {
+    return getDeviceId();
+  } catch {
+    return 'DEV-DEVICE-ID';
+  }
+}
+
 async function decryptBackupEnvelope(parsedBlob: any, password?: string): Promise<BackupEnvelope> {
   if (parsedBlob.passwordProtected === true && !password) {
     throw new Error(ERR.BACKUP_PASSWORD_REQUIRED + ': password required for this backup');
@@ -57,11 +74,7 @@ async function decryptBackupEnvelope(parsedBlob: any, password?: string): Promis
   if (parsedBlob.passwordProtected === true) {
     keySourceCandidates.push(new TextEncoder().encode(password));
   } else {
-    try {
-      const canonicalKey = await getCanonicalBackupKeyMaterial();
-      keySourceCandidates.push(canonicalKey);
-    } catch {}
-
+    // 1. Try envelope device key first (v7.26 / v7.38 standard)
     if (parsedBlob.deviceId && typeof parsedBlob.deviceId === 'string') {
       try {
         const envelopeDeviceKey = await getDeviceDerivedKeyMaterial(parsedBlob.deviceId);
@@ -69,9 +82,16 @@ async function decryptBackupEnvelope(parsedBlob: any, password?: string): Promis
       } catch {}
     }
 
+    // 2. Try current device key
     try {
       const currentDeviceKey = await getDeviceDerivedKeyMaterial();
       keySourceCandidates.push(currentDeviceKey);
+    } catch {}
+
+    // 3. Try canonical key fallback
+    try {
+      const canonicalKey = await getCanonicalBackupKeyMaterial();
+      keySourceCandidates.push(canonicalKey);
     } catch {}
   }
 
@@ -81,11 +101,11 @@ async function decryptBackupEnvelope(parsedBlob: any, password?: string): Promis
   
   const iterationCandidates = parsedBlob.iterations
     ? [parsedBlob.iterations, 1000, 100000, 10000, 5000]
-    : (parsedBlob.encryptionVersion === 2 ? [1000, 100000, 10000, 5000] : [100000, 1000]);
+    : (parsedBlob.encryptionVersion === 2 ? [1000, 100000, 10000, 5000] : [1000, 100000]);
 
   for (const candidateKeySource of keySourceCandidates) {
     for (const iterations of iterationCandidates) {
-      // 1. Try WebCrypto AES-GCM (if supported by JS engine)
+      // 1. Try WebCrypto AES-GCM
       if (typeof crypto !== 'undefined' && crypto?.subtle?.importKey) {
         try {
           const keyMaterial = await crypto.subtle.importKey(
@@ -114,13 +134,13 @@ async function decryptBackupEnvelope(parsedBlob: any, password?: string): Promis
             const payload = JSON.parse(decryptedText);
             return {
               ...parsedBlob,
-              payload
+              payload,
             } as unknown as BackupEnvelope;
           }
         } catch {}
       }
 
-      // 2. Try CryptoJS AES-CBC (legacy backup compatibility)
+      // 2. Try CryptoJS AES-CBC fallback
       try {
         const salt = CryptoJS.enc.Base64.parse(parsedBlob.salt);
         const iv = CryptoJS.enc.Base64.parse(parsedBlob.iv);
@@ -142,7 +162,7 @@ async function decryptBackupEnvelope(parsedBlob: any, password?: string): Promis
           const payload = JSON.parse(decryptedText);
           return {
             ...parsedBlob,
-            payload
+            payload,
           } as unknown as BackupEnvelope;
         }
       } catch {}
@@ -241,6 +261,8 @@ export const restoreService = {
       })
       .join('\n');
 
+    const hasEmbeddedLogos = !!(backup.payload.logoAssets && (backup.payload.logoAssets.firmLogos.length > 0 || backup.payload.logoAssets.bisLogos.length > 0));
+
     await new Promise<void>((resolve, reject) => {
       Alert.alert(
         'PREVIEW — NOT RESTORED YET',
@@ -253,7 +275,7 @@ export const restoreService = {
         `RECORD COUNTS\n` +
         `Audit Logs: ${backupLogs?.length || 0}\n` +
         `Settings: ${backupSettings?.length || 0}\n\n` +
-        `\u26A0\uFE0F Logo images are not included in backups and will need to be re-uploaded.\n\n` +
+        (!hasEmbeddedLogos ? `\u26A0\uFE0F Logo images are not included in this backup and will need to be re-uploaded.\n\n` : '') +
         (isSafeModeBackedUp
           ? `\u26A0\uFE0F SAFE MODE ACTIVE IN BACKUP \u26A0\uFE0F\nRestoring it will re-activate Safe Mode.\n\n`
           : '') +
@@ -275,7 +297,7 @@ export const restoreService = {
     const leaseId = await leaseService.acquire('RESTORE');
 
     try {
-      const currentDeviceId = await getDeviceId();
+      const currentDeviceId = getSafeDeviceId();
 
       const parsedBlob = JSON.parse(encryptedFileContent);
       const backup = await decryptBackupEnvelope(parsedBlob, password);
@@ -287,6 +309,43 @@ export const restoreService = {
       }
       if (backup.payload.firms.length > 3) {
         throw new Error(ERR.RESTORE_VALIDATION_FAILED + `: Backup contains ${backup.payload.firms.length} firms. Maximum capacity is 3.`);
+      }
+
+      // v7.36 FIX-V736-1: Write embedded logo binaries (logoAssets) to local storage BEFORE the tx runs
+      const logosDir = (FileSystem.documentDirectory ?? '') + 'logos/';
+      await FileSystem.makeDirectoryAsync(logosDir, { intermediates: true }).catch(() => {});
+      
+      const firmLogoUriMap = new Map<string, string>();
+      for (const asset of backup.payload.logoAssets?.firmLogos ?? []) {
+        try {
+          const newUri = logosDir + Crypto.randomUUID() + '.jpg';
+          await FileSystem.writeAsStringAsync(newUri, asset.base64, { encoding: FileSystem.EncodingType.Base64 });
+          firmLogoUriMap.set(asset.firmId, newUri);
+        } catch {
+          // write failure leaves it null, caught by G62
+        }
+      }
+
+      const bisLogoUriMap = new Map<string, string>();
+      for (const asset of backup.payload.logoAssets?.bisLogos ?? []) {
+        try {
+          const newUri = logosDir + Crypto.randomUUID() + '.jpg';
+          await FileSystem.writeAsStringAsync(newUri, asset.base64, { encoding: FileSystem.EncodingType.Base64 });
+          bisLogoUriMap.set(asset.bisLogoId, newUri);
+        } catch {
+          // write failure leaves fileRef null, caught by G62
+        }
+      }
+
+      if (backup.payload.logoAssets) {
+        backup.payload.firms = backup.payload.firms.map((f: any) => ({
+          ...f,
+          firmLogoRef: firmLogoUriMap.get(f.id) ?? null,
+        }));
+        backup.payload.bisLogos = (backup.payload.bisLogos ?? []).map((l: any) => ({
+          ...l,
+          fileRef: bisLogoUriMap.get(l.id) ?? null,
+        }));
       }
 
       db.transaction((tx) => {
@@ -355,7 +414,7 @@ export const restoreService = {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       } catch (e) {}
 
-      await storage.setItem('vjbilling_post_restore_logo_check_pending', 'true');
+      storage.set('vjbilling_post_restore_logo_check_pending', 'true');
 
       try {
         await Updates.reloadAsync();
@@ -365,7 +424,7 @@ export const restoreService = {
 
     } catch (error: any) {
       try {
-        const failDeviceId = await getDeviceId();
+        const failDeviceId = getSafeDeviceId();
         db.transaction((tx) => {
           auditRepository.log(tx, {
             firmId: null,
@@ -383,7 +442,7 @@ export const restoreService = {
     }
   },
 
-  async validateBackupSchema(backup: BackupEnvelope): Promise<void> {
+  async validateBackupSchema(backup: BackupEnvelope): Promise<{ warning?: string } | void> {
     const { schemaVersion } = backup;
 
     if (schemaVersion === undefined || schemaVersion === null) {
@@ -398,22 +457,24 @@ export const restoreService = {
 
     if (schemaVersion > SCHEMA_VERSION) {
       throw new Error(
-        ERR.RESTORE_VALIDATION_FAILED + `: Backup is from a newer app version. Backup: v${schemaVersion}, App: v${SCHEMA_VERSION}. Please update your app first.`
+        `RESTORE_VALIDATION_FAILED: backup schema ${schemaVersion} is newer than app ${SCHEMA_VERSION}. Update the app first.`
       );
     }
 
     if (schemaVersion < SCHEMA_VERSION) {
-      const deviceId = await getDeviceId();
-      await db.insert(auditLogsTable).values({
-        id: Crypto.randomUUID(),
+      const deviceId = getSafeDeviceId();
+      await auditRepository.log(null, {
         eventType: 'RESTORE_OLD_SCHEMA',
         firmId: null,
-        entityId: null,
         deviceId,
-        payload: JSON.stringify({ backupSchema: schemaVersion, appSchema: SCHEMA_VERSION }),
-        createdAt: now(),
+        payload: JSON.stringify({ backupSchema: schemaVersion, currentSchema: SCHEMA_VERSION }),
       });
       console.warn(`[Restore] RESTORE_OLD_SCHEMA: Restoring backup v${schemaVersion} into app v${SCHEMA_VERSION}.`);
+      return { warning: `RESTORE_OLD_SCHEMA: backup v${schemaVersion} < app ${SCHEMA_VERSION}. Proceed with user acknowledgement.` };
     }
   },
 };
+
+export const restore = restoreService.restore.bind(restoreService);
+export const validateBackupSchema = restoreService.validateBackupSchema.bind(restoreService);
+export default restoreService;

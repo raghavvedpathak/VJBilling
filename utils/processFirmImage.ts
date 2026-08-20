@@ -1,3 +1,5 @@
+// utils/firmImage.ts — Canonical Image Processor for Logos
+
 import * as FileSystem from 'expo-file-system/legacy';
 import { manipulateAsync, SaveFormat } from 'expo-image-manipulator';
 
@@ -9,26 +11,31 @@ export async function processAndSaveFirmImage(
   prefix: 'firm' | 'bis_firm',
   firmId: string
 ): Promise<string | null> {
+  let manipulatedUri: string | null = null;
+
   try {
-    // 1. Resize while preserving aspect ratio
+    // 1. Process image: compress and resize within max dimension bounds
     const manipulated = await manipulateAsync(
       rawUri,
-      [{ resize: { width: MAX_DIM } }], // Preserves aspect ratio automatically when height is omitted
-      { compress: 0.9, format: SaveFormat.PNG }
+      [{ resize: { width: MAX_DIM } }],
+      { compress: 0.85, format: SaveFormat.PNG }
     );
+    manipulatedUri = manipulated.uri;
 
-    // 2. Check file size
+    // 2. Check resulting file size
     const fileInfo = await FileSystem.getInfoAsync(manipulated.uri);
     if (fileInfo.exists && 'size' in fileInfo && fileInfo.size && fileInfo.size > MAX_BYTES) {
-      throw new Error('Image exceeds 2MB limit after processing.');
+      throw new Error(`IMAGE_SIZE_EXCEEDED: Image exceeds 2MB limit after processing (${Math.round(fileInfo.size / 1024)}KB).`);
     }
 
-    // 3. Ensure target directory exists
-    const docDir = FileSystem.documentDirectory ?? FileSystem.cacheDirectory ?? '';
-    const logosDir = `${docDir}logos/`;
+    // 3. Ensure target directory exists with normalized trailing slash
+    const baseDir = FileSystem.documentDirectory ?? FileSystem.cacheDirectory ?? '';
+    const normalizedBase = baseDir.endsWith('/') ? baseDir : `${baseDir}/`;
+    const logosDir = `${normalizedBase}logos/`;
+    
     await FileSystem.makeDirectoryAsync(logosDir, { intermediates: true });
 
-    // 4. Save file
+    // 4. Save file permanently
     const targetPath = `${logosDir}${prefix}_${firmId}_${Date.now()}.png`;
     await FileSystem.copyAsync({ from: manipulated.uri, to: targetPath });
 
@@ -36,5 +43,10 @@ export async function processAndSaveFirmImage(
   } catch (error) {
     console.error(`[processAndSaveFirmImage] Failed for ${prefix}:`, error);
     return null;
+  } finally {
+    // 5. Clean up temporary cache file
+    if (manipulatedUri) {
+      FileSystem.deleteAsync(manipulatedUri, { idempotent: true }).catch(() => {});
+    }
   }
 }

@@ -1,7 +1,7 @@
 // app/dashboard.tsx — Phase 2 v2.11 Canonical Screen
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { View, Text, TouchableOpacity, Image, ScrollView, Modal, useWindowDimensions, BackHandler, Alert } from 'react-native';
+import { View, Text, TouchableOpacity, Image, ScrollView, Modal, BackHandler, Alert } from 'react-native';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { TwoToneWrapper } from '@/components/TwoToneWrapper'; 
 import { useSession } from '@/hooks/useSession';
@@ -18,7 +18,7 @@ import { COLORS } from '@/constants/theme';
 export default function Dashboard() {
   const router = useRouter();
   const { clearActiveFirm } = useFirmStore();
-  const { firm, activeFY, isLoading, bisLogoUri } = useSession();
+  const { firm, activeFY, isLoading, bisLogoUri, refreshSession } = useSession();
   
   const [showLogoutModal, setShowLogoutModal] = useState(false);
 
@@ -40,6 +40,13 @@ export default function Dashboard() {
       const subscription = BackHandler.addEventListener('hardwareBackPress', onBackPress);
       return () => subscription.remove();
     }, [])
+  );
+
+  // Re-verify session state whenever Dashboard regains focus
+  useFocusEffect(
+    useCallback(() => {
+      refreshSession?.();
+    }, [refreshSession])
   );
 
   const executeLogout = () => {
@@ -163,10 +170,12 @@ export default function Dashboard() {
           
           <ModernMenuTile 
             title="Inventory & Stock" 
-            subtitle="Phase 2 Layer" 
+            subtitle="Phase 2 Live" 
             icon={<Package size={24} color="#7C3AED" />} 
             iconBg="rgba(124, 58, 237, 0.12)"
             borderColor="rgba(124, 58, 237, 0.25)"
+            badgeText="LIVE"
+            badgeVariant="active"
             onPress={() => router.push('/inventory')} 
           />
 
@@ -176,7 +185,7 @@ export default function Dashboard() {
             icon={<FileText size={24} color="#059669" />} 
             iconBg="rgba(5, 150, 105, 0.12)"
             borderColor="rgba(5, 150, 105, 0.2)"
-            badgeText="PHASE 3 LAYER"
+            badgeText="PHASE 3"
             disabled 
           />
 
@@ -186,7 +195,7 @@ export default function Dashboard() {
             icon={<Landmark size={24} color="#D97706" />} 
             iconBg="rgba(217, 119, 6, 0.12)"
             borderColor="rgba(217, 119, 6, 0.2)"
-            badgeText="PHASE 4 LAYER"
+            badgeText="PHASE 4"
             disabled 
           />
 
@@ -196,7 +205,7 @@ export default function Dashboard() {
             icon={<TrendingUp size={24} color="#DB2777" />} 
             iconBg="rgba(219, 39, 119, 0.12)"
             borderColor="rgba(219, 39, 119, 0.2)"
-            badgeText="PHASE 6 LAYER"
+            badgeText="PHASE 6"
             disabled 
           />
         </View>
@@ -289,9 +298,9 @@ function ModernMenuTile({
           style={{ 
             height: 148, 
             marginBottom: 0, 
-            opacity: disabled ? 0.65 : 1,
-            borderColor: disabled ? 'rgba(255, 255, 255, 0.6)' : borderColor,
-            padding: 16
+            opacity: disabled ? 0.65 : 1, 
+            borderColor: disabled ? 'rgba(255, 255, 255, 0.6)' : borderColor, 
+            padding: 16 
           }}
         >
           <View className="h-full justify-between">

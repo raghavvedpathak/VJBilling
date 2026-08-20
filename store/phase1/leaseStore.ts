@@ -1,4 +1,4 @@
-// store/leaseStore.ts — Phase 2 v2.11 Canonical Store
+// store/phase1/leaseStore.ts — Phase 1 & 2 Canonical Lease Store
 
 import { create } from 'zustand';
 
@@ -8,7 +8,7 @@ export interface ActiveLease {
   acquiredAt: string; // ISO datetime string
 }
 
-interface LeaseState {
+export interface LeaseState {
   activeLease: ActiveLease | null;
   setActiveLease: (lease: ActiveLease | null) => void;
 }
@@ -18,3 +18,6 @@ export const useLeaseStore = create<LeaseState>()((set) => ({
   activeLease: null,
   setActiveLease: (lease) => set({ activeLease: lease }),
 }));
+
+export const leaseStore = useLeaseStore;
+export default useLeaseStore;

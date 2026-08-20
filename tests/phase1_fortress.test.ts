@@ -1,32 +1,32 @@
 // tests/phase1_fortress.test.ts
-// Phase 1 Integration Fortress Tests
+// Phase 1 Integration Fortress Tests (In-Memory SQLite with Drizzle ORM)
 
 // ─── MOCK db/client FIRST — before any other import ──────────────────────────
 // jest.mock() is hoisted to the top by Babel. To prevent out-of-scope errors,
 // all instantiation happens INSIDE the mock factory.
 
-jest.mock('../db/client', () => {
+jest.mock('@/db/client', () => {
   const Database = require('better-sqlite3');
   const { drizzle } = require('drizzle-orm/better-sqlite3');
 
-  // Use a shared memory cache so Drizzle transactions share the same instance
+  // Use a shared in-memory SQLite database instance
   const sqlite = new Database(':memory:');
   const dbInstance = drizzle(sqlite);
   
-  // Attach the raw client so our test suite can access it for DDL (CREATE TABLE)
+  // Attach the raw client so our test suite can execute DDL / raw SQL
   dbInstance.__rawClient = {
     execute: async (query: string) => {
       sqlite.exec(query);
-    }
+    },
   };
 
   return {
     db: dbInstance,
     expoDb: {
-      execSync: () => {},
-      runSync: () => {},
-      getFirstSync: () => ({ count: 0 }),
-      getAllSync: () => [],
+      execSync: (query: string) => sqlite.exec(query),
+      runSync: (query: string) => sqlite.prepare(query).run(),
+      getFirstSync: (query: string) => sqlite.prepare(query).get(),
+      getAllSync: (query: string) => sqlite.prepare(query).all(),
     },
     useDatabase: () => ({ isLoaded: true, error: null }),
   };
@@ -55,25 +55,39 @@ beforeAll(async () => {
     is_active INTEGER NOT NULL DEFAULT 0,
     reason TEXT, activated_at TEXT, cleared_at TEXT
   )`);
+
   await _rawClient.execute(`CREATE TABLE IF NOT EXISTS app_settings (
     id INTEGER PRIMARY KEY,
-    theme TEXT NOT NULL DEFAULT 'system',
-    audit_retention_days INTEGER NOT NULL DEFAULT 365,
+    theme TEXT NOT NULL DEFAULT 'saffron',
+    audit_retention_days INTEGER NOT NULL DEFAULT 30,
     currency TEXT NOT NULL DEFAULT 'INR',
-    currency_symbol TEXT NOT NULL DEFAULT '',
+    currency_symbol TEXT NOT NULL DEFAULT '₹',
     currency_decimal_places INTEGER NOT NULL DEFAULT 2,
     date_format_token TEXT NOT NULL DEFAULT 'dd/MM/yyyy',
     warn_unsaved_changes INTEGER NOT NULL DEFAULT 1,
+    audit_retention_last_run_at TEXT,
     updated_at TEXT NOT NULL DEFAULT ''
   )`);
+
   await _rawClient.execute(`CREATE TABLE IF NOT EXISTS schema_version (
     id INTEGER PRIMARY KEY,
     current_version INTEGER NOT NULL DEFAULT 1
   )`);
+
+  await _rawClient.execute(`CREATE TABLE IF NOT EXISTS audit_delete_gate (
+    id INTEGER PRIMARY KEY,
+    gate_open INTEGER NOT NULL DEFAULT 0
+  )`);
+
   await _rawClient.execute(`CREATE TABLE IF NOT EXISTS firms (
-    id TEXT PRIMARY KEY, name TEXT NOT NULL,
-    firm_code TEXT NOT NULL UNIQUE, proprietor TEXT NOT NULL,
-    gstin TEXT, bis_licence TEXT, bis_logo_ref TEXT, firm_logo_ref TEXT,
+    id TEXT PRIMARY KEY, 
+    name TEXT NOT NULL,
+    firm_code TEXT NOT NULL UNIQUE, 
+    proprietor TEXT NOT NULL,
+    gstin TEXT, 
+    bis_licence TEXT, 
+    bis_logo_ref TEXT, 
+    firm_logo_ref TEXT,
     address_line1 TEXT NOT NULL DEFAULT '',
     address_line2 TEXT,
     city TEXT NOT NULL DEFAULT '',
@@ -81,52 +95,83 @@ beforeAll(async () => {
     state_name TEXT NOT NULL DEFAULT 'Maharashtra',
     pincode TEXT NOT NULL DEFAULT '000000',
     phone1 TEXT NOT NULL DEFAULT '0000000000',
-    phone2 TEXT, phone3 TEXT,
+    phone2 TEXT, 
+    phone3 TEXT,
     is_archived INTEGER NOT NULL DEFAULT 0,
     is_active INTEGER NOT NULL DEFAULT 0,
-    created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+    created_at TEXT NOT NULL, 
+    updated_at TEXT NOT NULL
   )`);
+
   await _rawClient.execute(`CREATE TABLE IF NOT EXISTS financial_years (
-    id TEXT PRIMARY KEY, firm_id TEXT NOT NULL,
-    label TEXT NOT NULL, start_date TEXT NOT NULL,
+    id TEXT PRIMARY KEY, 
+    firm_id TEXT NOT NULL,
+    label TEXT NOT NULL, 
+    start_date TEXT NOT NULL,
     end_date TEXT NOT NULL,
     status TEXT NOT NULL DEFAULT 'ACTIVE',
     created_at TEXT NOT NULL
   )`);
+
   await _rawClient.execute(`CREATE TABLE IF NOT EXISTS writer_leases (
-    id TEXT PRIMARY KEY, lease_type TEXT NOT NULL,
-    firm_id TEXT, acquired_at TEXT NOT NULL,
-    expires_at TEXT NOT NULL, device_id TEXT NOT NULL
+    id TEXT PRIMARY KEY, 
+    lease_type TEXT NOT NULL,
+    firm_id TEXT, 
+    acquired_at TEXT NOT NULL,
+    expires_at TEXT NOT NULL, 
+    device_id TEXT NOT NULL
   )`);
+
   await _rawClient.execute(`CREATE TABLE IF NOT EXISTS audit_logs (
-    id TEXT PRIMARY KEY, event_type TEXT NOT NULL,
-    firm_id TEXT, entity_id TEXT,
-    device_id TEXT NOT NULL, payload TEXT,
-    created_at TEXT NOT NULL
-  )`);
-  await _rawClient.execute(`CREATE TABLE IF NOT EXISTS bis_logos (
-    id TEXT PRIMARY KEY, firm_id TEXT NOT NULL,
-    file_ref TEXT NOT NULL,
-    is_archived INTEGER NOT NULL DEFAULT 0,
-    archived_at TEXT, archived_reason TEXT,
+    id TEXT PRIMARY KEY, 
+    event_type TEXT NOT NULL,
+    firm_id TEXT, 
+    entity_id TEXT,
+    device_id TEXT NOT NULL, 
+    payload TEXT,
     created_at TEXT NOT NULL
   )`);
 
-  // Inject SQLite trigger so we can test Review Item 11 DB-level enforcement
+  await _rawClient.execute(`CREATE TABLE IF NOT EXISTS bis_logos (
+    id TEXT PRIMARY KEY, 
+    firm_id TEXT NOT NULL,
+    file_ref TEXT NOT NULL,
+    is_archived INTEGER NOT NULL DEFAULT 0,
+    archived_at TEXT, 
+    archived_reason TEXT,
+    created_at TEXT NOT NULL
+  )`);
+
+  // DB-level triggers
   await _rawClient.execute(`
     CREATE TRIGGER IF NOT EXISTS prevent_firm_code_update BEFORE UPDATE OF firm_code ON firms
     BEGIN SELECT RAISE(ABORT, 'FIRM_CODE_IMMUTABLE: firmCode cannot be changed after creation'); END;
   `);
 
+  await _rawClient.execute(`
+    CREATE TRIGGER IF NOT EXISTS prevent_audit_delete BEFORE DELETE ON audit_logs
+    BEGIN
+      SELECT RAISE(ABORT, 'AUDIT_LOG_IMMUTABLE: Direct deletion of audit logs is prohibited')
+      WHERE (SELECT gate_open FROM audit_delete_gate WHERE id = 1) = 0;
+    END;
+  `);
+
   await _rawClient.execute(`INSERT OR IGNORE INTO safe_mode_state (id, is_active) VALUES (1, 0)`);
   await _rawClient.execute(`INSERT OR IGNORE INTO schema_version (id, current_version) VALUES (1, 1)`);
   await _rawClient.execute(`INSERT OR IGNORE INTO app_settings (id, updated_at) VALUES (1, '')`);
+  await _rawClient.execute(`INSERT OR IGNORE INTO audit_delete_gate (id, gate_open) VALUES (1, 0)`);
 
   bootstrapComplete.value = true;
 });
 
 beforeEach(async () => {
+  const _rawClient = (db as any).__rawClient;
+  
+  // Unblock gate to clean audit logs between test runs
+  await _rawClient.execute(`UPDATE audit_delete_gate SET gate_open = 1 WHERE id = 1`);
   await db.delete(auditLogs);
+  await _rawClient.execute(`UPDATE audit_delete_gate SET gate_open = 0 WHERE id = 1`);
+
   await db.delete(financialYears);
   await db.delete(firms);
   await db.delete(writerLeases);

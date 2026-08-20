@@ -1,6 +1,7 @@
 // tests/backup_restore_reinstall.test.ts
+// Validates unpassworded backup decryption resilience across device ID resets & reinstalls.
 
-jest.mock('../db/client', () => {
+jest.mock('@/db/client', () => {
   const Database = require('better-sqlite3');
   const { drizzle } = require('drizzle-orm/better-sqlite3');
 
@@ -27,7 +28,7 @@ jest.mock('../db/client', () => {
 
 import { backupService } from '@/services/phase1/backupService';
 import { restoreService } from '@/services/phase1/restoreService';
-import { getDeviceId, getOrGenerateDeviceId } from '@/utils/deviceId';
+import { getOrGenerateDeviceId } from '@/utils/deviceId';
 import { storage } from '@/utils/storage';
 import { db } from '@/db/client';
 import { firms } from '@/db/schema';
@@ -40,7 +41,7 @@ beforeAll(async () => {
     id INTEGER PRIMARY KEY DEFAULT 1, is_active INTEGER NOT NULL DEFAULT 0, reason TEXT, activated_at TEXT, cleared_at TEXT
   )`);
   await _rawClient.execute(`CREATE TABLE IF NOT EXISTS app_settings (
-    id INTEGER PRIMARY KEY DEFAULT 1, theme TEXT NOT NULL DEFAULT 'system', audit_retention_days INTEGER NOT NULL DEFAULT 30, audit_retention_last_run_at TEXT, currency TEXT NOT NULL DEFAULT 'INR', currency_symbol TEXT NOT NULL DEFAULT '₹', currency_decimal_places INTEGER NOT NULL DEFAULT 2, date_format_token TEXT NOT NULL DEFAULT 'dd/MM/yyyy', warn_unsaved_changes INTEGER NOT NULL DEFAULT 1, updated_at TEXT NOT NULL DEFAULT ''
+    id INTEGER PRIMARY KEY DEFAULT 1, theme TEXT NOT NULL DEFAULT 'saffron', audit_retention_days INTEGER NOT NULL DEFAULT 30, audit_retention_last_run_at TEXT, currency TEXT NOT NULL DEFAULT 'INR', currency_symbol TEXT NOT NULL DEFAULT '₹', currency_decimal_places INTEGER NOT NULL DEFAULT 2, date_format_token TEXT NOT NULL DEFAULT 'dd/MM/yyyy', warn_unsaved_changes INTEGER NOT NULL DEFAULT 1, updated_at TEXT NOT NULL DEFAULT ''
   )`);
   await _rawClient.execute(`CREATE TABLE IF NOT EXISTS schema_version (
     id INTEGER PRIMARY KEY, current_version INTEGER NOT NULL DEFAULT 1
@@ -148,19 +149,19 @@ describe('Backup & Restore Reinstall Recovery', () => {
     expect(result.filePath).toBeDefined();
 
     // Read the created backup file content
-    const backupContent = await FileSystem.readAsStringAsync(result.filePath, { encoding: 'utf8' });
+    const backupContent = await FileSystem.readAsStringAsync(result.filePath, { encoding: 'utf8' as any });
     const envelope = JSON.parse(backupContent);
     expect(envelope.deviceId).toBe(deviceIdBefore);
     expect(envelope.passwordProtected).toBe(false);
 
     // 2. Simulate app data clear & reinstall by wiping MMKV device ID storage key
-    await storage.removeItem('vjbilling_device_id');
+    storage.delete('vjbilling_device_id');
 
     // Generate NEW device ID (simulating fresh reinstall)
     const deviceIdAfter = await getOrGenerateDeviceId();
     expect(deviceIdAfter).not.toBe(deviceIdBefore);
 
-    // 3. Restore backup using the new installation's context
+    // 3. Restore backup using the new installation's context (Cryptographic Candidate Chain)
     await expect(restoreService.restore(backupContent)).resolves.not.toThrow();
   });
 });

@@ -31,7 +31,7 @@ import { AlertTriangle, Download, LifeBuoy, Trash2 } from "lucide-react-native";
 
 import { ThemeProvider, DefaultTheme } from "@react-navigation/native";
 import { PinGate } from "@/components/PinGate";
-import { isPinSet, isPinSkipped } from "@/services/phase1/pinService";
+import { isPinSet } from "@/services/phase1/pinService";
 
 import { appSettingsStore } from "@/store/phase1/appSettingsStore";
 import { getThemeColors } from "@/constants/theme";
@@ -87,8 +87,8 @@ function RootBootloader({ colors }: { colors: any }) {
     const runSnapshot = async () => {
       await bootstrapService.takePreMigrationSnapshot();
       
-      // Evaluation Gate: If no PIN is configured but setup was explicitly skipped, bypass gate
-      if (!isPinSet() && isPinSkipped()) {
+      // If no PIN is configured, bypass the security gate immediately
+      if (!isPinSet()) {
         setPinVerified(true);
       }
       
@@ -97,9 +97,10 @@ function RootBootloader({ colors }: { colors: any }) {
     runSnapshot();
   }, []);
 
+  // 1. APP BOOTSTRAP ENGINE
   useEffect(() => {
-    if (!hasMounted) return; // Wait for layout Stack / NavigationContainer to mount
-    if (!pinVerified) return; // Hard Halt: Wait for explicit validation or skip authorization
+    if (!hasMounted) return; // Wait for NavigationContainer to mount
+    if (!pinVerified) return; // Halt until PIN is verified or bypassed
 
     if (dbError) {
       setDbMigrationError(dbError.message);
@@ -122,7 +123,7 @@ function RootBootloader({ colors }: { colors: any }) {
     runBootstrap();
   }, [isLoaded, dbError, pinVerified, hasMounted]);
 
-  // Navigate after bootstrap result is committed
+  // 2. TARGET ROUTING
   useEffect(() => {
     if (!hasMounted || !bootstrapResult) return;
 
@@ -273,6 +274,10 @@ function DatabaseErrorScreen({ title, message }: { title: string; message: strin
       const keySourceMaterial = await getDeviceDerivedKeyMaterial();
       
       const globalCrypto = (globalThis as any).crypto;
+      if (!globalCrypto?.subtle) {
+        throw new Error("WebCrypto Subtle API is unavailable on this device.");
+      }
+
       const keyMaterial = await globalCrypto.subtle.importKey('raw', keySourceMaterial as any, 'PBKDF2', false, ['deriveKey']);
       const key = await globalCrypto.subtle.deriveKey(
         { name: 'PBKDF2', salt: saltBytes, iterations: 100000, hash: 'SHA-256' },
@@ -297,7 +302,7 @@ function DatabaseErrorScreen({ title, message }: { title: string; message: strin
       await FileSystem.deleteAsync(tempPath, { idempotent: true });
 
     } catch (e: any) {
-      Alert.alert("Export Failed", "Could not decrypt the snapshot. Error: " + e.message);
+      Alert.alert("Export Failed", "Could not decrypt snapshot: " + e.message);
     } finally {
       setIsExporting(false);
     }
@@ -317,8 +322,14 @@ function DatabaseErrorScreen({ title, message }: { title: string; message: strin
       return;
     }
     try {
-      const dbFile = `${STORAGE_PATHS.RAW_DB_DIR}${STORAGE_PATHS.DB_FILENAME}`;
-      await FileSystem.deleteAsync(dbFile, { idempotent: true });
+      const dbBase = `${STORAGE_PATHS.RAW_DB_DIR}${STORAGE_PATHS.DB_FILENAME}`;
+      // Clean up primary DB and SQLite WAL/SHM journal files
+      await Promise.all([
+        FileSystem.deleteAsync(dbBase, { idempotent: true }),
+        FileSystem.deleteAsync(`${dbBase}-wal`, { idempotent: true }),
+        FileSystem.deleteAsync(`${dbBase}-shm`, { idempotent: true }),
+      ]);
+
       setShowResetModal(false);
       Alert.alert(
         "Reset Complete",

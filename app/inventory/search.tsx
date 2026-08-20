@@ -28,40 +28,41 @@ const HighlightText = memo(({ text, query, style }: { text?: string | null, quer
   const tokens = activeQuery.split(/\s+/).filter(Boolean);
   if (tokens.length === 0) return <Text style={style}>{text}</Text>;
 
-  const escapedTokens = tokens.map(t => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
-  const pattern = new RegExp(`(${escapedTokens.join('|')})`, 'gi');
-
+  let parts: string[] = [text];
   try {
-    const parts = text.split(pattern);
-    return (
-      <Text style={style}>
-        {parts.map((part, index) => {
-          const isMatch = tokens.some(t => t.toLowerCase() === part.toLowerCase());
-          return isMatch ? (
-            <Text 
-              key={index} 
-              style={[
-                style, 
-                { 
-                  backgroundColor: '#FDE047', 
-                  color: '#78350F', 
-                  fontWeight: '900', 
-                  borderRadius: 4, 
-                  paddingHorizontal: 2 
-                }
-              ]}
-            >
-              {part}
-            </Text>
-          ) : (
-            <Text key={index} style={style}>{part}</Text>
-          );
-        })}
-      </Text>
-    );
+    const escapedTokens = tokens.map(t => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+    const pattern = new RegExp(`(${escapedTokens.join('|')})`, 'gi');
+    parts = text.split(pattern);
   } catch {
-    return <Text style={style}>{text}</Text>;
+    parts = [text];
   }
+
+  return (
+    <Text style={style}>
+      {parts.map((part, index) => {
+        const isMatch = tokens.some(t => t.toLowerCase() === part.toLowerCase());
+        return isMatch ? (
+          <Text 
+            key={index} 
+            style={[
+              style, 
+              { 
+                backgroundColor: '#FDE047', 
+                color: '#78350F', 
+                fontWeight: '900', 
+                borderRadius: 4, 
+                paddingHorizontal: 2 
+              }
+            ]}
+          >
+            {part}
+          </Text>
+        ) : (
+          <Text key={index} style={style}>{part}</Text>
+        );
+      })}
+    </Text>
+  );
 });
 
 type SearchResultRowProps = {

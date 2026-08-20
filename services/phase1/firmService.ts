@@ -1,4 +1,4 @@
-// services/firmService.ts
+// services/phase1/firmService.ts
 // v2.8 FULL COMPLIANCE: Dual Guard Pattern (assertNoActiveLease + assertNotInSafeMode)
 // v7.0 G70: GSTIN + stateCode cross-validation, pincode validation
 // v6.6 BUG FIX: BIS logo archival on licence removal via UUID
@@ -33,6 +33,14 @@ function getDb(customTx?: any): DbOrTx {
   }
   const fallback = dbNamed || db;
   return (fallback as any)?.db ? (fallback as any).db : fallback;
+}
+
+function getSafeDeviceId(): string {
+  try {
+    return getDeviceId();
+  } catch {
+    return 'DEV-DEVICE-ID';
+  }
 }
 
 // ============================================================================
@@ -76,7 +84,7 @@ export const firmService = {
     const sanitizedAddressLine2 = input.addressLine2 ? sanitizeText(input.addressLine2) : input.addressLine2;
     const sanitizedBisLicence = input.bisLicence ? sanitizeText(input.bisLicence) : input.bisLicence;
 
-    const deviceId = await getDeviceId();
+    const deviceId = getSafeDeviceId();
     const currentYear = new Date().getFullYear();
     const hasClockSkew = currentYear < 2020 || currentYear > 2040;
     const targetDb = getDb();
@@ -167,7 +175,7 @@ export const firmService = {
     const leaseId = await leaseService.acquire('FIRM_EDIT', firmId);
 
     try {
-      const deviceId = await getDeviceId();
+      const deviceId = getSafeDeviceId();
       const existingFirm = firmRepository.getById(firmId);
       if (!existingFirm) throw new Error('FIRM_NOT_FOUND');
 
@@ -271,7 +279,7 @@ export const firmService = {
     const leaseId = await leaseService.acquire('SWITCH', firmId);
 
     try {
-      const deviceId = await getDeviceId();
+      const deviceId = getSafeDeviceId();
       const targetDb = getDb();
 
       await targetDb.transaction((tx: any) => {
@@ -304,7 +312,7 @@ export const firmService = {
     const leaseId = await leaseService.acquire('ARCHIVE', firmId);
 
     try {
-      const deviceId = await getDeviceId();
+      const deviceId = getSafeDeviceId();
       const targetDb = getDb();
 
       await targetDb.transaction((tx: any) => {
@@ -342,7 +350,7 @@ export const firmService = {
     const leaseId = await leaseService.acquire('ARCHIVE', firmId);
 
     try {
-      const deviceId = await getDeviceId();
+      const deviceId = getSafeDeviceId();
       const targetDb = getDb();
 
       await targetDb.transaction((tx: any) => {
@@ -380,3 +388,10 @@ export const firmService = {
     useFirmStore.getState().setFirms(allFirms);
   },
 };
+
+export const createFirm = firmService.createFirm.bind(firmService);
+export const updateFirm = firmService.updateFirm.bind(firmService);
+export const switchFirm = firmService.switchFirm.bind(firmService);
+export const archiveFirm = firmService.archiveFirm.bind(firmService);
+export const unarchiveFirm = firmService.unarchiveFirm.bind(firmService);
+export default firmService;

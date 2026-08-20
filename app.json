@@ -25,7 +25,8 @@
       "allowBackup": false,
       "permissions": [
         "CAMERA",
-        "READ_MEDIA_IMAGES"
+        "READ_MEDIA_IMAGES",
+        "READ_EXTERNAL_STORAGE"
       ]
     },
     "web": {
@@ -36,6 +37,15 @@
       "expo-font",
       "expo-sharing",
       "expo-sqlite",
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "minSdkVersion": 24,
+            "enableProguardInReleaseBuilds": true
+          }
+        }
+      ],
       [
         "expo-image-picker",
         {

@@ -5,7 +5,7 @@ const { withNativeWind } = require("nativewind/metro");
 
 const config = getDefaultConfig(__dirname);
 
-// Required: Allows Metro to recognize .sql files and pass them to Babel's inline-import plugin
+// Allows Metro to recognize .sql files and pass them to Babel's inline-import plugin
 if (!config.resolver.sourceExts.includes('sql')) {
   config.resolver.sourceExts.push('sql');
 }

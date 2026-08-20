@@ -1,14 +1,14 @@
-// app.d.ts
+/// <reference types="nativewind/types" />
+
 // Custom TypeScript declarations for VJ Billing
 
-// Fixes TypeScript Error 2882: Tells TS how to handle CSS imports for NativeWind v4
+// Tells TS how to handle direct CSS imports for NativeWind v4
 declare module '*.css' {
   const content: { [className: string]: string };
   export default content;
 }
 
-// Fixes TypeScript Error 2307: Fallback declarations for expo-print ambient module
-// Required for Phase 2 URD Purchase Bill HTML printing
+// Fallback declarations for expo-print ambient module (Phase 2 Printing Engine)
 declare module 'expo-print' {
   export interface PrintOptions {
     html: string;
@@ -18,5 +18,7 @@ declare module 'expo-print' {
     height?: number;
   }
   export function printAsync(options: PrintOptions): Promise<void>;
-  export function printToFileAsync(options: PrintOptions): Promise<{ uri: string; numberOfPages: number; base64?: string }>;
+  export function printToFileAsync(
+    options: PrintOptions
+  ): Promise<{ uri: string; numberOfPages: number; base64?: string }>;
 }

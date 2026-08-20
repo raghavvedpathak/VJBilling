@@ -7,20 +7,32 @@
 import { getDeviceId } from '@/utils/deviceId';
 import * as Crypto from 'expo-crypto';
 
-export async function getDeviceDerivedKeyMaterial(): Promise<Uint8Array> {
-  const deviceId = await getDeviceId();
+function hexToBytes(hex: string): Uint8Array {
+  const bytes = new Uint8Array(hex.length / 2);
+  for (let i = 0; i < hex.length; i += 2) {
+    bytes[i / 2] = parseInt(hex.substring(i, i + 2), 16);
+  }
+  return bytes;
+}
+
+/**
+ * Derives a consistent 32-byte Uint8Array from the Device ID (or provided overrideDeviceId)
+ * for raw key material in AES-256-GCM / PBKDF2 operations.
+ */
+export async function getDeviceDerivedKeyMaterial(overrideDeviceId?: string): Promise<Uint8Array> {
+  const deviceId = overrideDeviceId || getDeviceId();
+  const rawKeyString = 'vjbilling_device_key_v1:' + deviceId;
+
   if (typeof crypto !== 'undefined' && crypto?.subtle?.digest) {
     const enc = new TextEncoder();
-    const raw = await crypto.subtle.digest(
-      'SHA-256',
-      enc.encode('vjbilling_device_key_v1:' + deviceId)
-    );
+    const raw = await crypto.subtle.digest('SHA-256', enc.encode(rawKeyString));
     return new Uint8Array(raw);
   }
+
   const hexHash = await Crypto.digestStringAsync(
     Crypto.CryptoDigestAlgorithm.SHA256,
-    'vjbilling_device_key_v1:' + deviceId
+    rawKeyString
   );
-  const enc = new TextEncoder();
-  return enc.encode(hexHash);
+  
+  return hexToBytes(hexHash);
 }

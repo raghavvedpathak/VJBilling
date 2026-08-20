@@ -1,6 +1,6 @@
 // ================================================================
-// v7.24 FIX-V724-1 / v7.29 FIX-V729-1 & FIX-V729-2 — services/pinService.ts
-// CANONICAL IMPLEMENTATION (v7.35)
+// v7.24 FIX-V724-1 / v7.29 FIX-V729-1 & FIX-V729-2 / v7.33 FIX-V733-1
+// services/phase1/pinService.ts — CANONICAL IMPLEMENTATION (v7.38)
 // PIN gate runs BEFORE bootstrapDatabase(). On first boot: show PIN setup screen 
 // with a "Skip for now" option. If a PIN is set: show PIN entry screen on every 
 // subsequent boot (mandatory, no bypass once set). If skipped: proceed straight to 
@@ -23,45 +23,39 @@ const MAX_ATTEMPTS = 3;
 const BASE_LOCKOUT_MS = 30_000; // 30 seconds, doubles each subsequent lockout
 
 async function deriveKey(pin: string, saltHex: string): Promise<string> {
+  const enc = new TextEncoder();
+  // v7.33 FIX-V733-1: saltHex.match() null guard prevents raw TypeError on corrupted/tampered MMKV data
   const saltHexPairs = saltHex ? saltHex.match(/.{2}/g) : null;
   if (!saltHexPairs) {
     throw new Error(ERR.PIN_DATA_CORRUPTED + ': stored PIN salt is malformed');
   }
+  const saltBytes = new Uint8Array(saltHexPairs.map((h) => parseInt(h, 16)));
 
-  // 1. Native asynchronous hashing via expo-crypto (React Native iOS/Android - instant 0ms main-thread freeze)
-  if (typeof Crypto.digestStringAsync === 'function') {
-    let hash = `${saltHex}:${pin}:vjbilling_pin_secure_salt`;
-    for (let i = 0; i < 20; i++) {
-      hash = await Crypto.digestStringAsync(
-        Crypto.CryptoDigestAlgorithm.SHA256,
-        `${hash}:${saltHex}:${i}`
-      );
-    }
-    return hash;
-  }
-
-  // 2. Web Crypto API (Node.js Jest / modern Web environments)
+  // 1. Primary: Web Crypto API (Hermes / modern React Native / Node Jest)
   if (typeof crypto !== 'undefined' && crypto?.subtle?.importKey) {
     try {
-      const enc = new TextEncoder();
-      const saltBytes = new Uint8Array(saltHexPairs.map(h => parseInt(h, 16)));
       const km = await crypto.subtle.importKey('raw', enc.encode(pin), 'PBKDF2', false, ['deriveKey']);
       const key = await crypto.subtle.deriveKey(
-        { name: 'PBKDF2', salt: saltBytes, iterations: 1000, hash: 'SHA-256' },
-        km, { name: 'HMAC', hash: 'SHA-256', length: 256 }, true, ['sign']
+        { name: 'PBKDF2', salt: saltBytes, iterations: 100_000, hash: 'SHA-256' },
+        km,
+        { name: 'HMAC', hash: 'SHA-256', length: 256 },
+        true,
+        ['sign']
       );
       const raw = await crypto.subtle.exportKey('raw', key);
-      return Array.from(new Uint8Array(raw)).map(b => b.toString(16).padStart(2, '0')).join('');
-    } catch (e) {
-      // Fallback
+      return Array.from(new Uint8Array(raw))
+        .map((b) => b.toString(16).padStart(2, '0'))
+        .join('');
+    } catch {
+      // Fall through to CryptoJS fallback
     }
   }
 
-  // 3. Fallback for pure JS environments
+  // 2. Fallback: Pure JS CryptoJS PBKDF2 with identical 100,000 iterations
   const saltWA = CryptoJS.enc.Hex.parse(saltHex);
   const derived = CryptoJS.PBKDF2(pin, saltWA, {
     keySize: 256 / 32,
-    iterations: 1000,
+    iterations: 100_000,
     hasher: CryptoJS.algo.SHA256,
   });
   return derived.toString(CryptoJS.enc.Hex);
@@ -72,31 +66,39 @@ export function isPinSet(): boolean {
 }
 
 export async function setPin(pin: string): Promise<void> {
-  // v7.29 FIX-V729-2: PIN length is now user's choice — 4 digits or 6 digits — not fixed at 6.
+  // v7.29 FIX-V729-2: PIN length is user's choice — exactly 4 or 6 digits
   if (!/^\d{4}$/.test(pin) && !/^\d{6}$/.test(pin)) {
     throw new Error(ERR.PIN_INCORRECT + ': PIN must be exactly 4 or 6 digits');
   }
-  
-  const saltBytes = Crypto.getRandomBytes(16);
-  const saltHex = Array.from(saltBytes).map(b => b.toString(16).padStart(2, '0')).join('');
-  
+
+  let saltBytes: Uint8Array;
+  if (typeof crypto !== 'undefined' && crypto.getRandomValues) {
+    saltBytes = crypto.getRandomValues(new Uint8Array(16));
+  } else {
+    saltBytes = Crypto.getRandomBytes(16);
+  }
+
+  const saltHex = Array.from(saltBytes)
+    .map((b) => b.toString(16).padStart(2, '0'))
+    .join('');
+
   storage.set(PIN_HASH_KEY, await deriveKey(pin, saltHex));
   storage.set(PIN_SALT_KEY, saltHex);
   storage.set(PIN_LENGTH_KEY, String(pin.length)); // '4' or '6'
-  storage.delete(PIN_SKIPPED_KEY); // Safety: clear skipped flag if set
+  storage.delete(PIN_SKIPPED_KEY); // Setting a PIN always clears the skipped flag
 }
 
 export function getPinLength(): 4 | 6 {
   const len = storage.getString(PIN_LENGTH_KEY);
-  return len === '4' ? 4 : 6; // defaults to 6 if never set (pre-v7.29 installs, or unset)
+  return len === '4' ? 4 : 6; // Defaults to 6 if never set
 }
 
 export async function verifyPin(pin: string): Promise<boolean> {
   const storedHash = storage.getString(PIN_HASH_KEY);
   const storedSalt = storage.getString(PIN_SALT_KEY);
-  
+
   if (!storedHash || !storedSalt) return false;
-  
+
   return (await deriveKey(pin, storedSalt)) === storedHash;
 }
 
@@ -107,7 +109,7 @@ export function getFailedAttempts(): number {
 export function incrementFailedAttempts(): void {
   const attempts = getFailedAttempts() + 1;
   storage.set(PIN_FAILED_KEY, String(attempts));
-  
+
   if (attempts >= MAX_ATTEMPTS) {
     const ms = BASE_LOCKOUT_MS * Math.pow(2, Math.max(0, attempts - MAX_ATTEMPTS));
     storage.set(PIN_LOCKOUT_KEY, new Date(Date.now() + ms).toISOString());
@@ -136,19 +138,23 @@ export function setPinSkipped(): void {
   storage.set(PIN_SKIPPED_KEY, 'true');
 }
 
-export async function changePin(currentPin: string, newPin: string, alreadyVerified: boolean = false): Promise<void> {
+export async function changePin(
+  currentPin: string,
+  newPin: string,
+  alreadyVerified: boolean = false
+): Promise<void> {
   if (!alreadyVerified) {
     const ok = await verifyPin(currentPin);
     if (!ok) throw new Error(ERR.PIN_INCORRECT + ': current PIN is incorrect');
   }
-  
-  // v7.29 FIX-V729-2: new PIN may be 4 or 6 digits, independent of the old PIN's length.
+
+  // v7.29 FIX-V729-2: new PIN may be 4 or 6 digits, independent of old PIN length
   if (!/^\d{4}$/.test(newPin) && !/^\d{6}$/.test(newPin)) {
     throw new Error(ERR.PIN_INCORRECT + ': PIN must be exactly 4 or 6 digits');
   }
-  
+
   await setPin(newPin);
-  storage.delete(PIN_SKIPPED_KEY); // setting/changing a PIN always clears the skipped flag
+  storage.delete(PIN_SKIPPED_KEY);
 }
 
 export async function removePin(currentPin?: string, alreadyVerified: boolean = false): Promise<void> {
@@ -157,7 +163,7 @@ export async function removePin(currentPin?: string, alreadyVerified: boolean = 
     const ok = await verifyPin(currentPin);
     if (!ok) throw new Error(ERR.PIN_INCORRECT + ': current PIN is incorrect');
   }
-  
+
   storage.delete(PIN_HASH_KEY);
   storage.delete(PIN_SALT_KEY);
   storage.delete(PIN_LENGTH_KEY);

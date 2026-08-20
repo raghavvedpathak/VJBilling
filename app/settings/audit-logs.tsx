@@ -9,6 +9,7 @@ import { auditRepository } from '@/repositories/phase1/auditRepository';
 import { useFirmStore } from '@/store/phase1/useFirmStore';
 import { appSettingsStore } from '@/store/phase1/appSettingsStore';
 import { getDeviceId } from '@/utils/deviceId';
+import { formatRupees } from '@/utils/currency';
 import { 
   FileText, Smartphone, Calendar, ChevronDown, ChevronUp, Share2, Filter, 
   CalendarClock, ShieldAlert, Building2, 
@@ -95,8 +96,8 @@ const formatWeightMg = (mg?: number): string => {
 };
 
 const formatCurrencyPaise = (paise?: number): string => {
-  if (paise === undefined || paise === null || isNaN(paise)) return '₹0.00';
-  return `₹${(paise / 100).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  if (paise === undefined || paise === null || isNaN(paise)) return formatRupees(0);
+  return formatRupees(paise / 100);
 };
 
 const formatIsoDateTime = (isoStr?: string): string => {
@@ -431,7 +432,6 @@ const AuditLogItem = memo(({
               </Text>
             </View>
 
-            {/* Key-Value Details */}
             {detailEntries.length > 0 && (
               <View className="bg-white/60 p-3 rounded-2xl border border-white/80 mb-3">
                 <Text className="text-vj-text/40 font-bold text-[10px] uppercase tracking-widest mb-2 px-1">
@@ -636,7 +636,7 @@ function FilterChip({ label, active, onPress }: { label: string; active: boolean
         { paddingHorizontal: 14, paddingVertical: 6, borderRadius: 999, borderWidth: 1 },
         active 
           ? { backgroundColor: COLORS.vjText, borderColor: COLORS.vjText } 
-          : { backgroundColor: 'rgba(255, 255, 255, 0.8)', borderColor: COLORS.border }
+          : { backgroundColor: 'rgba(255, 255, 255, 0.8)', borderColor: 'rgba(42, 18, 8, 0.15)' }
       ]}
     >
       <Text style={[

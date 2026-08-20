@@ -1,4 +1,4 @@
-// services/phase1/fyService.ts — Phase 2 v2.11 Canonical Service
+// services/phase1/fyService.ts — Phase 1 & 2 Canonical Financial Year Service
 
 import db, { db as dbNamed } from '@/db/client';
 import { eq, and, lte, gte, sql } from 'drizzle-orm';
@@ -26,6 +26,14 @@ function getDb(customTx?: any): DbOrTx {
   }
   const fallback = dbNamed || db;
   return (fallback as any)?.db ? (fallback as any).db : fallback;
+}
+
+function getSafeDeviceId(): string {
+  try {
+    return getDeviceId();
+  } catch {
+    return 'DEV-DEVICE-ID';
+  }
 }
 
 // Hooks must be strictly synchronous to execute safely inside the JSI transaction boundary
@@ -91,7 +99,7 @@ export async function closeFY(fyId: string, firmId: string): Promise<void> {
       throw new Error(ERR.FY_CLOSE_BLOCKED_CRITICAL_VERIFY);
     }
 
-    const deviceId = await getDeviceId();
+    const deviceId = getSafeDeviceId();
     const targetDb = getDb();
 
     targetDb.transaction((tx: any) => {
@@ -217,3 +225,4 @@ export const fyService = {
   preCloseChecks,
   registerFYCloseHook,
 };
+export default fyService;

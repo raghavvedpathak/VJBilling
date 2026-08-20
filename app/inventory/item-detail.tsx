@@ -1007,7 +1007,7 @@ export default function ItemDetailScreen() {
               <View style={s.detailRow}>
                 <View style={s.detailLabelRow}>
                   <Coins size={14} color={COLORS.vjAccent} />
-                  <Text style={s.detailLabel}>Purchase Rate (₹/g)</Text>
+                  <Text style={s.detailLabel}>{`Purchase Rate (${getCurrencySymbol()}/g)`}</Text>
                 </View>
                 {isEditing ? (
                   <TextInput
@@ -1027,7 +1027,7 @@ export default function ItemDetailScreen() {
               <View style={s.detailRow}>
                 <View style={s.detailLabelRow}>
                   <Coins size={14} color={COLORS.vjAccent} />
-                  <Text style={s.detailLabel}>Making Charges (₹)</Text>
+                  <Text style={s.detailLabel}>{`Making Charges (${getCurrencySymbol()})`}</Text>
                 </View>
                 {isEditing ? (
                   <TextInput
@@ -1047,7 +1047,7 @@ export default function ItemDetailScreen() {
               <View style={s.detailRow}>
                 <View style={s.detailLabelRow}>
                   <Gem size={14} color={COLORS.vjAccent} />
-                  <Text style={s.detailLabel}>Stone Cost (₹)</Text>
+                  <Text style={s.detailLabel}>{`Stone Cost (${getCurrencySymbol()})`}</Text>
                 </View>
                 {isEditing ? (
                   <TextInput

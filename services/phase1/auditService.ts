@@ -1,10 +1,11 @@
-// services/phase1/auditService.ts — Phase 2 v2.11 Canonical Service
+// services/phase1/auditService.ts — Phase 1 & 2 Canonical Audit Service
 
 import { auditRepository } from '@/repositories/phase1/auditRepository';
 import { getDeviceId } from '@/utils/deviceId';
 import type { AuditPayload } from '@/types/phase1/audit';
 
 export type AuditEventType =
+  // --- Phase 1 Canonical Event Types (All 22 Events) ---
   | 'FIRM_CREATED'
   | 'FIRM_UPDATED'
   | 'FIRM_SWITCHED'
@@ -21,10 +22,18 @@ export type AuditEventType =
   | 'SAFE_MODE_ACTIVATED'
   | 'SAFE_MODE_CLEARED'
   | 'DEVICE_ID_GENERATED'
+  | 'DEVICE_ID_CHANGED'
+  | 'FACTORY_RESET_EXECUTED'
+  | 'PIN_SET'
+  | 'PIN_CHANGED'
+  | 'PIN_SKIPPED'
+  | 'PRE_MIGRATION_SNAPSHOT_CREATED'
   | 'PRE_MIGRATION_SNAPSHOT_FAILED'
+  | 'PRE_MIGRATION_SNAPSHOT_PURGED'
   | 'BIS_LOGO_ARCHIVED'
   | 'SETTINGS_CHANGED'
   | 'AUDIT_RETENTION_PURGE_EXECUTED'
+  // --- Phase 2 Event Types ---
   | 'URD_PURCHASE_CREATED'
   | 'URD_PURCHASE_CONFIRMED'
   | 'CATEGORY_CREATED'
@@ -52,6 +61,14 @@ export type AuditEventType =
   | 'ITEM_SENT_TO_KARIGAR'
   | 'ITEM_RETURNED_FROM_KARIGAR';
 
+function getSafeDeviceId(): string {
+  try {
+    return getDeviceId();
+  } catch {
+    return 'DEV-DEVICE-ID';
+  }
+}
+
 export const auditService = {
   /**
    * Logs a critical system event.
@@ -65,15 +82,29 @@ export const auditService = {
     payload: object,
     deviceIdOverride?: string
   ) {
-    const deviceId = deviceIdOverride || await getDeviceId();
+    const deviceId = deviceIdOverride || getSafeDeviceId();
     const activeTx = tx || undefined;
 
-    auditRepository.create({
-      firmId,
-      eventType: eventType as string,
-      payload: typeof payload === 'string' ? JSON.parse(payload) : payload,
-      deviceId,
-    }, activeTx);
+    const payloadObj = typeof payload === 'string' ? JSON.parse(payload) : payload;
+
+    if (typeof (auditRepository as any).log === 'function') {
+      (auditRepository as any).log(activeTx ?? null, {
+        firmId,
+        eventType: eventType as string,
+        payload: JSON.stringify(payloadObj),
+        deviceId,
+      });
+    } else {
+      auditRepository.create(
+        {
+          firmId,
+          eventType: eventType as string,
+          payload: JSON.stringify(payloadObj),
+          deviceId,
+        },
+        activeTx
+      );
+    }
   },
 
   /**
@@ -92,3 +123,5 @@ export const auditService = {
     );
   },
 };
+
+export default auditService;

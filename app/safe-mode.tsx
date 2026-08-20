@@ -22,8 +22,7 @@ export default function SafeModeScreen() {
 
   const [retrying, setRetrying] = useState(false);
 
-  // RETRY — Runs the full bootstrap sequence again.
-  // PATH 1: verifyService clears Safe Mode if the system is HEALTHY during initApp().
+  // RETRY — Runs full bootstrap verification sequence.
   const handleRetry = async () => {
     try {
       setRetrying(true);
@@ -40,7 +39,7 @@ export default function SafeModeScreen() {
         case 'SAFE_MODE':
           Alert.alert(
             'Still Unsafe',
-            'The system detected the same integrity issues. Retry failed.'
+            'The system detected the same integrity issues. Safe Mode remains active.'
           );
           break;
         case 'DATABASE_ERROR':
@@ -52,6 +51,21 @@ export default function SafeModeScreen() {
     } finally {
       setRetrying(false);
     }
+  };
+
+  const handleRestoreFromBackup = () => {
+    Alert.alert(
+      'Emergency Restore',
+      'Would you like to open the Restore from Backup tool to recover your store database?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Open Recovery Tool',
+          style: 'destructive',
+          onPress: () => router.push('/welcome'),
+        },
+      ]
+    );
   };
 
   return (
@@ -74,23 +88,23 @@ export default function SafeModeScreen() {
           Safe Mode Active
         </Text>
         <Text className="text-vj-danger/80 text-center font-bold mb-6">
-          System integrity compromised.
+          System integrity protection triggered. Read-only gate engaged.
         </Text>
 
         {/* DIAGNOSTICS */}
         <GlassCard>
-          <Text className="text-gray-400 text-xs font-bold uppercase tracking-widest mb-2">
+          <Text className="text-gray-500 text-xs font-bold uppercase tracking-widest mb-2">
             Diagnostic Report
           </Text>
-          <View className="flex-row justify-between mb-2">
-            <Text className="text-gray-300">Error Code:</Text>
+          <View className="flex-row justify-between items-center mb-2">
+            <Text className="text-gray-700 font-medium">Error Code:</Text>
             <Text className="text-vj-danger font-mono font-bold">
               {reason || 'UNKNOWN_ERROR'}
             </Text>
           </View>
-          <View className="flex-row justify-between">
-            <Text className="text-gray-400">Timestamp:</Text>
-            <Text className="text-gray-400 font-mono text-xs">
+          <View className="flex-row justify-between items-center">
+            <Text className="text-gray-500">Timestamp:</Text>
+            <Text className="text-gray-500 font-mono text-xs">
               {activatedAt ? new Date(activatedAt).toLocaleString() : 'N/A'}
             </Text>
           </View>
@@ -107,13 +121,8 @@ export default function SafeModeScreen() {
           />
 
           <GlassButton
-            title="Restore Backup"
-            onPress={() =>
-              Alert.alert(
-                'Manual Restore',
-                'To restore a healthy backup, please reinstall the app to access the "Restore from Backup" option on the welcome screen.'
-              )
-            }
+            title="Restore from Backup"
+            onPress={handleRestoreFromBackup}
             variant="secondary"
             icon={<HardDriveUpload size={20} color="#ef4444" />}
           />

@@ -1,4 +1,7 @@
-import { validateGSTIN } from '../../utils/validateGSTIN';
+// tests/utils/validateGSTIN.test.ts
+// GSTIN Luhn Mod-36 Validation Unit Test Suite
+
+import { validateGSTIN } from '@/utils/validateGSTIN';
 
 /**
  * GSTIN LUHN MOD-36 ALGORITHM - WORKED EXAMPLE (AUDITABLE REFERENCE)
@@ -31,7 +34,7 @@ import { validateGSTIN } from '../../utils/validateGSTIN';
  * Modulo Math: 221 mod 36 = 5.
  * Expected Check Digit Index = (36 - 5) mod 36 = 31.
  * Char at index 31 = "V".
- * Character 15 is V -> ✓ VALID.
+ * Character 15 is V -> Valid.
  */
 
 describe('validateGSTIN', () => {
@@ -40,7 +43,6 @@ describe('validateGSTIN', () => {
   });
 
   it('throws INVALID_GSTIN: checksum mismatch for mutated last character', () => {
-    // Changed 'V' to 'X'
     expect(() => validateGSTIN('27AAPFU0939F1ZX')).toThrow('INVALID_GSTIN: checksum mismatch');
   });
 
@@ -50,20 +52,14 @@ describe('validateGSTIN', () => {
   });
 
   it('throws INVALID_GSTIN: invalid state code', () => {
-    // FIX: '99' IS a valid state code ('Centre Jurisdiction') in INDIAN_STATES —
-    // using it here would NOT throw and the test would fail.
-    // '25' was Daman & Diu (merged into code 26 in 2020) and is NOT present
-    // in VALID_STATE_CODE_SET — this is the correct input for this test.
     expect(() => validateGSTIN('25AAPFU0939F1ZV')).toThrow('INVALID_GSTIN: invalid state code');
   });
 
   it('throws INVALID_GSTIN: invalid PAN segment', () => {
-    // PAN must match [A-Z]{5}[0-9]{4}[A-Z]{1}. Mutating to AAPF00939F (digit in pos 5).
     expect(() => validateGSTIN('27AAPF00939F1ZV')).toThrow('INVALID_GSTIN: invalid PAN segment');
   });
 
   it('throws INVALID_GSTIN: character 14 must be Z', () => {
-    // Mutating 14th char 'Z' to 'Y'
     expect(() => validateGSTIN('27AAPFU0939F1YV')).toThrow('INVALID_GSTIN: character 14 must be Z');
   });
 });

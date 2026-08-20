@@ -1,8 +1,8 @@
 // app/welcome.tsx — Phase 2 v2.11 Canonical Welcome Screen
 
-import React, { useEffect, useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import { View, Text, ActivityIndicator, Alert, Image, ScrollView } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
 import * as FileSystem from 'expo-file-system/legacy';
 import { TwoToneWrapper } from '@/components/TwoToneWrapper';
 import { GlassCard, GlassButton } from '@/components/ui/Glass';
@@ -31,31 +31,46 @@ export default function WelcomeScreen() {
   const [previewBackup, setPreviewBackup] = useState<BackupEnvelope | null>(null);
   const [previewFileContent, setPreviewFileContent] = useState<string | null>(null);
 
-  useEffect(() => {
-    const initWelcome = async () => {
-      try {
-        const allFirms = firmRepository.getAll();
-        const activeFirms = allFirms.filter(f => !f.isArchived);
-        setExistingFirms(activeFirms);
-        setFirms(allFirms);
+  // Refresh active firms and backup file detection every time screen gains focus
+  useFocusEffect(
+    useCallback(() => {
+      let isMounted = true;
 
-        const fsAny = FileSystem as any;
-        const dir = fsAny.documentDirectory ?? fsAny.cacheDirectory ?? '';
-        if (dir) {
-          const files = await FileSystem.readDirectoryAsync(dir);
-          const vjbFiles = files.filter(f => f.endsWith('.vjb'));
-          if (vjbFiles.length > 0) {
-            setHasBackup(true);
+      const loadWelcomeData = async () => {
+        try {
+          const allFirms = firmRepository.getAll();
+          const activeFirms = allFirms.filter((f) => !f.isArchived);
+          
+          if (isMounted) {
+            setExistingFirms(activeFirms);
+            setFirms(allFirms);
+          }
+
+          const fsAny = FileSystem as any;
+          const baseDir = fsAny.documentDirectory ?? fsAny.cacheDirectory ?? '';
+          if (baseDir) {
+            const files = await FileSystem.readDirectoryAsync(baseDir);
+            const vjbFiles = files.filter((f) => f.endsWith('.vjb'));
+            if (isMounted) {
+              setHasBackup(vjbFiles.length > 0);
+            }
+          }
+        } catch (error) {
+          console.error('[Welcome] Focus initialization error:', error);
+        } finally {
+          if (isMounted) {
+            setIsScanning(false);
           }
         }
-      } catch (error) {
-        console.error("[Welcome] Boot initialization error:", error);
-      } finally {
-        setIsScanning(false);
-      }
-    };
-    initWelcome();
-  }, []);
+      };
+
+      loadWelcomeData();
+
+      return () => {
+        isMounted = false;
+      };
+    }, [setFirms])
+  );
 
   const handleEnterFirm = async (firmId: string) => {
     try {
@@ -79,7 +94,7 @@ export default function WelcomeScreen() {
       setPreviewFileContent(result.fileContent);
       setPreviewModalVisible(true);
     } catch (error: any) {
-      Alert.alert("Invalid Backup File", error.message || "Failed to parse backup file.");
+      Alert.alert('Invalid Backup File', error.message || 'Failed to parse backup file.');
     }
   };
 
@@ -90,11 +105,11 @@ export default function WelcomeScreen() {
       await restoreService.restore(previewFileContent, password);
       await refreshSession();
       setPreviewModalVisible(false);
-      Alert.alert("Welcome Back", "Database restored successfully.");
+      Alert.alert('Welcome Back', 'Database restored successfully.');
       try { router.dismissAll(); } catch {}
       router.replace('/dashboard');
     } catch (error: any) {
-      Alert.alert("Restore Failed", error.message);
+      Alert.alert('Restore Failed', error.message);
     } finally {
       setRestoring(false);
     }
@@ -113,7 +128,6 @@ export default function WelcomeScreen() {
     );
   }
 
-  // Smooth Clean Hero Header
   const welcomeHeader = (
     <View className="items-center pb-3 pt-2">
       <View className="bg-white/15 p-4 rounded-full mb-3 border border-white/20 shadow-sm items-center justify-center">
@@ -140,8 +154,7 @@ export default function WelcomeScreen() {
         contentContainerStyle={{ paddingHorizontal: 8, paddingTop: 16, paddingBottom: 60, flexGrow: 1, justifyContent: 'center' }}
         className="w-full max-w-md self-center"
       >
-        
-        {/* TOP FULL-WIDTH CARD: ACTIVE STORE WORKSPACE */}
+        {/* ACTIVE STORE WORKSPACE */}
         {existingFirms.length > 0 && (
           <GlassCard 
             style={{ 
@@ -192,9 +205,8 @@ export default function WelcomeScreen() {
           </GlassCard>
         )}
 
-        {/* SIDE-BY-SIDE COMPACT CARDS: ESTABLISH NEW FIRM & RESTORE BACKUP */}
+        {/* CREATE FIRM & RESTORE BACKUP */}
         <View className="flex-row justify-between items-stretch w-full gap-3">
-          
           {/* Left Card: Establish New Firm */}
           <View className="flex-1">
             <GlassCard style={{ marginBottom: 0 }}>
@@ -263,9 +275,7 @@ export default function WelcomeScreen() {
               </View>
             </GlassCard>
           </View>
-
         </View>
-
       </ScrollView>
 
       {/* Modern Restore Preview Modal */}

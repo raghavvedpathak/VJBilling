@@ -1,7 +1,7 @@
 // app/settings/close-fy.tsx — Phase 2 v2.11 Canonical Screen
 
 import React, { useState, useEffect } from 'react';
-import { View, Text, ScrollView, StyleSheet, ActivityIndicator, Alert, TextInput } from 'react-native';
+import { View, Text, StyleSheet, ActivityIndicator, Alert, TextInput } from 'react-native';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import { useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
@@ -69,7 +69,7 @@ export default function CloseFYWizard() {
 
   const handleCloseFY = async () => {
     try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); } catch (e) {}
-    if (confirmText !== 'CLOSE') {
+    if (confirmText.trim() !== 'CLOSE') {
       Alert.alert('Validation Error', 'Please type CLOSE exactly as shown to proceed.');
       return;
     }
@@ -115,7 +115,7 @@ export default function CloseFYWizard() {
           <ActivityIndicator size="small" color={COLORS.vjAccent} style={{ marginVertical: 20 }} />
         ) : issues.length === 0 ? (
           <View style={s.successBox}>
-            <CheckCircle2 size={24} color={COLORS.success} />
+            <CheckCircle2 size={24} color="#15803d" />
             <Text style={s.successText}>All checks passed. Ready to close.</Text>
           </View>
         ) : (
@@ -124,9 +124,9 @@ export default function CloseFYWizard() {
             {issues.map((i, idx) => (
               <View key={idx} style={s.issueRow}>
                 {i.severity === 'CRITICAL' ? (
-                  <ShieldAlert size={16} color={COLORS.danger} />
+                  <ShieldAlert size={16} color="#ef4444" />
                 ) : (
-                  <AlertTriangle size={16} color={COLORS.warning} />
+                  <AlertTriangle size={16} color="#D97706" />
                 )}
                 <View style={{ flex: 1 }}>
                   <Text style={s.issueCode}>{i.code}</Text>
@@ -171,13 +171,13 @@ export default function CloseFYWizard() {
   const renderStep3 = () => (
     <View>
       <View style={s.headerBox}>
-        <AlertTriangle size={32} color={COLORS.danger} />
-        <Text style={[s.headerTitle, { color: COLORS.danger }]}>Step 3: Point of No Return</Text>
+        <AlertTriangle size={32} color="#ef4444" />
+        <Text style={[s.headerTitle, { color: '#ef4444' }]}>Step 3: Point of No Return</Text>
         <Text style={s.headerDesc}>You are about to permanently lock {activeFY?.label}. This action cannot be undone. Backup saved at: {backupPathInfo}.</Text>
       </View>
 
       <GlassCard style={{ padding: 20, marginBottom: 24, borderColor: 'rgba(239,68,68,0.3)', backgroundColor: 'rgba(239,68,68,0.05)' }}>
-        <Text style={{ fontSize: 13, fontWeight: '700', color: COLORS.danger, textTransform: 'uppercase', marginBottom: 12 }}>
+        <Text style={{ fontSize: 13, fontWeight: '700', color: '#ef4444', textTransform: 'uppercase', marginBottom: 12 }}>
           Type CLOSE to confirm
         </Text>
         <TextInput 
@@ -192,7 +192,7 @@ export default function CloseFYWizard() {
       <GlassButton 
         title={isClosing ? "Locking Year..." : `Close ${activeFY.label} Permanently`} 
         onPress={handleCloseFY} 
-        disabled={confirmText !== 'CLOSE' || isClosing} 
+        disabled={confirmText.trim() !== 'CLOSE' || isClosing} 
         variant="danger"
       />
     </View>
@@ -200,7 +200,7 @@ export default function CloseFYWizard() {
 
   const renderStep4 = () => (
     <View style={s.centerBox}>
-      <CheckCircle2 size={64} color={COLORS.success} style={{ marginBottom: 16 }} />
+      <CheckCircle2 size={64} color="#15803d" style={{ marginBottom: 16 }} />
       <Text style={s.emptyTitle}>Year Closed Successfully</Text>
       <Text style={[s.emptySub, { marginBottom: 32 }]}>
         {activeFY.label} has been locked and audit logs have been successfully indexed and purged per retention rules.
@@ -249,7 +249,7 @@ const s = StyleSheet.create({
   stepper: { flexDirection: 'row', justifyContent: 'center', gap: 16, marginBottom: 32, marginTop: 16 },
   stepDot: { width: 32, height: 32, borderRadius: 16, backgroundColor: 'rgba(92,22,35,0.1)', justifyContent: 'center', alignItems: 'center' },
   stepDotActive: { backgroundColor: COLORS.vjAccent },
-  stepDotSuccess: { backgroundColor: COLORS.success },
+  stepDotSuccess: { backgroundColor: '#15803d' },
   stepText: { color: 'rgba(92,22,35,0.4)', fontWeight: '800', fontSize: 14 },
   stepTextActive: { color: '#fff' },
 
@@ -258,12 +258,12 @@ const s = StyleSheet.create({
   headerDesc: { fontSize: 13, color: 'rgba(92,22,35,0.6)', textAlign: 'center', lineHeight: 20 },
 
   successBox: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 16, backgroundColor: 'rgba(16,185,129,0.1)', borderRadius: 12 },
-  successText: { fontSize: 14, fontWeight: '700', color: COLORS.success },
+  successText: { fontSize: 14, fontWeight: '700', color: '#15803d' },
 
   issueWarningTitle: { fontSize: 13, fontWeight: '800', color: COLORS.vjText, marginBottom: 16, textTransform: 'uppercase' },
   issueRow: { flexDirection: 'row', gap: 12, marginBottom: 16, borderBottomWidth: 1, borderBottomColor: 'rgba(92,22,35,0.05)', paddingBottom: 16 },
   issueCode: { fontSize: 12, fontWeight: '800', color: COLORS.vjText, marginBottom: 2, fontFamily: 'monospace' },
   issueMessage: { fontSize: 13, color: 'rgba(92,22,35,0.6)', lineHeight: 18 },
 
-  confirmInput: { backgroundColor: '#fff', borderRadius: 12, padding: 16, fontSize: 18, fontWeight: '800', color: COLORS.danger, borderWidth: 1, borderColor: 'rgba(239,68,68,0.2)', textAlign: 'center' },
+  confirmInput: { backgroundColor: '#fff', borderRadius: 12, padding: 16, fontSize: 18, fontWeight: '800', color: '#ef4444', borderWidth: 1, borderColor: 'rgba(239,68,68,0.2)', textAlign: 'center' },
 });

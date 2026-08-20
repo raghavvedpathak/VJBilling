@@ -1,4 +1,11 @@
-// services/phase1/settingsService.ts — Phase 2 v2.11 Canonical Implementation
+// services/phase1/settingsService.ts — Phase 1 & 2 Canonical Settings Service
+// v6.4 BLOCKER C: updateSettings() canonical implementation
+// v6.7 / v6.8 / v6.9: Dual Guard + SETTINGS_CHANGED audit + CURRENCY_IMMUTABLE guard
+//
+// CONSTITUTIONAL RULES:
+//   - updateSettings() MUST begin with Dual Guard (assertNoActiveLease + assertNotInSafeMode).
+//   - Currency fields are read-only and immutable (G67).
+//   - appSettingsStore.setState() MUST run AFTER db.transaction() commits (SETSTATE-OUTSIDE-TX).
 
 import { db } from '@/db/client';
 import { appSettings } from '@/db/schema';
@@ -12,6 +19,14 @@ import { appSettingsStore } from '@/store/phase1/appSettingsStore';
 import { ERR } from '@/constants/errorCodes';
 import type { UpdateSettingsInput } from '@/types/phase1/settings'; 
 
+function getSafeDeviceId(): string {
+  try {
+    return getDeviceId();
+  } catch {
+    return 'DEV-DEVICE-ID';
+  }
+}
+
 export const settingsService = {
   async getSettings() {
     const results = await db.select().from(appSettings).where(eq(appSettings.id, 1));
@@ -22,16 +37,16 @@ export const settingsService = {
       id: 1,
       dateFormatToken: 'dd/MM/yyyy',
       warnUnsavedChanges: 1,
-      theme: 'saffron',
+      theme: 'system',
       auditRetentionDays: 30,
-      currency: ['I', 'N', 'R'].join(''), 
-      currencySymbol: String.fromCharCode(8377),
+      currency: 'INR',
+      currencySymbol: '₹',
       currencyDecimalPlaces: 2,
       updatedAt: '',
     };
   },
 
-  async updateSettings(input: UpdateSettingsInput) {
+  async updateSettings(input: UpdateSettingsInput): Promise<void> {
     await leaseService.assertNoActiveLease(); // GUARD 1
     safeModeService.assertNotInSafeMode();    // GUARD 2
 
@@ -39,7 +54,7 @@ export const settingsService = {
       throw new Error('CURRENCY_IMMUTABLE: currency fields are read-only constitutional rules (G67)');
     }
 
-    const deviceId = await getDeviceId();
+    const deviceId = getSafeDeviceId();
     const existing = appSettingsStore.getState();
     const updated = { ...existing, ...input, updatedAt: now() };
 
@@ -56,7 +71,6 @@ export const settingsService = {
         firmId: null,
         deviceId,
         payload: JSON.stringify({
-          eventType: 'SETTINGS_CHANGED',
           fields: Object.keys(input),
           oldValues: Object.fromEntries(Object.keys(input).map(k => [k, (existing as any)[k]])),
           newValues: input,
@@ -64,6 +78,11 @@ export const settingsService = {
       });
     });
 
+    // SETSTATE-OUTSIDE-TX COROLLARY: updates store strictly after tx commits
     appSettingsStore.setState(updated as any);
   },
 };
+
+export const updateSettings = settingsService.updateSettings.bind(settingsService);
+export const getSettings = settingsService.getSettings.bind(settingsService);
+export default settingsService;

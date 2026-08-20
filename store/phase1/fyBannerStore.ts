@@ -1,8 +1,8 @@
-// store/fyBannerStore.ts — Phase 2 v2.11 Canonical Store
+// store/phase1/fyBannerStore.ts — Phase 1 & 2 Canonical FY Banner Store
 
 import { create } from 'zustand';
 
-interface FyBannerState {
+export interface FyBannerState {
   bannerVisible: boolean;
   setBannerVisible: (visible: boolean) => void;
 }
@@ -11,3 +11,6 @@ export const useFyBannerStore = create<FyBannerState>((set) => ({
   bannerVisible: false,
   setBannerVisible: (visible: boolean) => set({ bannerVisible: visible }),
 }));
+
+export const fyBannerStore = useFyBannerStore;
+export default useFyBannerStore;

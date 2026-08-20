@@ -42,12 +42,22 @@ export const leaseService = {
    */
   async assertNoActiveLease(): Promise<void> {
     const targetDb = getDb();
-    const existing = targetDb
-      .select()
-      .from(writerLeases)
-      .where(sql`${writerLeases.expiresAt} > datetime('now')`)
-      .limit(1)
-      .all();
+    let existing: any[];
+    
+    if (typeof targetDb.select().from(writerLeases).where(sql`${writerLeases.expiresAt} > datetime('now')`).limit(1).all === 'function') {
+      existing = targetDb
+        .select()
+        .from(writerLeases)
+        .where(sql`${writerLeases.expiresAt} > datetime('now')`)
+        .limit(1)
+        .all();
+    } else {
+      existing = await targetDb
+        .select()
+        .from(writerLeases)
+        .where(sql`${writerLeases.expiresAt} > datetime('now')`)
+        .limit(1);
+    }
 
     if (existing.length > 0) {
       throw new Error(`${ERR.LEASE_HELD}: ${existing[0].leaseType} operation in progress`);
@@ -66,7 +76,12 @@ export const leaseService = {
     await this.assertNoActiveLease();
 
     const newId = Crypto.randomUUID();
-    const deviceId = await getDeviceId().catch(() => 'DEV-DEVICE-ID');
+    let deviceId: string;
+    try {
+      deviceId = getDeviceId();
+    } catch {
+      deviceId = 'DEV-DEVICE-ID';
+    }
     const currentTime = now();
     const expiresAt = addMinutes(new Date(), LEASE_TTL_MINUTES).toISOString();
     const targetDb = getDb();
@@ -202,3 +217,4 @@ export const acquireLease = leaseService.acquire.bind(leaseService);
 export const releaseLease = leaseService.release.bind(leaseService);
 export const startLeaseHeartbeat = leaseService.startHeartbeat.bind(leaseService);
 export const stopLeaseHeartbeat = leaseService.stopHeartbeat.bind(leaseService);
+export default leaseService;
