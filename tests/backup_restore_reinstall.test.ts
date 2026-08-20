@@ -16,6 +16,7 @@ jest.mock('@/db/client', () => {
 
   return {
     db: dbInstance,
+    default: dbInstance,
     expoDb: {
       execSync: () => {},
       runSync: () => {},

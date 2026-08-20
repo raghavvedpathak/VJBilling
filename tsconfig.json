@@ -9,12 +9,14 @@
         "./*"
       ]
     },
-    "types": ["jest", "node"]
+    "types": [
+      "jest",
+      "node"
+    ]
   },
   "include": [
     "**/*.ts",
     "**/*.tsx",
-    ".expo/types/**/*.ts",
     "nativewind-env.d.ts",
     "app.d.ts"
   ]

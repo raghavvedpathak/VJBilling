@@ -14,7 +14,7 @@ import * as FileSystem from 'expo-file-system/legacy';
 import * as Crypto from 'expo-crypto';
 import * as Updates from 'expo-updates';
 import * as Haptics from 'expo-haptics';
-import CryptoJS from 'crypto-js';
+import quickCrypto from 'react-native-quick-crypto';
 import { Alert } from 'react-native';
 import { db } from '@/db/client';
 import {
@@ -49,127 +49,67 @@ function getSafeDeviceId(): string {
   }
 }
 
-async function decryptBackupEnvelope(parsedBlob: any, password?: string): Promise<BackupEnvelope> {
+function getCryptoModule(): any {
+  return quickCrypto || (typeof require !== 'undefined' ? require('crypto') : null);
+}
+
+function decryptBackupEnvelope(parsedBlob: any, password?: string): BackupEnvelope {
+  // v7.27 FIX-V727-1: password is required only when passwordProtected is explicitly true
   if (parsedBlob.passwordProtected === true && !password) {
     throw new Error(ERR.BACKUP_PASSWORD_REQUIRED + ': password required for this backup');
   }
 
-  const toWordArray = (u8: Uint8Array) => {
-    const words: number[] = [];
-    for (let i = 0; i < u8.length; i += 4) {
-      words.push(
-        (u8[i] << 24) |
-        ((u8[i + 1] ?? 0) << 16) |
-        ((u8[i + 2] ?? 0) << 8) |
-        (u8[i + 3] ?? 0)
-      );
-    }
-    return CryptoJS.lib.WordArray.create(words, u8.length);
-  };
-
-  const fromBase64 = (b64: string) => Uint8Array.from(atob(b64.trim()), c => c.charCodeAt(0));
-  
-  const keySourceCandidates: Uint8Array[] = [];
-
-  if (parsedBlob.passwordProtected === true) {
-    keySourceCandidates.push(new TextEncoder().encode(password));
-  } else {
-    // 1. Try envelope device key first (v7.26 / v7.38 standard)
-    if (parsedBlob.deviceId && typeof parsedBlob.deviceId === 'string') {
-      try {
-        const envelopeDeviceKey = await getDeviceDerivedKeyMaterial(parsedBlob.deviceId);
-        keySourceCandidates.push(envelopeDeviceKey);
-      } catch {}
-    }
-
-    // 2. Try current device key
-    try {
-      const currentDeviceKey = await getDeviceDerivedKeyMaterial();
-      keySourceCandidates.push(currentDeviceKey);
-    } catch {}
-
-    // 3. Try canonical key fallback
-    try {
-      const canonicalKey = await getCanonicalBackupKeyMaterial();
-      keySourceCandidates.push(canonicalKey);
-    } catch {}
+  if (!parsedBlob.salt || !parsedBlob.iv || !parsedBlob.ciphertext) {
+    throw new Error(ERR.CHECKSUM_MISMATCH + ': Corrupted backup envelope structure');
   }
 
-  const saltBytes = fromBase64(parsedBlob.salt);
-  const ivBytes = fromBase64(parsedBlob.iv);
-  const cipherBytes = fromBase64(parsedBlob.ciphertext);
-  
-  const iterationCandidates = parsedBlob.iterations
-    ? [parsedBlob.iterations, 1000, 100000, 10000, 5000]
-    : (parsedBlob.encryptionVersion === 2 ? [1000, 100000, 10000, 5000] : [1000, 100000]);
+  const cryptoModule = getCryptoModule();
+  const saltBuffer = Buffer.from(parsedBlob.salt, 'base64');
+  const ivBuffer = Buffer.from(parsedBlob.iv, 'base64');
+  const combinedCipherBuffer = Buffer.from(parsedBlob.ciphertext, 'base64');
 
-  for (const candidateKeySource of keySourceCandidates) {
-    for (const iterations of iterationCandidates) {
-      // 1. Try WebCrypto AES-GCM
-      if (typeof crypto !== 'undefined' && crypto?.subtle?.importKey) {
-        try {
-          const keyMaterial = await crypto.subtle.importKey(
-            'raw',
-            candidateKeySource as any,
-            'PBKDF2',
-            false,
-            ['deriveKey']
-          );
-          const key = await crypto.subtle.deriveKey(
-            { name: 'PBKDF2', salt: saltBytes, iterations, hash: 'SHA-256' },
-            keyMaterial,
-            { name: 'AES-GCM', length: 256 },
-            false,
-            ['decrypt']
-          );
-
-          const decrypted = await crypto.subtle.decrypt(
-            { name: 'AES-GCM', iv: ivBytes },
-            key,
-            cipherBytes
-          );
-
-          const decryptedText = new TextDecoder().decode(decrypted);
-          if (decryptedText) {
-            const payload = JSON.parse(decryptedText);
-            return {
-              ...parsedBlob,
-              payload,
-            } as unknown as BackupEnvelope;
-          }
-        } catch {}
-      }
-
-      // 2. Try CryptoJS AES-CBC fallback
-      try {
-        const salt = CryptoJS.enc.Base64.parse(parsedBlob.salt);
-        const iv = CryptoJS.enc.Base64.parse(parsedBlob.iv);
-        const keyMaterial = toWordArray(candidateKeySource);
-        const key = CryptoJS.PBKDF2(keyMaterial, salt, {
-          keySize: 256 / 32,
-          iterations: iterations,
-          hasher: CryptoJS.algo.SHA256,
-        });
-
-        const decrypted = CryptoJS.AES.decrypt(parsedBlob.ciphertext, key, {
-          iv: iv,
-          mode: CryptoJS.mode.CBC,
-          padding: CryptoJS.pad.Pkcs7,
-        });
-
-        const decryptedText = decrypted.toString(CryptoJS.enc.Utf8);
-        if (decryptedText) {
-          const payload = JSON.parse(decryptedText);
-          return {
-            ...parsedBlob,
-            payload,
-          } as unknown as BackupEnvelope;
-        }
-      } catch {}
-    }
+  if (combinedCipherBuffer.length < 16) {
+    throw new Error(ERR.CHECKSUM_MISMATCH + ': Invalid ciphertext payload');
   }
 
-  throw new Error(ERR.CHECKSUM_MISMATCH + ': Decryption failed — wrong password or tampered file');
+  // Suffix 16-byte GCM authentication tag
+  const authTag = combinedCipherBuffer.subarray(combinedCipherBuffer.length - 16);
+  const ciphertextBody = combinedCipherBuffer.subarray(0, combinedCipherBuffer.length - 16);
+
+  const deviceId = parsedBlob.deviceId || getSafeDeviceId();
+  const keySourceMaterial = parsedBlob.passwordProtected === true
+    ? Buffer.from(password!, 'utf8')
+    : Buffer.from(cryptoModule.createHash('sha256').update('vjbilling_device_key_v1:' + deviceId).digest());
+
+  const iterations = parsedBlob.iterations ?? 100_000;
+
+  try {
+    // Native C++ PBKDF2 derivation (~20ms)
+    const key = cryptoModule.pbkdf2Sync(
+      keySourceMaterial,
+      saltBuffer,
+      iterations,
+      32,
+      'sha256'
+    );
+
+    // Native C++ AES-256-GCM authenticated decipher
+    const decipher = cryptoModule.createDecipheriv('aes-256-gcm', key, ivBuffer);
+    decipher.setAuthTag(authTag);
+
+    const decrypted = Buffer.concat([
+      decipher.update(ciphertextBody),
+      decipher.final(),
+    ]);
+
+    const payload = JSON.parse(decrypted.toString('utf8'));
+    return {
+      ...parsedBlob,
+      payload,
+    } as BackupEnvelope;
+  } catch (e) {
+    throw new Error(ERR.CHECKSUM_MISMATCH + ': AES-GCM decryption failed — wrong password or tampered file');
+  }
 }
 
 export const restoreService = {

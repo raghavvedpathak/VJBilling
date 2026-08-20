@@ -22,6 +22,7 @@ jest.mock('@/db/client', () => {
 
   return {
     db: dbInstance,
+    default: dbInstance,
     expoDb: {
       execSync: (query: string) => sqlite.exec(query),
       runSync: (query: string) => sqlite.prepare(query).run(),

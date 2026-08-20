@@ -1,7 +1,11 @@
 /* eslint-disable no-restricted-imports */
-// app/_layout.tsx — Phase 2 v2.11 Canonical Layout & Bootloader
-import 'react-native-get-random-values';
+// ================================================================
+// app/_layout.tsx — Phase 1 & 2 Canonical Layout & Bootloader (v7.38)
+// Step 16 App Entry Flow Order: PIN Gate -> Step 0 Snapshot -> Steps 1–12 Bootstrap
+// FIX-VSEC-3 / FIX-V729-1 / FIX-V729-2 / FIX-VSEC-12 / FIX-VSEC-14
+// ================================================================
 
+import 'react-native-get-random-values';
 import { useEffect, useState } from "react";
 import { Stack, router } from "expo-router";
 import { SafeAreaProvider } from "react-native-safe-area-context";
@@ -21,6 +25,7 @@ import {
 
 import * as FileSystem from "expo-file-system/legacy";
 import * as Sharing from "expo-sharing";
+import quickCrypto from "react-native-quick-crypto";
 
 import { useDatabase } from "@/db/client";
 import { bootstrapService, PRE_MIGRATION_SNAPSHOT_PATH } from "@/services/phase1/bootstrapService";
@@ -31,7 +36,7 @@ import { AlertTriangle, Download, LifeBuoy, Trash2 } from "lucide-react-native";
 
 import { ThemeProvider, DefaultTheme } from "@react-navigation/native";
 import { PinGate } from "@/components/PinGate";
-import { isPinSet } from "@/services/phase1/pinService";
+import { isPinSet, isPinSkipped } from "@/services/phase1/pinService";
 
 import { appSettingsStore } from "@/store/phase1/appSettingsStore";
 import { getThemeColors } from "@/constants/theme";
@@ -70,9 +75,13 @@ export default function RootLayout() {
 }
 
 function RootBootloader({ colors }: { colors: any }) {
-  const [snapshotStatus, setSnapshotStatus] = useState<"PENDING" | "DONE">("PENDING");
-  const [pinVerified, setPinVerified] = useState(false); 
+  // Step 16 Flow: PIN Gate must be evaluated BEFORE Step 0 Snapshot
+  const [pinPassed, setPinPassed] = useState<boolean>(() => {
+    // If PIN is not set and was explicitly skipped, bypass gate immediately
+    return !isPinSet() && isPinSkipped();
+  });
   
+  const [snapshotDone, setSnapshotDone] = useState(false);
   const { isLoaded, error: dbError } = useDatabase();
   const [bootstrapResult, setBootstrapResult] = useState<BootstrapResult>(null);
   const [dbMigrationError, setDbMigrationError] = useState<string | null>(null);
@@ -82,25 +91,25 @@ function RootBootloader({ colors }: { colors: any }) {
     setHasMounted(true);
   }, []);
 
-  // 0. PRE-MIGRATION SNAPSHOT & PIN BYPASS EVALUATION
+  // 1. STEP 0: PRE-MIGRATION SNAPSHOT (Executes ONLY after PIN is verified/passed)
   useEffect(() => {
-    const runSnapshot = async () => {
-      await bootstrapService.takePreMigrationSnapshot();
-      
-      // If no PIN is configured, bypass the security gate immediately
-      if (!isPinSet()) {
-        setPinVerified(true);
-      }
-      
-      setSnapshotStatus("DONE");
-    };
-    runSnapshot();
-  }, []);
+    if (!pinPassed) return;
 
-  // 1. APP BOOTSTRAP ENGINE
+    let isCancelled = false;
+    const executeStep0Snapshot = async () => {
+      await bootstrapService.takePreMigrationSnapshot();
+      if (!isCancelled) {
+        setSnapshotDone(true);
+      }
+    };
+
+    executeStep0Snapshot();
+    return () => { isCancelled = true; };
+  }, [pinPassed]);
+
+  // 2. STEPS 1–12: APP BOOTSTRAP ENGINE (Executes after Snapshot completes)
   useEffect(() => {
-    if (!hasMounted) return; // Wait for NavigationContainer to mount
-    if (!pinVerified) return; // Halt until PIN is verified or bypassed
+    if (!hasMounted || !pinPassed || !snapshotDone) return;
 
     if (dbError) {
       setDbMigrationError(dbError.message);
@@ -121,9 +130,9 @@ function RootBootloader({ colors }: { colors: any }) {
     };
 
     runBootstrap();
-  }, [isLoaded, dbError, pinVerified, hasMounted]);
+  }, [isLoaded, dbError, pinPassed, snapshotDone, hasMounted]);
 
-  // 2. TARGET ROUTING
+  // 3. TARGET ROUTING (Step 16 Formal Decision Tree)
   useEffect(() => {
     if (!hasMounted || !bootstrapResult) return;
 
@@ -140,19 +149,19 @@ function RootBootloader({ colors }: { colors: any }) {
     return () => clearTimeout(timer);
   }, [bootstrapResult, hasMounted]);
 
-  const showSnapshotLoading = snapshotStatus === "PENDING";
-  const showPinGate = snapshotStatus === "DONE" && !pinVerified; 
-  const showBootstrapLoading = !showSnapshotLoading && !showPinGate && (!isLoaded || bootstrapResult === null);
+  const showPinGate = !pinPassed;
+  const showSnapshotLoading = pinPassed && !snapshotDone;
+  const showBootstrapLoading = pinPassed && snapshotDone && (!isLoaded || bootstrapResult === null);
   const showError = bootstrapResult === "DATABASE_ERROR";
   const loadingMsg = !isLoaded ? "Updating Database Schema..." : "Verifying Data Integrity...";
 
-  const showOverlay = showSnapshotLoading || showPinGate || showBootstrapLoading || showError;
+  const showOverlay = showPinGate || showSnapshotLoading || showBootstrapLoading || showError;
 
   return (
     <>
       <StatusBar barStyle="dark-content" backgroundColor={colors.vjBg} />
       
-      {/* 1. ALWAYS mount Stack so React Fiber hooks are never interrupted or reordered */}
+      {/* 1. Stack is ALWAYS mounted to preserve React Fiber hooks */}
       <View style={{ flex: 1 }}>
         <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.vjBg }, animation: 'slide_from_right' }}>
           <Stack.Screen name="index" options={{ headerShown: false }} />
@@ -162,18 +171,18 @@ function RootBootloader({ colors }: { colors: any }) {
         </Stack>
       </View>
 
-      {/* 2. OVERLAY Bootstrap / PinGate / Error screens ON TOP of the Stack */}
+      {/* 2. OVERLAY Container */}
       {showOverlay && (
         <View style={[StyleSheet.absoluteFill, { backgroundColor: colors.vjBg, zIndex: 99999, elevation: 99999 }]}>
           <OverlayContainer
-            showSnapshotLoading={showSnapshotLoading}
             showPinGate={showPinGate}
+            showSnapshotLoading={showSnapshotLoading}
             showBootstrapLoading={showBootstrapLoading}
             showError={showError}
             loadingMsg={loadingMsg}
             dbMigrationError={dbMigrationError}
             colors={colors}
-            onPinSuccess={() => setPinVerified(true)}
+            onPinSuccess={() => setPinPassed(true)}
           />
         </View>
       )}
@@ -182,8 +191,8 @@ function RootBootloader({ colors }: { colors: any }) {
 }
 
 function OverlayContainer({
-  showSnapshotLoading,
   showPinGate,
+  showSnapshotLoading,
   showBootstrapLoading,
   showError,
   loadingMsg,
@@ -191,8 +200,8 @@ function OverlayContainer({
   colors,
   onPinSuccess,
 }: {
-  showSnapshotLoading: boolean;
   showPinGate: boolean;
+  showSnapshotLoading: boolean;
   showBootstrapLoading: boolean;
   showError: boolean;
   loadingMsg: string;
@@ -200,18 +209,18 @@ function OverlayContainer({
   colors: any;
   onPinSuccess: () => void;
 }) {
-  if (showSnapshotLoading) {
-    return (
-      <View style={[StyleSheet.absoluteFill, { zIndex: 9999, elevation: 9999, backgroundColor: colors.vjBg }]}>
-        <LoadingScreen message="Securing Pre-Migration Snapshot..." />
-      </View>
-    );
-  }
-
   if (showPinGate) {
     return (
       <View style={[StyleSheet.absoluteFill, { zIndex: 9999, elevation: 9999, backgroundColor: colors.vjBg }]}>
         <PinGate onSuccess={onPinSuccess} />
+      </View>
+    );
+  }
+
+  if (showSnapshotLoading) {
+    return (
+      <View style={[StyleSheet.absoluteFill, { zIndex: 9999, elevation: 9999, backgroundColor: colors.vjBg }]}>
+        <LoadingScreen message="Securing Pre-Migration Snapshot..." />
       </View>
     );
   }
@@ -266,26 +275,33 @@ function DatabaseErrorScreen({ title, message }: { title: string; message: strin
       const fileContent = await FileSystem.readAsStringAsync(PRE_MIGRATION_SNAPSHOT_PATH, { encoding: FileSystem.EncodingType.UTF8 });
       const parsedBlob = JSON.parse(fileContent);
 
-      const fromBase64 = (b64: string) => Uint8Array.from(atob(b64.trim()), c => c.charCodeAt(0));
-      const saltBytes = fromBase64(parsedBlob.salt);
-      const ivBytes = fromBase64(parsedBlob.iv);
-      const cipherBytes = fromBase64(parsedBlob.ciphertext);
+      const cryptoModule: any = quickCrypto || (typeof require !== 'undefined' ? require('crypto') : null);
+      const saltBytes = Buffer.from(parsedBlob.salt, 'base64');
+      const ivBytes = Buffer.from(parsedBlob.iv, 'base64');
+      const combinedCipher = Buffer.from(parsedBlob.ciphertext, 'base64');
 
-      const keySourceMaterial = await getDeviceDerivedKeyMaterial();
-      
-      const globalCrypto = (globalThis as any).crypto;
-      if (!globalCrypto?.subtle) {
-        throw new Error("WebCrypto Subtle API is unavailable on this device.");
-      }
+      const authTag = combinedCipher.subarray(combinedCipher.length - 16);
+      const ciphertextBody = combinedCipher.subarray(0, combinedCipher.length - 16);
 
-      const keyMaterial = await globalCrypto.subtle.importKey('raw', keySourceMaterial as any, 'PBKDF2', false, ['deriveKey']);
-      const key = await globalCrypto.subtle.deriveKey(
-        { name: 'PBKDF2', salt: saltBytes, iterations: 100000, hash: 'SHA-256' },
-        keyMaterial, { name: 'AES-GCM', length: 256 }, false, ['decrypt']
+      const keySourceMaterial = Buffer.from(await getDeviceDerivedKeyMaterial());
+
+      // Native JSI PBKDF2 (<20ms)
+      const key = cryptoModule.pbkdf2Sync(
+        keySourceMaterial,
+        saltBytes,
+        100_000,
+        32,
+        'sha256'
       );
 
-      const decrypted = await globalCrypto.subtle.decrypt({ name: 'AES-GCM', iv: ivBytes }, key, cipherBytes);
-      const decryptedStr = new TextDecoder().decode(decrypted);
+      // Native JSI AES-256-GCM Decipher
+      const decipher = cryptoModule.createDecipheriv('aes-256-gcm', key, ivBytes);
+      decipher.setAuthTag(authTag);
+
+      const decryptedStr = Buffer.concat([
+        decipher.update(ciphertextBody),
+        decipher.final(),
+      ]).toString('utf8');
 
       const fsAny = FileSystem as any;
       const tempPath = (fsAny.cacheDirectory ?? fsAny.documentDirectory ?? '') + 'vjbilling_premigration_decrypted.json';
@@ -323,7 +339,6 @@ function DatabaseErrorScreen({ title, message }: { title: string; message: strin
     }
     try {
       const dbBase = `${STORAGE_PATHS.RAW_DB_DIR}${STORAGE_PATHS.DB_FILENAME}`;
-      // Clean up primary DB and SQLite WAL/SHM journal files
       await Promise.all([
         FileSystem.deleteAsync(dbBase, { idempotent: true }),
         FileSystem.deleteAsync(`${dbBase}-wal`, { idempotent: true }),

@@ -8,9 +8,17 @@ import { now } from '@/utils/now';
 import { getDeviceId } from '@/utils/deviceId';
 import { ERR } from '@/constants/errorCodes';
 
-type DbOrTx = any;
+export const bootstrapComplete = { value: false };
 
-function getDb(customTx?: any): DbOrTx {
+function getSafeDeviceId(): string {
+  try {
+    return getDeviceId();
+  } catch {
+    return 'DEV-DEVICE-ID';
+  }
+}
+
+function getTargetDb(customTx?: any): any {
   if (customTx && typeof customTx === 'object' && typeof customTx.select === 'function') {
     return customTx;
   }
@@ -18,18 +26,11 @@ function getDb(customTx?: any): DbOrTx {
   return (fallback as any)?.db ? (fallback as any).db : fallback;
 }
 
-export const bootstrapComplete = { value: false };
-
 export const safeModeService = {
   async activate(reason: SafeModeTrigger, details?: object) {
     const currentTime = now();
-    let deviceId: string;
-    try {
-      deviceId = getDeviceId();
-    } catch {
-      deviceId = 'DEV-DEVICE-ID';
-    }
-    const targetDb = getDb();
+    const deviceId = getSafeDeviceId();
+    const targetDb = getTargetDb();
 
     targetDb.transaction((tx: any) => {
       safeModeRepository.upsert(tx, {
@@ -51,30 +52,17 @@ export const safeModeService = {
       );
     });
 
-    if (typeof (safeModeStore.getState() as any).setState === 'function') {
-      (safeModeStore.getState() as any).setState({
-        isActive: true,
-        reason: reason,
-        activatedAt: currentTime,
-      });
-    } else {
-      safeModeStore.setState({
-        isActive: true,
-        reason: reason,
-        activatedAt: currentTime,
-      });
-    }
+    safeModeStore.setState({
+      isActive: true,
+      reason: reason,
+      activatedAt: currentTime,
+    });
   },
 
   async clear() {
     const currentTime = now();
-    let deviceId: string;
-    try {
-      deviceId = getDeviceId();
-    } catch {
-      deviceId = 'DEV-DEVICE-ID';
-    }
-    const targetDb = getDb();
+    const deviceId = getSafeDeviceId();
+    const targetDb = getTargetDb();
 
     targetDb.transaction((tx: any) => {
       safeModeRepository.upsert(tx, {
@@ -96,39 +84,22 @@ export const safeModeService = {
       );
     });
 
-    if (typeof (safeModeStore.getState() as any).setState === 'function') {
-      (safeModeStore.getState() as any).setState({
-        isActive: false,
-        reason: null,
-        activatedAt: null,
-      });
-    } else {
-      safeModeStore.setState({
-        isActive: false,
-        reason: null,
-        activatedAt: null,
-      });
-    }
+    safeModeStore.setState({
+      isActive: false,
+      reason: null,
+      activatedAt: null,
+    });
   },
 
   loadState() {
     const state = safeModeRepository.get();
+    if (!state) return;
 
-    if (state && state.isActive === 1) {
-      if (typeof (safeModeStore.getState() as any).setState === 'function') {
-        (safeModeStore.getState() as any).setState({
-          isActive: true,
-          reason: state.reason as SafeModeTrigger,
-          activatedAt: state.activatedAt,
-        });
-      } else {
-        safeModeStore.setState({
-          isActive: true,
-          reason: state.reason as SafeModeTrigger,
-          activatedAt: state.activatedAt,
-        });
-      }
-    }
+    safeModeStore.setState({
+      isActive: state.isActive === 1,
+      reason: (state.reason as SafeModeTrigger) ?? null,
+      activatedAt: state.activatedAt ?? null,
+    });
   },
 
   assertNotInSafeMode() {

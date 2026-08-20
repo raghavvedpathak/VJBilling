@@ -67,6 +67,17 @@ jest.mock('expo-crypto', () => {
   };
 });
 
+// ─── 2b. MOCK: react-native-quick-crypto ──────────────────────────────────────
+
+jest.mock('react-native-quick-crypto', () => {
+  const cryptoModule = require('crypto');
+  return {
+    ...cryptoModule,
+    default: cryptoModule,
+    Buffer: global.Buffer || require('buffer').Buffer,
+  };
+});
+
 // ─── 3. MOCK: react-native-mmkv ──────────────────────────────────────────────
 
 jest.mock('react-native-mmkv', () => {
