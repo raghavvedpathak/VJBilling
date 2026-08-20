@@ -18,10 +18,6 @@ const PIN_SKIPPED_KEY = 'vjbilling_pin_setup_skipped'; // v7.29 FIX-V729-1
 const MAX_ATTEMPTS = 3;
 const BASE_LOCKOUT_MS = 30_000; // 30 seconds, doubles each subsequent lockout
 
-function getCryptoModule(): any {
-  return quickCrypto || (typeof require !== 'undefined' ? require('crypto') : null);
-}
-
 function deriveKey(pin: string, saltHex: string): string {
   // v7.33 FIX-V733-1: saltHex null guard prevents runtime errors on corrupted MMKV data
   const saltHexPairs = saltHex ? saltHex.match(/.{2}/g) : null;
@@ -29,12 +25,11 @@ function deriveKey(pin: string, saltHex: string): string {
     throw new Error(ERR.PIN_DATA_CORRUPTED + ': stored PIN salt is malformed');
   }
   
-  const cryptoModule = getCryptoModule();
   const saltBuffer = Buffer.from(saltHex, 'hex');
   const pinBuffer = Buffer.from(pin, 'utf8');
 
-  // Native C++ PBKDF2 (Executes in ~15-20ms instead of 3,500ms JS loop)
-  const derivedKeyBuffer = cryptoModule.pbkdf2Sync(
+  // Native C++ PBKDF2 (Executes in ~15-20ms via JSI)
+  const derivedKeyBuffer = quickCrypto.pbkdf2Sync(
     pinBuffer,
     saltBuffer,
     100_000,
@@ -55,8 +50,7 @@ export async function setPin(pin: string): Promise<void> {
     throw new Error(ERR.PIN_INCORRECT + ': PIN must be exactly 4 or 6 digits');
   }
 
-  const cryptoModule = getCryptoModule();
-  const saltBytes = cryptoModule.randomBytes(16);
+  const saltBytes = quickCrypto.randomBytes(16);
   const saltHex = saltBytes.toString('hex');
 
   storage.set(PIN_HASH_KEY, deriveKey(pin, saltHex));
