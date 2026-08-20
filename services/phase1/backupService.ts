@@ -66,10 +66,6 @@ export interface BackupEnvelope {
   };
 }
 
-function getCryptoModule(): any {
-  return quickCrypto || (typeof require !== 'undefined' ? require('crypto') : null);
-}
-
 async function getOrCreateSafFolder(parentUri: string, name: string): Promise<string> {
   const children = await StorageAccessFramework.readDirectoryAsync(parentUri);
   for (const childUri of children) {
@@ -179,12 +175,11 @@ export async function createBackup(password?: string): Promise<BackupResult> {
       ? Buffer.from(password, 'utf8') 
       : Buffer.from(await getDeviceDerivedKeyMaterial());
 
-    const cryptoModule = getCryptoModule();
-    const saltBytes = cryptoModule.randomBytes(16);
-    const ivBytes = cryptoModule.randomBytes(12);
+    const saltBytes = quickCrypto.randomBytes(16);
+    const ivBytes = quickCrypto.randomBytes(12);
 
     // Native C++ PBKDF2 (100,000 iterations in ~20ms)
-    const key = cryptoModule.pbkdf2Sync(
+    const key = quickCrypto.pbkdf2Sync(
       keySourceMaterial,
       saltBytes,
       100_000,
@@ -193,7 +188,7 @@ export async function createBackup(password?: string): Promise<BackupResult> {
     );
 
     // Native C++ AES-256-GCM
-    const cipher = cryptoModule.createCipheriv('aes-256-gcm', key, ivBytes);
+    const cipher = quickCrypto.createCipheriv('aes-256-gcm', key, ivBytes);
     const encryptedBody = Buffer.concat([
       cipher.update(Buffer.from(payloadStr, 'utf8')),
       cipher.final(),

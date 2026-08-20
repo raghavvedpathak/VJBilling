@@ -32,11 +32,10 @@ import {
 import { eq } from 'drizzle-orm';
 import { leaseService } from '@/services/phase1/leaseService';
 import { auditRepository } from '@/repositories/phase1/auditRepository';
-import { getDeviceId, getDeviceDerivedKeyMaterial, getCanonicalBackupKeyMaterial } from '@/utils/deviceId';
+import { getDeviceId, getDeviceDerivedKeyMaterial } from '@/utils/deviceId';
 import { useLeaseStore } from '@/store/phase1/leaseStore';
 import { storage } from '@/utils/storage';
 import { safeModeService } from '@/services/phase1/safeModeService';
-import { now } from '@/utils/now';
 import { SCHEMA_VERSION } from '@/constants';
 import { ERR } from '@/constants/errorCodes';
 import type { BackupEnvelope } from '@/services/phase1/backupService';
@@ -49,12 +48,8 @@ function getSafeDeviceId(): string {
   }
 }
 
-function getCryptoModule(): any {
-  return quickCrypto || (typeof require !== 'undefined' ? require('crypto') : null);
-}
-
 function decryptBackupEnvelope(parsedBlob: any, password?: string): BackupEnvelope {
-  // v7.27 FIX-V727-1: password is required only when passwordProtected is explicitly true
+  // v7.27 FIX-V727-1: password is required only when passwordProtected is explicitly true[cite: 1]
   if (parsedBlob.passwordProtected === true && !password) {
     throw new Error(ERR.BACKUP_PASSWORD_REQUIRED + ': password required for this backup');
   }
@@ -63,7 +58,6 @@ function decryptBackupEnvelope(parsedBlob: any, password?: string): BackupEnvelo
     throw new Error(ERR.CHECKSUM_MISMATCH + ': Corrupted backup envelope structure');
   }
 
-  const cryptoModule = getCryptoModule();
   const saltBuffer = Buffer.from(parsedBlob.salt, 'base64');
   const ivBuffer = Buffer.from(parsedBlob.iv, 'base64');
   const combinedCipherBuffer = Buffer.from(parsedBlob.ciphertext, 'base64');
@@ -79,26 +73,26 @@ function decryptBackupEnvelope(parsedBlob: any, password?: string): BackupEnvelo
   const deviceId = parsedBlob.deviceId || getSafeDeviceId();
   const keySourceMaterial = parsedBlob.passwordProtected === true
     ? Buffer.from(password!, 'utf8')
-    : Buffer.from(cryptoModule.createHash('sha256').update('vjbilling_device_key_v1:' + deviceId).digest());
+    : Buffer.from(quickCrypto.createHash('sha256').update('vjbilling_device_key_v1:' + deviceId).digest());
 
   const iterations = parsedBlob.iterations ?? 100_000;
 
   try {
     // Native C++ PBKDF2 derivation (~20ms)
-    const key = cryptoModule.pbkdf2Sync(
-      keySourceMaterial,
-      saltBuffer,
+    const key = quickCrypto.pbkdf2Sync(
+      keySourceMaterial as any,
+      saltBuffer as any,
       iterations,
       32,
       'sha256'
     );
 
     // Native C++ AES-256-GCM authenticated decipher
-    const decipher = cryptoModule.createDecipheriv('aes-256-gcm', key, ivBuffer);
-    decipher.setAuthTag(authTag);
+    const decipher = quickCrypto.createDecipheriv('aes-256-gcm', key as any, ivBuffer as any);
+    decipher.setAuthTag(authTag as any);
 
     const decrypted = Buffer.concat([
-      decipher.update(ciphertextBody),
+      decipher.update(ciphertextBody as any),
       decipher.final(),
     ]);
 
@@ -127,18 +121,18 @@ export const restoreService = {
     let fileContent = '';
     try {
       fileContent = await FileSystem.readAsStringAsync(fileUri, { encoding: 'utf8' as any });
-    } catch (e) {
+    } catch {
       throw new Error(ERR.RESTORE_VALIDATION_FAILED + ': Could not read the selected file. Ensure it is a valid .vjb backup.');
     }
 
     let parsedBlob: any;
     try {
       parsedBlob = JSON.parse(fileContent);
-    } catch (e) {
+    } catch {
       throw new Error(ERR.RESTORE_VALIDATION_FAILED + ': File is not valid JSON data.');
     }
 
-    const backup = await decryptBackupEnvelope(parsedBlob, password);
+    const backup = decryptBackupEnvelope(parsedBlob, password);
     await this.validateBackupSchema(backup);
 
     if (!backup.payload || !Array.isArray(backup.payload.firms)) {
@@ -165,19 +159,18 @@ export const restoreService = {
     let fileContent = '';
     try {
       fileContent = await FileSystem.readAsStringAsync(fileUri, { encoding: 'utf8' as any });
-    } catch (e) {
-      throw new Error(ERR.RESTORE_VALIDATION_FAILED + ': Could not read the selected file. Ensure it is a valid .vjb backup.');
+    } catch {
+      throw new Error(ERR.RESTORE_VALIDATION_FAILED + ': Could not read the selected file.');
     }
 
     let parsedBlob: any;
     try {
       parsedBlob = JSON.parse(fileContent);
-    } catch (e) {
+    } catch {
       throw new Error(ERR.RESTORE_VALIDATION_FAILED + ': File is not valid JSON data.');
     }
 
-    const backup = await decryptBackupEnvelope(parsedBlob, password);
-
+    const backup = decryptBackupEnvelope(parsedBlob, password);
     await this.validateBackupSchema(backup);
 
     const {
@@ -233,14 +226,14 @@ export const restoreService = {
   },
 
   async restore(encryptedFileContent: string, password?: string): Promise<void> {
+    // G40: restore() does NOT call assertNotInSafeMode() (PATH 2 Safe Mode resolution)[cite: 1]
     await leaseService.assertNoActiveLease(); 
     const leaseId = await leaseService.acquire('RESTORE');
 
     try {
       const currentDeviceId = getSafeDeviceId();
-
       const parsedBlob = JSON.parse(encryptedFileContent);
-      const backup = await decryptBackupEnvelope(parsedBlob, password);
+      const backup = decryptBackupEnvelope(parsedBlob, password);
 
       await this.validateBackupSchema(backup);
 
@@ -251,7 +244,7 @@ export const restoreService = {
         throw new Error(ERR.RESTORE_VALIDATION_FAILED + `: Backup contains ${backup.payload.firms.length} firms. Maximum capacity is 3.`);
       }
 
-      // v7.36 FIX-V736-1: Write embedded logo binaries (logoAssets) to local storage BEFORE the tx runs
+      // v7.36 FIX-V736-1: Write embedded logo binaries (logoAssets) to local storage BEFORE the tx runs[cite: 1]
       const logosDir = (FileSystem.documentDirectory ?? '') + 'logos/';
       await FileSystem.makeDirectoryAsync(logosDir, { intermediates: true }).catch(() => {});
       
@@ -261,9 +254,7 @@ export const restoreService = {
           const newUri = logosDir + Crypto.randomUUID() + '.jpg';
           await FileSystem.writeAsStringAsync(newUri, asset.base64, { encoding: FileSystem.EncodingType.Base64 });
           firmLogoUriMap.set(asset.firmId, newUri);
-        } catch {
-          // write failure leaves it null, caught by G62
-        }
+        } catch {}
       }
 
       const bisLogoUriMap = new Map<string, string>();
@@ -272,9 +263,7 @@ export const restoreService = {
           const newUri = logosDir + Crypto.randomUUID() + '.jpg';
           await FileSystem.writeAsStringAsync(newUri, asset.base64, { encoding: FileSystem.EncodingType.Base64 });
           bisLogoUriMap.set(asset.bisLogoId, newUri);
-        } catch {
-          // write failure leaves fileRef null, caught by G62
-        }
+        } catch {}
       }
 
       if (backup.payload.logoAssets) {
@@ -288,7 +277,9 @@ export const restoreService = {
         }));
       }
 
+      // Synchronous JSI Transaction Callback[cite: 1]
       db.transaction((tx) => {
+        // v7.13 FIX-V713-1: Gated audit deletion[cite: 1]
         tx.update(auditDeleteGateTable).set({ gateOpen: 1 }).where(eq(auditDeleteGateTable.id, 1)).run();
         tx.delete(auditLogsTable).run();
         tx.update(auditDeleteGateTable).set({ gateOpen: 0 }).where(eq(auditDeleteGateTable.id, 1)).run();
@@ -335,6 +326,7 @@ export const restoreService = {
         if (backup.payload.oldGoldLots?.length) tx.insert(oldGoldLots).values(backup.payload.oldGoldLots).run();
         if (backup.payload.urdPurchases?.length) tx.insert(urdPurchases).values(backup.payload.urdPurchases).run();
 
+        // RESTORE_COMPLETED written inside transaction after inserts[cite: 1]
         auditRepository.log(tx, { 
           eventType: 'RESTORE_COMPLETED', 
           firmId: null, 
@@ -350,15 +342,16 @@ export const restoreService = {
 
       useLeaseStore.getState().setActiveLease(null);
       await safeModeService.clear();
+
       try {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      } catch (e) {}
+      } catch {}
 
       storage.set('vjbilling_post_restore_logo_check_pending', 'true');
 
       try {
         await Updates.reloadAsync();
-      } catch (e) {
+      } catch {
         console.warn('[Restore] Manual reload required in development environment.');
       }
 
@@ -374,7 +367,7 @@ export const restoreService = {
           });
         });
       } catch (auditError) {
-        console.error('[Restore] Failed to write RESTORE_FAILED audit (non-fatal):', auditError);
+        console.error('[Restore] Failed to write RESTORE_FAILED audit:', auditError);
       }
       throw error;
     } finally {

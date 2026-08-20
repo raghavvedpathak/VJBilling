@@ -34,10 +34,6 @@ function getSafeDeviceId(): string {
   }
 }
 
-function getCryptoModule(): any {
-  return quickCrypto || (typeof require !== 'undefined' ? require('crypto') : null);
-}
-
 export const bootstrapService = {
   // ==========================================================================
   // STEP 0: PRE-MIGRATION SNAPSHOT (AES-256-GCM Encrypted — 100,000 Iterations)
@@ -74,12 +70,11 @@ export const bootstrapService = {
 
       const payloadStr = JSON.stringify(snapshot);
       const keySourceMaterial = Buffer.from(await getDeviceDerivedKeyMaterial());
-      const cryptoModule = getCryptoModule();
-      const saltBytes = cryptoModule.randomBytes(16);
-      const ivBytes = cryptoModule.randomBytes(12);
+      const saltBytes = quickCrypto.randomBytes(16);
+      const ivBytes = quickCrypto.randomBytes(12);
 
       // Native C++ PBKDF2 Key Derivation (~20ms)
-      const key = cryptoModule.pbkdf2Sync(
+      const key = quickCrypto.pbkdf2Sync(
         keySourceMaterial,
         saltBytes,
         100_000,
@@ -88,7 +83,7 @@ export const bootstrapService = {
       );
 
       // Native C++ AES-256-GCM Encrypt
-      const cipher = cryptoModule.createCipheriv('aes-256-gcm', key, ivBytes);
+      const cipher = quickCrypto.createCipheriv('aes-256-gcm', key, ivBytes);
       const encryptedBody = Buffer.concat([
         cipher.update(Buffer.from(payloadStr, 'utf8')),
         cipher.final(),
