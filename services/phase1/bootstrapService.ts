@@ -20,7 +20,7 @@ import { eq, isNotNull } from 'drizzle-orm';
 import { differenceInDays, differenceInMinutes, parseISO } from 'date-fns';
 import { purgeExpiredAuditLogs } from '@/services/phase1/auditRetentionService';
 import { appSettingsStore } from '@/store/phase1/appSettingsStore';
-import quickCrypto from 'react-native-quick-crypto';
+import quickCrypto, { Buffer } from 'react-native-quick-crypto';
 
 export const PRE_MIGRATION_SNAPSHOT_PATH = STORAGE_PATHS.PRE_MIGRATION_SNAPSHOT;
 

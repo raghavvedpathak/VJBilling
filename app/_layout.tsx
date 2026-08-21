@@ -25,7 +25,7 @@ import {
 
 import * as FileSystem from "expo-file-system/legacy";
 import * as Sharing from "expo-sharing";
-import quickCrypto from "react-native-quick-crypto";
+import quickCrypto, { Buffer } from "react-native-quick-crypto";
 
 import { useDatabase } from "@/db/client";
 import { bootstrapService, PRE_MIGRATION_SNAPSHOT_PATH } from "@/services/phase1/bootstrapService";
@@ -90,6 +90,13 @@ function RootBootloader({ colors }: { colors: any }) {
   useEffect(() => {
     setHasMounted(true);
   }, []);
+
+  // Re-verify PIN skip state on mount to prevent timing race conditions during storage hydration
+  useEffect(() => {
+    if (!pinPassed && !isPinSet() && isPinSkipped()) {
+      setPinPassed(true);
+    }
+  }, [pinPassed]);
 
   // 1. STEP 0: PRE-MIGRATION SNAPSHOT (Executes ONLY after PIN is verified/passed)
   useEffect(() => {
@@ -275,7 +282,6 @@ function DatabaseErrorScreen({ title, message }: { title: string; message: strin
       const fileContent = await FileSystem.readAsStringAsync(PRE_MIGRATION_SNAPSHOT_PATH, { encoding: FileSystem.EncodingType.UTF8 });
       const parsedBlob = JSON.parse(fileContent);
 
-      const cryptoModule: any = quickCrypto || (typeof require !== 'undefined' ? require('crypto') : null);
       const saltBytes = Buffer.from(parsedBlob.salt, 'base64');
       const ivBytes = Buffer.from(parsedBlob.iv, 'base64');
       const combinedCipher = Buffer.from(parsedBlob.ciphertext, 'base64');
@@ -286,7 +292,7 @@ function DatabaseErrorScreen({ title, message }: { title: string; message: strin
       const keySourceMaterial = Buffer.from(await getDeviceDerivedKeyMaterial());
 
       // Native JSI PBKDF2 (<20ms)
-      const key = cryptoModule.pbkdf2Sync(
+      const key = quickCrypto.pbkdf2Sync(
         keySourceMaterial,
         saltBytes,
         100_000,
@@ -295,7 +301,7 @@ function DatabaseErrorScreen({ title, message }: { title: string; message: strin
       );
 
       // Native JSI AES-256-GCM Decipher
-      const decipher = cryptoModule.createDecipheriv('aes-256-gcm', key, ivBytes);
+      const decipher = (quickCrypto as any).createDecipheriv('aes-256-gcm', key, ivBytes);
       decipher.setAuthTag(authTag);
 
       const decryptedStr = Buffer.concat([

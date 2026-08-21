@@ -1,4 +1,4 @@
-// components/PinGate.tsx — Phase 2 v2.11 Canonical Component
+// components/PinGate.tsx — Phase 1 (v7.38) & Phase 2 Canonical Component (FIX-VSEC-3, FIX-V729-1, FIX-V729-2, FIX-V733-1)
 
 import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, TextInput, TouchableOpacity, Keyboard, ScrollView, ActivityIndicator } from 'react-native';
@@ -44,6 +44,10 @@ export function PinGate({ onSuccess }: { onSuccess: () => void }) {
     if (isPinSet()) {
       setTargetLength(getPinLength());
       setMode('VERIFY');
+    } else if (isPinSkipped()) {
+      // FIX-V729-1: If PIN setup was skipped, immediately bypass gate
+      onSuccess();
+      return;
     } else {
       setMode('SETUP_STEP_1');
     }

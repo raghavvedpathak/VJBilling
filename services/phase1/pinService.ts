@@ -6,7 +6,7 @@
 
 import { storage } from '@/utils/storage';
 import { ERR } from '@/constants/errorCodes';
-import quickCrypto from 'react-native-quick-crypto';
+import quickCrypto, { Buffer } from 'react-native-quick-crypto';
 
 const PIN_HASH_KEY = 'vjbilling_pin_hash';
 const PIN_SALT_KEY = 'vjbilling_pin_salt';

@@ -7,7 +7,7 @@ import * as FileSystem from 'expo-file-system/legacy';
 import { StorageAccessFramework } from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 import * as Haptics from 'expo-haptics';
-import quickCrypto from 'react-native-quick-crypto';
+import quickCrypto, { Buffer } from 'react-native-quick-crypto';
 import { storage } from '@/utils/storage';
 import { db } from '@/db/client';
 import { 

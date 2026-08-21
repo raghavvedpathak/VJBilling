@@ -1,4 +1,4 @@
-// components/RestorePreviewModal.tsx — Phase 2 v2.11 Canonical Component
+// components/RestorePreviewModal.tsx — Phase 1 (v7.38) & Phase 2 Canonical Component (FIX-V726-3, FIX-V736-1)
 
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, Modal, TouchableOpacity, ScrollView, KeyboardAvoidingView, Platform } from 'react-native';
@@ -75,6 +75,12 @@ export function RestorePreviewModal({
   const urdCount = backup.payload?.urdPurchases?.length || 0;
   const auditCount = backup.payload?.auditLogs?.length || 0;
   const isSafeModeActive = backup.payload?.safeModeState?.isActive === 1;
+
+  // v7.36 FIX-V736-1: Detect presence of embedded logo binaries
+  const hasEmbeddedLogos = !!(backup.payload?.logoAssets && (
+    (backup.payload.logoAssets.firmLogos && backup.payload.logoAssets.firmLogos.length > 0) ||
+    (backup.payload.logoAssets.bisLogos && backup.payload.logoAssets.bisLogos.length > 0)
+  ));
 
   const handleConfirmPress = () => {
     if (isConfirmDisabled) return;
@@ -198,7 +204,7 @@ export function RestorePreviewModal({
                 </View>
               </View>
 
-              {/* CONDITIONAL BACKUP PASSWORD FIELD */}
+              {/* CONDITIONAL BACKUP PASSWORD FIELD (v7.26 FIX-V726-3) */}
               {isPasswordProtected && (
                 <View style={s.passwordContainer}>
                   <GlassInput
@@ -212,13 +218,15 @@ export function RestorePreviewModal({
                 </View>
               )}
 
-              {/* LOGO EXCLUSION NOTICE */}
-              <View style={s.logoNoticeCard}>
-                <ImageOff size={16} color="#D97706" />
-                <Text style={s.logoNoticeText}>
-                  Logo images are not included in backups and will need to be re-uploaded after restoring on a new device.
-                </Text>
-              </View>
+              {/* LOGO EXCLUSION NOTICE — ONLY SHOWN FOR PRE-v7.36 BACKUPS (v7.36 FIX-V736-1) */}
+              {!hasEmbeddedLogos && (
+                <View style={s.logoNoticeCard}>
+                  <ImageOff size={16} color="#D97706" />
+                  <Text style={s.logoNoticeText}>
+                    Logo images are not included in this backup and will need to be re-uploaded after restoring on a new device.
+                  </Text>
+                </View>
+              )}
 
               {/* Safe Mode Alert */}
               {isSafeModeActive && (

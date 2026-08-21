@@ -1,4 +1,4 @@
-// store/phase1/useFirmStore.ts — Phase 1 & 2 Canonical Firm Store
+// store/phase1/useFirmStore.ts — Phase 1 & 2 Canonical Firm Store (Step 7, Step 8, v5.1 S3)
 
 import { create } from 'zustand';
 import { persist, createJSONStorage, StateStorage } from 'zustand/middleware';
@@ -13,7 +13,7 @@ export interface FirmState {
   setActiveFirm: (id: string) => void;
   setFirms: (firms: Firm[]) => void;
   clearActiveFirm: () => void;
-  switchFirm: (id: string) => Promise<void>;
+  switchFirm: (id: string) => void;
 }
 
 // MMKV Synchronous StateStorage Adapter
@@ -32,7 +32,7 @@ const zustandStorage: StateStorage = {
 
 export const useFirmStore = create<FirmState>()(
   persist(
-    (set, get) => ({
+    (set) => ({
       activeFirmId: null,
       firms: [],
 
@@ -40,14 +40,12 @@ export const useFirmStore = create<FirmState>()(
       setFirms: (firms) => set({ firms }),
       clearActiveFirm: () => set({ activeFirmId: null }),
 
-      switchFirm: async (firmId: string) => {
-        const currentFirmId = get().activeFirmId;
-        if (currentFirmId === firmId) return;
+      switchFirm: (firmId: string) => {
         set({ activeFirmId: firmId });
       },
     }),
     {
-      name: 'firm-storage',
+      name: 'firm-store',
       storage: createJSONStorage(() => zustandStorage),
     }
   )

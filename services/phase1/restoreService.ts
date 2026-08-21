@@ -14,7 +14,7 @@ import * as FileSystem from 'expo-file-system/legacy';
 import * as Crypto from 'expo-crypto';
 import * as Updates from 'expo-updates';
 import * as Haptics from 'expo-haptics';
-import quickCrypto from 'react-native-quick-crypto';
+import quickCrypto, { Buffer } from 'react-native-quick-crypto';
 import { Alert } from 'react-native';
 import { db } from '@/db/client';
 import {
