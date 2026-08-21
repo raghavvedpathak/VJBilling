@@ -674,6 +674,138 @@ export function GlassPickerInput({
   );
 }
 
+// ============================================================================
+// 10. CENTRALIZED MENU TILE (Dashboard & Inventory Hub)
+// ============================================================================
+export interface MenuTileProps {
+  title: string;
+  subtitle?: string;
+  icon: React.ReactNode;
+  iconBg: string;
+  borderColor?: string;
+  badgeText?: string;
+  badgeVariant?: 'active' | 'upcoming';
+  alertCount?: number;
+  disabled?: boolean;
+  onPress?: () => void;
+}
+
+export function MenuTile({
+  title,
+  subtitle,
+  icon,
+  iconBg,
+  borderColor,
+  badgeText,
+  badgeVariant = 'upcoming',
+  alertCount,
+  disabled,
+  onPress,
+}: MenuTileProps) {
+  const hasAlert = alertCount !== undefined && alertCount > 0;
+  return (
+    <View style={{ width: '48%' }}>
+      <TouchableOpacity
+        disabled={disabled}
+        onPress={() => {
+          try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch (e) {}
+          if (onPress) onPress();
+        }}
+        activeOpacity={0.8}
+      >
+        <GlassCard
+          style={{
+            height: 146,
+            marginBottom: 0,
+            opacity: disabled ? 0.6 : 1,
+            borderColor: hasAlert ? '#F59E0B' : borderColor,
+            borderWidth: hasAlert ? 1.5 : (borderColor ? 1 : undefined),
+            backgroundColor: hasAlert ? 'rgba(254, 243, 199, 0.55)' : undefined,
+            padding: 14,
+          }}
+        >
+          <View style={{ height: '100%', justifyContent: 'space-between' }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+              <View style={{ position: 'relative' }}>
+                <View
+                  style={{
+                    padding: 10,
+                    borderRadius: 16,
+                    borderWidth: 1,
+                    borderColor: hasAlert ? 'rgba(245,158,11,0.4)' : 'rgba(0,0,0,0.05)',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    backgroundColor: iconBg,
+                  }}
+                >
+                  {icon}
+                </View>
+                {hasAlert && (
+                  <View
+                    style={{
+                      position: 'absolute',
+                      top: -4,
+                      right: -4,
+                      backgroundColor: '#EF4444',
+                      borderRadius: 10,
+                      minWidth: 18,
+                      height: 18,
+                      justifyContent: 'center',
+                      alignItems: 'center',
+                      paddingHorizontal: 4,
+                      borderWidth: 1.5,
+                      borderColor: '#FFFFFF',
+                    }}
+                  >
+                    <Text style={{ color: '#FFFFFF', fontSize: 9, fontWeight: '900' }}>
+                      {alertCount > 99 ? '99+' : alertCount}
+                    </Text>
+                  </View>
+                )}
+              </View>
+
+              {badgeText ? (
+                <View
+                  className={`px-2 py-0.5 rounded-full border ${
+                    hasAlert
+                      ? 'bg-amber-500/20 border-amber-500/40'
+                      : badgeVariant === 'active'
+                      ? 'bg-emerald-500/10 border-emerald-500/20'
+                      : 'bg-black/5 border-black/10'
+                  }`}
+                >
+                  <Text
+                    className={`text-[8px] font-black uppercase tracking-wider ${
+                      hasAlert
+                        ? 'text-amber-700'
+                        : badgeVariant === 'active'
+                        ? 'text-emerald-700'
+                        : 'text-vj-text/50'
+                    }`}
+                  >
+                    {badgeText}
+                  </Text>
+                </View>
+              ) : null}
+            </View>
+
+            <View style={{ marginTop: 6 }}>
+              <Text className="text-vj-text font-black text-base leading-5 mb-0.5" numberOfLines={1}>
+                {title}
+              </Text>
+              {subtitle ? (
+                <Text className="text-vj-text/50 text-[10px] font-bold uppercase" numberOfLines={1}>
+                  {subtitle}
+                </Text>
+              ) : null}
+            </View>
+          </View>
+        </GlassCard>
+      </TouchableOpacity>
+    </View>
+  );
+}
+
 // Re-export FixedGlassBar for unified access
 export * from './FixedGlassBar';
 

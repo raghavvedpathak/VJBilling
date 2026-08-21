@@ -440,7 +440,7 @@ export default function EditFirmScreen() {
                 value={form.gstin} 
                 onChangeText={handleGstinChange} 
                 keyboardType={getGSTINKeyboardType(form.gstin.length)}
-                placeholder="e.g. 27ASDFG1234A1Z5" 
+                placeholder="15-digit GSTIN" 
                 maxLength={15} 
                 icon={<Hash size={18} color={COLORS.vjAccent} />} 
                 autoCapitalize="characters"

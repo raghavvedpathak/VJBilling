@@ -300,7 +300,7 @@ export default function AddURDScreen() {
                   ) : null}
                 </View>
                 <GlassInput 
-                  placeholder="e.g. 91.6" 
+                  placeholder="91.6" 
                   keyboardType="numeric" 
                   value={row.purityPercent} 
                   onChangeText={(t) => updateRow(index, 'purityPercent', t)} 
@@ -329,7 +329,7 @@ export default function AddURDScreen() {
 
               <GlassInput 
                 label={`Rate Per Gram (${getCurrencySymbol()}) *`} 
-                placeholder="e.g. 7000" 
+                placeholder="0.00" 
                 keyboardType="numeric" 
                 value={row.ratePerGram} 
                 onChangeText={(t) => updateRow(index, 'ratePerGram', t)} 
@@ -370,7 +370,7 @@ export default function AddURDScreen() {
 
               <GlassInput 
                 label={`Adjustment Amount (${getCurrencySymbol()})`} 
-                placeholder="0 (Optional amount)" 
+                placeholder="0.00" 
                 keyboardType="numeric" 
                 value={row.discount} 
                 onChangeText={(t) => updateRow(index, 'discount', t)} 

@@ -6,7 +6,6 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useRouter } from 'expo-router';
 import { ChevronLeft } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
-import { DynamicBackground } from '@/components/ui/DynamicBackground';
 import { getThemeColors } from '@/constants/theme';
 import { appSettingsStore } from '@/store/phase1/appSettingsStore';
 
@@ -44,8 +43,6 @@ export function ScreenWrapper({
   return (
     <View style={{ flex: 1, backgroundColor: colors.vjBg }}>
       <StatusBar barStyle="dark-content" backgroundColor="transparent" translucent />
-
-      <DynamicBackground />
 
       {/* SAFE AREA */}
       <SafeAreaView className="flex-1" edges={['top', 'left', 'right']}>

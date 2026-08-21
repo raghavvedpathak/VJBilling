@@ -404,7 +404,7 @@ export default function CreateFirmScreen() {
             <GlassInput
               label="GSTIN (Optional)"
               icon={<Hash size={18} color="#D4AF37" />}
-              placeholder="e.g. 27ASDFG1234A1Z5"
+              placeholder="15-digit GSTIN"
               value={form.gstin}
               onChangeText={handleGstinChange}
               keyboardType={getGSTINKeyboardType(form.gstin.length)}

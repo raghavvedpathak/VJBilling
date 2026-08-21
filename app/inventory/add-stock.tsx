@@ -464,10 +464,10 @@ export default function AddStockScreen() {
                   </View>
                 ) : null}
               </View>
-              <GlassInput placeholder={(selectedDesign?.metal || 'GOLD') === 'SILVER' ? 'e.g. 92.5, 99.9' : 'e.g. 91.6, 75.0, 99.9'} keyboardType="numeric" value={purityPercent} onChangeText={setPurityPercent} />
+              <GlassInput placeholder={(selectedDesign?.metal || 'GOLD') === 'SILVER' ? '92.5' : '91.6'} keyboardType="numeric" value={purityPercent} onChangeText={setPurityPercent} />
             </View>
             <View style={{ flex: 1 }}>
-              <GlassInput label="Wastage %" placeholder="e.g. 5.0" keyboardType="numeric" value={wastagePercent} onChangeText={setWastagePercent} />
+              <GlassInput label="Wastage %" placeholder="0.00" keyboardType="numeric" value={wastagePercent} onChangeText={setWastagePercent} />
             </View>
           </View>
 
@@ -533,16 +533,16 @@ export default function AddStockScreen() {
 
           <View style={{ flexDirection: 'row', gap: 12 }}>
             <View style={{ flex: 1 }}>
-               <GlassInput label="Location" placeholder="e.g. SHOP / TRAY 1" autoCapitalize="characters" value={location} onChangeText={setLocation} />
+               <GlassInput label="Location" placeholder="Tray / Location" autoCapitalize="characters" value={location} onChangeText={setLocation} />
             </View>
             <View style={{ flex: 1 }}>
-               <GlassInput label="BIS HUID" placeholder="6-digit code" autoCapitalize="characters" value={huid} onChangeText={setHuid} maxLength={6} />
+               <GlassInput label="BIS HUID" placeholder="6-char HUID" autoCapitalize="characters" value={huid} onChangeText={setHuid} maxLength={6} />
             </View>
           </View>
           
           <View style={{ flexDirection: 'row', gap: 12, marginTop: 12 }}>
             <View style={{ flex: 1 }}>
-              <GlassInput label="Size Value" placeholder="e.g. 18" keyboardType="numeric" value={sizeValue} onChangeText={setSizeValue} />
+              <GlassInput label="Size Value" placeholder="Size" keyboardType="numeric" value={sizeValue} onChangeText={setSizeValue} />
             </View>
             <View style={{ flex: 1 }}>
               <GlassPickerInput
@@ -583,10 +583,10 @@ export default function AddStockScreen() {
             <Text className="text-lg font-bold text-vj-text">Purchase Costs ({getCurrencySymbol()})</Text>
           </View>
 
-          <GlassInput label={`Purchase Rate (${getCurrencySymbol()})`} placeholder="e.g. 14500" keyboardType="numeric" value={purchaseRate} onChangeText={setPurchaseRate} />
+          <GlassInput label={`Purchase Rate (${getCurrencySymbol()})`} placeholder="0.00" keyboardType="numeric" value={purchaseRate} onChangeText={setPurchaseRate} />
           <View style={{ flexDirection: 'row', gap: 12 }}>
-            <View style={{ flex: 1 }}><GlassInput label={`Making Charge (${getCurrencySymbol()})`} placeholder="Cash labour" keyboardType="numeric" value={makingCharge} onChangeText={setMakingCharge} /></View>
-            <View style={{ flex: 1 }}><GlassInput label={`Stone Cost (${getCurrencySymbol()})`} placeholder="Stone cost" keyboardType="numeric" value={stoneCost} onChangeText={setStoneCost} /></View>
+            <View style={{ flex: 1 }}><GlassInput label={`Making Charge (${getCurrencySymbol()})`} placeholder="0.00" keyboardType="numeric" value={makingCharge} onChangeText={setMakingCharge} /></View>
+            <View style={{ flex: 1 }}><GlassInput label={`Stone Cost (${getCurrencySymbol()})`} placeholder="0.00" keyboardType="numeric" value={stoneCost} onChangeText={setStoneCost} /></View>
           </View>
         </GlassCard>
 

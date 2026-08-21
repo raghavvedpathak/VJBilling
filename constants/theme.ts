@@ -1,15 +1,17 @@
 export const THEME_PRESETS = {
-  saffron: { // DEFAULT
+  saffron: { // DEFAULT - Option 2: Deep Royal Saffron Shadow
     id: 'saffron',
     label: 'Royal Kesari Gold (Default)',
-    vjHeaderBg: '#420D19', // Richer Deep Royal Kesari Burgundy Header
+    vjHeaderBg: '#7A2200', // Deep Royal Saffron Silk Shadow Header from Image
     vjText: '#2A1208',
     vjBg: '#FDF9F3',
-    vjAccent: '#E67E22',
-    vjAccentLight: '#FBE3C5',
-    vjAccentDark: '#B85B0E',
-    glassBorderDark: 'rgba(230, 126, 34, 0.2)',
-    border: 'rgba(230, 126, 34, 0.16)',
+    vjAccent: '#D9531E', // Vibrant Saffron Silk Accent
+    vjAccentLight: '#FCE7D8',
+    vjAccentDark: '#5C1600',
+    glassBorderDark: 'rgba(217, 83, 30, 0.25)',
+    border: 'rgba(217, 83, 30, 0.18)',
+    glassHeaderRim: 'rgba(255, 255, 255, 0.14)',
+    glassJunctionRim: 'rgba(255, 255, 255, 0.85)',
   },
   lotus_silk: { // Kashmir Lotus Silk & Soft Rose Gold
     id: 'lotus_silk',
@@ -22,6 +24,8 @@ export const THEME_PRESETS = {
     vjAccentDark: '#A1523E',
     glassBorderDark: 'rgba(201, 122, 99, 0.2)',
     border: 'rgba(201, 122, 99, 0.16)',
+    glassHeaderRim: 'rgba(255, 255, 255, 0.14)',
+    glassJunctionRim: 'rgba(255, 255, 255, 0.85)',
   },
   sandstone_ochre: { // Reth Sandstone Silk & Warm Ochre
     id: 'sandstone_ochre',
@@ -34,6 +38,8 @@ export const THEME_PRESETS = {
     vjAccentDark: '#AC5A16',
     glassBorderDark: 'rgba(217, 131, 56, 0.2)',
     border: 'rgba(217, 131, 56, 0.16)',
+    glassHeaderRim: 'rgba(255, 255, 255, 0.14)',
+    glassJunctionRim: 'rgba(255, 255, 255, 0.85)',
   },
 } as const;
 
@@ -55,6 +61,8 @@ export const COLORS = {
   get vjAccentDark() { return getThemeColors().vjAccentDark; },
   get glassBorderDark() { return getThemeColors().glassBorderDark; },
   get border() { return getThemeColors().border; },
+  get glassHeaderRim() { return getThemeColors().glassHeaderRim || 'rgba(255, 255, 255, 0.14)'; },
+  get glassJunctionRim() { return getThemeColors().glassJunctionRim || 'rgba(255, 255, 255, 0.85)'; },
   get gold() { return getThemeColors().vjAccent; },
   get goldAccent() { return getThemeColors().vjAccent; },
 

@@ -5,7 +5,7 @@ import { View, Text, ScrollView, TouchableOpacity, useWindowDimensions } from 'r
 import { useRouter, useFocusEffect } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { TwoToneWrapper } from '@/components/TwoToneWrapper';
-import { GlassCard, HeaderPill } from '@/components/ui/Glass';
+import { GlassCard, HeaderPill, MenuTile } from '@/components/ui/Glass';
 import { InventoryStockSummary } from '@/components/InventoryStockSummary';
 import { useFirmStore } from '@/store/phase1/useFirmStore';
 import { appSettingsStore } from '@/store/phase1/appSettingsStore';
@@ -207,122 +207,7 @@ export default function InventoryHubScreen() {
             onPress={() => router.push('/inventory/gemstones')} 
           />
         </View>
-
       </ScrollView>
     </TwoToneWrapper>
-  );
-}
-
-function MenuTile({ 
-  title, 
-  subtitle, 
-  icon, 
-  iconBg, 
-  borderColor, 
-  badgeText, 
-  alertCount,
-  disabled, 
-  onPress 
-}: {
-  title: string;
-  subtitle: string;
-  icon: React.ReactNode;
-  iconBg: string;
-  borderColor: string;
-  badgeText: string;
-  alertCount?: number;
-  disabled?: boolean;
-  onPress?: () => void;
-}) {
-  const hasAlert = alertCount !== undefined && alertCount > 0;
-  return (
-    <View style={{ width: '48%' }}> 
-      <TouchableOpacity 
-        disabled={disabled} 
-        onPress={() => {
-          try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch (e) {}
-          if (onPress) onPress();
-        }} 
-        activeOpacity={0.8}
-      >
-        <GlassCard 
-          style={{ 
-            height: 144, 
-            marginBottom: 0, 
-            opacity: disabled ? 0.6 : 1,
-            borderColor: hasAlert ? '#F59E0B' : (disabled ? 'rgba(255, 255, 255, 0.6)' : borderColor),
-            borderWidth: hasAlert ? 1.5 : 1,
-            padding: 14,
-            backgroundColor: hasAlert ? 'rgba(254, 243, 199, 0.55)' : undefined,
-          }}
-        >
-          <View style={{ height: '100%', justifyContent: 'space-between' }}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-              <View style={{ position: 'relative' }}>
-                <View 
-                  style={{ padding: 10, borderRadius: 16, borderWidth: 1, borderColor: hasAlert ? 'rgba(245,158,11,0.4)' : 'rgba(0,0,0,0.05)', alignItems: 'center', justifyContent: 'center', backgroundColor: iconBg }}
-                >
-                  {icon}
-                </View>
-                {hasAlert && (
-                  <View 
-                    style={{ 
-                      position: 'absolute', 
-                      top: -4, 
-                      right: -4, 
-                      backgroundColor: '#EF4444', 
-                      borderRadius: 10, 
-                      minWidth: 18, 
-                      height: 18, 
-                      justifyContent: 'center', 
-                      alignItems: 'center', 
-                      paddingHorizontal: 4,
-                      borderWidth: 1.5,
-                      borderColor: '#FFFFFF',
-                    }}
-                  >
-                    <Text style={{ color: '#FFFFFF', fontSize: 9, fontWeight: '900' }}>
-                      {alertCount > 99 ? '99+' : alertCount}
-                    </Text>
-                  </View>
-                )}
-              </View>
-
-              <View 
-                style={{ 
-                  paddingHorizontal: 8, 
-                  paddingVertical: 3, 
-                  borderRadius: 999, 
-                  borderWidth: 1, 
-                  backgroundColor: hasAlert ? 'rgba(245, 158, 11, 0.25)' : 'rgba(0,0,0,0.05)', 
-                  borderColor: hasAlert ? 'rgba(245, 158, 11, 0.6)' : 'rgba(0,0,0,0.1)' 
-                }}
-              >
-                <Text 
-                  style={{ 
-                    fontSize: 8.5, 
-                    fontWeight: '900', 
-                    textTransform: 'uppercase', 
-                    letterSpacing: 0.8, 
-                    color: hasAlert ? '#B45309' : 'rgba(92,22,35,0.6)' 
-                  }}
-                >
-                  {badgeText}
-                </Text>
-              </View>
-            </View>
-
-            <View style={{ marginTop: 8 }}>
-              <Text style={{ color: COLORS.vjText, fontWeight: '900', fontSize: 16, lineHeight: 20, marginBottom: 2 }} numberOfLines={1}>
-                {title}
-              </Text>
-              <Text style={{ color: 'rgba(92,22,35,0.5)', fontSize: 10, fontWeight: '700', textTransform: 'uppercase' }} numberOfLines={1}>
-                {subtitle}
-              </Text>
-            </View>
-          </View>
-        </GlassCard>
-      </TouchableOpacity>
-    </View>
   );
 }

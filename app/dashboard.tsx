@@ -6,7 +6,7 @@ import { useRouter, useFocusEffect } from 'expo-router';
 import { TwoToneWrapper } from '@/components/TwoToneWrapper'; 
 import { useSession } from '@/hooks/useSession';
 import { useFirmStore } from '@/store/phase1/useFirmStore';
-import { GlassCard, GlassButton, HeaderPill } from '@/components/ui/Glass'; 
+import { GlassCard, GlassButton, HeaderPill, MenuTile } from '@/components/ui/Glass'; 
 import { LeaseStatusBanner } from '@/components/LeaseStatusBanner'; 
 import { FYEndBanner } from '@/components/FYEndBanner'; 
 import { 
@@ -168,18 +168,15 @@ export default function Dashboard() {
 
         <View className="flex-row flex-wrap justify-between gap-y-4 mb-8">
           
-          <ModernMenuTile 
+          <MenuTile 
             title="Inventory & Stock" 
-            subtitle="Phase 2 Live" 
             icon={<Package size={24} color="#7C3AED" />} 
             iconBg="rgba(124, 58, 237, 0.12)"
             borderColor="rgba(124, 58, 237, 0.25)"
-            badgeText="LIVE"
-            badgeVariant="active"
             onPress={() => router.push('/inventory')} 
           />
 
-          <ModernMenuTile 
+          <MenuTile 
             title="Billing & Sales" 
             subtitle="Phase 3 Layer" 
             icon={<FileText size={24} color="#059669" />} 
@@ -189,7 +186,7 @@ export default function Dashboard() {
             disabled 
           />
 
-          <ModernMenuTile 
+          <MenuTile 
             title="Vault & Refinery" 
             subtitle="Phase 4 Layer" 
             icon={<Landmark size={24} color="#D97706" />} 
@@ -199,7 +196,7 @@ export default function Dashboard() {
             disabled 
           />
 
-          <ModernMenuTile 
+          <MenuTile 
             title="Business Reports" 
             subtitle="Phase 6 Layer" 
             icon={<TrendingUp size={24} color="#DB2777" />} 
@@ -261,87 +258,5 @@ export default function Dashboard() {
       </Modal>
 
     </TwoToneWrapper>
-  );
-}
-
-function ModernMenuTile({ 
-  title, 
-  subtitle, 
-  icon, 
-  iconBg, 
-  borderColor, 
-  badgeText, 
-  badgeVariant, 
-  disabled, 
-  onPress 
-}: {
-  title: string;
-  subtitle: string;
-  icon: React.ReactNode;
-  iconBg: string;
-  borderColor: string;
-  badgeText?: string;
-  badgeVariant?: 'active' | 'upcoming';
-  disabled?: boolean;
-  onPress?: () => void;
-}) {
-  return (
-    <View style={{ width: '48%' }}> 
-      <TouchableOpacity 
-        disabled={disabled} 
-        onPress={() => {
-          if (onPress) onPress();
-        }} 
-        activeOpacity={0.8}
-      >
-        <GlassCard 
-          style={{ 
-            height: 148, 
-            marginBottom: 0, 
-            opacity: disabled ? 0.65 : 1, 
-            borderColor: disabled ? 'rgba(255, 255, 255, 0.6)' : borderColor, 
-            padding: 16 
-          }}
-        >
-          <View className="h-full justify-between">
-            <View className="flex-row items-center justify-between">
-              <View 
-                className="p-2.5 rounded-2xl border border-black/5 items-center justify-center"
-                style={{ backgroundColor: iconBg }}
-              >
-                {icon}
-              </View>
-
-              {badgeText ? (
-                <View 
-                  className={`px-2 py-0.5 rounded-full border ${
-                    badgeVariant === 'active' 
-                      ? 'bg-emerald-500/10 border-emerald-500/20' 
-                      : 'bg-black/5 border-black/10'
-                  }`}
-                >
-                  <Text 
-                    className={`text-[8px] font-black uppercase tracking-wider ${
-                      badgeVariant === 'active' ? 'text-emerald-700' : 'text-vj-text/50'
-                    }`}
-                  >
-                    {badgeText}
-                  </Text>
-                </View>
-              ) : null}
-            </View>
-
-            <View className="mt-2">
-              <Text className="text-vj-text font-black text-base leading-5 mb-0.5" numberOfLines={1}>
-                {title}
-              </Text>
-              <Text className="text-vj-text/50 text-[10px] font-bold uppercase" numberOfLines={1}>
-                {subtitle}
-              </Text>
-            </View>
-          </View>
-        </GlassCard>
-      </TouchableOpacity>
-    </View>
   );
 }

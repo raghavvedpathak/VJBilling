@@ -377,7 +377,7 @@ export default function EditDraftScreen() {
               <View style={[s.row, { marginTop: 12, zIndex: 10 }]}>
                 <View style={[s.inputGroup, { flex: 1, paddingRight: 6 }]}>
                   <Text style={s.label}>Size Value</Text>
-                  <TextInput style={s.input} value={sizeValue} onChangeText={setSizeValue} keyboardType="numeric" placeholder="e.g. 18" />
+                  <TextInput style={s.input} value={sizeValue} onChangeText={setSizeValue} keyboardType="numeric" placeholder="Size" />
                 </View>
                 <View style={[s.inputGroup, { flex: 1, paddingLeft: 6 }]}>
                   <GlassPickerInput

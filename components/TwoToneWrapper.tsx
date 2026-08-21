@@ -6,7 +6,6 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { ChevronLeft } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
-import { DynamicBackground } from '@/components/ui/DynamicBackground';
 import { getThemeColors } from '@/constants/theme';
 import { appSettingsStore } from '@/store/phase1/appSettingsStore';
 
@@ -39,7 +38,14 @@ export function TwoToneWrapper({ title, children, showBack, actionIcon, onAction
       <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
 
       {/* UPPER ZONE: Header */}
-      <View style={{ backgroundColor: colors.vjHeaderBg || '#420D19', paddingTop: insets.top }}>
+      <View 
+        style={{ 
+          backgroundColor: colors.vjHeaderBg || '#7A2200', 
+          paddingTop: insets.top,
+          borderBottomWidth: 1,
+          borderBottomColor: colors.glassHeaderRim || 'rgba(255, 255, 255, 0.14)',
+        }}
+      >
         <View 
           className="w-full self-center px-4 pt-2 pb-6"
           style={{ maxWidth: isTablet ? 920 : undefined }}
@@ -50,7 +56,8 @@ export function TwoToneWrapper({ title, children, showBack, actionIcon, onAction
                 {showBack && (
                   <TouchableOpacity 
                     onPress={handleBack}
-                    className="h-10 w-10 rounded-full bg-white/12 justify-center items-center"
+                    className="h-10 w-10 rounded-full bg-white/15 border border-white/25 justify-center items-center"
+                    activeOpacity={0.7}
                   >
                     <ChevronLeft size={24} color={colors.vjBg} />
                   </TouchableOpacity>
@@ -62,7 +69,11 @@ export function TwoToneWrapper({ title, children, showBack, actionIcon, onAction
                 )}
               </View>
               {actionIcon && (
-                <TouchableOpacity onPress={onAction} className="h-10 w-10 rounded-full bg-white/12 justify-center items-center">
+                <TouchableOpacity 
+                  onPress={onAction} 
+                  className="h-10 w-10 rounded-full bg-white/15 border border-white/25 justify-center items-center"
+                  activeOpacity={0.7}
+                >
                   {actionIcon}
                 </TouchableOpacity>
               )}
@@ -76,9 +87,17 @@ export function TwoToneWrapper({ title, children, showBack, actionIcon, onAction
       {/* LOWER ZONE */}
       <View 
         className="flex-1 -mt-4 rounded-t-[32px] overflow-hidden" 
-        style={{ backgroundColor: colors.vjBg }}
+        style={{ 
+          backgroundColor: colors.vjBg,
+          borderTopWidth: 1.5,
+          borderTopColor: colors.glassJunctionRim || 'rgba(255, 255, 255, 0.85)',
+          shadowColor: '#000',
+          shadowOffset: { width: 0, height: -3 },
+          shadowOpacity: 0.08,
+          shadowRadius: 8,
+          elevation: 4,
+        }}
       >
-        <DynamicBackground />
         <View
           className="flex-1 w-full self-center px-4 pt-4"
           style={{ 

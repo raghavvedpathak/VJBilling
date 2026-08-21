@@ -585,7 +585,7 @@ export default function ItemDetailScreen() {
                     style={s.inlineInput}
                     value={editGrossGrams}
                     onChangeText={setEditGrossGrams}
-                    placeholder="e.g. 12.500"
+                    placeholder="0.000"
                     keyboardType="numeric"
                     placeholderTextColor="rgba(92,22,35,0.35)"
                   />
@@ -605,7 +605,7 @@ export default function ItemDetailScreen() {
                     style={s.inlineInput}
                     value={editStoneGrams}
                     onChangeText={setEditStoneGrams}
-                    placeholder="e.g. 0.500"
+                    placeholder="0.000"
                     keyboardType="numeric"
                     placeholderTextColor="rgba(92,22,35,0.35)"
                   />
@@ -625,7 +625,7 @@ export default function ItemDetailScreen() {
                     style={s.inlineInput}
                     value={editBeadsGrams}
                     onChangeText={setEditBeadsGrams}
-                    placeholder="e.g. 0.200"
+                    placeholder="0.000"
                     keyboardType="numeric"
                     placeholderTextColor="rgba(92,22,35,0.35)"
                   />
@@ -662,7 +662,7 @@ export default function ItemDetailScreen() {
                           setEditPurityKarat(percentToKarat(num));
                         }
                       }}
-                      placeholder="Purity % (e.g. 91.6, 75.0, 92.5)"
+                      placeholder="Purity %"
                       keyboardType="numeric"
                       placeholderTextColor="rgba(92,22,35,0.35)"
                     />
@@ -707,7 +707,7 @@ export default function ItemDetailScreen() {
                     style={s.inlineInput}
                     value={editWastagePercent}
                     onChangeText={setEditWastagePercent}
-                    placeholder="e.g. 5.0"
+                    placeholder="0.00"
                     keyboardType="numeric"
                     placeholderTextColor="rgba(92,22,35,0.35)"
                   />
@@ -843,7 +843,7 @@ export default function ItemDetailScreen() {
                       style={s.inlineInputFull}
                       value={editSizeValue}
                       onChangeText={setEditSizeValue}
-                      placeholder="Size Value (e.g. 2.4, 12, 18)"
+                      placeholder="Size"
                       keyboardType="numeric"
                       placeholderTextColor="rgba(92,22,35,0.35)"
                     />
@@ -878,7 +878,7 @@ export default function ItemDetailScreen() {
                       style={s.inlineInputFull}
                       value={editHuid}
                       onChangeText={(val) => setEditHuid(val.toUpperCase())}
-                      placeholder="6-character HUID (e.g. AB1234)"
+                      placeholder="6-char HUID"
                       maxLength={6}
                       autoCapitalize="characters"
                       autoCorrect={false}
@@ -950,7 +950,7 @@ export default function ItemDetailScreen() {
                     style={s.inlineInput}
                     value={editLocation}
                     onChangeText={setEditLocation}
-                    placeholder="e.g. Tray 4 / Safe 2"
+                    placeholder="Location / Tray"
                     placeholderTextColor="rgba(92,22,35,0.35)"
                   />
                 ) : (
@@ -989,7 +989,7 @@ export default function ItemDetailScreen() {
                     style={s.inlineReasonInput}
                     value={editReason}
                     onChangeText={setEditReason}
-                    placeholder="e.g. Weighing correction / Tag assigned"
+                    placeholder="Reason for change..."
                     placeholderTextColor="rgba(92,22,35,0.35)"
                   />
                 </View>
@@ -1014,7 +1014,7 @@ export default function ItemDetailScreen() {
                     style={s.inlineInput}
                     value={editPurchaseRateRupees}
                     onChangeText={setEditPurchaseRateRupees}
-                    placeholder="e.g. 6500.00"
+                    placeholder="0.00"
                     keyboardType="numeric"
                     placeholderTextColor="rgba(92,22,35,0.35)"
                   />
@@ -1034,7 +1034,7 @@ export default function ItemDetailScreen() {
                     style={s.inlineInput}
                     value={editMakingChargeRupees}
                     onChangeText={setEditMakingChargeRupees}
-                    placeholder="e.g. 1500.00"
+                    placeholder="0.00"
                     keyboardType="numeric"
                     placeholderTextColor="rgba(92,22,35,0.35)"
                   />
@@ -1054,7 +1054,7 @@ export default function ItemDetailScreen() {
                     style={s.inlineInput}
                     value={editStoneCostRupees}
                     onChangeText={setEditStoneCostRupees}
-                    placeholder="e.g. 800.00"
+                    placeholder="0.00"
                     keyboardType="numeric"
                     placeholderTextColor="rgba(92,22,35,0.35)"
                   />
@@ -1190,7 +1190,7 @@ export default function ItemDetailScreen() {
                 style={s.modalInput}
                 value={deleteReason}
                 onChangeText={setDeleteReason}
-                placeholder="e.g. Duplicate entry / Incorrect data"
+                placeholder="Reason for deletion..."
                 editable={!deleting}
               />
 
