@@ -1,17 +1,16 @@
-// app/inventory/edit-urd.tsx — Phase 2 Canonical Edit Screen for Draft URD Purchases
+// app/inventory/edit-urd.tsx — Phase 2 v2.15 Canonical Screen
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { View, Text, ScrollView, Alert, TouchableOpacity, Modal, ActivityIndicator, StyleSheet } from 'react-native';
+import { View, Text, Alert, TouchableOpacity, Modal, ActivityIndicator, StyleSheet } from 'react-native';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import { useRouter, useLocalSearchParams } from 'expo-router';
-import { BlurView } from 'expo-blur';
 import * as Haptics from 'expo-haptics';
 import { TwoToneWrapper } from '@/components/TwoToneWrapper';
-import { GlassCard, GlassInput, GlassButton, FixedGlassBar, fixedBarStyles } from '@/components/ui/Glass';
+import { GlassCard, GlassInput, GlassButton, FixedGlassBar } from '@/components/ui/Glass';
 import { useFirmStore } from '@/store/phase1/useFirmStore';
 import { urdPurchaseService } from '@/services/phase2/urdPurchaseService';
 import { getCurrencySymbol, formatRupees, computeURDCostBreakdown, parseCleanFloat, percentToKarat, getPurityPresets } from '@/utils/calculations';
-import { User, Scale, Banknote, CheckCircle, Save, Edit3, X } from 'lucide-react-native';
+import { User, Scale, Banknote, CheckCircle, Save, X } from 'lucide-react-native';
 import type { URDMetalType, URDPurchase } from '@/types/phase2/phase2.types';
 import { COLORS } from '@/constants/theme';
 
@@ -107,12 +106,12 @@ export default function EditURDScreen() {
       ...breakdown,
       isValid: grossMg > 0 && purity > 0 && ratePaise > 0,
       formattedFineGrams: (breakdown.fineWeightMg / 1000).toFixed(3) + ' g',
-      formattedTotalPayout: getCurrencySymbol() + (breakdown.totalValuePaise / 100).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+      formattedTotalPayout: formatRupees(breakdown.totalValuePaise),
     };
   }, [grossWeight, purityPercent, ratePerGram, discount, adjustmentType]);
 
   const handleSubmit = async () => {
-    try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); } catch (e) {}
+    try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); } catch {}
     if (!activeFirmId || !urdId) return;
     if (!customerName.trim()) { Alert.alert('Error', 'Seller/Customer Name is required'); return; }
 
@@ -123,6 +122,11 @@ export default function EditURDScreen() {
     if (isNaN(grossMg) || grossMg <= 0) { Alert.alert('Validation Error', 'Invalid Gross Weight'); return; }
     if (isNaN(purity) || purity <= 0 || purity > 100) { Alert.alert('Validation Error', 'Purity must be between 1 and 100%'); return; }
     if (isNaN(ratePaise) || ratePaise <= 0) { Alert.alert('Validation Error', 'Invalid Rate Per Gram'); return; }
+
+    if (calculation.totalValuePaise > 999999999) {
+      Alert.alert('Limit Exceeded', `URD Purchase valuation cannot exceed ${getCurrencySymbol()}99,99,999.99`);
+      return;
+    }
 
     setLoading(true);
     try {
@@ -182,179 +186,179 @@ export default function EditURDScreen() {
         >
           {/* Seller / Customer Details */}
           <GlassCard style={{ marginBottom: 16 }}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 16 }}>
-            <User size={20} color="#D4AF37" />
-            <Text style={{ fontSize: 18, fontWeight: '700', color: COLORS.vjText }}>Seller Details</Text>
-          </View>
-
-          <GlassInput label="Full Name *" placeholder="Enter customer name" value={customerName} onChangeText={setCustomerName} />
-          <GlassInput label="Mobile Number" placeholder="10-digit mobile" keyboardType="phone-pad" value={customerMobile} onChangeText={setCustomerMobile} />
-          <GlassInput label="Address" placeholder="City/Area" value={customerAddress} onChangeText={setCustomerAddress} />
-          <View style={{ flexDirection: 'row', gap: 12 }}>
-            <View style={{ flex: 1 }}>
-              <GlassInput label="Aadhaar No" placeholder="12-digit number" keyboardType="number-pad" value={customerAadhaar} onChangeText={setCustomerAadhaar} />
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 16 }}>
+              <User size={20} color="#D4AF37" />
+              <Text style={{ fontSize: 18, fontWeight: '700', color: COLORS.vjText }}>Seller Details</Text>
             </View>
-            <View style={{ flex: 1 }}>
-              <GlassInput label="PAN" placeholder="ABCDE1234F" autoCapitalize="characters" value={customerPAN} onChangeText={setCustomerPAN} />
+
+            <GlassInput label="Full Name *" placeholder="Enter customer name" value={customerName} onChangeText={setCustomerName} />
+            <GlassInput label="Mobile Number" placeholder="10-digit mobile" keyboardType="phone-pad" value={customerMobile} onChangeText={setCustomerMobile} />
+            <GlassInput label="Address" placeholder="City/Area" value={customerAddress} onChangeText={setCustomerAddress} />
+            <View style={{ flexDirection: 'row', gap: 12 }}>
+              <View style={{ flex: 1 }}>
+                <GlassInput label="Aadhaar No" placeholder="12-digit number" keyboardType="number-pad" value={customerAadhaar} onChangeText={setCustomerAadhaar} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <GlassInput label="PAN" placeholder="ABCDE1234F" autoCapitalize="characters" value={customerPAN} onChangeText={setCustomerPAN} />
+              </View>
             </View>
-          </View>
-        </GlassCard>
+          </GlassCard>
 
-        {/* Item Specification */}
-        <GlassCard style={{ marginBottom: 16 }}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 16 }}>
-            <Scale size={20} color="#D4AF37" />
-            <Text style={{ fontSize: 18, fontWeight: '700', color: COLORS.vjText }}>Item Details</Text>
-          </View>
-
-          <Text style={{ fontSize: 12, fontWeight: '700', color: 'rgba(92,22,35,0.6)', textTransform: 'uppercase', marginBottom: 6 }}>Metal Type *</Text>
-          <View style={{ flexDirection: 'row', gap: 12, marginBottom: 16 }}>
-            {(['GOLD', 'SILVER'] as URDMetalType[]).map((m) => (
-              <TouchableOpacity
-                key={m}
-                style={[{ flex: 1, padding: 10, borderRadius: 10, borderWidth: 1, borderColor: 'rgba(92,22,35,0.3)', alignItems: 'center' }, metalType === m && { backgroundColor: m === 'GOLD' ? '#C8860A' : '#6B7280', borderColor: m === 'GOLD' ? '#C8860A' : '#6B7280' }]}
-                onPress={() => setMetalType(m)}
-              >
-                <Text style={[{ fontSize: 13, fontWeight: '700', color: 'rgba(92,22,35,0.6)' }, metalType === m && { color: '#fff' }]}>{m}</Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-
-          <GlassInput
-            label="Gross Weight (Grams) *"
-            placeholder="0.000"
-            keyboardType="numeric"
-            value={grossWeight}
-            onChangeText={setGrossWeight}
-          />
-
-          <View style={{ marginBottom: 12 }}>
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-              <Text style={{ fontSize: 12, fontWeight: '700', color: 'rgba(92,22,35,0.6)', textTransform: 'uppercase' }}>Purity (%) *</Text>
-              {metalType === 'GOLD' && parseCleanFloat(purityPercent) > 0 && percentToKarat(parseCleanFloat(purityPercent)) ? (
-                <View style={{ backgroundColor: 'rgba(212,175,55,0.2)', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 }}>
-                  <Text style={{ fontSize: 11, fontWeight: '800', color: '#D4AF37' }}>
-                    {percentToKarat(parseCleanFloat(purityPercent))}K
-                  </Text>
-                </View>
-              ) : null}
+          {/* Item Specification */}
+          <GlassCard style={{ marginBottom: 16 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 16 }}>
+              <Scale size={20} color="#D4AF37" />
+              <Text style={{ fontSize: 18, fontWeight: '700', color: COLORS.vjText }}>Item Details</Text>
             </View>
+
+            <Text style={{ fontSize: 12, fontWeight: '700', color: 'rgba(92,22,35,0.6)', textTransform: 'uppercase', marginBottom: 6 }}>Metal Type *</Text>
+            <View style={{ flexDirection: 'row', gap: 12, marginBottom: 16 }}>
+              {(['GOLD', 'SILVER'] as URDMetalType[]).map((m) => (
+                <TouchableOpacity
+                  key={m}
+                  style={[{ flex: 1, padding: 10, borderRadius: 10, borderWidth: 1, borderColor: 'rgba(92,22,35,0.3)', alignItems: 'center' }, metalType === m && { backgroundColor: m === 'GOLD' ? '#C8860A' : '#6B7280', borderColor: m === 'GOLD' ? '#C8860A' : '#6B7280' }]}
+                  onPress={() => setMetalType(m)}
+                >
+                  <Text style={[{ fontSize: 13, fontWeight: '700', color: 'rgba(92,22,35,0.6)' }, metalType === m && { color: '#fff' }]}>{m}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
             <GlassInput
-              placeholder="91.6"
+              label="Gross Weight (Grams) *"
+              placeholder="0.000"
               keyboardType="numeric"
-              value={purityPercent}
-              onChangeText={setPurityPercent}
+              value={grossWeight}
+              onChangeText={setGrossWeight}
             />
-          </View>
 
-          {/* Quick Purity Preset Chips */}
-          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 12, marginTop: -4 }}>
-            {getPurityPresets(metalType || 'GOLD').map(preset => (
-              <TouchableOpacity
-                key={preset.id}
-                onPress={() => setPurityPercent(preset.val)}
-                style={{
-                  backgroundColor: purityPercent === preset.val ? '#D4AF37' : 'rgba(212,175,55,0.12)',
-                  paddingHorizontal: 8,
-                  paddingVertical: 4,
-                  borderRadius: 6
-                }}
-              >
-                <Text style={{ fontSize: 11, fontWeight: '700', color: purityPercent === preset.val ? '#FFF' : COLORS.vjText }}>
-                  {preset.label}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-
-          <GlassInput
-            label={`Rate Per Gram (${getCurrencySymbol()}) *`}
-            placeholder="0.00"
-            keyboardType="numeric"
-            value={ratePerGram}
-            onChangeText={setRatePerGram}
-          />
-
-          <View style={{ marginBottom: 12 }}>
-            <Text style={{ fontSize: 12, fontWeight: '600', color: COLORS.vjText, marginBottom: 6 }}>
-              Adjustment Type:
-            </Text>
-            <View style={{ flexDirection: 'row', gap: 8 }}>
-              <TouchableOpacity 
-                style={{
-                  flex: 1, paddingVertical: 8, borderRadius: 8, alignItems: 'center',
-                  backgroundColor: adjustmentType === '+' ? COLORS.vjText : 'rgba(255,255,255,0.4)',
-                  borderWidth: 1, borderColor: adjustmentType === '+' ? COLORS.vjText : 'rgba(0,0,0,0.1)'
-                }}
-                onPress={() => setAdjustmentType('+')}
-              >
-                <Text style={{ fontSize: 12, fontWeight: 'bold', color: adjustmentType === '+' ? '#fff' : COLORS.vjText }}>
-                  + Addition (Round-Up)
-                </Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity 
-                style={{
-                  flex: 1, paddingVertical: 8, borderRadius: 8, alignItems: 'center',
-                  backgroundColor: adjustmentType === '-' ? COLORS.danger : 'rgba(255,255,255,0.4)',
-                  borderWidth: 1, borderColor: adjustmentType === '-' ? COLORS.danger : 'rgba(0,0,0,0.1)'
-                }}
-                onPress={() => setAdjustmentType('-')}
-              >
-                <Text style={{ fontSize: 12, fontWeight: 'bold', color: adjustmentType === '-' ? '#fff' : COLORS.vjText }}>
-                  - Deduction (Round-Down)
-                </Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-
-          <GlassInput
-            label={`Adjustment Amount (${getCurrencySymbol()})`}
-            placeholder="0.00"
-            keyboardType="numeric"
-            value={discount}
-            onChangeText={setDiscount}
-          />
-        </GlassCard>
-
-        {/* Valuation & Payout Summary */}
-        <GlassCard style={{ marginBottom: 24 }}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 16 }}>
-            <Banknote size={20} color="#D4AF37" />
-            <Text style={{ fontSize: 18, fontWeight: '700', color: COLORS.vjText }}>Payout & Valuation Summary</Text>
-          </View>
-
-          <Text style={{ fontSize: 12, fontWeight: '700', color: 'rgba(92,22,35,0.6)', textTransform: 'uppercase', marginBottom: 8 }}>Payout Mode *</Text>
-          <View style={{ flexDirection: 'row', gap: 8, marginBottom: 16 }}>
-            {(['CASH', 'UPI', 'BANK'] as const).map((mode) => (
-              <TouchableOpacity
-                key={mode}
-                style={[{ flex: 1, padding: 10, borderRadius: 8, borderWidth: 1, borderColor: 'rgba(92,22,35,0.3)', alignItems: 'center' }, paymentMode === mode && { backgroundColor: '#D4AF37', borderColor: '#D4AF37' }]}
-                onPress={() => setPaymentMode(mode)}
-              >
-                <Text style={[{ fontSize: 12, fontWeight: '700', color: 'rgba(92,22,35,0.6)' }, paymentMode === mode && { color: '#fff' }]}>{mode}</Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-
-          {calculation.isValid && (
-            <View style={{ backgroundColor: COLORS.vjText, padding: 16, borderRadius: 14, marginTop: 4 }}>
-              <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
-                <Text style={{ fontSize: 12, color: 'rgba(255,255,255,0.7)', fontWeight: '600' }}>Calculated Fine Weight</Text>
-                <Text style={{ fontSize: 12, color: '#F7D273', fontWeight: 'bold', fontFamily: 'monospace' }}>{calculation.formattedFineGrams}</Text>
+            <View style={{ marginBottom: 12 }}>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                <Text style={{ fontSize: 12, fontWeight: '700', color: 'rgba(92,22,35,0.6)', textTransform: 'uppercase' }}>Purity (%) *</Text>
+                {metalType === 'GOLD' && parseCleanFloat(purityPercent) > 0 && percentToKarat(parseCleanFloat(purityPercent)) ? (
+                  <View style={{ backgroundColor: 'rgba(212,175,55,0.2)', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 }}>
+                    <Text style={{ fontSize: 11, fontWeight: '800', color: '#D4AF37' }}>
+                      {percentToKarat(parseCleanFloat(purityPercent))}K
+                    </Text>
+                  </View>
+                ) : null}
               </View>
+              <GlassInput
+                placeholder="91.6"
+                keyboardType="numeric"
+                value={purityPercent}
+                onChangeText={setPurityPercent}
+              />
+            </View>
 
-              <View style={{ borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.2)', paddingTop: 8, marginTop: 4 }}>
-                <Text style={{ fontSize: 11, color: 'rgba(255,255,255,0.7)', textTransform: 'uppercase', fontWeight: '700', marginBottom: 2 }}>Updated Total Payout Amount</Text>
-                <Text style={{ fontSize: 26, fontWeight: '800', color: '#FCFBF8', fontFamily: 'monospace' }}>{calculation.formattedTotalPayout}</Text>
+            {/* Quick Purity Preset Chips */}
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 12, marginTop: -4 }}>
+              {getPurityPresets(metalType || 'GOLD').map(preset => (
+                <TouchableOpacity
+                  key={preset.id}
+                  onPress={() => setPurityPercent(preset.val)}
+                  style={{
+                    backgroundColor: purityPercent === preset.val ? '#D4AF37' : 'rgba(212,175,55,0.12)',
+                    paddingHorizontal: 8,
+                    paddingVertical: 4,
+                    borderRadius: 6
+                  }}
+                >
+                  <Text style={{ fontSize: 11, fontWeight: '700', color: purityPercent === preset.val ? '#FFF' : COLORS.vjText }}>
+                    {preset.label}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            <GlassInput
+              label={`Rate Per Gram (${getCurrencySymbol()}) *`}
+              placeholder="0.00"
+              keyboardType="numeric"
+              value={ratePerGram}
+              onChangeText={setRatePerGram}
+            />
+
+            <View style={{ marginBottom: 12 }}>
+              <Text style={{ fontSize: 12, fontWeight: '600', color: COLORS.vjText, marginBottom: 6 }}>
+                Adjustment Type:
+              </Text>
+              <View style={{ flexDirection: 'row', gap: 8 }}>
+                <TouchableOpacity 
+                  style={{
+                    flex: 1, paddingVertical: 8, borderRadius: 8, alignItems: 'center',
+                    backgroundColor: adjustmentType === '+' ? COLORS.vjText : 'rgba(255,255,255,0.4)',
+                    borderWidth: 1, borderColor: adjustmentType === '+' ? COLORS.vjText : 'rgba(0,0,0,0.1)'
+                  }}
+                  onPress={() => setAdjustmentType('+')}
+                >
+                  <Text style={{ fontSize: 12, fontWeight: 'bold', color: adjustmentType === '+' ? '#fff' : COLORS.vjText }}>
+                    + Addition (Round-Up)
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity 
+                  style={{
+                    flex: 1, paddingVertical: 8, borderRadius: 8, alignItems: 'center',
+                    backgroundColor: adjustmentType === '-' ? COLORS.danger : 'rgba(255,255,255,0.4)',
+                    borderWidth: 1, borderColor: adjustmentType === '-' ? COLORS.danger : 'rgba(0,0,0,0.1)'
+                  }}
+                  onPress={() => setAdjustmentType('-')}
+                >
+                  <Text style={{ fontSize: 12, fontWeight: 'bold', color: adjustmentType === '-' ? '#fff' : COLORS.vjText }}>
+                    - Deduction (Round-Down)
+                  </Text>
+                </TouchableOpacity>
               </View>
             </View>
-          )}
-        </GlassCard>
+
+            <GlassInput
+              label={`Adjustment Amount (${getCurrencySymbol()})`}
+              placeholder="0.00"
+              keyboardType="numeric"
+              value={discount}
+              onChangeText={setDiscount}
+            />
+          </GlassCard>
+
+          {/* Valuation & Payout Summary */}
+          <GlassCard style={{ marginBottom: 24 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 16 }}>
+              <Banknote size={20} color="#D4AF37" />
+              <Text style={{ fontSize: 18, fontWeight: '700', color: COLORS.vjText }}>Payout & Valuation Summary</Text>
+            </View>
+
+            <Text style={{ fontSize: 12, fontWeight: '700', color: 'rgba(92,22,35,0.6)', textTransform: 'uppercase', marginBottom: 8 }}>Payout Mode *</Text>
+            <View style={{ flexDirection: 'row', gap: 8, marginBottom: 16 }}>
+              {(['CASH', 'UPI', 'BANK'] as const).map((mode) => (
+                <TouchableOpacity
+                  key={mode}
+                  style={[{ flex: 1, padding: 10, borderRadius: 8, borderWidth: 1, borderColor: 'rgba(92,22,35,0.3)', alignItems: 'center' }, paymentMode === mode && { backgroundColor: '#D4AF37', borderColor: '#D4AF37' }]}
+                  onPress={() => setPaymentMode(mode)}
+                >
+                  <Text style={[{ fontSize: 12, fontWeight: '700', color: 'rgba(92,22,35,0.6)' }, paymentMode === mode && { color: '#fff' }]}>{mode}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            {calculation.isValid && (
+              <View style={{ backgroundColor: COLORS.vjText, padding: 16, borderRadius: 14, marginTop: 4 }}>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
+                  <Text style={{ fontSize: 12, color: 'rgba(255,255,255,0.7)', fontWeight: '600' }}>Calculated Fine Weight</Text>
+                  <Text style={{ fontSize: 12, color: '#F7D273', fontWeight: 'bold', fontFamily: 'monospace' }}>{calculation.formattedFineGrams}</Text>
+                </View>
+
+                <View style={{ borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.2)', paddingTop: 8, marginTop: 4 }}>
+                  <Text style={{ fontSize: 11, color: 'rgba(255,255,255,0.7)', textTransform: 'uppercase', fontWeight: '700', marginBottom: 2 }}>Updated Total Payout Amount</Text>
+                  <Text style={{ fontSize: 26, fontWeight: '800', color: '#FCFBF8', fontFamily: 'monospace' }}>{calculation.formattedTotalPayout}</Text>
+                </View>
+              </View>
+            )}
+          </GlassCard>
 
         </KeyboardAwareScrollView>
 
-        {/* === FIXED STICKY PILL-SHAPED GLASS ACTION BAR === */}
+        {/* Fixed Action Bar */}
         <FixedGlassBar>
           <TouchableOpacity
             style={s.pillSecondaryBtn}

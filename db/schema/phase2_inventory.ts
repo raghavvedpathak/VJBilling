@@ -1,8 +1,8 @@
-import { sqliteTable, text, integer, real, index, foreignKey, unique } from 'drizzle-orm/sqlite-core';
+import { sqliteTable, text, integer, real, index, foreignKey, unique, primaryKey } from 'drizzle-orm/sqlite-core';
 import { isNotNull, sql } from 'drizzle-orm';
 import { firms } from './phase1_core';
 
-// PHASE 2 — INVENTORY TRUTH LAYER (v2.11 SPECIFICATION)
+// PHASE 2 — INVENTORY TRUTH LAYER (v2.15 SPECIFICATION)
 // =============================================================================
 
 // PURITY HELPERS (Step 6.1 — in-memory constants, no DB table)
@@ -60,17 +60,27 @@ export const designs = sqliteTable('designs', {
   code: text('code').notNull(), // CAT-DES-DISPLAY-CODE (v1.42): e.g. DES0001
   metal: text('metal', { enum: ['GOLD', 'SILVER'] }).notNull(),
   defaultHsn: text('default_hsn'),
-  lowStockThreshold: integer('low_stock_threshold'), // FIX-LOWSTOCK-DESIGN-1 (v2.08): moved from categories to designs (nullable)
   firmId: text('firm_id').notNull(),
   isActive: integer('is_active').notNull().default(1),
   createdAt: text('created_at').notNull(),
   updatedAt: text('updated_at').notNull(),
+  // lowStockThreshold REMOVED (v2.13, FIX-LOWSTOCK-PURITYGRAIN-1) — moved to design_purity_thresholds below
 }, (table) => ({
   firmFk: foreignKey({ columns: [table.firmId], foreignColumns: [firms.id] }),
   uniqueDesign: unique().on(table.name, table.metal, table.firmId), // FIX-CAT-ITEM-FK (v1.42)
   idxDesignsFirmId: index('idx_designs_firm_id').on(table.firmId),
   idxDesignsFirmActive: index('idx_designs_firm_active').on(table.firmId, table.isActive),
   idxDesignsFirmMetal: index('idx_designs_firm_metal').on(table.firmId, table.metal),
+}));
+
+// Design Purity Thresholds (Step 3 / Step 9-Lite GAP-3 — FIX-LOWSTOCK-PURITYGRAIN-1 v2.13)
+export const designPurityThresholds = sqliteTable('design_purity_thresholds', {
+  designId: text('design_id').notNull(),
+  purityPercent: real('purity_percent').notNull(),
+  lowStockThreshold: integer('low_stock_threshold').notNull(),
+}, (table) => ({
+  pk: primaryKey({ columns: [table.designId, table.purityPercent] }),
+  designFk: foreignKey({ columns: [table.designId], foreignColumns: [designs.id] }),
 }));
 
 // Items (individual SKUs - Step 6)
@@ -285,4 +295,4 @@ export const hsnCodes = sqliteTable('hsn_codes', {
   chapter: text('chapter').notNull().default('71'), // '71' for jewellery
   isActive: integer('is_active').notNull().default(1), // 1=active 0=deactivated
   createdAt: text('created_at').notNull(), // ISO timestamp
-});
+});

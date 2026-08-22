@@ -17,7 +17,8 @@ CREATE TABLE `design_category_map` (
 	`created_at` text NOT NULL
 );
 --> statement-breakpoint
-CREATE UNIQUE INDEX `design_category_map_design_id_category_id_firm_id_unique` ON `design_category_map` (`design_id`,`category_id`,`firm_id`);--> statement-breakpoint
+CREATE UNIQUE INDEX `design_category_map_design_id_category_id_firm_id_unique` ON `design_category_map` (`design_id`,`category_id`,`firm_id`);
+--> statement-breakpoint
 CREATE TABLE `designs` (
 	`id` text PRIMARY KEY NOT NULL,
 	`name` text NOT NULL,
@@ -26,13 +27,21 @@ CREATE TABLE `designs` (
 	`default_hsn` text,
 	`firm_id` text NOT NULL,
 	`is_active` integer DEFAULT 1 NOT NULL,
-	`low_stock_threshold` integer,
 	`created_at` text NOT NULL,
 	`updated_at` text NOT NULL,
 	FOREIGN KEY (`firm_id`) REFERENCES `firms`(`id`) ON UPDATE no action ON DELETE no action
 );
 --> statement-breakpoint
-CREATE UNIQUE INDEX `designs_name_metal_firm_id_unique` ON `designs` (`name`,`metal`,`firm_id`);--> statement-breakpoint
+CREATE UNIQUE INDEX `designs_name_metal_firm_id_unique` ON `designs` (`name`,`metal`,`firm_id`);
+--> statement-breakpoint
+CREATE TABLE `design_purity_thresholds` (
+	`design_id` text NOT NULL,
+	`purity_percent` real NOT NULL,
+	`low_stock_threshold` integer NOT NULL,
+	PRIMARY KEY (`design_id`, `purity_percent`),
+	FOREIGN KEY (`design_id`) REFERENCES `designs`(`id`) ON UPDATE no action ON DELETE no action
+);
+--> statement-breakpoint
 CREATE TABLE `gemstone_lots` (
 	`id` text PRIMARY KEY NOT NULL,
 	`firm_id` text NOT NULL,
@@ -61,7 +70,8 @@ CREATE TABLE `hsn_codes` (
 	`created_at` text NOT NULL
 );
 --> statement-breakpoint
-CREATE UNIQUE INDEX `hsn_codes_code_unique` ON `hsn_codes` (`code`);--> statement-breakpoint
+CREATE UNIQUE INDEX `hsn_codes_code_unique` ON `hsn_codes` (`code`);
+--> statement-breakpoint
 CREATE TABLE `item_events` (
 	`id` text PRIMARY KEY NOT NULL,
 	`item_id` text NOT NULL,
@@ -116,9 +126,12 @@ CREATE TABLE `items` (
 	FOREIGN KEY (`primary_stone_id`) REFERENCES `stones`(`id`) ON UPDATE no action ON DELETE no action
 );
 --> statement-breakpoint
-CREATE UNIQUE INDEX `items_sku_unique` ON `items` (`sku`);--> statement-breakpoint
-CREATE UNIQUE INDEX `items_barcode_unique` ON `items` (`barcode`);--> statement-breakpoint
-CREATE UNIQUE INDEX `items_huid_unique` ON `items` (`huid`);--> statement-breakpoint
+CREATE UNIQUE INDEX `items_sku_unique` ON `items` (`sku`);
+--> statement-breakpoint
+CREATE UNIQUE INDEX `items_barcode_unique` ON `items` (`barcode`);
+--> statement-breakpoint
+CREATE UNIQUE INDEX `items_huid_unique` ON `items` (`huid`);
+--> statement-breakpoint
 CREATE TABLE `old_gold_lots` (
 	`id` text PRIMARY KEY NOT NULL,
 	`firm_id` text NOT NULL,
@@ -188,8 +201,8 @@ CREATE TABLE `urd_purchases` (
 	FOREIGN KEY (`firm_id`) REFERENCES `firms`(`id`) ON UPDATE no action ON DELETE no action,
 	FOREIGN KEY (`old_gold_lot_id`) REFERENCES `old_gold_lots`(`id`) ON UPDATE no action ON DELETE no action
 );
-
 --> statement-breakpoint
+
 -- =============================================================================
 -- CONSTITUTIONAL TRIGGERS & INDEXES (PHASE 2 INVENTORY)
 -- =============================================================================
@@ -201,7 +214,6 @@ BEGIN
   SELECT RAISE(ABORT, 'PHANTOM_STOCK_IMMUTABLE: phantom_stock_id cannot be changed once reconciled');
 END;
 --> statement-breakpoint
--- 3. Constitutional Indexes - Search & Performance (Phase 2)
 CREATE INDEX IF NOT EXISTS idx_items_firm_status ON items(firm_id, status);
 --> statement-breakpoint
 CREATE INDEX IF NOT EXISTS idx_items_design_id ON items(design_id);
@@ -249,80 +261,13 @@ CREATE INDEX IF NOT EXISTS idx_dcm_category ON design_category_map(category_id);
 CREATE INDEX IF NOT EXISTS idx_hsn_code ON hsn_codes(code);
 --> statement-breakpoint
 CREATE INDEX IF NOT EXISTS idx_hsn_chapter ON hsn_codes(chapter);
-
--- MIGRATION: 0002_phase2_inventory.sql addendum (v1.49)
--- FIX-OLDGOLD-CUSTOMER-1: customerId FK on old_gold_lots
-ALTER TABLE old_gold_lots ADD COLUMN customer_id TEXT REFERENCES customers(id); 
--- FIX-CUSTOMERS-FK-SCOPE-1 (v1.50): customers table is Phase 3 scope and does NOT exist
--- when this Phase 2 migration runs. SQLite FK enforcement is OFF by default in expo-sqlite 
--- (PRAGMA foreign_keys = OFF), so this will not blow up at runtime. The FK declaration 
--- is forward-declared as an architectural contract — it becomes enforced once Phase 3 
--- creates the customers table. This is accepted, documented, and intentional. 
-
--- FIX-OLDGOLD-COST-1 (v1.51): Add cost tracking columns to old_gold_lots.
--- fineWeightMg: derived at insert time, DEFAULT 0 is migration-safe for existing rows.
--- purchaseRatePaise: nullable — not always known at lot creation.
--- totalAmountPaise: nullable — null when purchaseRatePaise is null.
-ALTER TABLE old_gold_lots ADD COLUMN fine_weight_mg INTEGER NOT NULL DEFAULT 0; 
-ALTER TABLE old_gold_lots ADD COLUMN purchase_rate_paise INTEGER; 
-ALTER TABLE old_gold_lots ADD COLUMN total_amount_paise INTEGER; 
-
--- v1.91 FEAT-PURITY-ROUND-1 (extended): purity rounding delta for MELT_OUTPUT (refinery-returned) lots only
-ALTER TABLE old_gold_lots ADD COLUMN purity_rounding_delta_mg INTEGER NOT NULL DEFAULT 0;
-
-CREATE INDEX IF NOT EXISTS idx_old_gold_lots_customer
- ON old_gold_lots(firm_id, customer_id) WHERE customer_id IS NOT NULL;
-
--- FIX-URD-1: urd_purchases table
-CREATE TABLE IF NOT EXISTS urd_purchases (
- id TEXT PRIMARY KEY,
- firm_id TEXT NOT NULL REFERENCES firms(id),
- fy_id TEXT NOT NULL REFERENCES financial_years(id),
- urd_number TEXT,
- purchase_date TEXT NOT NULL,
- customer_id TEXT REFERENCES customers(id), -- Phase 3 FK (FIX-CUSTOMERS-FK-SCOPE-1 v1.50): customers table created in Phase 3. SQLite FK enforcement OFF at Phase 2 build time — accepted and documented.
- customer_name TEXT NOT NULL,
- customer_address TEXT,
- customer_mobile TEXT,
- customer_aadhaar TEXT,
- customer_pan TEXT,
- metal_type TEXT NOT NULL,
- gross_weight_mg INTEGER NOT NULL,
- purity_percent REAL NOT NULL,
- fine_weight_mg INTEGER NOT NULL,
- rate_per_gram_paise INTEGER NOT NULL,
- total_value_paise INTEGER NOT NULL,
- payment_mode TEXT NOT NULL,
- bank_account_id TEXT,
- old_gold_lot_id TEXT NOT NULL REFERENCES old_gold_lots(id),
- status TEXT NOT NULL DEFAULT 'DRAFT',
- notes TEXT,
- created_at TEXT NOT NULL,
- updated_at TEXT NOT NULL
-);
-
-CREATE INDEX IF NOT EXISTS idx_urd_purchases_firm
- ON urd_purchases(firm_id, status, purchase_date);
-
-CREATE INDEX IF NOT EXISTS idx_urd_purchases_customer
- ON urd_purchases(firm_id, customer_id) WHERE customer_id IS NOT NULL;
-
--- FIX-URD-SEQ-1: Add 'URD' to sequence_counters valid types
--- sequenceCounters already stores type as free text — no schema change required.
--- Document that valid type values are: 'SALE' | 'CREDIT_NOTE' | 'URD'
-
--- ADDENDUM: Missing columns for items and audit_logs index merged from generate
-ALTER TABLE items ADD COLUMN size_value REAL;
-ALTER TABLE items ADD COLUMN size_unit TEXT;
-ALTER TABLE items ADD COLUMN purity_rounding_delta_mg INTEGER NOT NULL DEFAULT 0;
-
-CREATE INDEX IF NOT EXISTS idx_audit_logs_entity_event 
- ON audit_logs(entity_id, event_type, firm_id, created_at DESC);
-
--- FIX-GAP-P2-SIZE-3 (v1.76): partial index for size filter
-CREATE INDEX IF NOT EXISTS idx_items_size 
- ON items(firm_id, size_unit, size_value) WHERE size_value IS NOT NULL;
-
--- FIX-LOWSTOCK-DESIGN-1 (v2.08): designs low_stock_threshold column migration fallback
-ALTER TABLE designs ADD COLUMN low_stock_threshold integer;
-
+--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS idx_items_size ON items(firm_id, size_unit, size_value) WHERE size_value IS NOT NULL;
+--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS idx_old_gold_lots_customer ON old_gold_lots(firm_id, customer_id) WHERE customer_id IS NOT NULL;
+--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS idx_urd_purchases_firm ON urd_purchases(firm_id, status, purchase_date);
+--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS idx_urd_purchases_customer ON urd_purchases(firm_id, customer_id) WHERE customer_id IS NOT NULL;
+--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS idx_audit_logs_entity_event ON audit_logs(entity_id, event_type, firm_id, created_at DESC);

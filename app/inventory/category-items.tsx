@@ -1,4 +1,4 @@
-// app/inventory/category-items.tsx — Phase 2 v2.11 Canonical Screen
+// app/inventory/category-items.tsx — Phase 2 v2.15 Canonical Screen (Screen B)
 
 import React, { useState, useCallback, memo } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, Modal, TextInput } from 'react-native';
@@ -10,9 +10,8 @@ import { HeaderPill, GlassButton } from '@/components/ui/Glass';
 import { useFirmStore } from '@/store/phase1/useFirmStore';
 import { inventoryDrillDownService } from '@/services/phase2/inventoryDrillDownService';
 import { designService } from '@/services/phase2/designService';
-import { designRepository } from '@/repositories/phase2/designRepository';
 import type { DesignCategoryStockResult } from '@/types/phase2/phase2.types';
-import { getDisplayPurity, formatWeightMg as formatWeight } from '@/utils/calculations';
+import { formatWeightMg as formatWeight } from '@/utils/calculations';
 import { appSettingsStore } from '@/store/phase1/appSettingsStore';
 import { COLORS, getThemeColors } from '@/constants/theme';
 import { ChevronRight, Layers, Bell, X, AlertTriangle, Scale, Package } from 'lucide-react-native';
@@ -25,13 +24,12 @@ type DesignRowProps = {
   currentThreshold: number | null;
   colors: ReturnType<typeof getThemeColors>;
   onPress: (designId: string, designName: string, purityPercent: number) => void;
-  onOpenLowStockModal: (designId: string, designName: string, currentThreshold: number | null) => void;
+  onOpenLowStockModal: (designId: string, designName: string, purityPercent: number, currentThreshold: number | null) => void;
 };
 
 const DesignRow = memo(({ item, categoryName, isLowStock, currentThreshold, colors, onPress, onOpenLowStockModal }: DesignRowProps) => {
   const metalColor = item.metal === 'GOLD' ? (colors.vjAccent || COLORS.gold) : COLORS.silver;
 
-  // Format Purity in both Karat and Percentage: e.g. "22K (91.6%)" or "92.5%"
   const purityFull = item.purityKarat 
     ? `${item.purityKarat}K (${item.purityPercent.toFixed(1)}%)`
     : `${item.purityPercent.toFixed(1)}%`;
@@ -40,7 +38,7 @@ const DesignRow = memo(({ item, categoryName, isLowStock, currentThreshold, colo
     <TouchableOpacity
       id={`design-row-${item.designId}-${item.purityPercent}`}
       onPress={() => {
-        try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch (e) {}
+        try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
         onPress(item.designId, item.designName, item.purityPercent);
       }}
       activeOpacity={0.75}
@@ -61,13 +59,11 @@ const DesignRow = memo(({ item, categoryName, isLowStock, currentThreshold, colo
     >
       <View style={[s.metalStripe, { backgroundColor: metalColor }]} />
 
-      {/* SVG JEWELRY ICON BADGE CONTAINER */}
       <View style={[s.metalBadge, { backgroundColor: `${colors.vjAccent}1A`, borderColor: `${colors.vjAccent}40` }]}>
         {getJewelryCategoryIcon(categoryName, item.designName, item.metal, 22, colors.vjAccent)}
       </View>
 
       <View style={s.cardBody}>
-        {/* TOP ROW: DESIGN NAME & PURITY BADGE */}
         <View style={s.titleRow}>
           <Text style={[s.designName, { color: colors.vjText }]} numberOfLines={1}>{item.designName}</Text>
           <View style={[s.metalPill, { borderColor: metalColor, backgroundColor: `${metalColor}12` }]}>
@@ -75,19 +71,19 @@ const DesignRow = memo(({ item, categoryName, isLowStock, currentThreshold, colo
           </View>
         </View>
 
-        {/* METRICS ROW: NET WEIGHT & LOW STOCK BELL PILL */}
         <View style={s.metaRow}>
           <View style={[s.weightBadge, { backgroundColor: `${colors.vjAccent}14`, borderColor: `${colors.vjAccent}35` }]}>
             <Scale size={11} color={colors.vjAccent} />
             <Text style={[s.weightText, { color: colors.vjText }]}>Net: {formatWeight(item.totalNetWeightMg)}</Text>
           </View>
 
+          {/* Bell Icon & Low Stock Pill Keyed by (designId, purityPercent) variant */}
           <TouchableOpacity
-            id={`low-stock-bell-${item.designId}`}
+            id={`low-stock-bell-${item.designId}-${item.purityPercent}`}
             onPress={(e) => {
               e.stopPropagation();
-              try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch (err) {}
-              onOpenLowStockModal(item.designId, item.designName, currentThreshold);
+              try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
+              onOpenLowStockModal(item.designId, item.designName, item.purityPercent, currentThreshold);
             }}
             activeOpacity={0.7}
             style={[
@@ -128,16 +124,15 @@ export default function CategoryItemsScreen() {
   const { categoryId, categoryName } = useLocalSearchParams<{ categoryId: string; categoryName: string }>();
   const { activeFirmId } = useFirmStore();
   const [data, setData] = useState<DesignCategoryStockResult[]>([]);
-  const [lowStockDesignIds, setLowStockDesignIds] = useState<Set<string>>(new Set());
-  const [designThresholds, setDesignThresholds] = useState<Record<string, number | null>>({});
+  const [lowStockVariantKeys, setLowStockVariantKeys] = useState<Set<string>>(new Set());
+  const [variantThresholds, setVariantThresholds] = useState<Record<string, number | null>>({});
   const [loading, setLoading] = useState(true);
 
-  const [selectedDesign, setSelectedDesign] = useState<{ id: string; name: string; threshold: number | null } | null>(null);
+  const [selectedVariant, setSelectedVariant] = useState<{ id: string; name: string; purityPercent: number; threshold: number | null } | null>(null);
   const [thresholdInput, setThresholdInput] = useState('');
   const [inputError, setInputError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Reactive theme subscription
   const activeTheme = appSettingsStore((s: any) => s.theme);
   const colors = getThemeColors(activeTheme);
 
@@ -145,20 +140,25 @@ export default function CategoryItemsScreen() {
     if (!activeFirmId || !categoryId) return;
     setLoading(true);
     try {
-      const [results, lowStockList, allDesigns] = await Promise.all([
+      const [results, lowStockList] = await Promise.all([
         inventoryDrillDownService.getDesignsByCategory(activeFirmId, categoryId),
-        inventoryDrillDownService.getLowStockDesigns(activeFirmId),
-        designRepository.findByFirmId(activeFirmId)
+        inventoryDrillDownService.getLowStockDesignPurityVariants(activeFirmId),
       ]);
 
       setData(results);
-      setLowStockDesignIds(new Set(lowStockList.map(d => d.id)));
 
+      // Keyed strictly by (designId, purityPercent) variant
+      const lowKeys = new Set<string>();
       const threshMap: Record<string, number | null> = {};
-      allDesigns.forEach(d => {
-        threshMap[d.id] = d.lowStockThreshold ?? null;
+
+      lowStockList.forEach(v => {
+        const key = `${v.designId}_${v.purityPercent}`;
+        lowKeys.add(key);
+        threshMap[key] = v.lowStockThreshold;
       });
-      setDesignThresholds(threshMap);
+
+      setLowStockVariantKeys(lowKeys);
+      setVariantThresholds(threshMap);
     } catch (e) {
       console.error('[CategoryItems] loadData failed:', e);
     } finally {
@@ -179,14 +179,14 @@ export default function CategoryItemsScreen() {
     });
   }, [router]);
 
-  const handleOpenLowStockModal = useCallback((designId: string, designName: string, currentThreshold: number | null) => {
-    setSelectedDesign({ id: designId, name: designName, threshold: currentThreshold });
+  const handleOpenLowStockModal = useCallback((designId: string, designName: string, purityPercent: number, currentThreshold: number | null) => {
+    setSelectedVariant({ id: designId, name: designName, purityPercent, threshold: currentThreshold });
     setThresholdInput(currentThreshold !== null ? String(currentThreshold) : '');
     setInputError(null);
   }, []);
 
   const handleSaveThreshold = async () => {
-    if (!selectedDesign || !activeFirmId) return;
+    if (!selectedVariant || !activeFirmId) return;
 
     const trimmed = thresholdInput.trim();
     let finalVal: number | null = null;
@@ -203,8 +203,13 @@ export default function CategoryItemsScreen() {
     setIsSubmitting(true);
     setInputError(null);
     try {
-      await designService.updateDesignLowStockThreshold(selectedDesign.id, activeFirmId, finalVal);
-      setSelectedDesign(null);
+      await designService.updateDesignPurityLowStockThreshold(
+        selectedVariant.id, 
+        activeFirmId, 
+        selectedVariant.purityPercent, 
+        finalVal
+      );
+      setSelectedVariant(null);
       await loadData();
     } catch (e: any) {
       setInputError(e.message || 'Failed to update threshold');
@@ -214,13 +219,18 @@ export default function CategoryItemsScreen() {
   };
 
   const handleClearThreshold = async () => {
-    if (!selectedDesign || !activeFirmId) return;
+    if (!selectedVariant || !activeFirmId) return;
 
     setIsSubmitting(true);
     setInputError(null);
     try {
-      await designService.updateDesignLowStockThreshold(selectedDesign.id, activeFirmId, null);
-      setSelectedDesign(null);
+      await designService.updateDesignPurityLowStockThreshold(
+        selectedVariant.id, 
+        activeFirmId, 
+        selectedVariant.purityPercent, 
+        null
+      );
+      setSelectedVariant(null);
       await loadData();
     } catch (e: any) {
       setInputError(e.message || 'Failed to clear threshold');
@@ -251,20 +261,23 @@ export default function CategoryItemsScreen() {
           <FlashList
             data={data}
             keyExtractor={(item) => `${item.designId}_${item.purityPercent}`}
-            renderItem={({ item }) => (
-              <DesignRow 
-                item={item} 
-                categoryName={categoryName}
-                isLowStock={lowStockDesignIds.has(item.designId)}
-                currentThreshold={designThresholds[item.designId] ?? null}
-                colors={colors}
-                onPress={handleDesignPress} 
-                onOpenLowStockModal={handleOpenLowStockModal}
-              />
-            )}
+            renderItem={({ item }) => {
+              const variantKey = `${item.designId}_${item.purityPercent}`;
+              return (
+                <DesignRow 
+                  item={item} 
+                  categoryName={categoryName}
+                  isLowStock={lowStockVariantKeys.has(variantKey)}
+                  currentThreshold={variantThresholds[variantKey] ?? null}
+                  colors={colors}
+                  onPress={handleDesignPress} 
+                  onOpenLowStockModal={handleOpenLowStockModal}
+                />
+              );
+            }}
             // @ts-ignore: estimatedItemSize required by spec
             estimatedItemSize={88}
-            contentContainerStyle={{paddingBottom: 100, paddingTop: 32}}
+            contentContainerStyle={{ paddingBottom: 100, paddingTop: 32 }}
             showsVerticalScrollIndicator={false}
             ListEmptyComponent={
               <View style={s.emptyContainer}>
@@ -277,7 +290,7 @@ export default function CategoryItemsScreen() {
         )}
       </View>
 
-      <Modal visible={!!selectedDesign} transparent animationType="fade">
+      <Modal visible={!!selectedVariant} transparent animationType="fade">
         <View style={s.modalOverlay}>
           <View style={[s.modalCard, { backgroundColor: colors.vjBg, borderColor: colors.border }]}>
             <View style={s.modalHeader}>
@@ -285,13 +298,13 @@ export default function CategoryItemsScreen() {
                 <Bell size={20} color={colors.vjAccent} />
                 <Text style={[s.modalTitle, { color: colors.vjText }]}>Set Low Stock Alert</Text>
               </View>
-              <TouchableOpacity onPress={() => setSelectedDesign(null)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+              <TouchableOpacity onPress={() => setSelectedVariant(null)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
                 <X size={20} color={colors.vjText} style={{ opacity: 0.5 }} />
               </TouchableOpacity>
             </View>
 
             <Text style={[s.modalSubtitle, { color: colors.vjText, opacity: 0.7 }]}>
-              Design: <Text style={{ fontWeight: '700', color: colors.vjText }}>{selectedDesign?.name}</Text>
+              Variant: <Text style={{ fontWeight: '700', color: colors.vjText }}>{selectedVariant?.name} ({selectedVariant?.purityPercent}%)</Text>
             </Text>
 
             <Text style={[s.label, { color: colors.vjText, opacity: 0.7 }]}>Alert Threshold (Available Count)</Text>
@@ -316,7 +329,7 @@ export default function CategoryItemsScreen() {
             )}
 
             <View style={s.modalActionRow}>
-              {selectedDesign?.threshold !== null && selectedDesign?.threshold !== undefined && (
+              {selectedVariant?.threshold !== null && selectedVariant?.threshold !== undefined && (
                 <TouchableOpacity 
                   style={s.clearBtn} 
                   onPress={handleClearThreshold}

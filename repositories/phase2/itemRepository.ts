@@ -1,6 +1,6 @@
-// repositories/phase2/itemRepository.ts — Phase 2 v2.11 Canonical Repository
+// repositories/phase2/itemRepository.ts — Phase 2 v2.15 Canonical Repository
 
-import { eq, and, sql, inArray, like, or } from 'drizzle-orm';
+import { eq, and, sql, inArray, like, or, asc, desc } from 'drizzle-orm';
 import { db } from '@/db/client';
 import { items, designs, categories } from '@/db/schema';
 import type {
@@ -45,8 +45,8 @@ export interface ItemRepository {
   insert(tx: DrizzleTransaction, data: NewItem): Item;
 
   // --- update ---
-  update(tx: DrizzleTransaction, id: string, data: Partial<Item>): void;
-  update(tx: DrizzleTransaction, firmId: string, id: string, data: Partial<Item>): void;
+  update(tx: DrizzleTransaction, id: string, data: UpdateableItemFields | Partial<Item>): void;
+  update(tx: DrizzleTransaction, firmId: string, id: string, data: UpdateableItemFields | Partial<Item>): void;
 
   // --- updateStatus ---
   updateStatus(tx: DrizzleTransaction, firmId: string, id: string, status: StockStatus): void;
@@ -70,7 +70,7 @@ export interface ItemRepository {
   // --- getAvailableStockForDesign ---
   getAvailableStockForDesign(designId: string, firmId: string): Promise<{ totalNetWeightMg: number; count: number }>;
 
-  // --- getStockWeightSummary ---
+  // --- getStockWeightSummary (FEAT-STOCK-SUMMARY-1 v1.63 & FEAT-PHANTOM-INVENTORY-1 v1.67) ---
   getStockWeightSummary(firmId: string): Promise<{
     goldNetWeightMg: number;
     goldPhantomDebtMg: number;
@@ -80,7 +80,7 @@ export interface ItemRepository {
     silverBalanceMg: number;
   }>;
 
-  // --- search ---
+  // --- search (SEARCH-1 v1.13) ---
   search(firmId: string, query: string): Promise<ItemSearchResult[]>;
 }
 
@@ -266,17 +266,18 @@ export const itemRepository: ItemRepository = {
     };
   },
 
+  // STEP 9-Lite & FEAT-PHANTOM-INVENTORY-1: Net available weight of AVAILABLE stock minus unreconciled phantom debt
   async getStockWeightSummary(firmId: string) {
     const rows = await db
       .select({
         metal: items.metal,
-        availableNetWeightMg: sql<number>`SUM(CASE WHEN ${items.status} IN ('AVAILABLE', 'DRAFT') THEN ${items.netWeightMg} ELSE 0 END)`,
+        availableNetWeightMg: sql<number>`SUM(CASE WHEN ${items.status} = 'AVAILABLE' THEN ${items.netWeightMg} ELSE 0 END)`,
         phantomDebtMg: sql<number>`SUM(CASE WHEN ${items.status} IN ('PHANTOM_AVAILABLE','PHANTOM_SOLD') AND ${items.phantomStockId} IS NULL THEN ${items.netWeightMg} ELSE 0 END)`
       })
       .from(items)
       .where(and(
         eq(items.firmId, firmId),
-        inArray(items.status, ['AVAILABLE', 'DRAFT', 'PHANTOM_AVAILABLE', 'PHANTOM_SOLD'])
+        inArray(items.status, ['AVAILABLE', 'PHANTOM_AVAILABLE', 'PHANTOM_SOLD'])
       ))
       .groupBy(items.metal);
 
@@ -308,6 +309,7 @@ export const itemRepository: ItemRepository = {
     return summary;
   },
 
+  // SEARCH-1 (v1.13): Item-level search with deterministic sort and LIMIT 20 (RED-7)
   async search(firmId: string, query: string): Promise<ItemSearchResult[]> {
     const tokens = query.trim().split(/\s+/);
     const sizeToken = tokens.find(t => /^\d+(\.\d+)?$/.test(t));
@@ -357,6 +359,7 @@ export const itemRepository: ItemRepository = {
       .innerJoin(designs, eq(items.designId, designs.id))
       .innerJoin(categories, eq(items.categoryId, categories.id))
       .where(and(...conditions))
+      .orderBy(asc(designs.name), asc(items.sku))
       .limit(20); // RED-7
 
     return results.map(r => ({

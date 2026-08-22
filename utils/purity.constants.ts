@@ -1,4 +1,4 @@
-// utils/purity.constants.ts — Phase 2 v2.11 Canonical Purity & Math Utilities
+// utils/purity.constants.ts — Phase 2 v2.15 Canonical Purity & Math Utilities
 
 import { ERR } from '../constants/errorCodes';
 
@@ -75,6 +75,12 @@ export const PURITY_ROUND_TO_100: Record<'GOLD' | 'SILVER', number[]> = {
   SILVER: [99.9],
 };
 
+// FIX-EFFPRICE-PURITYROUND-1 (v2.14): SOLE lookup point for trade-convention 100% purity rounding
+export function resolveEffectivePurityPercent(purityPercent: number, metal: 'GOLD' | 'SILVER'): number {
+  const isRounded = PURITY_ROUND_TO_100[metal].some(target => Math.abs(target - purityPercent) < 0.01);
+  return isRounded ? 100 : purityPercent;
+}
+
 // SOLE fine-weight entry point for regular stock (Step 6.1)
 export function resolveFineWeightMg(
   netWeightMg: number,
@@ -82,8 +88,8 @@ export function resolveFineWeightMg(
   metal: 'GOLD' | 'SILVER'
 ): { fineWeightMg: number; purityRoundingDeltaMg: number } {
   const trueFineWeightMg = Math.round((netWeightMg * purityPercent) / 100);
-  const isRounded = PURITY_ROUND_TO_100[metal].some(target => Math.abs(target - purityPercent) < 0.01);
-  if (!isRounded) return { fineWeightMg: trueFineWeightMg, purityRoundingDeltaMg: 0 };
+  const effectivePurityPercent = resolveEffectivePurityPercent(purityPercent, metal);
+  if (effectivePurityPercent === purityPercent) return { fineWeightMg: trueFineWeightMg, purityRoundingDeltaMg: 0 };
   return { fineWeightMg: netWeightMg, purityRoundingDeltaMg: netWeightMg - trueFineWeightMg };
 }
 
@@ -124,21 +130,25 @@ export function getDisplayPurity(
   return `${safePercent}%`;
 }
 
-// FEAT-EFFECTIVE-PRICE-1 (v2.00) & FIX-EFFPRICE-FORMULA-1 (v2.03) — UI DISPLAY ONLY
+// FEAT-EFFECTIVE-PRICE-1 (v2.00), FIX-EFFPRICE-FORMULA-1 (v2.03) & FIX-EFFPRICE-PURITYROUND-1 (v2.14) — UI DISPLAY ONLY
 export function computeEffectivePricePerGram(
   ratePerGram: number,
   purityPercent: number,
-  wastagePercent: number
+  wastagePercent: number,
+  metal: 'GOLD' | 'SILVER' = 'GOLD'
 ): number {
-  return ratePerGram * ((purityPercent + wastagePercent) / 100);
+  const effectivePurityPercent = resolveEffectivePurityPercent(purityPercent, metal);
+  return ratePerGram * ((effectivePurityPercent + wastagePercent) / 100);
 }
 
 export function computeEffectivePricePaisePerGram(
   purchaseRatePaise: number,
   purityPercent: number,
-  wastagePercent: number
+  wastagePercent: number,
+  metal: 'GOLD' | 'SILVER' = 'GOLD'
 ): number {
-  return Math.round(purchaseRatePaise * ((purityPercent + wastagePercent) / 100));
+  const effectivePurityPercent = resolveEffectivePurityPercent(purityPercent, metal);
+  return Math.round(purchaseRatePaise * ((effectivePurityPercent + wastagePercent) / 100));
 }
 
 export function computeEstTotalCostPaise(
@@ -149,6 +159,7 @@ export function computeEstTotalCostPaise(
 }
 
 // FIX-WAST-CENTRALIZE-1 (v2.04) & FIX-WAST-NETBASIS-1 (v2.04) — Supplier Cost Truth
+// Explicitly out of scope for FIX-EFFPRICE-PURITYROUND-1 (v2.14) — keeps raw purity formula by design
 export function computeFineGoldChargedMg(
   netWeightMg: number,
   purityPercent: number,
@@ -333,5 +344,3 @@ export function computeURDCostBreakdown(
     formattedFineGrams: (fineWeightGrams).toFixed(3) + ' g',
   };
 }
-
-

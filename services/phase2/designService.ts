@@ -1,4 +1,4 @@
-// services/phase2/designService.ts — Phase 2 v2.11 Canonical Service
+// services/phase2/designService.ts — Phase 2 v2.15 Canonical Service
 
 import { db } from '@/db/client';
 import { leaseService } from '@/services/phase1/leaseService';
@@ -13,7 +13,7 @@ import { sanitizeText } from '@/utils/sanitize';
 import { ERR } from '@/constants/errorCodes';
 import * as Crypto from 'expo-crypto';
 import { eq, and, desc } from 'drizzle-orm';
-import { designs, designCategoryMap } from '@/db/schema';
+import { designs, designCategoryMap, designPurityThresholds } from '@/db/schema';
 import type { CreateDesignInput, Design, DrizzleTransaction } from '@/types/phase2/phase2.types';
 
 // Step 3 / FIX-DESIGN-VALIDATE-1
@@ -109,7 +109,6 @@ export const designService = {
           code,
           metal: input.metal,
           defaultHsn: input.defaultHsn ?? null,
-          lowStockThreshold: input.lowStockThreshold ?? null,
           isActive: 1,
           createdAt: now(),
           updatedAt: now(),
@@ -153,7 +152,7 @@ export const designService = {
       if (!design || design.firmId !== firmId) throw new Error(ERR.DESIGN_NOT_FOUND_OR_WRONG_FIRM);
 
       const activeItems = itemRepository.findByDesignId(tx, designId, firmId);
-      
+
       const blocked = activeItems.filter(i =>
         ['AVAILABLE', 'DRAFT', 'SENT_TO_REFINERY', 'SENT_TO_MELT', 'SENT_TO_KARIGAR', 'DAMAGED', 'PHANTOM_AVAILABLE'].includes(i.status)
       );
@@ -176,7 +175,7 @@ export const designService = {
   async updateDesign(
     designId: string,
     firmId: string,
-    input: { name?: string; defaultHsn?: string | null; lowStockThreshold?: number | null }
+    input: { name?: string; defaultHsn?: string | null }
   ): Promise<void> {
     await leaseService.assertNoActiveLease(); // GUARD 1
     safeModeService.assertNotInSafeMode();     // GUARD 2
@@ -187,19 +186,15 @@ export const designService = {
       const design = designRepository.getById(tx, firmId, designId);
       if (!design || design.firmId !== firmId) throw new Error(ERR.DESIGN_NOT_FOUND_OR_WRONG_FIRM);
 
-      const updateData: Partial<Pick<Design, 'name' | 'defaultHsn' | 'lowStockThreshold'>> = {};
+      const updateData: Partial<Pick<Design, 'name' | 'defaultHsn'>> = {};
 
       if (input.name !== undefined) {
         validateDesignName(input.name);
         updateData.name = sanitizeText(input.name);
       }
-      
+
       if (input.defaultHsn !== undefined) {
         updateData.defaultHsn = input.defaultHsn;
-      }
-
-      if (input.lowStockThreshold !== undefined) {
-        updateData.lowStockThreshold = input.lowStockThreshold;
       }
 
       try {
@@ -221,13 +216,18 @@ export const designService = {
     });
   },
 
-  // --- updateDesignLowStockThreshold (v2.08 / v2.09 FIX-LOWSTOCK-UI-1) ---
-  async updateDesignLowStockThreshold(designId: string, firmId: string, threshold: number | null): Promise<void> {
+  // --- updateDesignPurityLowStockThreshold (v2.13 FIX-LOWSTOCK-PURITYGRAIN-1) ---
+  async updateDesignPurityLowStockThreshold(
+    designId: string,
+    firmId: string,
+    purityPercent: number,
+    threshold: number | null
+  ): Promise<void> {
     await leaseService.assertNoActiveLease(); // GUARD 1
     safeModeService.assertNotInSafeMode();     // GUARD 2
-    
+
     if (threshold !== null && (!Number.isInteger(threshold) || threshold < 0)) {
-      throw new Error(ERR.DESIGN_LOW_STOCK_THRESHOLD_INVALID);
+      throw new Error(ERR.DESIGN_PURITY_LOW_STOCK_THRESHOLD_INVALID);
     }
 
     const deviceId = await getDeviceId();
@@ -236,15 +236,66 @@ export const designService = {
       const design = designRepository.getById(tx, firmId, designId);
       if (!design || design.firmId !== firmId) throw new Error(ERR.DESIGN_NOT_FOUND_OR_WRONG_FIRM);
 
-      designRepository.update(tx, firmId, designId, { lowStockThreshold: threshold });
+      const existing = tx.select().from(designPurityThresholds)
+        .where(
+          and(
+            eq(designPurityThresholds.designId, designId),
+            eq(designPurityThresholds.purityPercent, purityPercent)
+          )
+        )
+        .get();
+
+      const oldThreshold = existing ? existing.lowStockThreshold : null;
+
+      if (threshold !== null) {
+        tx.insert(designPurityThresholds)
+          .values({
+            designId,
+            purityPercent,
+            lowStockThreshold: threshold,
+          })
+          .onConflictDoUpdate({
+            target: [designPurityThresholds.designId, designPurityThresholds.purityPercent],
+            set: { lowStockThreshold: threshold },
+          })
+          .run();
+      } else {
+        tx.delete(designPurityThresholds)
+          .where(
+            and(
+              eq(designPurityThresholds.designId, designId),
+              eq(designPurityThresholds.purityPercent, purityPercent)
+            )
+          )
+          .run();
+      }
 
       auditRepository.log(tx, {
         eventType: 'DESIGN_UPDATED',
         firmId,
         entityId: designId,
         deviceId,
-        payload: { designId, oldThreshold: design.lowStockThreshold, newThreshold: threshold }
+        payload: {
+          designId,
+          purityPercent,
+          oldThreshold,
+          newThreshold: threshold,
+        }
       });
     });
+  },
+
+  // Backward-compatibility alias
+  async updateDesignLowStockThreshold(
+    designId: string,
+    firmId: string,
+    thresholdOrPurity: number | null,
+    maybeThreshold?: number | null
+  ): Promise<void> {
+    if (typeof thresholdOrPurity === 'number' && typeof maybeThreshold !== 'undefined') {
+      return this.updateDesignPurityLowStockThreshold(designId, firmId, thresholdOrPurity, maybeThreshold);
+    }
+    // Fallback default purity (22K = 91.6) if called via legacy signature
+    return this.updateDesignPurityLowStockThreshold(designId, firmId, 91.6, thresholdOrPurity);
   }
 };

@@ -1,5 +1,7 @@
+// app/masters/create-design.tsx — Phase 2 v2.15 Canonical Screen
+
 import React, { useState, useCallback } from 'react';
-import { View, Text, StyleSheet, TextInput, Alert, Modal, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, Alert, Modal, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import { useRouter, useFocusEffect } from 'expo-router';
 import * as Haptics from 'expo-haptics';
@@ -23,7 +25,6 @@ export default function CreateDesignScreen() {
   const [newName, setNewName] = useState('');
   const [newMetal, setNewMetal] = useState<'GOLD' | 'SILVER'>('GOLD');
   const [selectedCategoryId, setSelectedCategoryId] = useState<string>('');
-  const [lowStockThreshold, setLowStockThreshold] = useState('');
   
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
@@ -60,14 +61,12 @@ export default function CreateDesignScreen() {
   );
 
   const handleAdd = async () => {
-    try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); } catch (e) {}
+    try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); } catch {}
     if (!activeFirmId) return;
     if (!newName.trim() || !selectedCategoryId) {
       Alert.alert('Validation Error', 'Name and Category are required');
       return;
     }
-    
-    const thresholdNum = lowStockThreshold.trim() !== '' ? parseInt(lowStockThreshold, 10) : null;
 
     setIsSubmitting(true);
     try {
@@ -75,13 +74,12 @@ export default function CreateDesignScreen() {
         name: newName.trim(),
         metal: newMetal,
         categoryId: selectedCategoryId,
-        lowStockThreshold: thresholdNum && !isNaN(thresholdNum) && thresholdNum > 0 ? thresholdNum : null
       }, activeFirmId);
       
       setSuccessMessage('Design added successfully');
     } catch (e: any) {
       if (e.message?.includes('DESIGN_NAME_TAKEN') || e.message?.includes('UNIQUE')) {
-        Alert.alert('Duplicate', 'A design with this name/metal already exists.');
+        Alert.alert('Duplicate', 'A design with this name and metal already exists.');
       } else {
         Alert.alert('Error', e.message);
       }
@@ -122,7 +120,7 @@ export default function CreateDesignScreen() {
           <View style={s.card}>
             <View style={s.formGroup}>
               <GlassInput 
-                label="Design Name"
+                label="Design Name * (1 or 2 words only)"
                 value={newName}
                 onChangeText={setNewName}
                 placeholder="e.g. Classic Band"
@@ -138,7 +136,7 @@ export default function CreateDesignScreen() {
             />
 
             <GlassPickerInput
-              label="Link to Category"
+              label="Link to Category *"
               placeholder="Search categories..."
               selectedLabel={categories.find(c => c.id === selectedCategoryId)?.name || null}
               selectedSublabel={
@@ -163,17 +161,6 @@ export default function CreateDesignScreen() {
                 });
               }}
             />
-
-            <View style={s.formGroup}>
-              <GlassInput 
-                label="Low-Stock Alert Threshold (Count)"
-                value={lowStockThreshold}
-                onChangeText={setLowStockThreshold}
-                placeholder="e.g. 5 (Optional - alert when stock <= this)"
-                keyboardType="numeric"
-              />
-            </View>
-
           </View>
         </KeyboardAwareScrollView>
 
@@ -243,9 +230,7 @@ const s = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.5)',
   },
-  formGroup: { marginBottom: 24 },
-  label: { fontSize: 12, fontWeight: '700', color: 'rgba(92,22,35,0.6)', textTransform: 'uppercase', marginBottom: 8 },
-  input: { backgroundColor: '#fff', borderRadius: 12, padding: 16, fontSize: 16, color: COLORS.vjText, borderWidth: 1, borderColor: 'rgba(92,22,35,0.3)' },
+  formGroup: { marginBottom: 20 },
   modalOverlayCenter: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.6)',
@@ -285,17 +270,5 @@ const s = StyleSheet.create({
     color: 'rgba(92,22,35,0.6)',
     textAlign: 'center',
     marginBottom: 24,
-  },
-  linkBadge: {
-    backgroundColor: 'rgba(212, 175, 55, 0.2)',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 8,
-  },
-  linkBadgeText: {
-    color: '#D4AF37',
-    fontSize: 10,
-    fontWeight: '700',
-    textTransform: 'uppercase',
   },
 });

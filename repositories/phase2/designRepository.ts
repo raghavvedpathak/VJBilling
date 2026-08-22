@@ -1,4 +1,4 @@
-// repositories/phase2/designRepository.ts — Phase 2 v2.11 Canonical Repository
+// repositories/phase2/designRepository.ts — Phase 2 v2.15 Canonical Repository
 
 import { eq, and, like, sql } from 'drizzle-orm';
 import { db } from '@/db/client';
@@ -23,8 +23,9 @@ export interface DesignRepository {
   softDelete(tx: DrizzleTransaction, firmId: string, id: string): void;
 
   // --- update (Overloaded to support 3-arg and 4-arg calls) ---
-  update(tx: DrizzleTransaction, id: string, data: Partial<Pick<Design, 'name' | 'defaultHsn' | 'lowStockThreshold'>>): void;
-  update(tx: DrizzleTransaction, firmId: string, id: string, data: Partial<Pick<Design, 'name' | 'defaultHsn' | 'lowStockThreshold'>>): void;
+  // FIX-LOWSTOCK-PURITYGRAIN-1 (v2.13): lowStockThreshold moved to design_purity_thresholds
+  update(tx: DrizzleTransaction, id: string, data: Partial<Pick<Design, 'name' | 'defaultHsn'>>): void;
+  update(tx: DrizzleTransaction, firmId: string, id: string, data: Partial<Pick<Design, 'name' | 'defaultHsn'>>): void;
 
   // --- searchStock ---
   searchStock(firmId: string, query: string): Promise<DesignStockResult[]>;
@@ -87,8 +88,8 @@ export const designRepository: DesignRepository = {
   update(
     tx: DrizzleTransaction,
     second: string,
-    third: string | Partial<Pick<Design, 'name' | 'defaultHsn' | 'lowStockThreshold'>>,
-    fourth?: Partial<Pick<Design, 'name' | 'defaultHsn' | 'lowStockThreshold'>>
+    third: string | Partial<Pick<Design, 'name' | 'defaultHsn'>>,
+    fourth?: Partial<Pick<Design, 'name' | 'defaultHsn'>>
   ): void {
     if (typeof third === 'object') {
       // 3-arg call: update(tx, id, data)
@@ -140,7 +141,8 @@ export const designRepository: DesignRepository = {
         items,
         and(
           eq(items.designId, designs.id),
-          eq(items.status, 'AVAILABLE')
+          eq(items.status, 'AVAILABLE'),
+          eq(items.firmId, firmId)
         )
       )
       // FIX-CAT-ITEM-FK: items own category, join via items.categoryId

@@ -1,11 +1,10 @@
 /* eslint-disable no-restricted-imports */
-/// app/inventory/add-stock.tsx — Phase 2 v2.11 Canonical Screen
+// app/inventory/add-stock.tsx — Phase 2 v2.15 Canonical Screen
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { View, Text, ScrollView, Alert, Modal, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
+import { View, Text, Alert, Modal, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import { useRouter, useFocusEffect } from 'expo-router';
-import { BlurView } from 'expo-blur';
 import * as Haptics from 'expo-haptics';
 import { TwoToneWrapper } from '@/components/TwoToneWrapper';
 import { GlassCard, GlassInput, GlassButton, GlassPickerInput, FixedGlassBar, fixedBarStyles } from '@/components/ui/Glass';
@@ -163,7 +162,8 @@ export default function AddStockScreen() {
     const fineGoldChargedMg = computeFineGoldChargedMg(netWeightMg, p, w);
     const costTruth = computeCostTruthGrams(fineGoldChargedMg, fineWeightMg);
     
-    const effectivePricePerGram = computeEffectivePricePerGram(rate, p, w);
+    // FIX-EFFPRICE-PURITYROUND-1 (v2.14): pass metal parameter to enable 100% trade rounding
+    const effectivePricePerGram = computeEffectivePricePerGram(rate, p, w, metal);
     const absoluteTotalCost = computeAbsoluteTotalCostRupees(netWeightG, effectivePricePerGram, making, stoneC);
     const metalCostRupees = netWeightG * effectivePricePerGram;
 
@@ -191,7 +191,7 @@ export default function AddStockScreen() {
       vaultTruth: vaultTruth.toFixed(3) + ' g',
       wastageGold: (costTruth - vaultTruth).toFixed(3) + ' g',
       costTruth: costTruth.toFixed(3) + ' g',
-      hasCostData: rate > 0 || making > 0 || stoneC > 0,
+      hasCostData: (rate > 0 || making > 0 || stoneC > 0) && netWeightG > 0,
       financialBreakdown: financialBreakdownText,
       pricePerGram: effectivePricePerGram,
       totalAmount: absoluteTotalCost,
@@ -234,7 +234,7 @@ export default function AddStockScreen() {
     const kVal = percentToKarat(purity) || 0; 
 
     try {
-      try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); } catch (e) {}
+      try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); } catch {}
       setLoading(true);
       const item = await itemService.createItem({
         designId: selectedDesign.id,
@@ -281,426 +281,426 @@ export default function AddStockScreen() {
           contentContainerStyle={{ paddingBottom: 190 }}
         >
           <GlassCard>
-          <View className="flex-row items-center justify-between mb-4">
-            <View className="flex-row items-center gap-2">
-              <Package size={20} color="#D4AF37" />
-              <Text className="text-lg font-bold text-vj-text">Classification</Text>
-            </View>
-          </View>
-
-          {/* Stock Entry Date Field */}
-          <View className="mb-4">
-            <GlassPickerInput
-              label="Stock Entry Date"
-              placeholder="Select date..."
-              selectedLabel={formatDate(entryDate)}
-              selectedSublabel={entryDate === todayIso ? 'Today' : undefined}
-              onPress={() => setShowDatePicker(true)}
-              icon={<CalendarIcon size={18} color="#D4AF37" />}
-            />
-          </View>
-          
-          {designs.length === 0 && (
-            <View className="mb-4 bg-white/40 p-3 rounded-xl border border-white/20">
-              <Text className="text-xs text-vj-text/60 font-bold text-center">No Designs Found. Please add a Design in Master Catalogs first.</Text>
-            </View>
-          )}
-
-          <View>
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-              <Text style={{ fontSize: 12, fontWeight: '700', color: 'rgba(92,22,35,0.6)', textTransform: 'uppercase' }}>Design *</Text>
-              {designStock && designStock.count > 0 && (
-                <View style={{ backgroundColor: 'rgba(16, 185, 129, 0.15)', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 12, borderWidth: 1, borderColor: 'rgba(16, 185, 129, 0.3)' }}>
-                  <Text style={{ fontSize: 10, fontWeight: '800', color: '#047857' }}>
-                    STOCK: {designStock.count} ({ (designStock.totalNetWeightMg / 1000).toFixed(3) } g)
-                  </Text>
-                </View>
-              )}
-            </View>
-            <GlassPickerInput
-              placeholder="Search & select design..."
-              selectedLabel={selectedDesign ? selectedDesign.name : null}
-              selectedSublabel={selectedDesign && selectedDesign.metal ? `Metal: ${selectedDesign.metal}` : null}
-              onPress={async () => {
-                let dList = designs;
-                if (activeFirmId) {
-                  const fetched = await designRepository.findByFirmId(activeFirmId);
-                  dList = fetched || [];
-                  setDesigns(dList);
-                }
-                setPickerModal({
-                  visible: true,
-                  title: 'Select Design',
-                  placeholder: 'Search design by name or metal...',
-                  selectedId: selectedDesign?.id || null,
-                  options: dList.map(d => ({
-                    id: d.id,
-                    label: d.name || 'Unnamed Design',
-                    sublabel: d.metal ? `Metal: ${d.metal}` : undefined,
-                  })),
-                  onSelect: async (opt) => {
-                    if (!opt) {
-                      setSelectedDesign(null);
-                      return;
-                    }
-                    const selDesign = dList.find(d => d.id === opt.id)!;
-                    setSelectedDesign(selDesign);
-
-                    if (activeFirmId) {
-                      try {
-                        const mappings = await designCategoryMapRepository.findByDesignId(selDesign.id, activeFirmId);
-                        let catList = categories;
-                        if (catList.length === 0) {
-                          catList = await categoryRepository.findByFirmId(activeFirmId);
-                          setCategories(catList || []);
-                        }
-
-                        if (mappings.length > 0) {
-                          mappings.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-                          const linkedCat = catList.find(c => c.id === mappings[0].categoryId);
-                          if (linkedCat) {
-                            setSelectedCategory(linkedCat);
-                            return;
-                          }
-                        }
-                      } catch (err) {
-                        console.warn("Failed to auto-select category:", err);
-                      }
-                    }
-                  },
-                });
-              }}
-            />
-          </View>
-
-          <GlassPickerInput
-            label="Category *"
-            placeholder="Search & select category..."
-            selectedLabel={selectedCategory ? selectedCategory.name : null}
-            onPress={async () => {
-              let cList = categories;
-              if (activeFirmId) {
-                const fetched = await categoryRepository.findByFirmId(activeFirmId);
-                cList = fetched || [];
-                setCategories(cList);
-              }
-              setPickerModal({
-                visible: true,
-                title: 'Select Category',
-                placeholder: 'Search category...',
-                selectedId: selectedCategory?.id || null,
-                options: cList.map(c => ({
-                  id: c.id,
-                  label: c.name || 'Unnamed Category',
-                })),
-                onSelect: (opt) => {
-                  if (!opt) {
-                    setSelectedCategory(null);
-                    return;
-                  }
-                  const selCat = cList.find(c => c.id === opt.id)!;
-                  setSelectedCategory(selCat);
-                },
-              });
-            }}
-          />
-
-          <GlassPickerInput
-            label="HSN Code *"
-            placeholder="Search HSN code..."
-            selectedLabel={selectedHsn ? `${selectedHsn.code} - ${selectedHsn.description || ''}` : null}
-            onPress={() => {
-              setPickerModal({
-                visible: true,
-                title: 'Select HSN Code',
-                placeholder: 'Search HSN code or description...',
-                selectedId: selectedHsn?.id || null,
-                options: hsnCodes.map(h => ({
-                  id: h.id,
-                  label: h.code || 'No Code',
-                  sublabel: h.description || '',
-                })),
-                onSelect: (opt) => {
-                  if (!opt) {
-                    setSelectedHsn(null);
-                    return;
-                  }
-                  const selHsn = hsnCodes.find(h => h.id === opt.id)!;
-                  setSelectedHsn(selHsn);
-                },
-              });
-            }}
-          />
-        </GlassCard>
-
-        {/* Weights */}
-        <GlassCard style={{ zIndex: 40 }}>
-          <View className="flex-row items-center gap-2 mb-4">
-            <Scale size={20} color="#D4AF37" />
-            <Text className="text-lg font-bold text-vj-text">Weights (Grams)</Text>
-          </View>
-
-          <GlassInput label="Gross Weight (g) *" placeholder="0.000" keyboardType="numeric" value={grossWeight} onChangeText={setGrossWeight} />
-          <View style={{ flexDirection: 'row', gap: 12 }}>
-            <View style={{ flex: 1 }}><GlassInput label="Stone Weight (g)" placeholder="0.000" keyboardType="numeric" value={stoneWeight} onChangeText={setStoneWeight} /></View>
-            <View style={{ flex: 1 }}><GlassInput label="Beads Weight (g)" placeholder="0.000" keyboardType="numeric" value={beadsWeight} onChangeText={setBeadsWeight} /></View>
-          </View>
-        </GlassCard>
-
-        {/* Purity & Wastage */}
-        <GlassCard>
-          <View className="flex-row items-center gap-2 mb-4">
-            <Percent size={20} color="#D4AF37" />
-            <Text className="text-lg font-bold text-vj-text">Purity & Wastage</Text>
-          </View>
-
-          <View style={{ flexDirection: 'row', gap: 12, alignItems: 'flex-start' }}>
-            <View style={{ flex: 1 }}>
-              <View className="flex-row justify-between items-center mb-1">
-                <Text style={{ fontSize: 12, fontWeight: '700', color: 'rgba(92,22,35,0.6)', textTransform: 'uppercase' }}>Purity % *</Text>
-                {computedKarat ? (
-                  <View style={{ backgroundColor: 'rgba(212,175,55,0.2)', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 }}>
-                    <Text style={{ fontSize: 11, fontWeight: '800', color: '#D4AF37' }}>{computedKarat}</Text>
-                  </View>
-                ) : null}
+            <View className="flex-row items-center justify-between mb-4">
+              <View className="flex-row items-center gap-2">
+                <Package size={20} color="#D4AF37" />
+                <Text className="text-lg font-bold text-vj-text">Classification</Text>
               </View>
-              <GlassInput placeholder={(selectedDesign?.metal || 'GOLD') === 'SILVER' ? '92.5' : '91.6'} keyboardType="numeric" value={purityPercent} onChangeText={setPurityPercent} />
             </View>
-            <View style={{ flex: 1 }}>
-              <GlassInput label="Wastage %" placeholder="0.00" keyboardType="numeric" value={wastagePercent} onChangeText={setWastagePercent} />
-            </View>
-          </View>
 
-          {/* Quick Purity Preset Chips */}
-          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 8 }}>
-            {getPurityPresets(selectedDesign?.metal || 'GOLD').map(preset => (
-              <TouchableOpacity
-                key={preset.id}
-                onPress={() => {
-                  try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch (e) {}
-                  setPurityPercent(preset.val);
-                }}
-                style={{
-                  backgroundColor: purityPercent === preset.val || purityPercent === preset.label.split('K')[0] ? '#D4AF37' : 'rgba(212,175,55,0.12)',
-                  paddingHorizontal: 8,
-                  paddingVertical: 4,
-                  borderRadius: 6
-                }}
-              >
-                <Text style={{
-                  fontSize: 11,
-                  fontWeight: '700',
-                  color: purityPercent === preset.val || purityPercent === preset.label.split('K')[0] ? '#FFF' : COLORS.vjText
-                }}>
-                  {preset.label}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-        </GlassCard>
-
-        {/* Tracking & Stones */}
-        <GlassCard>
-          <View className="flex-row items-center gap-2 mb-4">
-            <MapPin size={20} color="#D4AF37" />
-            <Text className="text-lg font-bold text-vj-text">Tracking & Stones</Text>
-          </View>
-
-          <GlassPickerInput
-            label="Primary Stone (Optional)"
-            placeholder="Select Stone..."
-            selectedLabel={selectedStone ? selectedStone.name : null}
-            selectedSublabel={selectedStone ? selectedStone.type : null}
-            onPress={() => {
-              setPickerModal({
-                visible: true,
-                title: 'Select Primary Stone',
-                placeholder: 'Search stone...',
-                selectedId: selectedStone?.id || null,
-                options: stones.map(s => ({
-                  id: s.id,
-                  label: s.name || 'Unnamed Stone',
-                  sublabel: s.type || '',
-                })),
-                onSelect: (opt) => {
-                  if (!opt) return setSelectedStone(null);
-                  const selStone = stones.find(s => s.id === opt.id)!;
-                  setSelectedStone(selStone);
-                },
-              });
-            }}
-          />
-
-          <View style={{ flexDirection: 'row', gap: 12 }}>
-            <View style={{ flex: 1 }}>
-               <GlassInput label="Location" placeholder="Tray / Location" autoCapitalize="characters" value={location} onChangeText={setLocation} />
-            </View>
-            <View style={{ flex: 1 }}>
-               <GlassInput label="BIS HUID" placeholder="6-char HUID" autoCapitalize="characters" value={huid} onChangeText={setHuid} maxLength={6} />
-            </View>
-          </View>
-          
-          <View style={{ flexDirection: 'row', gap: 12, marginTop: 12 }}>
-            <View style={{ flex: 1 }}>
-              <GlassInput label="Size Value" placeholder="Size" keyboardType="numeric" value={sizeValue} onChangeText={setSizeValue} />
-            </View>
-            <View style={{ flex: 1 }}>
+            {/* Stock Entry Date Field */}
+            <View className="mb-4">
               <GlassPickerInput
-                label="Size Unit"
-                placeholder="Select Unit..."
-                selectedLabel={
-                  sizeUnit
-                    ? { INCH: 'Inches (INCH)', MM: 'Millimeters (MM)', CM: 'Centimeters (CM)', RING_SIZE: 'Ring Size' }[sizeUnit] || sizeUnit
-                    : null
-                }
-                onPress={() => {
+                label="Stock Entry Date"
+                placeholder="Select date..."
+                selectedLabel={formatDate(entryDate)}
+                selectedSublabel={entryDate === todayIso ? 'Today' : undefined}
+                onPress={() => setShowDatePicker(true)}
+                icon={<CalendarIcon size={18} color="#D4AF37" />}
+              />
+            </View>
+            
+            {designs.length === 0 && (
+              <View className="mb-4 bg-white/40 p-3 rounded-xl border border-white/20">
+                <Text className="text-xs text-vj-text/60 font-bold text-center">No Designs Found. Please add a Design in Master Catalogs first.</Text>
+              </View>
+            )}
+
+            <View>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                <Text style={{ fontSize: 12, fontWeight: '700', color: 'rgba(92,22,35,0.6)', textTransform: 'uppercase' }}>Design *</Text>
+                {designStock && designStock.count > 0 && (
+                  <View style={{ backgroundColor: 'rgba(16, 185, 129, 0.15)', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 12, borderWidth: 1, borderColor: 'rgba(16, 185, 129, 0.3)' }}>
+                    <Text style={{ fontSize: 10, fontWeight: '800', color: '#047857' }}>
+                      STOCK: {designStock.count} ({ (designStock.totalNetWeightMg / 1000).toFixed(3) } g)
+                    </Text>
+                  </View>
+                )}
+              </View>
+              <GlassPickerInput
+                placeholder="Search & select design..."
+                selectedLabel={selectedDesign ? selectedDesign.name : null}
+                selectedSublabel={selectedDesign && selectedDesign.metal ? `Metal: ${selectedDesign.metal}` : null}
+                onPress={async () => {
+                  let dList = designs;
+                  if (activeFirmId) {
+                    const fetched = await designRepository.findByFirmId(activeFirmId);
+                    dList = fetched || [];
+                    setDesigns(dList);
+                  }
                   setPickerModal({
                     visible: true,
-                    title: 'Select Size Unit',
-                    placeholder: 'Search unit...',
-                    selectedId: sizeUnit || null,
-                    options: [
-                      { id: 'INCH', label: 'Inches (INCH)' },
-                      { id: 'MM', label: 'Millimeters (MM)' },
-                      { id: 'CM', label: 'Centimeters (CM)' },
-                      { id: 'RING_SIZE', label: 'Ring Size' },
-                    ],
-                    onSelect: (opt) => {
-                      if (!opt) return setSizeUnit('');
-                      setSizeUnit(opt.id);
+                    title: 'Select Design',
+                    placeholder: 'Search design by name or metal...',
+                    selectedId: selectedDesign?.id || null,
+                    options: dList.map(d => ({
+                      id: d.id,
+                      label: d.name || 'Unnamed Design',
+                      sublabel: d.metal ? `Metal: ${d.metal}` : undefined,
+                    })),
+                    onSelect: async (opt) => {
+                      if (!opt) {
+                        setSelectedDesign(null);
+                        return;
+                      }
+                      const selDesign = dList.find(d => d.id === opt.id)!;
+                      setSelectedDesign(selDesign);
+
+                      if (activeFirmId) {
+                        try {
+                          const mappings = await designCategoryMapRepository.findByDesignId(selDesign.id, activeFirmId);
+                          let catList = categories;
+                          if (catList.length === 0) {
+                            catList = await categoryRepository.findByFirmId(activeFirmId);
+                            setCategories(catList || []);
+                          }
+
+                          if (mappings.length > 0) {
+                            mappings.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+                            const linkedCat = catList.find(c => c.id === mappings[0].categoryId);
+                            if (linkedCat) {
+                              setSelectedCategory(linkedCat);
+                              return;
+                            }
+                          }
+                        } catch (err) {
+                          console.warn("Failed to auto-select category:", err);
+                        }
+                      }
                     },
                   });
                 }}
               />
             </View>
-          </View>
-        </GlassCard>
 
-        {/* Costs */}
-        <GlassCard style={{ zIndex: 20 }}>
-          <View className="flex-row items-center gap-2 mb-4">
-            <Wallet size={20} color="#D4AF37" />
-            <Text className="text-lg font-bold text-vj-text">Purchase Costs ({getCurrencySymbol()})</Text>
-          </View>
+            <GlassPickerInput
+              label="Category *"
+              placeholder="Search & select category..."
+              selectedLabel={selectedCategory ? selectedCategory.name : null}
+              onPress={async () => {
+                let cList = categories;
+                if (activeFirmId) {
+                  const fetched = await categoryRepository.findByFirmId(activeFirmId);
+                  cList = fetched || [];
+                  setCategories(cList);
+                }
+                setPickerModal({
+                  visible: true,
+                  title: 'Select Category',
+                  placeholder: 'Search category...',
+                  selectedId: selectedCategory?.id || null,
+                  options: cList.map(c => ({
+                    id: c.id,
+                    label: c.name || 'Unnamed Category',
+                  })),
+                  onSelect: (opt) => {
+                    if (!opt) {
+                      setSelectedCategory(null);
+                      return;
+                    }
+                    const selCat = cList.find(c => c.id === opt.id)!;
+                    setSelectedCategory(selCat);
+                  },
+                });
+              }}
+            />
 
-          <GlassInput label={`Purchase Rate (${getCurrencySymbol()})`} placeholder="0.00" keyboardType="numeric" value={purchaseRate} onChangeText={setPurchaseRate} />
-          <View style={{ flexDirection: 'row', gap: 12 }}>
-            <View style={{ flex: 1 }}><GlassInput label={`Making Charge (${getCurrencySymbol()})`} placeholder="0.00" keyboardType="numeric" value={makingCharge} onChangeText={setMakingCharge} /></View>
-            <View style={{ flex: 1 }}><GlassInput label={`Stone Cost (${getCurrencySymbol()})`} placeholder="0.00" keyboardType="numeric" value={stoneCost} onChangeText={setStoneCost} /></View>
-          </View>
-        </GlassCard>
+            <GlassPickerInput
+              label="HSN Code *"
+              placeholder="Search HSN code..."
+              selectedLabel={selectedHsn ? `${selectedHsn.code} - ${selectedHsn.description || ''}` : null}
+              onPress={() => {
+                setPickerModal({
+                  visible: true,
+                  title: 'Select HSN Code',
+                  placeholder: 'Search HSN code or description...',
+                  selectedId: selectedHsn?.id || null,
+                  options: hsnCodes.map(h => ({
+                    id: h.id,
+                    label: h.code || 'No Code',
+                    sublabel: h.description || '',
+                  })),
+                  onSelect: (opt) => {
+                    if (!opt) {
+                      setSelectedHsn(null);
+                      return;
+                    }
+                    const selHsn = hsnCodes.find(h => h.id === opt.id)!;
+                    setSelectedHsn(selHsn);
+                  },
+                });
+              }}
+            />
+          </GlassCard>
 
-        {/* Mandated UI Display — Modern Luxury Live Cost Preview */}
-        {liveWastageSeparation.isValid && (
-          <View className="px-1 mb-4 mt-2" style={{ zIndex: 10 }}>
-            <GlassCard style={{ backgroundColor: 'rgba(252,251,248, 0.98)', borderColor: '#D4AF37', borderWidth: 1.5, padding: 16 }}>
-              {/* Top Header Row with Live Audit Badge */}
-              <View className="flex-row items-center justify-between mb-3 pb-2.5 border-b border-black/5">
-                <View className="flex-row items-center gap-2">
-                  <View className="w-7 h-7 rounded-lg items-center justify-center bg-amber-500/15 border border-amber-500/30">
-                    <Calculator size={16} color="#D4AF37" />
-                  </View>
-                  <View>
-                    <Text className="text-xs font-black uppercase tracking-wider text-vj-accent">Live Cost Breakdown</Text>
-                    <Text className="text-[10px] text-vj-text/50 font-semibold">Real-Time Inventory Accounting</Text>
-                  </View>
+          {/* Weights */}
+          <GlassCard style={{ zIndex: 40 }}>
+            <View className="flex-row items-center gap-2 mb-4">
+              <Scale size={20} color="#D4AF37" />
+              <Text className="text-lg font-bold text-vj-text">Weights (Grams)</Text>
+            </View>
+
+            <GlassInput label="Gross Weight (g) *" placeholder="0.000" keyboardType="numeric" value={grossWeight} onChangeText={setGrossWeight} />
+            <View style={{ flexDirection: 'row', gap: 12 }}>
+              <View style={{ flex: 1 }}><GlassInput label="Stone Weight (g)" placeholder="0.000" keyboardType="numeric" value={stoneWeight} onChangeText={setStoneWeight} /></View>
+              <View style={{ flex: 1 }}><GlassInput label="Beads Weight (g)" placeholder="0.000" keyboardType="numeric" value={beadsWeight} onChangeText={setBeadsWeight} /></View>
+            </View>
+          </GlassCard>
+
+          {/* Purity & Wastage */}
+          <GlassCard>
+            <View className="flex-row items-center gap-2 mb-4">
+              <Percent size={20} color="#D4AF37" />
+              <Text className="text-lg font-bold text-vj-text">Purity & Wastage</Text>
+            </View>
+
+            <View style={{ flexDirection: 'row', gap: 12, alignItems: 'flex-start' }}>
+              <View style={{ flex: 1 }}>
+                <View className="flex-row justify-between items-center mb-1">
+                  <Text style={{ fontSize: 12, fontWeight: '700', color: 'rgba(92,22,35,0.6)', textTransform: 'uppercase' }}>Purity % *</Text>
+                  {computedKarat ? (
+                    <View style={{ backgroundColor: 'rgba(212,175,55,0.2)', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 }}>
+                      <Text style={{ fontSize: 11, fontWeight: '800', color: '#D4AF37' }}>{computedKarat}</Text>
+                    </View>
+                  ) : null}
                 </View>
-                <View className="flex-row items-center gap-1.5 px-2 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20">
-                  <View className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                  <Text className="text-[9px] font-black text-emerald-800 uppercase tracking-widest">LIVE</Text>
-                </View>
+                <GlassInput placeholder={(selectedDesign?.metal || 'GOLD') === 'SILVER' ? '92.5' : '91.6'} keyboardType="numeric" value={purityPercent} onChangeText={setPurityPercent} />
               </View>
+              <View style={{ flex: 1 }}>
+                <GlassInput label="Wastage %" placeholder="0.00" keyboardType="numeric" value={wastagePercent} onChangeText={setWastagePercent} />
+              </View>
+            </View>
 
-              {/* Dual Stat Tiles: Net Weight & Total Touch */}
-              <View className="flex-row gap-2.5 mb-3">
-                {/* Tile 1: Net Weight */}
-                <View className="flex-1 p-2.5 rounded-xl bg-black/[0.02] border border-black/5">
-                  <Text className="text-[10px] font-bold text-vj-text/50 uppercase tracking-wider">Net Weight</Text>
-                  <Text className="text-base font-black text-vj-text font-mono mt-0.5">{liveWastageSeparation.netWeight}</Text>
-                  <Text className="text-[9px] text-vj-text/55 font-semibold mt-0.5" numberOfLines={1}>
-                    {liveWastageSeparation.weightBreakdown}
+            {/* Quick Purity Preset Chips */}
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 8 }}>
+              {getPurityPresets(selectedDesign?.metal || 'GOLD').map(preset => (
+                <TouchableOpacity
+                  key={preset.id}
+                  onPress={() => {
+                    try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
+                    setPurityPercent(preset.val);
+                  }}
+                  style={{
+                    backgroundColor: purityPercent === preset.val || purityPercent === preset.label.split('K')[0] ? '#D4AF37' : 'rgba(212,175,55,0.12)',
+                    paddingHorizontal: 8,
+                    paddingVertical: 4,
+                    borderRadius: 6
+                  }}
+                >
+                  <Text style={{
+                    fontSize: 11,
+                    fontWeight: '700',
+                    color: purityPercent === preset.val || purityPercent === preset.label.split('K')[0] ? '#FFF' : COLORS.vjText
+                  }}>
+                    {preset.label}
                   </Text>
-                </View>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </GlassCard>
 
-                {/* Tile 2: Total Touch */}
-                <View className="flex-1 p-2.5 rounded-xl bg-black/[0.02] border border-black/5">
-                  <View className="flex-row items-center justify-between">
-                    <Text className="text-[10px] font-bold text-vj-text/50 uppercase tracking-wider">Total Touch</Text>
-                    <Text className="text-xs font-black text-vj-accent font-mono">{liveWastageSeparation.totalTouch}</Text>
-                  </View>
-                  <View className="mt-1 bg-vj-accent/10 px-1.5 py-0.5 rounded self-start">
-                    <Text className="text-[9px] font-black text-vj-accent font-mono">
-                      {liveWastageSeparation.purityRaw}% Purity + {liveWastageSeparation.wastageRaw}% Wastage
-                    </Text>
-                  </View>
-                </View>
+          {/* Tracking & Stones */}
+          <GlassCard>
+            <View className="flex-row items-center gap-2 mb-4">
+              <MapPin size={20} color="#D4AF37" />
+              <Text className="text-lg font-bold text-vj-text">Tracking & Stones</Text>
+            </View>
+
+            <GlassPickerInput
+              label="Primary Stone (Optional)"
+              placeholder="Select Stone..."
+              selectedLabel={selectedStone ? selectedStone.name : null}
+              selectedSublabel={selectedStone ? selectedStone.type : null}
+              onPress={() => {
+                setPickerModal({
+                  visible: true,
+                  title: 'Select Primary Stone',
+                  placeholder: 'Search stone...',
+                  selectedId: selectedStone?.id || null,
+                  options: stones.map(s => ({
+                    id: s.id,
+                    label: s.name || 'Unnamed Stone',
+                    sublabel: s.type || '',
+                  })),
+                  onSelect: (opt) => {
+                    if (!opt) return setSelectedStone(null);
+                    const selStone = stones.find(s => s.id === opt.id)!;
+                    setSelectedStone(selStone);
+                  },
+                });
+              }}
+            />
+
+            <View style={{ flexDirection: 'row', gap: 12 }}>
+              <View style={{ flex: 1 }}>
+                 <GlassInput label="Location" placeholder="Tray / Location" autoCapitalize="characters" value={location} onChangeText={setLocation} />
               </View>
+              <View style={{ flex: 1 }}>
+                 <GlassInput label="BIS HUID" placeholder="6-char HUID" autoCapitalize="characters" value={huid} onChangeText={setHuid} maxLength={6} />
+              </View>
+            </View>
+            
+            <View style={{ flexDirection: 'row', gap: 12, marginTop: 12 }}>
+              <View style={{ flex: 1 }}>
+                <GlassInput label="Size Value" placeholder="Size" keyboardType="numeric" value={sizeValue} onChangeText={setSizeValue} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <GlassPickerInput
+                  label="Size Unit"
+                  placeholder="Select Unit..."
+                  selectedLabel={
+                    sizeUnit
+                      ? { INCH: 'Inches (INCH)', MM: 'Millimeters (MM)', CM: 'Centimeters (CM)', RING_SIZE: 'Ring Size' }[sizeUnit] || sizeUnit
+                      : null
+                  }
+                  onPress={() => {
+                    setPickerModal({
+                      visible: true,
+                      title: 'Select Size Unit',
+                      placeholder: 'Search unit...',
+                      selectedId: sizeUnit || null,
+                      options: [
+                        { id: 'INCH', label: 'Inches (INCH)' },
+                        { id: 'MM', label: 'Millimeters (MM)' },
+                        { id: 'CM', label: 'Centimeters (CM)' },
+                        { id: 'RING_SIZE', label: 'Ring Size' },
+                      ],
+                      onSelect: (opt) => {
+                        if (!opt) return setSizeUnit('');
+                        setSizeUnit(opt.id);
+                      },
+                    });
+                  }}
+                />
+              </View>
+            </View>
+          </GlassCard>
 
-              {/* 3-Way Fine Metal Flow Bar (Vault Truth + Wastage = Cost Truth) */}
-              <View className="mb-3 p-3 rounded-2xl bg-black/[0.02] border border-black/5">
-                <Text className="text-[10px] font-black uppercase tracking-widest text-vj-text/60 mb-2">
-                  Fine Metal Accounting ({selectedDesign?.metal || 'GOLD'})
-                </Text>
-                
-                <View className="flex-row items-center justify-between gap-1">
-                  {/* Vault Fine */}
-                  <View className="flex-1 p-2 rounded-xl bg-emerald-500/10 border border-emerald-500/20 items-center">
-                    <Text className="text-[9px] font-black text-emerald-800 uppercase tracking-tight">Vault Fine</Text>
-                    <Text className="text-xs font-black text-emerald-700 font-mono mt-0.5">{liveWastageSeparation.vaultTruth}</Text>
-                    <Text className="text-[8px] font-semibold text-emerald-800/70 mt-0.5">Physical</Text>
+          {/* Costs */}
+          <GlassCard style={{ zIndex: 20 }}>
+            <View className="flex-row items-center gap-2 mb-4">
+              <Wallet size={20} color="#D4AF37" />
+              <Text className="text-lg font-bold text-vj-text">Purchase Costs ({getCurrencySymbol()})</Text>
+            </View>
+
+            <GlassInput label={`Purchase Rate (${getCurrencySymbol()})`} placeholder="0.00" keyboardType="numeric" value={purchaseRate} onChangeText={setPurchaseRate} />
+            <View style={{ flexDirection: 'row', gap: 12 }}>
+              <View style={{ flex: 1 }}><GlassInput label={`Making Charge (${getCurrencySymbol()})`} placeholder="0.00" keyboardType="numeric" value={makingCharge} onChangeText={setMakingCharge} /></View>
+              <View style={{ flex: 1 }}><GlassInput label={`Stone Cost (${getCurrencySymbol()})`} placeholder="0.00" keyboardType="numeric" value={stoneCost} onChangeText={setStoneCost} /></View>
+            </View>
+          </GlassCard>
+
+          {/* Mandated UI Display — Live Cost Preview (FEAT-EFFECTIVE-PRICE-1 / FIX-EFFPRICE-PURITYROUND-1 v2.14) */}
+          {liveWastageSeparation.isValid && (
+            <View className="px-1 mb-4 mt-2" style={{ zIndex: 10 }}>
+              <GlassCard style={{ backgroundColor: 'rgba(252,251,248, 0.98)', borderColor: '#D4AF37', borderWidth: 1.5, padding: 16 }}>
+                {/* Top Header Row with Live Audit Badge */}
+                <View className="flex-row items-center justify-between mb-3 pb-2.5 border-b border-black/5">
+                  <View className="flex-row items-center gap-2">
+                    <View className="w-7 h-7 rounded-lg items-center justify-center bg-amber-500/15 border border-amber-500/30">
+                      <Calculator size={16} color="#D4AF37" />
+                    </View>
+                    <View>
+                      <Text className="text-xs font-black uppercase tracking-wider text-vj-accent">Live Cost Breakdown</Text>
+                      <Text className="text-[10px] text-vj-text/50 font-semibold">Real-Time Inventory Accounting</Text>
+                    </View>
                   </View>
-
-                  <Text className="text-xs font-black text-vj-text/40">+</Text>
-
-                  {/* Wastage Fine */}
-                  <View className="flex-1 p-2 rounded-xl bg-rose-500/10 border border-rose-500/20 items-center">
-                    <Text className="text-[9px] font-black text-rose-800 uppercase tracking-tight">
-                      Wastage
-                    </Text>
-                    <Text className="text-xs font-black text-rose-700 font-mono mt-0.5">{liveWastageSeparation.wastageGold}</Text>
-                    <Text className="text-[8px] font-semibold text-rose-800/70 mt-0.5">Supplier</Text>
-                  </View>
-
-                  <Text className="text-xs font-black text-vj-text/40">=</Text>
-
-                  {/* Cost Truth (Billed) */}
-                  <View className="flex-1 p-2 rounded-xl bg-amber-500/15 border border-amber-500/30 items-center">
-                    <Text className="text-[9px] font-black text-amber-900 uppercase tracking-tight">Billed Fine</Text>
-                    <Text className="text-xs font-black text-amber-800 font-mono mt-0.5">{liveWastageSeparation.costTruth}</Text>
-                    <Text className="text-[8px] font-semibold text-amber-800/70 mt-0.5">Cost Truth</Text>
+                  <View className="flex-row items-center gap-1.5 px-2 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20">
+                    <View className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                    <Text className="text-[9px] font-black text-emerald-800 uppercase tracking-widest">LIVE</Text>
                   </View>
                 </View>
-              </View>
 
-              {/* Financials Hero Banner (When Rate/Making entered) */}
-              {liveWastageSeparation.hasCostData && (
-                <View className="p-3 rounded-2xl bg-amber-500/10 border border-amber-500/30">
-                  <View className="flex-row justify-between items-center pb-1.5 border-b border-amber-500/15">
-                    <Text className="text-[11px] text-vj-text/70 font-bold">Effective Price / g:</Text>
-                    <Text className="text-xs font-black text-vj-text font-mono">
-                      {getCurrencySymbol()} {liveWastageSeparation.pricePerGram.toLocaleString('en-IN', { maximumFractionDigits: 2 })}
+                {/* Dual Stat Tiles: Net Weight & Total Touch */}
+                <View className="flex-row gap-2.5 mb-3">
+                  {/* Tile 1: Net Weight */}
+                  <View className="flex-1 p-2.5 rounded-xl bg-black/[0.02] border border-black/5">
+                    <Text className="text-[10px] font-bold text-vj-text/50 uppercase tracking-wider">Net Weight</Text>
+                    <Text className="text-base font-black text-vj-text font-mono mt-0.5">{liveWastageSeparation.netWeight}</Text>
+                    <Text className="text-[9px] text-vj-text/55 font-semibold mt-0.5" numberOfLines={1}>
+                      {liveWastageSeparation.weightBreakdown}
                     </Text>
                   </View>
-                  <View className="flex-row justify-between items-center pt-2">
-                    <View className="flex-1 pr-2">
-                      <Text className="text-xs font-black text-vj-text uppercase tracking-wider">EST. Total</Text>
-                      <Text className="text-[10px] text-vj-text/60 font-semibold mt-0.5">
-                        {liveWastageSeparation.financialBreakdown}
+
+                  {/* Tile 2: Total Touch */}
+                  <View className="flex-1 p-2.5 rounded-xl bg-black/[0.02] border border-black/5">
+                    <View className="flex-row items-center justify-between">
+                      <Text className="text-[10px] font-bold text-vj-text/50 uppercase tracking-wider">Total Touch</Text>
+                      <Text className="text-xs font-black text-vj-accent font-mono">{liveWastageSeparation.totalTouch}</Text>
+                    </View>
+                    <View className="mt-1 bg-vj-accent/10 px-1.5 py-0.5 rounded self-start">
+                      <Text className="text-[9px] font-black text-vj-accent font-mono">
+                        {liveWastageSeparation.purityRaw}% Purity + {liveWastageSeparation.wastageRaw}% Wastage
                       </Text>
                     </View>
-                    <Text className="text-base font-black font-mono text-amber-950">
-                      {getCurrencySymbol()} {liveWastageSeparation.totalAmount.toLocaleString('en-IN', { maximumFractionDigits: 2 })}
-                    </Text>
                   </View>
                 </View>
-              )}
-            </GlassCard>
-          </View>
-        )}
+
+                {/* 3-Way Fine Metal Flow Bar (Vault Truth + Wastage = Cost Truth) */}
+                <View className="mb-3 p-3 rounded-2xl bg-black/[0.02] border border-black/5">
+                  <Text className="text-[10px] font-black uppercase tracking-widest text-vj-text/60 mb-2">
+                    Fine Metal Accounting ({selectedDesign?.metal || 'GOLD'})
+                  </Text>
+                  
+                  <View className="flex-row items-center justify-between gap-1">
+                    {/* Vault Fine */}
+                    <View className="flex-1 p-2 rounded-xl bg-emerald-500/10 border border-emerald-500/20 items-center">
+                      <Text className="text-[9px] font-black text-emerald-800 uppercase tracking-tight">Vault Fine</Text>
+                      <Text className="text-xs font-black text-emerald-700 font-mono mt-0.5">{liveWastageSeparation.vaultTruth}</Text>
+                      <Text className="text-[8px] font-semibold text-emerald-800/70 mt-0.5">Physical</Text>
+                    </View>
+
+                    <Text className="text-xs font-black text-vj-text/40">+</Text>
+
+                    {/* Wastage Fine */}
+                    <View className="flex-1 p-2 rounded-xl bg-rose-500/10 border border-rose-500/20 items-center">
+                      <Text className="text-[9px] font-black text-rose-800 uppercase tracking-tight">
+                        Wastage
+                      </Text>
+                      <Text className="text-xs font-black text-rose-700 font-mono mt-0.5">{liveWastageSeparation.wastageGold}</Text>
+                      <Text className="text-[8px] font-semibold text-rose-800/70 mt-0.5">Supplier</Text>
+                    </View>
+
+                    <Text className="text-xs font-black text-vj-text/40">=</Text>
+
+                    {/* Cost Truth (Billed) */}
+                    <View className="flex-1 p-2 rounded-xl bg-amber-500/15 border border-amber-500/30 items-center">
+                      <Text className="text-[9px] font-black text-amber-900 uppercase tracking-tight">Billed Fine</Text>
+                      <Text className="text-xs font-black text-amber-800 font-mono mt-0.5">{liveWastageSeparation.costTruth}</Text>
+                      <Text className="text-[8px] font-semibold text-amber-800/70 mt-0.5">Cost Truth</Text>
+                    </View>
+                  </View>
+                </View>
+
+                {/* Financials Hero Banner (When Rate/Making entered) */}
+                {liveWastageSeparation.hasCostData && (
+                  <View className="p-3 rounded-2xl bg-amber-500/10 border border-amber-500/30">
+                    <View className="flex-row justify-between items-center pb-1.5 border-b border-amber-500/15">
+                      <Text className="text-[11px] text-vj-text/70 font-bold">Effective Price / g:</Text>
+                      <Text className="text-xs font-black text-vj-text font-mono">
+                        {getCurrencySymbol()} {liveWastageSeparation.pricePerGram.toLocaleString('en-IN', { maximumFractionDigits: 2 })}
+                      </Text>
+                    </View>
+                    <View className="flex-row justify-between items-center pt-2">
+                      <View className="flex-1 pr-2">
+                        <Text className="text-xs font-black text-vj-text uppercase tracking-wider">EST. Total</Text>
+                        <Text className="text-[10px] text-vj-text/60 font-semibold mt-0.5">
+                          {liveWastageSeparation.financialBreakdown}
+                        </Text>
+                      </View>
+                      <Text className="text-base font-black font-mono text-amber-950">
+                        {getCurrencySymbol()} {liveWastageSeparation.totalAmount.toLocaleString('en-IN', { maximumFractionDigits: 2 })}
+                      </Text>
+                    </View>
+                  </View>
+                )}
+              </GlassCard>
+            </View>
+          )}
 
         </KeyboardAwareScrollView>
 
-        {/* === FIXED STICKY PILL-SHAPED GLASS ACTION BAR === */}
+        {/* Fixed Sticky Action Bar */}
         <FixedGlassBar>
           <TouchableOpacity
             style={fixedBarStyles.pillSecondaryBtn}

@@ -1,12 +1,12 @@
-// components/InventoryStockSummary.tsx — Phase 2 v1.73 Canonical Implementation
-// Enforces Phantom Debt visibility, Phase 3 Rate Engine boundary, and Purchase Cost Aggregation.
+// components/InventoryStockSummary.tsx — Phase 2 v2.15 Canonical Implementation
+// Enforces Phantom Debt visibility, Phase 3 Rate Engine boundary, and Net Weight display rules.
 
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { GlassCard } from '@/components/ui/Glass';
 import { itemRepository } from '@/repositories/phase2/itemRepository';
-import { getCurrencySymbol } from '@/utils/calculations';
+import { getCurrencySymbol, formatWeightMg } from '@/utils/calculations';
 import { Scale, AlertCircle, Wallet, TrendingUp, ShieldCheck } from 'lucide-react-native';
 import { COLORS } from '@/constants/theme';
 
@@ -26,12 +26,14 @@ export interface InventoryStockSummaryProps {
   refreshTrigger?: number;
 }
 
-const formatWeight = (mg: number) => (mg / 1000).toFixed(3) + ' g';
+// RULE-1A-WEIGHT-DISPLAY (v1.54): (mg / 1000).toFixed(3) + ' g'
+const formatWeight = (mg: number) => formatWeightMg(mg);
 
+// CURRENCY-DISPLAY-RULE (v1.54): getCurrencySymbol() + (paise / 100).toFixed(2)
 const formatLiveValue = (mg: number, ratePerGramPaise?: number) => {
-  if (!ratePerGramPaise) return null; // Awaiting Phase 3 rate
+  if (!ratePerGramPaise) return null; // Awaiting Phase 3 Rate Engine
   const totalValuePaise = Math.round((mg / 1000) * ratePerGramPaise);
-  return getCurrencySymbol() + (totalValuePaise / 100).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return `${getCurrencySymbol()}${(totalValuePaise / 100).toFixed(2)}`;
 };
 
 // Custom 3D Bullion Bar Component for Gold & Silver Vault Headers
@@ -106,7 +108,7 @@ const SummaryCard = ({ metal, totalMg, debtMg, balanceMg, ratePaise, accentColor
   const estimatedValue = formatLiveValue(totalMg, ratePaise);
 
   const handleCardPress = () => {
-    try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch (e) {}
+    try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
   };
   
   return (
@@ -142,11 +144,11 @@ const SummaryCard = ({ metal, totalMg, debtMg, balanceMg, ratePaise, accentColor
 
         {/* Data Grid Section */}
         <View style={s.grid}>
-          {/* Physical Box */}
+          {/* Physical Net Weight Box */}
           <View style={s.gridBox}>
             <View style={s.gridLabelRow}>
               <Scale size={12} color="rgba(46,29,0,0.5)" />
-              <Text style={s.gridLabel}>Gross Physical</Text>
+              <Text style={s.gridLabel}>Available Net Wt</Text>
             </View>
             <Text style={s.gridValue}>{formatWeight(totalMg)}</Text>
           </View>
@@ -154,7 +156,7 @@ const SummaryCard = ({ metal, totalMg, debtMg, balanceMg, ratePaise, accentColor
           {/* Divider */}
           <View style={s.gridDivider} />
 
-          {/* Phantom Box */}
+          {/* Phantom Debt Box */}
           <View style={s.gridBox}>
             <View style={s.gridLabelRow}>
               {hasDebt ? (
@@ -244,7 +246,6 @@ const s = StyleSheet.create({
     gap: 16,
   },
 
-  // Typography & Layout
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',

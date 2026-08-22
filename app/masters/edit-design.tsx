@@ -1,5 +1,7 @@
+// app/masters/edit-design.tsx — Phase 2 v2.15 Canonical Screen
+
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, Alert, Modal, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, Alert, Modal, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import * as Haptics from 'expo-haptics';
@@ -16,18 +18,18 @@ export default function EditDesignScreen() {
   const router = useRouter();
   const { activeFirmId } = useFirmStore();
   
-  const { id, initialName, initialMetal, initialThreshold, initialCode } = useLocalSearchParams<{ 
+  const { id, initialName, initialMetal, initialCode, initialDefaultHsn } = useLocalSearchParams<{ 
     id: string; 
     initialName?: string; 
     initialMetal?: 'GOLD' | 'SILVER'; 
-    initialThreshold?: string;
     initialCode?: string;
+    initialDefaultHsn?: string;
   }>();
   
   const [newName, setNewName] = useState(initialName || '');
   const [metal, setMetal] = useState<'GOLD' | 'SILVER'>(initialMetal || 'GOLD');
   const [designCode, setDesignCode] = useState(initialCode || '');
-  const [lowStockThreshold, setLowStockThreshold] = useState(initialThreshold || '');
+  const [defaultHsn, setDefaultHsn] = useState(initialDefaultHsn || '');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
@@ -41,9 +43,7 @@ export default function EditDesignScreen() {
           if (d.name) setNewName(d.name);
           if (d.code) setDesignCode(d.code);
           if (d.metal) setMetal(d.metal);
-          if (d.lowStockThreshold !== undefined) {
-            setLowStockThreshold(d.lowStockThreshold != null ? String(d.lowStockThreshold) : '');
-          }
+          if (d.defaultHsn) setDefaultHsn(d.defaultHsn);
         }
       })
       .catch((err) => {
@@ -55,18 +55,19 @@ export default function EditDesignScreen() {
   }, [id]);
 
   const handleEditSubmit = async () => {
-    try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); } catch (e) {}
+    try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); } catch {}
     if (!activeFirmId || !id) return;
     if (!newName.trim()) {
       Alert.alert('Validation Error', 'Design name is required');
       return;
     }
-    const thresholdNum = lowStockThreshold.trim() !== '' ? parseInt(lowStockThreshold, 10) : null;
-    const finalThreshold = thresholdNum && !isNaN(thresholdNum) && thresholdNum > 0 ? thresholdNum : null;
 
     setIsSubmitting(true);
     try {
-      await designService.updateDesign(id, activeFirmId, { name: newName.trim(), lowStockThreshold: finalThreshold });
+      await designService.updateDesign(id, activeFirmId, { 
+        name: newName.trim(),
+        defaultHsn: defaultHsn.trim() || null
+      });
       setSuccessMessage('Design updated successfully');
     } catch (e: any) {
       if (e.message === 'DESIGN_NAME_INVALID') {
@@ -125,7 +126,7 @@ export default function EditDesignScreen() {
 
             <View style={s.formGroup}>
               <GlassInput 
-                label="Design Name"
+                label="Design Name *"
                 value={newName}
                 onChangeText={setNewName}
                 placeholder="e.g. Classic Band"
@@ -142,10 +143,10 @@ export default function EditDesignScreen() {
 
             <View style={s.formGroup}>
               <GlassInput 
-                label="Low-Stock Alert Threshold (Count)"
-                value={lowStockThreshold}
-                onChangeText={setLowStockThreshold}
-                placeholder="e.g. 5 (Leave blank to remove alert)"
+                label="Default HSN Code (Optional)"
+                value={defaultHsn}
+                onChangeText={setDefaultHsn}
+                placeholder="e.g. 7113"
                 keyboardType="numeric"
               />
             </View>
@@ -208,7 +209,7 @@ const s = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.5)',
   },
-  formGroup: { marginBottom: 24 },
+  formGroup: { marginBottom: 20 },
   label: { fontSize: 12, fontWeight: '700', color: 'rgba(92,22,35,0.6)', textTransform: 'uppercase', marginBottom: 8 },
   helpText: { fontSize: 10, color: 'rgba(92,22,35,0.5)', marginTop: 4, fontStyle: 'italic' },
   modalOverlayCenter: {

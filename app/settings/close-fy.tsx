@@ -1,4 +1,4 @@
-// app/settings/close-fy.tsx — Phase 2 v2.11 Canonical Screen
+// app/settings/close-fy.tsx — Phase 2 v2.15 Canonical Screen
 
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ActivityIndicator, Alert, TextInput } from 'react-native';
@@ -52,23 +52,25 @@ export default function CloseFYWizard() {
     runChecks();
   }, [activeFirmId, activeFY]);
 
+  // STEP 3: Mandatory Pre-Close Backup (FIX-P2-MIRROR-DIALOG-1 v2.02 / ALIGN-P1-V76)
   const handleBackup = async () => {
-    try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); } catch (e) {}
+    try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); } catch {}
     setIsBackingUp(true);
     try {
       const result = await backupService.createBackup();
       const mbSize = (result.fileSizeBytes / (1024 * 1024)).toFixed(1);
-      setBackupPathInfo(`${result.filePath} · ${mbSize} MB`);
-      setStep(3); // Auto advance to final step
+      const mirrorText = result.mirroredToPublicStorage ? '\nAlso copied to Documents/VJ Billing/backups/' : '';
+      setBackupPathInfo(`${result.filePath} · ${mbSize} MB${mirrorText}`);
+      setStep(3); // Auto advance to final confirmation
     } catch (e: any) {
-      Alert.alert('Backup Failed', e.message);
+      Alert.alert('Backup Failed', e.message || 'Backup failed. FY close has been cancelled for safety.');
     } finally {
       setIsBackingUp(false);
     }
   };
 
   const handleCloseFY = async () => {
-    try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); } catch (e) {}
+    try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); } catch {}
     if (confirmText.trim() !== 'CLOSE') {
       Alert.alert('Validation Error', 'Please type CLOSE exactly as shown to proceed.');
       return;
@@ -79,7 +81,7 @@ export default function CloseFYWizard() {
     try {
       await fyService.closeFY(activeFY.id, activeFirmId);
       
-      // Clear banner state outside transaction, after success
+      // FIX-BANNER-SETSTATE-1 (v1.83): clear banner state outside transaction strictly after success
       useFyBannerStore.getState().setBannerVisible(false);
 
       await refreshSession();

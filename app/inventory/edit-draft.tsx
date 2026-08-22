@@ -1,6 +1,7 @@
-// app/inventory/edit-draft.tsx — Phase 2 v2.11 Canonical Screen
+// app/inventory/edit-draft.tsx — Phase 2 v2.15 Canonical Screen
+
 import React, { useState, useEffect, useMemo } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator, ScrollView, Modal } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator, Modal } from 'react-native';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
@@ -21,7 +22,7 @@ import {
   getCurrencySymbol,
   getPurityPresets,
 } from '@/utils/calculations';
-import { Edit3, Save, Calculator, CheckCircle, X, Package } from 'lucide-react-native';
+import { Edit3, Save, Calculator, CheckCircle, Package } from 'lucide-react-native';
 import { GlassButton, GlassPickerInput, FixedGlassBar, fixedBarStyles, HeaderPill, GlassCard } from '@/components/ui/Glass';
 import { GlassPickerModal, GlassPickerOption } from '@/components/ui/GlassPickerModal';
 import { COLORS } from '@/constants/theme';
@@ -34,6 +35,7 @@ export default function EditDraftScreen() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [sku, setSku] = useState('');
+  const [initialHuid, setInitialHuid] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
@@ -84,6 +86,7 @@ export default function EditDraftScreen() {
             return;
           }
           setSku(formatSKUDisplay(item.sku));
+          setInitialHuid(item.huid || null);
           
           setGrossG((item.grossWeightMg / 1000).toString());
           setStoneG((item.stoneWeightMg / 1000).toString());
@@ -99,7 +102,7 @@ export default function EditDraftScreen() {
           setHuid(item.huid || '');
           setMetal(item.metal);
         } else if (active) {
-            setErrorMessage('Failed to load item details.');
+          setErrorMessage('Failed to load item details.');
         }
       } catch (error: any) {
         console.error('Failed to load item:', error);
@@ -130,7 +133,8 @@ export default function EditDraftScreen() {
     const fineGoldChargedMg = computeFineGoldChargedMg(netWeightMg, purity, wastage);
     const costTruth = computeCostTruthGrams(fineGoldChargedMg, fineWeightMg);
     
-    const effectivePricePerGram = computeEffectivePricePerGram(rate, purity, wastage);
+    // FIX-EFFPRICE-PURITYROUND-1 (v2.14): pass metal to apply 100% rounding
+    const effectivePricePerGram = computeEffectivePricePerGram(rate, purity, wastage, metal);
     const absoluteTotalCost = computeAbsoluteTotalCostRupees(netWeightG, effectivePricePerGram, making, stoneC);
     const metalCostRupees = netWeightG * effectivePricePerGram;
 
@@ -158,7 +162,7 @@ export default function EditDraftScreen() {
       vaultTruth: vaultTruth.toFixed(3) + ' g',
       wastageMetal: (costTruth - vaultTruth).toFixed(3) + ' g',
       costTruth: costTruth.toFixed(3) + ' g',
-      hasCostData: rate > 0 || making > 0 || stoneC > 0,
+      hasCostData: (rate > 0 || making > 0 || stoneC > 0) && netWeightG > 0,
       financialBreakdown: financialBreakdownText,
       pricePerGram: effectivePricePerGram,
       totalAmount: absoluteTotalCost,
@@ -180,6 +184,7 @@ export default function EditDraftScreen() {
     const parsedStone = parseFloat(stoneG) || 0;
     const parsedBeads = parseFloat(beadsG) || 0;
     const parsedPurity = parseFloat(purityPercent) || 0;
+    const parsedWastage = parseFloat(wastagePercent) || 0;
 
     if (parsedGross <= 0) {
       setErrorMessage('Gross weight must be greater than 0.');
@@ -194,7 +199,15 @@ export default function EditDraftScreen() {
       return;
     }
 
-    let huidUpper = undefined;
+    // GAP-P2-SIZE-EDIT-1: Client-side pairing validation
+    const hasSizeVal = sizeValue && sizeValue.trim() !== '';
+    const hasSizeUnit = sizeUnit && sizeUnit.trim() !== '';
+    if ((hasSizeVal && !hasSizeUnit) || (!hasSizeVal && hasSizeUnit)) {
+      setErrorMessage('Size Value and Size Unit must both be specified together, or both left blank.');
+      return;
+    }
+
+    let huidUpper: string | null = null;
     if (huid.trim()) {
       huidUpper = huid.trim().toUpperCase();
       if (!/^[A-Z0-9]{6}$/.test(huidUpper)) {
@@ -203,7 +216,7 @@ export default function EditDraftScreen() {
       }
     }
 
-    try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); } catch (e) {}
+    try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); } catch {}
     setSaving(true);
     try {
       const newGrossMg = Math.round(parsedGross * 1000);
@@ -215,15 +228,18 @@ export default function EditDraftScreen() {
       const newMakingPaise = rupeesToPaise(makingCharge);
       const newStoneCostPaise = rupeesToPaise(stoneCost);
 
+      // 1. adjustWeight with wastagePercent (Step 6.7.4)
       await itemService.adjustWeight(
         itemId,
         activeFirmId,
         newGrossMg,
         newStoneMg,
         newBeadsMg,
-        reason
+        reason,
+        parsedWastage
       );
 
+      // 2. updateItem for non-weight fields
       await itemService.updateItem(
         itemId, 
         activeFirmId, 
@@ -234,20 +250,19 @@ export default function EditDraftScreen() {
           makingChargePaise: newMakingPaise,
           stoneCostPaise: newStoneCostPaise,
           location: location.trim() || null,
-          sizeValue: sizeValue ? parseFloat(sizeValue) : null,
-          sizeUnit: (sizeUnit as any) || null,
+          sizeValue: hasSizeVal ? parseFloat(sizeValue) : null,
+          sizeUnit: hasSizeUnit ? (sizeUnit as any) : null,
         },
         reason
       );
 
-      if (huidUpper) {
-         try {
-           await itemService.addHUID(itemId, activeFirmId, huidUpper);
-         } catch (e: any) {
-           if (e.message !== 'HUID_ALREADY_SET') {
-             throw e;
-           }
-         }
+      // 3. HUID assignment / correction branch (FEAT-ITEM-CORRECTION-1 v1.88)
+      if (huidUpper && huidUpper !== initialHuid) {
+        if (!initialHuid) {
+          await itemService.addHUID(itemId, activeFirmId, huidUpper);
+        } else {
+          await itemService.correctHUID(itemId, activeFirmId, huidUpper, reason);
+        }
       }
 
       setSuccessMessage('Draft details updated successfully.');
@@ -326,7 +341,7 @@ export default function EditDraftScreen() {
                   <TouchableOpacity
                     key={preset.id}
                     onPress={() => {
-                      try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch (e) {}
+                      try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
                       setPurityPercent(preset.val);
                     }}
                     style={{
@@ -411,11 +426,10 @@ export default function EditDraftScreen() {
               </View>
             </View>
 
-            {/* Mandated UI Display — Modern Luxury Live Cost Preview */}
+            {/* Mandated UI Display — Live Cost Preview (FEAT-EFFECTIVE-PRICE-1 / FIX-EFFPRICE-PURITYROUND-1 v2.14) */}
             {liveWastageSeparation.isValid && (
               <View className="px-1 mb-4 mt-2" style={{ zIndex: 10 }}>
                 <GlassCard style={{ backgroundColor: 'rgba(252,251,248, 0.98)', borderColor: '#D4AF37', borderWidth: 1.5, padding: 16 }}>
-                  {/* Top Header Row with Live Audit Badge */}
                   <View className="flex-row items-center justify-between mb-3 pb-2.5 border-b border-black/5">
                     <View className="flex-row items-center gap-2">
                       <View className="w-7 h-7 rounded-lg items-center justify-center bg-amber-500/15 border border-amber-500/30">
@@ -432,9 +446,7 @@ export default function EditDraftScreen() {
                     </View>
                   </View>
 
-                  {/* Dual Stat Tiles: Net Weight & Total Touch */}
                   <View className="flex-row gap-2.5 mb-3">
-                    {/* Tile 1: Net Weight */}
                     <View className="flex-1 p-2.5 rounded-xl bg-black/[0.02] border border-black/5">
                       <Text className="text-[10px] font-bold text-vj-text/50 uppercase tracking-wider">Net Weight</Text>
                       <Text className="text-base font-black text-vj-text font-mono mt-0.5">{liveWastageSeparation.netWeight}</Text>
@@ -443,7 +455,6 @@ export default function EditDraftScreen() {
                       </Text>
                     </View>
 
-                    {/* Tile 2: Total Touch */}
                     <View className="flex-1 p-2.5 rounded-xl bg-black/[0.02] border border-black/5">
                       <View className="flex-row items-center justify-between">
                         <Text className="text-[10px] font-bold text-vj-text/50 uppercase tracking-wider">Total Touch</Text>
@@ -457,14 +468,12 @@ export default function EditDraftScreen() {
                     </View>
                   </View>
 
-                  {/* 3-Way Fine Metal Flow Bar (Vault Truth + Wastage = Cost Truth) */}
                   <View className="mb-3 p-3 rounded-2xl bg-black/[0.02] border border-black/5">
                     <Text className="text-[10px] font-black uppercase tracking-widest text-vj-text/60 mb-2">
                       Fine Metal Accounting ({metal})
                     </Text>
                     
                     <View className="flex-row items-center justify-between gap-1">
-                      {/* Vault Fine */}
                       <View className="flex-1 p-2 rounded-xl bg-emerald-500/10 border border-emerald-500/20 items-center">
                         <Text className="text-[9px] font-black text-emerald-800 uppercase tracking-tight">Vault Fine</Text>
                         <Text className="text-xs font-black text-emerald-700 font-mono mt-0.5">{liveWastageSeparation.vaultTruth}</Text>
@@ -473,7 +482,6 @@ export default function EditDraftScreen() {
 
                       <Text className="text-xs font-black text-vj-text/40">+</Text>
 
-                      {/* Wastage Fine */}
                       <View className="flex-1 p-2 rounded-xl bg-rose-500/10 border border-rose-500/20 items-center">
                         <Text className="text-[9px] font-black text-rose-800 uppercase tracking-tight">
                           Wastage
@@ -484,7 +492,6 @@ export default function EditDraftScreen() {
 
                       <Text className="text-xs font-black text-vj-text/40">=</Text>
 
-                      {/* Cost Truth (Billed) */}
                       <View className="flex-1 p-2 rounded-xl bg-amber-500/15 border border-amber-500/30 items-center">
                         <Text className="text-[9px] font-black text-amber-900 uppercase tracking-tight">Billed Fine</Text>
                         <Text className="text-xs font-black text-amber-800 font-mono mt-0.5">{liveWastageSeparation.costTruth}</Text>
@@ -493,7 +500,6 @@ export default function EditDraftScreen() {
                     </View>
                   </View>
 
-                  {/* Financials Hero Banner (When Rate/Making entered) */}
                   {liveWastageSeparation.hasCostData && (
                     <View className="p-3 rounded-2xl bg-amber-500/10 border border-amber-500/30">
                       <View className="flex-row justify-between items-center pb-1.5 border-b border-amber-500/15">
@@ -610,8 +616,6 @@ export default function EditDraftScreen() {
 
 const s = StyleSheet.create({
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  container: { flex: 1 },
-  content: { paddingBottom: 350, paddingTop: 10 },
   card: {
     backgroundColor: '#fff',
     borderRadius: 16,
@@ -645,51 +649,6 @@ const s = StyleSheet.create({
     fontSize: 14,
     color: COLORS.vjText,
     fontWeight: '600',
-  },
-  saveBtn: {
-    backgroundColor: COLORS.vjAccent,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 16,
-    borderRadius: 12,
-    gap: 8,
-    shadowColor: COLORS.vjAccent,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  saveBtnDisabled: { opacity: 0.7 },
-  saveBtnText: {
-    textAlign: 'center',
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '700',
-  },
-  headerIconRow: { marginBottom: 12 },
-  headerIconCircle: {
-    width: 52,
-    height: 52,
-    borderRadius: 16,
-    backgroundColor: 'rgba(255,255,255,0.12)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.15)',
-  },
-  headerTitle: {
-    color: COLORS.vjBg,
-    fontSize: 28,
-    fontWeight: '800',
-    letterSpacing: -0.5,
-    marginBottom: 4,
-  },
-  headerSubtitle: {
-    color: 'rgba(252,251,248,0.55)',
-    fontSize: 14,
-    fontWeight: '700',
-    letterSpacing: 1,
   },
   modalOverlayCenter: {
     flex: 1,

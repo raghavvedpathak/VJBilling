@@ -1,4 +1,4 @@
-// app/inventory/barcode-print.tsx — Phase 2 v2.11 Canonical Screen
+// app/inventory/barcode-print.tsx — Phase 2 v2.15 Canonical Screen
 
 import React, { useState, useEffect } from 'react';
 import { View, Text, ActivityIndicator, Alert, TouchableOpacity, Modal, StyleSheet } from 'react-native';
@@ -43,18 +43,10 @@ export default function BarcodePrintScreen() {
     return () => { active = false; };
   }, [activeFirmId, itemId]);
 
+  // STEP 5.1 & RULE-1A-WEIGHT-DISPLAY (v1.54): 4-Line Front, 3-Line Back Dumbbell Tag
   const generateTagHTML = () => {
     if (!label) return '';
     
-    const rawGross = label.frontSide.grossWeightDisplay.replace(' g', '');
-    const rawNet = label.frontSide.netWeightDisplay.replace(' g', '');
-
-    const karatMatch = label.frontSide.purityDisplay.match(/(\d+K)/);
-    const karatOnly = karatMatch ? karatMatch[1] : '';
-    const topRowText = karatOnly 
-      ? `${label.frontSide.designName.toUpperCase()} ${karatOnly}` 
-      : label.frontSide.designName.toUpperCase();
-
     return `
       <!DOCTYPE html>
       <html>
@@ -88,7 +80,7 @@ export default function BarcodePrintScreen() {
             }
             body { 
               font-family: Arial, Helvetica, sans-serif; 
-              width: 50mm;
+              width: 50mm; 
               height: 12mm; 
               background-color: white; 
               overflow: hidden;
@@ -138,14 +130,21 @@ export default function BarcodePrintScreen() {
               white-space: nowrap;
               overflow: hidden;
               text-overflow: ellipsis;
-              margin-bottom: 1px;
+              margin-bottom: 0.5px;
             }
-            .text-line {
+            .text-purity {
               font-size: 7px;
               font-weight: 800;
               color: #000;
               line-height: 1;
-              margin-top: 1px;
+              margin-bottom: 0.5px;
+            }
+            .text-line {
+              font-size: 6.5px;
+              font-weight: 800;
+              color: #000;
+              line-height: 1;
+              margin-top: 0.5px;
             }
             .firm-code {
               font-size: 7px;
@@ -173,11 +172,12 @@ export default function BarcodePrintScreen() {
         </head>
         <body>
           <div class="dumbbell-tag">
-            <!-- LEFT WING (DETAILS LOBE) -->
+            <!-- LEFT WING (DETAILS LOBE: 4 Lines) -->
             <div class="wing left-wing">
-              <div class="text-title">${topRowText}</div>
-              <div class="text-line">Gr.Wt : ${rawGross}g</div>
-              <div class="text-line">Nt.Wt : ${rawNet}g</div>
+              <div class="text-title">${label.frontSide.designName.toUpperCase()}</div>
+              <div class="text-purity">${label.frontSide.purityDisplay}</div>
+              <div class="text-line">Gr.Wt : ${label.frontSide.grossWeightDisplay}</div>
+              <div class="text-line">Nt.Wt : ${label.frontSide.netWeightDisplay}</div>
             </div>
 
             <!-- CENTER DUMBBELL STEM (TAIL BRIDGE) -->
@@ -185,7 +185,7 @@ export default function BarcodePrintScreen() {
               <div class="stem-line"></div>
             </div>
 
-            <!-- RIGHT WING (BARCODE LOBE) -->
+            <!-- RIGHT WING (BARCODE LOBE: 3 Lines) -->
             <div class="wing right-wing">
               <div class="firm-code">${label.backSide.firmCode}</div>
               <div id="qrcode"></div>
@@ -210,7 +210,7 @@ export default function BarcodePrintScreen() {
 
   const handlePrint = async () => {
     if (!label || !activeFirmId || !itemId) return;
-    try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch (e) {}
+    try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
     setIsProcessing(true);
     try {
       const html = generateTagHTML();
@@ -226,7 +226,7 @@ export default function BarcodePrintScreen() {
 
   const handleSaveToDevice = async () => {
     if (!label || !activeFirmId || !itemId) return;
-    try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch (e) {}
+    try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
     setIsProcessing(true);
     try {
       const html = generateTagHTML();
@@ -272,25 +272,22 @@ export default function BarcodePrintScreen() {
       <View style={{ flex: 1, paddingTop: 16 }}>
         <Text style={{ fontSize: 13, fontWeight: '700', color: COLORS.vjText, opacity: 0.7, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 12, marginLeft: 4 }}>Dumbbell Tag Live Preview (50mm × 12mm)</Text>
         <GlassCard style={{ padding: 18, marginBottom: 24 }}>
-          {/* DUMBBELL SHAPED JEWELRY TAG SILHOUETTE PREVIEW */}
+          {/* DUMBBELL SHAPED JEWELRY TAG SILHOUETTE PREVIEW (STEP 5.1) */}
           <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#F8FAFC', borderRadius: 12, borderWidth: 1, borderColor: '#E2E8F0', padding: 10, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 2 }}>
             
-            {/* LEFT WING (DETAILS) */}
+            {/* LEFT WING (DETAILS: 4 Lines) */}
             <View style={{ flex: 1, backgroundColor: '#FFFFFF', borderRadius: 10, borderWidth: 1, borderColor: '#CBD5E1', padding: 10, justifyContent: 'center' }}>
-              <Text style={{ fontSize: 13, fontWeight: '900', color: COLORS.vjText, marginBottom: 4 }}>
-                {(() => {
-                  const km = label.frontSide.purityDisplay.match(/(\d+K)/);
-                  const ko = km ? km[1] : '';
-                  return ko 
-                    ? `${label.frontSide.designName.toUpperCase()} ${ko}` 
-                    : label.frontSide.designName.toUpperCase();
-                })()}
+              <Text style={{ fontSize: 13, fontWeight: '900', color: COLORS.vjText, marginBottom: 2 }} numberOfLines={1}>
+                {label.frontSide.designName.toUpperCase()}
               </Text>
-              <Text style={{ fontSize: 12, fontWeight: '700', color: '#334155', marginBottom: 2 }}>
-                Gr.Wt : {label.frontSide.grossWeightDisplay.replace(' g', '')}g
+              <Text style={{ fontSize: 12, fontWeight: '800', color: '#D4AF37', marginBottom: 2 }}>
+                {label.frontSide.purityDisplay}
               </Text>
-              <Text style={{ fontSize: 12, fontWeight: '800', color: COLORS.vjAccent }}>
-                Nt.Wt : {label.frontSide.netWeightDisplay.replace(' g', '')}g
+              <Text style={{ fontSize: 11, fontWeight: '700', color: '#334155', marginBottom: 1 }}>
+                Gr.Wt : {label.frontSide.grossWeightDisplay}
+              </Text>
+              <Text style={{ fontSize: 11, fontWeight: '800', color: COLORS.vjAccent }}>
+                Nt.Wt : {label.frontSide.netWeightDisplay}
               </Text>
             </View>
 
@@ -302,7 +299,7 @@ export default function BarcodePrintScreen() {
               </View>
             </View>
 
-            {/* RIGHT WING (BARCODE / QR) */}
+            {/* RIGHT WING (BARCODE LOBE: 3 Lines) */}
             <View style={{ flex: 1, backgroundColor: '#FFFFFF', borderRadius: 10, borderWidth: 1, borderColor: '#CBD5E1', padding: 10, alignItems: 'center', justifyContent: 'center' }}>
               <Text style={{ fontSize: 11, fontWeight: '900', color: COLORS.vjText, marginBottom: 4 }}>{label.backSide.firmCode}</Text>
               <View style={{ marginBottom: 4, alignItems: 'center', justifyContent: 'center', backgroundColor: '#FFFFFF', padding: 2 }}>

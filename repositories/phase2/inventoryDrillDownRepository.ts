@@ -1,9 +1,19 @@
-// repositories/inventoryDrillDownRepository.ts
-// FEAT-DRILL-DOWN-1 (v1.65): All methods read-only. No DrizzleTransaction param.
-import { sql, eq, and, desc, asc, isNotNull } from 'drizzle-orm';
+// repositories/phase2/inventoryDrillDownRepository.ts
+// FEAT-DRILL-DOWN-1 (v1.65) / FIX-LOWSTOCK-PURITYGRAIN-1 (v2.13)
+// All methods read-only. No DrizzleTransaction param.
+
+import { sql, eq, and, desc, asc } from 'drizzle-orm';
 import { db } from '@/db/client';
-import { categories, items, designs, itemEvents, auditLogs } from '@/db/schema';
-import type { ItemSearchResult, DesignCategoryStockResult, ItemDetail, ItemTimelineEvent, MetalSourceStockResult, StockStatus } from '@/types/phase2/phase2.types';
+import { categories, items, designs, designPurityThresholds, itemEvents, auditLogs } from '@/db/schema';
+import type { 
+  ItemSearchResult, 
+  DesignCategoryStockResult, 
+  ItemDetail, 
+  ItemTimelineEvent, 
+  MetalSourceStockResult, 
+  StockStatus, 
+  LowStockDesignPurityVariant 
+} from '@/types/phase2/phase2.types';
 
 export const inventoryDrillDownRepository = {
   async getCategoriesWithStock(firmId: string) {
@@ -35,39 +45,44 @@ export const inventoryDrillDownRepository = {
     }));
   },
 
-  async getLowStockDesigns(firmId: string) {
+  // FIX-LOWSTOCK-PURITYGRAIN-1 (v2.13): Grouped by (designId, purityPercent) variant
+  async getLowStockDesignPurityVariants(firmId: string): Promise<LowStockDesignPurityVariant[]> {
     const results = await db
       .select({
-        id: designs.id,
-        name: designs.name,
-        lowStockThreshold: designs.lowStockThreshold,
+        designId: designPurityThresholds.designId,
+        designName: designs.name,
+        purityPercent: designPurityThresholds.purityPercent,
+        lowStockThreshold: designPurityThresholds.lowStockThreshold,
         availableCount: sql<number>`COUNT(${items.id})`,
       })
-      .from(designs)
+      .from(designPurityThresholds)
+      .innerJoin(designs, eq(designs.id, designPurityThresholds.designId))
       .leftJoin(
         items,
         and(
-          eq(items.designId, designs.id),
+          eq(items.designId, designPurityThresholds.designId),
+          eq(items.purityPercent, designPurityThresholds.purityPercent),
           eq(items.status, 'AVAILABLE'),
           eq(items.firmId, firmId)
         )
       )
-      .where(
-        and(
-          eq(designs.firmId, firmId),
-          isNotNull(designs.lowStockThreshold)
-        )
-      )
-      .groupBy(designs.id)
-      .having(({ availableCount }) => sql`${availableCount} <= ${designs.lowStockThreshold}`)
+      .where(eq(designs.firmId, firmId))
+      .groupBy(designPurityThresholds.designId, designPurityThresholds.purityPercent)
+      .having(({ availableCount, lowStockThreshold }) => sql`${availableCount} <= ${lowStockThreshold}`)
       .orderBy(({ availableCount }) => asc(availableCount));
 
     return results.map(r => ({
-      id: r.id,
-      name: r.name,
-      lowStockThreshold: r.lowStockThreshold!,
+      designId: r.designId,
+      designName: r.designName,
+      purityPercent: Number(r.purityPercent),
+      lowStockThreshold: Number(r.lowStockThreshold),
       availableCount: Number(r.availableCount) || 0,
     }));
+  },
+
+  // Backward-compatibility alias for services referencing getLowStockDesigns
+  async getLowStockDesigns(firmId: string): Promise<LowStockDesignPurityVariant[]> {
+    return this.getLowStockDesignPurityVariants(firmId);
   },
 
   async getStockByMetalSource(firmId: string): Promise<MetalSourceStockResult[]> {
@@ -124,8 +139,6 @@ export const inventoryDrillDownRepository = {
     return results.map(r => ({
       designId: r.designId,
       designName: r.designName,
-      categoryId,
-      categoryName: '', // typically not selected from designs, passed implicitly by calling context or omitted
       metal: r.metal as 'GOLD' | 'SILVER',
       purityPercent: Number(r.purityPercent),
       purityKarat: Number(r.purityKarat) || 0,
@@ -134,6 +147,7 @@ export const inventoryDrillDownRepository = {
     }));
   },
 
+  // FEAT-SCREEN-C-SIZE-1 (v2.13): Sort order extended to purityPercent DESC, sizeValue ASC, created_at DESC
   async getItemsByDesign(firmId: string, designId: string, purityPercent?: number): Promise<ItemSearchResult[]> {
     const conditions = [
       eq(items.designId, designId),
@@ -167,7 +181,7 @@ export const inventoryDrillDownRepository = {
       .innerJoin(designs, eq(designs.id, items.designId))
       .innerJoin(categories, eq(categories.id, items.categoryId))
       .where(and(...conditions))
-      .orderBy(desc(items.createdAt));
+      .orderBy(desc(items.purityPercent), asc(items.sizeValue), desc(items.createdAt));
 
     return results.map(r => ({
       ...r,
@@ -292,7 +306,7 @@ export const inventoryDrillDownRepository = {
           } else if (r.eventType === 'ITEM_EDITED') {
             changes = parsed.changes;
           }
-        } catch (e) {
+        } catch {
           // ignore parse errors
         }
       }

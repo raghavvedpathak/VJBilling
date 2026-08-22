@@ -1,7 +1,7 @@
-// app/inventory/index.tsx — Phase 2 v2.11 Canonical Screen
+// app/inventory/index.tsx — Phase 2 v2.15 Canonical Screen
 
 import React, { useState, useCallback } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, useWindowDimensions } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity } from 'react-native';
 import { useRouter, useFocusEffect } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { TwoToneWrapper } from '@/components/TwoToneWrapper';
@@ -23,7 +23,7 @@ import {
   Package,
   TrendingUp
 } from 'lucide-react-native';
-import { COLORS, getThemeColors } from '../../constants/theme';
+import { COLORS, getThemeColors } from '@/constants/theme';
 
 export default function InventoryHubScreen() {
   const router = useRouter();
@@ -66,7 +66,7 @@ export default function InventoryHubScreen() {
         <TouchableOpacity
           activeOpacity={0.8}
           onPress={() => {
-            try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch (e) {}
+            try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
             router.push('/inventory/search');
           }}
           style={{ marginBottom: 16 }}
@@ -98,7 +98,7 @@ export default function InventoryHubScreen() {
         <TouchableOpacity 
           activeOpacity={0.8} 
           onPress={() => {
-            try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch (e) {}
+            try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
             router.push('/masters');
           }} 
           style={{ marginBottom: 24 }}
@@ -145,7 +145,7 @@ export default function InventoryHubScreen() {
           <MenuTile 
             title="Draft Items" 
             subtitle={draftCount > 0 ? `${draftCount} Pending Review` : "Pending Verification"} 
-            icon={<ClipboardList size={22} color={draftCount > 0 ? "#D97706" : "#D97706"} />} 
+            icon={<ClipboardList size={22} color="#D97706" />} 
             iconBg={draftCount > 0 ? "rgba(245, 158, 11, 0.2)" : "rgba(217, 119, 6, 0.12)"}
             borderColor={draftCount > 0 ? "rgba(245, 158, 11, 0.5)" : "rgba(217, 119, 6, 0.25)"}
             badgeText={draftCount > 0 ? `${draftCount} PENDING` : "0 DRAFTS"}

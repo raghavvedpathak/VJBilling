@@ -18,6 +18,7 @@ export {
   getPurityPresetById,
 
   // Fine Weight & Purity Formulas
+  resolveEffectivePurityPercent, // FIX-EFFPRICE-PURITYROUND-1 (v2.14)
   resolveFineWeightMg,
   karatToPercent,
   percentToKarat,

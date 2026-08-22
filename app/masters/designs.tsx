@@ -135,7 +135,6 @@ export default function DesignsScreen() {
         initialName: d.name,
         initialCode: d.code || '',
         initialMetal: d.metal,
-        initialThreshold: d.lowStockThreshold?.toString() || '',
       },
     });
   };

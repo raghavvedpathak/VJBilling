@@ -44,15 +44,25 @@ export function useDatabase() {
         await migrate(db, migrations);
         console.log('[DB Client] Migrations complete.');
 
-        // Self-healing schema check for designs.low_stock_threshold (Phase 2 preserved)
+        // 2. Self-healing schema check for design_purity_thresholds (v2.13 FIX-LOWSTOCK-PURITYGRAIN-1)
         try {
+          expoDb.execSync(`
+            CREATE TABLE IF NOT EXISTS design_purity_thresholds (
+              design_id TEXT NOT NULL,
+              purity_percent REAL NOT NULL,
+              low_stock_threshold INTEGER NOT NULL,
+              PRIMARY KEY (design_id, purity_percent),
+              FOREIGN KEY (design_id) REFERENCES designs(id) ON UPDATE NO ACTION ON DELETE NO ACTION
+            );
+          `);
+
           const designCols = expoDb.getAllSync<{ name: string }>('PRAGMA table_info(designs)');
-          if (designCols.length > 0 && !designCols.some(c => c.name === 'low_stock_threshold')) {
-            console.log('[DB Client] Self-healing: Adding low_stock_threshold column to designs table...');
-            expoDb.execSync('ALTER TABLE designs ADD COLUMN low_stock_threshold INTEGER;');
+          if (designCols.some(c => c.name === 'low_stock_threshold')) {
+            console.log('[DB Client] Self-healing: Dropping deprecated low_stock_threshold column from designs...');
+            expoDb.execSync('ALTER TABLE designs DROP COLUMN low_stock_threshold;');
           }
         } catch (e) {
-          console.warn('[DB Client] Self-healing designs.low_stock_threshold check:', e);
+          console.warn('[DB Client] Self-healing design_purity_thresholds check:', e);
         }
 
         // -----------------------------------------------------------------------
@@ -75,10 +85,10 @@ export function useDatabase() {
           // app_settings row — parameterized runSync() for ₹ symbol to prevent JNI crash
           expoDb.runSync(
             `INSERT OR IGNORE INTO app_settings
-             (id, date_format_token, theme, audit_retention_days,
-              currency, currency_symbol, currency_decimal_places,
-              warn_unsaved_changes, updated_at)
-             VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?);`,
+              (id, date_format_token, theme, audit_retention_days,
+               currency, currency_symbol, currency_decimal_places,
+               warn_unsaved_changes, updated_at)
+              VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?);`,
             [
               'dd/MM/yyyy',
               'system',

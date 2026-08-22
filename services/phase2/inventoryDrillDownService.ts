@@ -1,11 +1,18 @@
-import { db, expoDb } from '@/db/client';
-import { sql } from 'drizzle-orm';
+// services/phase2/inventoryDrillDownService.ts
+// FEAT-DRILL-DOWN-1 (v1.65) / FIX-LOWSTOCK-PURITYGRAIN-1 (v2.13) / FEAT-SCREEN-C-SIZE-1 (v2.13)
 
-import type { ItemSearchResult, DesignCategoryStockResult, MetalSourceStockResult, ItemTimelineEvent, ItemDetail } from '@/types/phase2/phase2.types';
-import { ERR } from '@/constants';
+import { db, expoDb } from '@/db/client';
+import { sql, desc, asc } from 'drizzle-orm';
+import type { 
+  ItemSearchResult, 
+  DesignCategoryStockResult, 
+  MetalSourceStockResult, 
+  ItemTimelineEvent, 
+  LowStockDesignPurityVariant 
+} from '@/types/phase2/phase2.types';
+import { ERR } from '@/constants/errorCodes';
 
 export const inventoryDrillDownService = {
-  
   getDraftCountSync(firmId: string): number {
     try {
       const res = expoDb.getFirstSync<{ count: number }>(
@@ -13,29 +20,44 @@ export const inventoryDrillDownService = {
         [firmId]
       );
       return res?.count || 0;
-    } catch (e) {
+    } catch {
       return 0;
     }
   },
 
-  // FIX-LOWSTOCK-DESIGN-1 (v2.08): Low stock on designs
-  async getLowStockDesigns(firmId: string): Promise<{ id: string; name: string; lowStockThreshold: number; availableCount: number }[]> {
+  // FIX-LOWSTOCK-PURITYGRAIN-1 (v2.13): Grouped by (design_id, purity_percent)
+  async getLowStockDesignPurityVariants(firmId: string): Promise<LowStockDesignPurityVariant[]> {
     const result = await db.all(sql`
       SELECT 
-        d.id, 
-        d.name, 
-        d.low_stock_threshold AS lowStockThreshold, 
+        dpt.design_id AS designId, 
+        d.name AS designName,
+        dpt.purity_percent AS purityPercent,
+        dpt.low_stock_threshold AS lowStockThreshold, 
         COUNT(i.id) AS availableCount
-      FROM designs d 
-      LEFT JOIN items i ON i.design_id = d.id AND i.status = 'AVAILABLE' AND i.firm_id = ${firmId}
+      FROM design_purity_thresholds dpt
+      JOIN designs d ON d.id = dpt.design_id
+      LEFT JOIN items i ON i.design_id = dpt.design_id 
+        AND i.purity_percent = dpt.purity_percent 
+        AND i.status = 'AVAILABLE' 
+        AND i.firm_id = ${firmId}
       WHERE d.firm_id = ${firmId} 
         AND d.is_active = 1
-        AND d.low_stock_threshold IS NOT NULL
-      GROUP BY d.id, d.name, d.low_stock_threshold
-      HAVING availableCount <= d.low_stock_threshold
+      GROUP BY dpt.design_id, dpt.purity_percent, dpt.low_stock_threshold, d.name
+      HAVING availableCount <= dpt.low_stock_threshold
       ORDER BY availableCount ASC
     `);
-    return result as any;
+    return result.map((r: any) => ({
+      designId: r.designId,
+      designName: r.designName,
+      purityPercent: Number(r.purityPercent),
+      lowStockThreshold: Number(r.lowStockThreshold),
+      availableCount: Number(r.availableCount) || 0,
+    }));
+  },
+
+  // Backward-compatibility alias
+  async getLowStockDesigns(firmId: string): Promise<LowStockDesignPurityVariant[]> {
+    return this.getLowStockDesignPurityVariants(firmId);
   },
 
   getItemDetailSync(firmId: string, itemId: string): any {
@@ -129,7 +151,7 @@ export const inventoryDrillDownService = {
           if (row.eventType === 'ITEM_EDITED') {
             if (payloadObj.changes) event.changes = payloadObj.changes;
           }
-        } catch (e) {}
+        } catch {}
       }
       return event;
     });
@@ -167,8 +189,8 @@ export const inventoryDrillDownService = {
     const result = await db.all(sql`
       SELECT 
         metal_source AS metalSource, 
-        metal,
-        COALESCE(SUM(net_weight_mg), 0) AS totalNetWeightMg,
+        metal, 
+        COALESCE(SUM(net_weight_mg), 0) AS totalNetWeightMg, 
         COUNT(id) AS itemCount 
       FROM items
       WHERE firm_id = ${firmId} 
@@ -200,7 +222,7 @@ export const inventoryDrillDownService = {
       JOIN categories c ON i.category_id = c.id
       WHERE i.firm_id = ${firmId} 
         AND i.status = 'DRAFT'
-      ORDER BY i.updated_at DESC
+      ORDER BY i.created_at DESC
     `);
     return (result as unknown) as ItemSearchResult[];
   },
@@ -227,6 +249,7 @@ export const inventoryDrillDownService = {
     return (result as unknown) as DesignCategoryStockResult[];
   },
 
+  // FEAT-SCREEN-C-SIZE-1 (v2.13): Sort order purityPercent DESC, sizeValue ASC, created_at DESC
   async getItemsByDesign(firmId: string, designId: string, purityPercent?: number): Promise<ItemSearchResult[]> {
     const hasPurityFilter = purityPercent !== undefined && purityPercent !== null && !isNaN(purityPercent);
     const query = hasPurityFilter
@@ -254,7 +277,7 @@ export const inventoryDrillDownService = {
             AND i.firm_id = ${firmId} 
             AND i.status = 'AVAILABLE'
             AND ABS(i.purity_percent - ${purityPercent}) < 0.05
-          ORDER BY i.created_at DESC
+          ORDER BY i.purity_percent DESC, i.size_value ASC, i.created_at DESC
         `
       : sql`
           SELECT 
@@ -279,14 +302,13 @@ export const inventoryDrillDownService = {
           WHERE i.design_id = ${designId} 
             AND i.firm_id = ${firmId} 
             AND i.status = 'AVAILABLE'
-          ORDER BY i.created_at DESC
+          ORDER BY i.purity_percent DESC, i.size_value ASC, i.created_at DESC
         `;
     const result = await db.all(query);
     return (result as unknown) as ItemSearchResult[];
   },
 
   async getItemWithNames(firmId: string, itemId: string): Promise<any> {
-    // FIX: Used db.get() to return a single row
     const result = await db.get(sql`
       SELECT 
         i.id,
@@ -355,7 +377,7 @@ export const inventoryDrillDownService = {
         AND ie.firm_id = ${firmId}
       ORDER BY ie.timestamp ASC
     `);
-    
+
     return result.map((row: any) => {
       const event: ItemTimelineEvent = {
         id: row.id,
@@ -380,9 +402,7 @@ export const inventoryDrillDownService = {
           if (row.eventType === 'ITEM_EDITED') {
             if (payloadObj.changes) event.changes = payloadObj.changes;
           }
-        } catch (e) {
-          // Ignore JSON parse errors for safety
-        }
+        } catch {}
       }
       return event;
     });

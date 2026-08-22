@@ -1,8 +1,8 @@
-// app/inventory/item-detail.tsx — Phase 2 v2.14 Canonical Screen with Full High-Performance Inline Editing, Inline HUID & Fixed Bottom Action Bar
+// app/inventory/item-detail.tsx — Phase 2 v2.15 Canonical Screen with Full Inline Editing, HUID Correction & Live Pricing
 
 import React, { useState, useCallback, memo, useMemo } from 'react';
 import {
-  View, Text, ScrollView, StyleSheet, ActivityIndicator,
+  View, Text, StyleSheet, ActivityIndicator, ScrollView,
   TouchableOpacity, Modal, TextInput, Alert, KeyboardAvoidingView, Platform
 } from 'react-native';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
@@ -14,7 +14,6 @@ import { useFirmStore } from '@/store/phase1/useFirmStore';
 import { appSettingsStore } from '@/store/phase1/appSettingsStore';
 import { HeaderPill, GlassCard, FixedGlassBar } from '@/components/ui/Glass';
 import { GlassDatePickerModal } from '@/components/ui/GlassDatePickerModal';
-import { BlurView } from 'expo-blur';
 import { inventoryDrillDownService } from '@/services/phase2/inventoryDrillDownService';
 import { itemService } from '@/services/phase2/itemService';
 import { COLORS, getThemeColors } from '@/constants/theme';
@@ -36,11 +35,10 @@ import {
 import { format, parseISO } from 'date-fns';
 import { formatDate } from '@/utils/formatDate';
 import {
-  Package, Tag, Scale, Gem, FileText,
-  Clock, AlertTriangle, Info, AlertCircle,
+  Tag, Scale, Gem, Clock, AlertTriangle, Info, AlertCircle,
   Shield, MapPin, Calculator, Tag as TagIcon,
-  Trash2, Coins, Percent, Crown, Award, Edit3, Check, X,
-  ChevronUp, ChevronDown, Calendar
+  Trash2, Coins, Percent, Crown, Edit3, Check, X,
+  ChevronDown, Calendar, Package
 } from 'lucide-react-native';
 import type { ItemDetail, ItemTimelineEvent, UpdateableItemDraftFields, MetalSource } from '@/types/phase2/phase2.types';
 import { TERMINAL_ITEM_STATUSES } from '@/types/phase2/phase2.types';
@@ -50,7 +48,6 @@ const formatCurrency = (paise: number | null): string => {
   return getCurrencySymbol() + (Math.round(paise) / 100).toFixed(2);
 };
 
-// EVENT LABEL MAPPING (mandatory)
 const getEventLabel = (event: ItemTimelineEvent): string => {
   switch (event.eventType) {
     case 'CREATED': return 'Item Created';
@@ -73,7 +70,9 @@ const getEventLabel = (event: ItemTimelineEvent): string => {
     case 'ITEM_SOLD' as any: return `Sold · Invoice #${event.newValue || 'Unknown'}`;
     case 'PHANTOM_CREATED': return 'Phantom Created';
     case 'PHANTOM_RECONCILED': return 'Phantom Reconciled';
-    default: return event.eventType.replace(/_/g, ' ');
+    case 'SKU_CHANGED': return 'SKU Regenerated';
+    case 'ITEM_ENTRY_DATE_CORRECTED': return 'Entry Date Corrected';
+    default: return String(event.eventType).replace(/_/g, ' ');
   }
 };
 
@@ -93,16 +92,18 @@ function getSeverityColor(severity: string) {
   }
 }
 
-// ======== TIMELINE ROW (React.memo) ========
-const TimelineRow = memo(({ event, isLast }: { event: ItemTimelineEvent; isLast: boolean }) => {
+// FIX-DATEFORMAT-1 (v1.97): Timeline formats timestamps using app_settings.dateFormatToken
+const TimelineRow = memo(({ event, isLast, dateFormatToken }: { event: ItemTimelineEvent; isLast: boolean; dateFormatToken: string }) => {
   const severityColor = getSeverityColor(event.severity);
   let dateStr = '';
   let timeStr = '';
   try {
     const d = parseISO(event.timestamp);
-    dateStr = format(d, 'dd MMM yyyy');
+    dateStr = format(d, dateFormatToken || 'dd/MM/yyyy');
     timeStr = format(d, 'hh:mm a');
-  } catch { /* fallback */ }
+  } catch {
+    dateStr = formatDate(event.timestamp);
+  }
 
   return (
     <View style={s.timelineRow}>
@@ -129,7 +130,6 @@ const TimelineRow = memo(({ event, isLast }: { event: ItemTimelineEvent; isLast:
   );
 });
 
-// ======== DETAIL ROW ========
 function DetailRow({ label, subLabel, value, icon, valueColor, style }: { label: string; subLabel?: string; value: string; icon?: React.ReactNode; valueColor?: string; style?: any }) {
   return (
     <View style={[s.detailRow, style]}>
@@ -145,25 +145,24 @@ function DetailRow({ label, subLabel, value, icon, valueColor, style }: { label:
   );
 }
 
-// ======== MAIN SCREEN ========
 export default function ItemDetailScreen() {
   const router = useRouter();
   const { itemId } = useLocalSearchParams<{ itemId: string }>();
   const { activeFirmId } = useFirmStore();
   const activeTheme = useStore(appSettingsStore, (st) => st.theme);
+  const dateFormatToken = useStore(appSettingsStore, (st) => st.dateFormatToken) || 'dd/MM/yyyy';
 
   const [item, setItem] = useState<ItemDetail | null>(() => {
     if (activeFirmId && itemId) {
       try {
         return inventoryDrillDownService.getItemDetailSync(activeFirmId, itemId);
-      } catch (e) {
+      } catch {
         return null;
       }
     }
     return null;
   });
 
-  // --- Inline Editing State (Covers ALL fields including Purity & HUID) ---
   const [isEditing, setIsEditing] = useState(false);
   const [editGrossGrams, setEditGrossGrams] = useState('');
   const [editStoneGrams, setEditStoneGrams] = useState('');
@@ -184,14 +183,10 @@ export default function ItemDetailScreen() {
   const [editReason, setEditReason] = useState('');
   const [savingInline, setSavingInline] = useState(false);
 
-  // Delete Item State (kept as Modal for safety & typing confirm)
   const [isDeleteModalVisible, setDeleteModalVisible] = useState(false);
   const [deleteReason, setDeleteReason] = useState('');
   const [deleting, setDeleting] = useState(false);
 
-  const { dateFormatToken } = appSettingsStore.getState();
-
-  // --- Start Inline Editing ---
   const handleStartEditing = useCallback(() => {
     if (!item) return;
     try { Haptics.selectionAsync(); } catch {}
@@ -219,11 +214,9 @@ export default function ItemDetailScreen() {
     setIsEditing(false);
   }, []);
 
-  // --- Save All Inline Changes ---
   const handleSaveInlineEditing = async () => {
     if (!item || !activeFirmId) return;
 
-    // Validate Size Pairing
     const hasSizeValue = editSizeValue.trim() !== '';
     const hasSizeUnit = editSizeUnit !== '';
     if (hasSizeValue !== hasSizeUnit) {
@@ -231,14 +224,12 @@ export default function ItemDetailScreen() {
       return;
     }
 
-    // Validate Purity %
     const purPct = Number(editPurityPercent);
     if (isNaN(purPct) || purPct <= 0 || purPct > 100) {
       Alert.alert('Invalid Purity', 'Purity percent must be greater than 0 and up to 100%.');
       return;
     }
 
-    // Validate Weights
     const grossG = Number(editGrossGrams);
     const stoneG = editStoneGrams.trim() !== '' ? Number(editStoneGrams) : 0;
     const beadsG = editBeadsGrams.trim() !== '' ? Number(editBeadsGrams) : 0;
@@ -252,7 +243,6 @@ export default function ItemDetailScreen() {
       return;
     }
 
-    // Validate HUID
     const trimmedHuid = editHuid.trim().toUpperCase();
     if (trimmedHuid !== '' && !/^[A-Z0-9]{6}$/.test(trimmedHuid)) {
       Alert.alert('Invalid HUID', 'HUID must be exactly 6 uppercase alphanumeric characters (or left blank).');
@@ -318,7 +308,7 @@ export default function ItemDetailScreen() {
         await itemService.correctItemEntryDate(item.id, editDateIso, activeFirmId);
       }
 
-      // 5. Update General Fields (Location, Size, Charges, Purchase Rate, Purity)
+      // 5. Update General Fields
       const payload: UpdateableItemDraftFields = {
         purityPercent: purPct,
         ...(editPurityKarat !== null ? { purityKarat: editPurityKarat } : {}),
@@ -332,7 +322,6 @@ export default function ItemDetailScreen() {
 
       await itemService.updateItem(item.id, activeFirmId, payload, reasonText);
 
-      // Re-fetch detail
       const detail = await inventoryDrillDownService.getItemDetail(activeFirmId, item.id);
       setItem(detail);
       setIsEditing(false);
@@ -345,7 +334,6 @@ export default function ItemDetailScreen() {
     }
   };
 
-  // --- Delete Modal Handlers ---
   const handleOpenDeleteModal = useCallback(() => {
     setDeleteReason('');
     setDeleteModalVisible(true);
@@ -390,7 +378,7 @@ export default function ItemDetailScreen() {
     }, [activeFirmId, itemId])
   );
 
-  // --- Real-time Reactive Derived Calculations ---
+  // FIX-EFFPRICE-PURITYROUND-1 (v2.14): pass metal to computeEffectivePricePerGram
   const liveCalculations = useMemo(() => {
     if (!item) return null;
 
@@ -439,8 +427,8 @@ export default function ItemDetailScreen() {
       ? (editStoneCostRupees.trim() !== '' ? Number(editStoneCostRupees) : 0)
       : (item.stoneCostPaise ? item.stoneCostPaise / 100 : 0);
 
-    const effectivePricePerGram = computeEffectivePricePerGram(rate, livePurityPercent, wastagePercent);
-    const hasCostData = rate > 0 || making > 0 || stoneC > 0;
+    const effectivePricePerGram = computeEffectivePricePerGram(rate, livePurityPercent, wastagePercent, item.metal);
+    const hasCostData = (rate > 0 || making > 0 || stoneC > 0) && netWeightMg > 0;
     const netWeightG = netWeightMg / 1000;
     const totalAmount = computeAbsoluteTotalCostRupees(netWeightG, effectivePricePerGram, making, stoneC);
     const metalCostRupees = netWeightG * effectivePricePerGram;
@@ -509,20 +497,6 @@ export default function ItemDetailScreen() {
   }
 
   const metalColor = item.metal === 'GOLD' ? COLORS.gold : COLORS.silver;
-
-  const dateToken = dateFormatToken || 'dd/MM/yyyy';
-  let createdAtFormatted = item.createdAt;
-  try {
-    const parsedDate = parseISO(item.createdAt);
-    if (!isNaN(parsedDate.getTime())) {
-      createdAtFormatted = format(parsedDate, `${dateToken} hh:mm a`);
-    }
-  } catch {
-    try {
-      createdAtFormatted = format(parseISO(item.createdAt), 'dd/MM/yyyy hh:mm a');
-    } catch {}
-  }
-
   const isEditable = !TERMINAL_ITEM_STATUSES.includes(item.status);
   const colors = getThemeColors(activeTheme);
 
@@ -549,7 +523,6 @@ export default function ItemDetailScreen() {
           extraHeight={140}
           contentContainerStyle={{ paddingTop: 16, paddingBottom: 190 }}
         >
-          {/* === TOP BANNER (WHEN EDITING IS ACTIVE) === */}
           {isEditable && isEditing && (
             <GlassCard style={s.topEditingBannerCard}>
               <View style={s.topEditingBannerHeader}>
@@ -564,7 +537,7 @@ export default function ItemDetailScreen() {
             </GlassCard>
           )}
 
-          {/* === DETAILS CARD === */}
+          {/* DETAILS CARD */}
           <View style={s.section}>
             <View style={s.sectionCard}>
               <DetailRow label="Design" value={item.designName} icon={<Crown size={14} color={COLORS.vjAccent} />} />
@@ -719,11 +692,10 @@ export default function ItemDetailScreen() {
             </View>
           </View>
 
-          {/* === MANDATED UI DISPLAY — MODERN LUXURY LIVE COST BREAKDOWN === */}
+          {/* LIVE COST BREAKDOWN (FEAT-EFFECTIVE-PRICE-1 / FIX-EFFPRICE-PURITYROUND-1 v2.14) */}
           {liveCalculations.isValid && (
             <View className="px-4 mb-4 mt-1" style={{ zIndex: 10 }}>
               <GlassCard style={{ backgroundColor: 'rgba(252,251,248, 0.98)', borderColor: '#D4AF37', borderWidth: 1.5, padding: 16 }}>
-                {/* Top Header Row with Live Audit Badge */}
                 <View className="flex-row items-center justify-between mb-3 pb-2.5 border-b border-black/5">
                   <View className="flex-row items-center gap-2">
                     <View className="w-7 h-7 rounded-lg items-center justify-center bg-amber-500/15 border border-amber-500/30">
@@ -740,9 +712,7 @@ export default function ItemDetailScreen() {
                   </View>
                 </View>
 
-                {/* Dual Stat Tiles: Net Weight & Total Touch */}
                 <View className="flex-row gap-2.5 mb-3">
-                  {/* Tile 1: Net Weight */}
                   <View className="flex-1 p-2.5 rounded-xl bg-black/[0.02] border border-black/5">
                     <Text className="text-[10px] font-bold text-vj-text/50 uppercase tracking-wider">Net Weight</Text>
                     <Text className="text-base font-black text-vj-text font-mono mt-0.5">{formatWeight(liveCalculations.netMg)}</Text>
@@ -751,7 +721,6 @@ export default function ItemDetailScreen() {
                     </Text>
                   </View>
 
-                  {/* Tile 2: Total Touch */}
                   <View className="flex-1 p-2.5 rounded-xl bg-black/[0.02] border border-black/5">
                     <View className="flex-row items-center justify-between">
                       <Text className="text-[10px] font-bold text-vj-text/50 uppercase tracking-wider">Total Touch</Text>
@@ -765,14 +734,12 @@ export default function ItemDetailScreen() {
                   </View>
                 </View>
 
-                {/* 3-Way Fine Metal Flow Bar (Vault Truth + Wastage = Cost Truth) */}
                 <View className="mb-3 p-3 rounded-2xl bg-black/[0.02] border border-black/5">
                   <Text className="text-[10px] font-black uppercase tracking-widest text-vj-text/60 mb-2">
                     Fine Metal Accounting ({item.metal || 'GOLD'})
                   </Text>
                   
                   <View className="flex-row items-center justify-between gap-1">
-                    {/* Vault Fine */}
                     <View className="flex-1 p-2 rounded-xl bg-emerald-500/10 border border-emerald-500/20 items-center">
                       <Text className="text-[9px] font-black text-emerald-800 uppercase tracking-tight">Vault Fine</Text>
                       <Text className="text-xs font-black text-emerald-700 font-mono mt-0.5">{liveCalculations.vaultTruth.toFixed(3)} g</Text>
@@ -781,7 +748,6 @@ export default function ItemDetailScreen() {
 
                     <Text className="text-xs font-black text-vj-text/40">+</Text>
 
-                    {/* Wastage Fine */}
                     <View className="flex-1 p-2 rounded-xl bg-rose-500/10 border border-rose-500/20 items-center">
                       <Text className="text-[9px] font-black text-rose-800 uppercase tracking-tight">
                         Wastage
@@ -792,7 +758,6 @@ export default function ItemDetailScreen() {
 
                     <Text className="text-xs font-black text-vj-text/40">=</Text>
 
-                    {/* Cost Truth (Billed) */}
                     <View className="flex-1 p-2 rounded-xl bg-amber-500/15 border border-amber-500/30 items-center">
                       <Text className="text-[9px] font-black text-amber-900 uppercase tracking-tight">Billed Fine</Text>
                       <Text className="text-xs font-black text-amber-800 font-mono mt-0.5">{liveCalculations.costTruth.toFixed(3)} g</Text>
@@ -801,7 +766,6 @@ export default function ItemDetailScreen() {
                   </View>
                 </View>
 
-                {/* Financials Hero Banner (When Rate/Making entered) */}
                 {liveCalculations.hasCostData && (
                   <View className="p-3 rounded-2xl bg-amber-500/10 border border-amber-500/30">
                     <View className="flex-row justify-between items-center pb-1.5 border-b border-amber-500/15">
@@ -826,7 +790,8 @@ export default function ItemDetailScreen() {
               </GlassCard>
             </View>
           )}
-          {/* === ITEM IDENTITY & ATTRIBUTES CARD === */}
+
+          {/* ITEM IDENTITY & ATTRIBUTES CARD */}
           <View style={s.section}>
             <Text style={s.sectionTitle}>Item Identity & Attributes</Text>
             <View style={s.sectionCard}>
@@ -866,7 +831,7 @@ export default function ItemDetailScreen() {
                 )}
               </View>
 
-              {/* HUID (EDITABLE INLINE) */}
+              {/* HUID */}
               <View style={[s.detailRow, isEditing && { flexDirection: 'column', alignItems: 'flex-start', gap: 8 }]}>
                 <View style={s.detailLabelRow}>
                   <View style={s.detailIcon}><Shield size={14} color={COLORS.vjAccent} /></View>
@@ -958,7 +923,7 @@ export default function ItemDetailScreen() {
                 )}
               </View>
 
-              {/* CREATION DATE (MODERN GLASS DATE PICKER) */}
+              {/* ENTRY DATE */}
               <View style={s.detailRow}>
                 <View style={s.detailLabelRow}>
                   <Clock size={14} color={COLORS.vjAccent} />
@@ -977,11 +942,10 @@ export default function ItemDetailScreen() {
                     <ChevronDown size={14} color={COLORS.vjText} style={{ opacity: 0.6 }} />
                   </TouchableOpacity>
                 ) : (
-                  <Text style={s.detailValue}>{createdAtFormatted}</Text>
+                  <Text style={s.detailValue}>{formatDate(item.createdAt)}</Text>
                 )}
               </View>
 
-              {/* INLINE REASON INPUT (SHOWN WHEN IN EDIT MODE) */}
               {isEditing && (
                 <View style={s.inlineReasonContainer}>
                   <Text style={s.inlineReasonLabel}>Audit Reason for Edit (Optional)</Text>
@@ -998,7 +962,7 @@ export default function ItemDetailScreen() {
             </View>
           </View>
 
-          {/* === PRICING & COST BREAKDOWN CARD === */}
+          {/* PRICING & COST BREAKDOWN CARD */}
           <View style={s.section}>
             <Text style={s.sectionTitle}>Pricing & Cost Breakdown</Text>
             <View style={s.sectionCard}>
@@ -1066,31 +1030,7 @@ export default function ItemDetailScreen() {
             </View>
           </View>
 
-          {/* === STONES BREAKDOWN (IF ANY) === */}
-          {(item as any).stones && (item as any).stones.length > 0 && (
-            <View style={s.section}>
-              <Text style={s.sectionTitle}>Attached Gemstones ({((item as any).stones).length})</Text>
-              <View style={s.sectionCard}>
-                {((item as any).stones).map((st: any, i: number) => (
-                  <React.Fragment key={st.id || i}>
-                    <View style={s.detailRow}>
-                      <View style={s.detailLabelRow}>
-                        <Gem size={14} color={COLORS.vjAccent} />
-                        <Text style={s.detailLabel}>{st.stoneName || 'Stone'}</Text>
-                      </View>
-                      <Text style={s.detailValue}>
-                        {st.stoneWeightMg ? `${(st.stoneWeightMg / 1000).toFixed(3)} g` : '—'}
-                        {st.stoneCostPaise ? ` · ${formatCurrency(st.stoneCostPaise)}` : ''}
-                      </Text>
-                    </View>
-                    {i < ((item as any).stones).length - 1 && <View style={s.divider} />}
-                  </React.Fragment>
-                ))}
-              </View>
-            </View>
-          )}
-
-          {/* === TIMELINE AUDIT TRAIL === */}
+          {/* TIMELINE AUDIT TRAIL */}
           <View style={s.section}>
             <View style={s.timelineTitleRow}>
               <Text style={s.sectionTitle}>Audit Event Timeline</Text>
@@ -1111,6 +1051,7 @@ export default function ItemDetailScreen() {
                     key={event.id} 
                     event={event} 
                     isLast={index === item.timeline.length - 1} 
+                    dateFormatToken={dateFormatToken}
                   />
                 ))}
               </View>
@@ -1119,7 +1060,7 @@ export default function ItemDetailScreen() {
 
         </KeyboardAwareScrollView>
 
-        {/* === FIXED STICKY PILL-SHAPED GLASS ACTION BAR (PERMANENTLY PINNED) === */}
+        {/* FIXED STICKY ACTION BAR */}
         {isEditable && (
           <FixedGlassBar>
             {isEditing ? (
@@ -1219,13 +1160,9 @@ export default function ItemDetailScreen() {
 }
 
 const s = StyleSheet.create({
-  // --- Loading / Empty ---
   loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 12 },
   loadingText: { color: 'rgba(92,22,35,0.4)', fontSize: 14, fontWeight: '600' },
-  emptyContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 8 },
-  emptyTitle: { color: 'rgba(92,22,35,0.5)', fontSize: 18, fontWeight: '700' },
 
-  // --- Top Editing Banner ---
   topEditingBannerCard: {
     backgroundColor: 'rgba(255, 253, 249, 0.98)',
     borderColor: COLORS.vjAccent,
@@ -1304,7 +1241,6 @@ const s = StyleSheet.create({
     letterSpacing: 0.3,
   },
 
-  // --- Inline Inputs ---
   inlineInput: {
     backgroundColor: '#ffffff',
     borderWidth: 1,
@@ -1330,8 +1266,6 @@ const s = StyleSheet.create({
     color: COLORS.vjText,
     width: '100%',
   },
-
-  // --- Inline Date Button ---
   inlineDateBtn: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1353,8 +1287,6 @@ const s = StyleSheet.create({
     fontWeight: '700',
     color: COLORS.vjText,
   },
-
-  // --- Inline Reason Input ---
   inlineReasonContainer: {
     paddingHorizontal: 14,
     paddingVertical: 10,
@@ -1383,7 +1315,6 @@ const s = StyleSheet.create({
     color: COLORS.vjText,
   },
 
-  // --- Sections ---
   section: { marginBottom: 24 },
   sectionTitle: {
     color: 'rgba(92,22,35,0.45)', fontSize: 11, fontWeight: '800',
@@ -1394,7 +1325,6 @@ const s = StyleSheet.create({
     borderWidth: 1, borderColor: 'rgba(255, 255, 255, 0.5)',
   },
 
-  // --- Detail Rows ---
   detailRow: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
     paddingVertical: 12, paddingHorizontal: 14,
@@ -1410,32 +1340,34 @@ const s = StyleSheet.create({
     fontWeight: '500',
     marginTop: 2,
   },
-  highlightGreenRow: {
-    backgroundColor: 'rgba(4,120,87,0.03)',
-    borderLeftWidth: 3,
-    borderLeftColor: '#047857',
-    paddingLeft: 11,
+
+  unitSelectorRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginTop: 4,
   },
-  highlightRedRow: {
-    backgroundColor: 'rgba(185,28,28,0.03)',
-    borderLeftWidth: 3,
-    borderLeftColor: '#B91C1C',
-    paddingLeft: 11,
+  unitChip: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+    backgroundColor: 'rgba(92,22,35,0.05)',
+    borderWidth: 1,
+    borderColor: 'rgba(92,22,35,0.1)',
   },
-  highlightOrangeRow: {
-    backgroundColor: 'rgba(180,83,9,0.03)',
-    borderLeftWidth: 3,
-    borderLeftColor: '#B45309',
-    paddingLeft: 11,
+  unitChipSelected: {
+    backgroundColor: '#D4AF37',
+    borderColor: '#D4AF37',
   },
-  highlightGoldRow: {
-    backgroundColor: 'rgba(212,175,55,0.05)',
-    borderLeftWidth: 3,
-    borderLeftColor: COLORS.vjAccent,
-    paddingLeft: 11,
+  unitChipText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: COLORS.vjText,
+  },
+  unitChipTextSelected: {
+    color: '#ffffff',
   },
 
-  // --- Timeline ---
   timelineTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 14, marginLeft: 2 },
   timelineCountBadge: { backgroundColor: 'rgba(92,22,35,0.06)', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 8 },
   timelineCountText: { color: 'rgba(92,22,35,0.5)', fontSize: 11, fontWeight: '800' },
@@ -1454,18 +1386,12 @@ const s = StyleSheet.create({
   timelineEmpty: { alignItems: 'center', paddingVertical: 30, gap: 8 },
   timelineEmptyText: { color: 'rgba(92,22,35,0.35)', fontSize: 13 },
 
-  // --- Modal ---
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' },
   modalScrollContent: { flexGrow: 1, justifyContent: 'center', alignItems: 'center', paddingVertical: 40, width: '100%' },
   modalContent: { width: '85%', backgroundColor: '#fff', borderRadius: 16, padding: 24 },
   modalTitle: { fontSize: 18, fontWeight: '700', color: COLORS.vjText, marginBottom: 16 },
   modalLabel: { fontSize: 13, fontWeight: '600', color: 'rgba(92,22,35,0.6)', marginBottom: 6 },
   modalInput: { borderWidth: 1, borderColor: '#e5e7eb', borderRadius: 8, padding: 12, marginBottom: 16, fontSize: 15, color: '#1f2937' },
-  unitSelectorRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 8 },
-  unitChip: { paddingVertical: 6, paddingHorizontal: 12, borderRadius: 8, backgroundColor: '#f3f4f6', borderWidth: 1, borderColor: '#e5e7eb' },
-  unitChipSelected: { backgroundColor: COLORS.vjAccent, borderColor: COLORS.vjAccent },
-  unitChipText: { fontSize: 12, fontWeight: '600', color: '#4b5563' },
-  unitChipTextSelected: { color: '#ffffff', fontWeight: '700' },
   modalActions: { flexDirection: 'row', justifyContent: 'flex-end', gap: 12, marginTop: 8 },
   modalBtnSecondary: { paddingVertical: 10, paddingHorizontal: 16, borderRadius: 8, backgroundColor: '#f3f4f6' },
   modalBtnTextSecondary: { color: '#4b5563', fontWeight: '600' },

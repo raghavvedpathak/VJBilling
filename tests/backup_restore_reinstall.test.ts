@@ -81,7 +81,10 @@ beforeAll(async () => {
     id TEXT PRIMARY KEY, firm_id TEXT NOT NULL, name TEXT NOT NULL, code TEXT NOT NULL DEFAULT '', description TEXT, is_active INTEGER NOT NULL DEFAULT 1, created_at TEXT NOT NULL, updated_at TEXT NOT NULL
   )`);
   await _rawClient.execute(`CREATE TABLE IF NOT EXISTS designs (
-    id TEXT PRIMARY KEY, firm_id TEXT NOT NULL, name TEXT NOT NULL, code TEXT NOT NULL DEFAULT '', description TEXT, default_hsn TEXT, metal TEXT NOT NULL, low_stock_threshold INTEGER, is_active INTEGER NOT NULL DEFAULT 1, created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+    id TEXT PRIMARY KEY, firm_id TEXT NOT NULL, name TEXT NOT NULL, code TEXT NOT NULL DEFAULT '', description TEXT, default_hsn TEXT, metal TEXT NOT NULL, is_active INTEGER NOT NULL DEFAULT 1, created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+  )`);
+  await _rawClient.execute(`CREATE TABLE IF NOT EXISTS design_purity_thresholds (
+    design_id TEXT NOT NULL, purity_percent REAL NOT NULL, low_stock_threshold INTEGER NOT NULL, PRIMARY KEY (design_id, purity_percent)
   )`);
   await _rawClient.execute(`CREATE TABLE IF NOT EXISTS items (
     id TEXT PRIMARY KEY, firm_id TEXT NOT NULL, sku TEXT NOT NULL, barcode TEXT NOT NULL, huid TEXT, design_id TEXT NOT NULL, category_id TEXT NOT NULL DEFAULT '', hsn_code TEXT NOT NULL DEFAULT '',

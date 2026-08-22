@@ -1,10 +1,12 @@
+// app/masters/create-category.tsx — Phase 2 v2.15 Canonical Screen
+
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TextInput, Alert, Modal, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, Alert, Modal, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import { useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { TwoToneWrapper } from '@/components/TwoToneWrapper';
-import { HeaderPill, GlassButton, GlassInput, GlassMetalSelector, FixedGlassBar, fixedBarStyles } from '@/components/ui/Glass';
+import { HeaderPill, GlassButton, GlassInput, FixedGlassBar, fixedBarStyles } from '@/components/ui/Glass';
 import { appSettingsStore } from '@/store/phase1/appSettingsStore';
 import { Layers, CheckCircle, ShieldCheck, Plus } from 'lucide-react-native';
 import { useFirmStore } from '@/store/phase1/useFirmStore';
@@ -16,12 +18,11 @@ export default function CreateCategoryScreen() {
   const { activeFirmId } = useFirmStore();
   
   const [newName, setNewName] = useState('');
-  const [newMetal, setNewMetal] = useState<'GOLD' | 'SILVER'>('GOLD');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   const handleAdd = async () => {
-    try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); } catch (e) {}
+    try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); } catch {}
     if (!activeFirmId) return;
     if (!newName.trim()) {
       Alert.alert('Validation Error', 'Category name is required');
@@ -78,17 +79,12 @@ export default function CreateCategoryScreen() {
           <View style={s.card}>
             <View style={s.formGroup}>
               <GlassInput 
-                label="Category Name"
+                label="Category Name *"
                 value={newName}
                 onChangeText={setNewName}
-                placeholder="e.g. Gold Rings"
+                placeholder="e.g. Rings, Chains, Necklaces"
               />
             </View>
-
-            <GlassMetalSelector
-              selectedMetal={newMetal}
-              onSelectMetal={setNewMetal}
-            />
           </View>
         </KeyboardAwareScrollView>
 
@@ -148,9 +144,7 @@ const s = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.5)',
   },
-  formGroup: { marginBottom: 24 },
-  label: { fontSize: 12, fontWeight: '700', color: 'rgba(92,22,35,0.6)', textTransform: 'uppercase', marginBottom: 8 },
-  input: { backgroundColor: '#fff', borderRadius: 12, padding: 16, fontSize: 16, color: COLORS.vjText, borderWidth: 1, borderColor: 'rgba(92,22,35,0.3)' },
+  formGroup: { marginBottom: 12 },
   modalOverlayCenter: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.6)',
