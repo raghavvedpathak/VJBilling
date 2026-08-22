@@ -2,7 +2,7 @@ import React from 'react';
 import { View, Text, TextInput, TouchableOpacity, ActivityIndicator, ViewProps, ScrollView } from 'react-native';
 import { BlurView } from 'expo-blur';
 import * as Haptics from 'expo-haptics';
-import { ChevronDown } from 'lucide-react-native';
+import { ChevronDown, ChevronRight } from 'lucide-react-native';
 import { COLORS } from '../../constants/theme';
 
 // ============================================================================
@@ -806,6 +806,53 @@ export function MenuTile({
   );
 }
 
+// ============================================================================
+// 12. GLASS SETTINGS TILE
+// ============================================================================
+export interface GlassSettingsTileProps {
+  title: string;
+  subtitle?: string;
+  icon: React.ReactNode;
+  onPress?: () => void;
+  disabled?: boolean;
+}
+
+export function GlassSettingsTile({
+  title,
+  subtitle,
+  icon,
+  onPress,
+  disabled,
+}: GlassSettingsTileProps) {
+  return (
+    <TouchableOpacity
+      onPress={() => {
+        try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch (e) {}
+        if (onPress) onPress();
+      }}
+      disabled={disabled}
+      activeOpacity={0.7}
+      className="mb-2"
+    >
+      <GlassCard style={{ padding: 16, borderWidth: 1, borderColor: 'rgba(92,22,35,0.2)' }}>
+        <View className={`flex-row items-center gap-4 ${disabled ? 'opacity-50' : ''}`}>
+          <View className="bg-white/40 p-3 rounded-full border border-white/50">
+            {icon}
+          </View>
+          <View className="flex-1">
+            <Text className="text-vj-text font-bold text-base">{title}</Text>
+            {subtitle ? <Text className="text-vj-text/60 text-xs">{subtitle}</Text> : null}
+          </View>
+          <View className="opacity-50">
+            <ChevronRight size={20} color="#D4AF37" />
+          </View>
+        </View>
+      </GlassCard>
+    </TouchableOpacity>
+  );
+}
+
 // Re-export FixedGlassBar for unified access
 export * from './FixedGlassBar';
+
 

@@ -1,32 +1,27 @@
-// app/settings/index.tsx — Phase 2 v2.11 Canonical Screen
+// app/settings/index.tsx — Phase 1 & Phase 2 Canonical Settings Hub
 
 import React, { useState, useEffect } from 'react';
-import { View, Text, TouchableOpacity, ScrollView, Alert, ActivityIndicator, Modal, Switch } from 'react-native';
+import { View, Text, ScrollView, Alert, Switch } from 'react-native';
 import { useRouter } from 'expo-router';
 import * as Device from 'expo-device';
-import * as Haptics from 'expo-haptics';
 import { TwoToneWrapper } from '@/components/TwoToneWrapper';
 import { useSession } from '@/hooks/useSession';
-import { backupService } from '@/services/phase1/backupService';
-import { restoreService } from '@/services/phase1/restoreService';
 import { storage } from '@/utils/storage';
 import { settingsService } from '@/services/phase1/settingsService'; 
-import { GlassCard, HeaderPill } from '@/components/ui/Glass';
+import { GlassCard, HeaderPill, GlassSettingsTile } from '@/components/ui/Glass';
 import { isPinSet, isPinSkipped } from '@/services/phase1/pinService'; 
 import { appSettingsStore } from '@/store/phase1/appSettingsStore';
+import { ThemeSelectorModal } from '@/components/ThemeSelectorModal';
+import { DateFormatModal } from '@/components/DateFormatModal';
 import {
   Building2,
   HardDriveDownload,
-  HardDriveUpload,
   ShieldAlert,
-  ChevronRight,
   Database,
   CalendarClock,
   Palette,
   Lock,
   FileText,
-  CheckCircle2,
-  X,
   AlertCircle,
   IndianRupee,
   Wrench,
@@ -36,21 +31,12 @@ import {
   KeyRound,
   ShieldCheck
 } from 'lucide-react-native';
-import { RestorePreviewModal } from '@/components/RestorePreviewModal';
-import { BackupEnvelope } from '@/services/phase1/backupService';
-import { COLORS, THEME_PRESETS, getThemeColors } from '@/constants/theme';
+import { COLORS, getThemeColors } from '@/constants/theme';
 
 export default function SettingsScreen() {
   const router = useRouter();
-  const { firm, refreshSession } = useSession();
-  const [backingUp, setBackingUp] = useState(false);
-  const [restoring, setRestoring] = useState(false);
-  
-  // Restore Preview Modal State
-  const [previewModalVisible, setPreviewModalVisible] = useState(false);
-  const [previewBackup, setPreviewBackup] = useState<BackupEnvelope | null>(null);
-  const [previewFileContent, setPreviewFileContent] = useState<string | null>(null);
-  
+  const { firm } = useSession();
+
   // Settings State
   const [dateFormat, setDateFormat] = useState('dd/MM/yyyy'); 
   const [unsavedWarning, setUnsavedWarning] = useState(true); 
@@ -92,7 +78,10 @@ export default function SettingsScreen() {
     const d = String(today.getDate()).padStart(2, '0');
     const m = String(today.getMonth() + 1).padStart(2, '0');
     const y = today.getFullYear();
-    const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+    const monthNames = [
+      'January', 'February', 'March', 'April', 'May', 'June',
+      'July', 'August', 'September', 'October', 'November', 'December'
+    ];
     const monthName = monthNames[today.getMonth()];
 
     switch(format) {
@@ -143,46 +132,6 @@ export default function SettingsScreen() {
       setShowThemeModal(false);
     } catch (e: any) {
       Alert.alert("Cannot Update Settings", e.message);
-    }
-  };
-
-  const handleBackup = async () => {
-    try {
-      setBackingUp(true);
-      await backupService.createBackup();
-    } catch (error: any) {
-      Alert.alert("Backup Failed", error.message);
-    } finally {
-      setBackingUp(false);
-    }
-  };
-
-  const handleRestore = async () => {
-    try {
-      const result = await restoreService.inspectBackupFile();
-      if (!result) return; // User canceled document picker
-
-      setPreviewBackup(result.backup);
-      setPreviewFileContent(result.fileContent);
-      setPreviewModalVisible(true);
-    } catch (error: any) {
-      Alert.alert("Invalid Backup File", error.message || "Failed to parse backup file.");
-    }
-  };
-
-  const handleConfirmRestore = async (password?: string) => {
-    if (!previewFileContent) return;
-    try {
-      setRestoring(true);
-      await restoreService.restore(previewFileContent, password);
-      await refreshSession();
-      setPreviewModalVisible(false);
-      Alert.alert("Success", "Database restored successfully.");
-      router.replace('/dashboard');
-    } catch (error: any) {
-      Alert.alert("Restore Failed", error.message);
-    } finally {
-      setRestoring(false);
     }
   };
 
@@ -327,41 +276,33 @@ export default function SettingsScreen() {
         />
 
         <SectionHeader title="Utilities & Safety" />
-        <GlassSettingsTile
-          title="Data Utilities"
-          subtitle="Export Ledgers & Inventory"
-          icon={<Wrench size={24} color={COLORS.vjText} />}
-          onPress={() => Alert.alert("Phase 6 Feature", "Data Utilities unlock in Phase 6.")}
-        />
         
+        <GlassSettingsTile
+          title="Backup & Restore"
+          subtitle="Encrypted .vjb Exports, Public Mirroring & Restore"
+          icon={<HardDriveDownload size={24} color="#D4AF37" />}
+          onPress={() => router.push('/settings/backup-restore')}
+        />
+
         <GlassSettingsTile
           title="Audit Logs"
           subtitle="View immutable system events"
           icon={<FileText size={24} color={COLORS.vjText} />}
           onPress={() => router.push('/settings/audit-logs')}
-          disabled={restoring}
         />
 
-        <GlassSettingsTile
-          title={backingUp ? "Generating Backup..." : "Backup Data"}
-          subtitle="Export secure .vjb file"
-          icon={backingUp ? <ActivityIndicator size="small" color="#D4AF37" /> : <HardDriveDownload size={24} color={COLORS.vjText} />}
-          onPress={handleBackup}
-          disabled={backingUp || restoring}
-        />
-        <GlassSettingsTile
-          title={restoring ? "Restoring..." : "Restore Data"}
-          subtitle="Import from .vjb file"
-          icon={restoring ? <ActivityIndicator size="small" color="#D4AF37" /> : <HardDriveUpload size={24} color={COLORS.vjText} />}
-          onPress={handleRestore}
-          disabled={backingUp || restoring}
-        />
         <GlassSettingsTile
           title="Verify My Data"
           subtitle="Run deep integrity scan"
           icon={<ShieldAlert size={24} color={COLORS.vjText} />}
           onPress={() => router.push('/settings/verify')}
-          disabled={restoring}
+        />
+
+        <GlassSettingsTile
+          title="Data Utilities"
+          subtitle="Export Ledgers & Inventory"
+          icon={<Wrench size={24} color={COLORS.vjText} />}
+          onPress={() => Alert.alert("Phase 6 Feature", "Data Utilities unlock in Phase 6.")}
         />
 
         <View className="mt-8 items-center opacity-40 mb-10">
@@ -379,99 +320,20 @@ export default function SettingsScreen() {
 
       </ScrollView>
 
-      {/* Date Format Modal */}
-      <Modal animationType="fade" transparent={true} visible={showDateModal} onRequestClose={() => setShowDateModal(false)}>
-        <View className="flex-1 bg-black/50 justify-center items-center px-6">
-          <View className="w-full bg-vj-bg rounded-3xl p-6 shadow-xl border border-white/50">
-            <View className="flex-row justify-between items-center mb-6">
-              <Text className="text-vj-text font-bold text-xl">Date Format</Text>
-              <TouchableOpacity onPress={() => setShowDateModal(false)} className="p-1 bg-black/5 rounded-full">
-                <X size={20} color={COLORS.vjText} />
-              </TouchableOpacity>
-            </View>
+      {/* Modular Date Format Modal */}
+      <DateFormatModal
+        visible={showDateModal}
+        activeFormat={dateFormat}
+        onSelectFormat={updateDateFormat}
+        onClose={() => setShowDateModal(false)}
+      />
 
-            {[
-              { token: 'dd/MM/yyyy', label: 'Compact (Default)' },
-              { token: 'd MMMM yyyy', label: 'Professional' },
-              { token: 'dd-MM-yyyy', label: 'Hyphen Variant' },
-              { token: 'yyyy-MM-dd', label: 'ISO 8601 (Export)' }
-            ].map((fmt) => (
-              <TouchableOpacity
-                key={fmt.token}
-                onPress={() => updateDateFormat(fmt.token)}
-                className={`p-4 rounded-xl border mb-3 flex-row justify-between items-center ${dateFormat === fmt.token ? 'bg-vj-text border-vj-text' : 'bg-white/60 border-black/10'}`}
-              >
-                <View>
-                  <Text className={`font-bold text-base ${dateFormat === fmt.token ? 'text-vj-bg' : 'text-vj-text'}`}>{fmt.label}</Text>
-                  <Text className={`text-xs ${dateFormat === fmt.token ? 'text-vj-bg/70' : 'text-vj-text/60'}`}>{getTodayPreview(fmt.token)}</Text>
-                </View>
-                {dateFormat === fmt.token && <CheckCircle2 size={24} color="#FCFBF8" />}
-              </TouchableOpacity>
-            ))}
-          </View>
-        </View>
-      </Modal>
-
-      {/* Theme Modal */}
-      <Modal animationType="fade" transparent={true} visible={showThemeModal} onRequestClose={() => setShowThemeModal(false)}>
-        <View className="flex-1 bg-black/50 justify-center items-center px-6">
-          <View className="w-full bg-vj-bg rounded-3xl p-6 shadow-xl border border-white/50">
-            <View className="flex-row justify-between items-center mb-6">
-              <Text className="text-vj-text font-bold text-xl">App Theme</Text>
-              <TouchableOpacity onPress={() => setShowThemeModal(false)} className="p-1 bg-black/5 rounded-full">
-                <X size={20} color={COLORS.vjText} />
-              </TouchableOpacity>
-            </View>
-
-            <View className="mb-2">
-              {[
-                { id: 'saffron', label: 'Royal Kesari Gold (Default)' },
-                { id: 'lotus_silk', label: 'Kashmir Lotus Silk & Rose Gold' },
-                { id: 'sandstone_ochre', label: 'Reth Sandstone Silk & Ochre' },
-              ].map((t) => {
-                const preset = THEME_PRESETS[t.id as keyof typeof THEME_PRESETS] || THEME_PRESETS.saffron;
-                const isApplied = theme === t.id || activeStoreTheme === t.id;
-                return (
-                  <TouchableOpacity
-                    key={t.id}
-                    onPress={() => updateTheme(t.id)}
-                    className={`p-3.5 rounded-2xl border mb-3 flex-row justify-between items-center ${isApplied ? 'bg-vj-text border-vj-text' : 'bg-white/70 border-black/10'}`}
-                  >
-                    <View className="flex-row items-center gap-3 flex-1 mr-2">
-                      <View className="flex-row items-center p-1 rounded-full bg-black/10 border border-black/10 gap-1">
-                        <View className="w-4 h-4 rounded-full border border-white/40 shadow-sm" style={{ backgroundColor: preset.vjText }} />
-                        <View className="w-4 h-4 rounded-full border border-black/20 shadow-sm" style={{ backgroundColor: preset.vjBg }} />
-                        <View className="w-4 h-4 rounded-full border border-white/40 shadow-sm" style={{ backgroundColor: preset.vjAccent }} />
-                      </View>
-
-                      <Text className={`font-bold text-sm flex-1 ${isApplied ? 'text-vj-bg' : 'text-vj-text'}`} numberOfLines={1}>
-                        {t.label}
-                      </Text>
-
-                      {isApplied && (
-                        <View className="px-2 py-0.5 rounded-full bg-emerald-500/20 border border-emerald-400/40 mr-1">
-                          <Text className="text-[8px] font-black text-emerald-800 uppercase tracking-wider">APPLIED</Text>
-                        </View>
-                      )}
-                    </View>
-
-                    {isApplied && <CheckCircle2 size={22} color={COLORS.vjBg} />}
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
-          </View>
-        </View>
-      </Modal>
-
-      {/* Modern Restore Preview Modal */}
-      <RestorePreviewModal
-        visible={previewModalVisible}
-        backup={previewBackup}
-        fileContent={previewFileContent}
-        isRestoring={restoring}
-        onConfirm={handleConfirmRestore}
-        onCancel={() => setPreviewModalVisible(false)}
+      {/* Modular Theme Modal */}
+      <ThemeSelectorModal
+        visible={showThemeModal}
+        activeTheme={theme}
+        onSelectTheme={updateTheme}
+        onClose={() => setShowThemeModal(false)}
       />
 
     </TwoToneWrapper>
@@ -483,34 +345,5 @@ function SectionHeader({ title }: { title: string }) {
     <Text className="text-vj-text/60 text-xs font-bold uppercase tracking-widest mb-3 mt-4 ml-1">
       {title}
     </Text>
-  );
-}
-
-function GlassSettingsTile({ title, subtitle, icon, onPress, disabled }: any) {
-  return (
-    <TouchableOpacity 
-      onPress={() => {
-        try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch (e) {}
-        if (onPress) onPress();
-      }} 
-      disabled={disabled} 
-      activeOpacity={0.7} 
-      className="mb-2"
-    >
-      <GlassCard style={{ padding: 16, borderWidth: 1, borderColor: 'rgba(92,22,35,0.2)' }}>
-        <View className={`flex-row items-center gap-4 ${disabled ? 'opacity-50' : ''}`}>
-          <View className="bg-white/40 p-3 rounded-full border border-white/50">
-            {icon}
-          </View>
-          <View className="flex-1">
-            <Text className="text-vj-text font-bold text-base">{title}</Text>
-            <Text className="text-vj-text/60 text-xs">{subtitle}</Text>
-          </View>
-          <View className="opacity-50">
-             <ChevronRight size={20} color="#D4AF37" />
-          </View>
-        </View>
-      </GlassCard>
-    </TouchableOpacity>
   );
 }
