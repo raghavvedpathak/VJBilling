@@ -157,6 +157,7 @@ interface GlassButtonProps {
   variant?: 'primary' | 'secondary' | 'danger' | undefined;
   loading?: boolean | undefined;
   disabled?: boolean | undefined;
+  style?: any | undefined;
 }
 export function GlassButton({
   title,
@@ -165,13 +166,14 @@ export function GlassButton({
   variant = 'primary',
   loading,
   disabled,
+  style,
 }: GlassButtonProps) {
   const baseStyle = 'flex-row justify-center items-center py-4 rounded-2xl';
 
   const variants = {
-    primary: 'bg-vj-text',
-    secondary: 'bg-white/60 border border-white/40',
-    danger: 'bg-vj-danger/90',
+    primary: 'bg-vj-text border border-amber-500/30',
+    secondary: 'bg-white/80 border border-vj-text/25',
+    danger: 'bg-vj-danger/90 border border-red-700/40',
   };
 
   const textColors = {
@@ -200,6 +202,7 @@ export function GlassButton({
       onPress={handlePress}
       disabled={disabled || loading}
       activeOpacity={0.8}
+      style={style}
       className={`${baseStyle} ${variants[variant]} ${disabled ? 'opacity-50' : ''} relative`}
     >
       {loading ? (

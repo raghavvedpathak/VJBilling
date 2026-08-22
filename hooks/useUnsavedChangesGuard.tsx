@@ -1,14 +1,16 @@
-// hooks/useUnsavedChangesGuard.tsx — Phase 2 v2.11 Canonical Hook
+// hooks/useUnsavedChangesGuard.tsx — Phase 1 & Phase 2 Modern Unsaved Changes Hook
 
-import { useEffect } from 'react';
-import { Alert } from 'react-native';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigation } from 'expo-router';
 import { appSettingsStore } from '@/store/phase1/appSettingsStore';
+import { UnsavedChangesModal } from '@/components/UnsavedChangesModal';
 
 export function useUnsavedChangesGuard(isDirty: boolean) {
   const navigation = useNavigation();
-  
-  // Reactively bind to the store so it updates instantly if toggled in Settings
+  const [showModal, setShowModal] = useState(false);
+  const [pendingAction, setPendingAction] = useState<any>(null);
+
+  // Reactively bind to settings store so it updates instantly if toggled in Settings
   const warnUnsavedChanges = appSettingsStore((s) => s.warnUnsavedChanges);
   const warnEnabled = warnUnsavedChanges === 1;
 
@@ -18,21 +20,37 @@ export function useUnsavedChangesGuard(isDirty: boolean) {
     // Intercept Expo Router back navigation
     const sub = navigation.addListener('beforeRemove', (e: any) => {
       e.preventDefault();
-      
-      Alert.alert(
-        'Unsaved Changes',
-        'You have unsaved changes. Are you sure you want to discard them and leave?',
-        [
-          { text: 'Stay', style: 'cancel', onPress: () => {} },
-          { 
-            text: 'Leave', 
-            style: 'destructive', 
-            onPress: () => navigation.dispatch(e.data.action) 
-          }
-        ]
-      );
+      setPendingAction(e.data.action);
+      setShowModal(true);
     });
 
     return () => sub();
   }, [isDirty, warnEnabled, navigation]);
+
+  const handleStay = useCallback(() => {
+    setShowModal(false);
+    setPendingAction(null);
+  }, []);
+
+  const handleDiscard = useCallback(() => {
+    setShowModal(false);
+    if (pendingAction) {
+      navigation.dispatch(pendingAction);
+    }
+  }, [navigation, pendingAction]);
+
+  const UnsavedModal = (
+    <UnsavedChangesModal
+      visible={showModal}
+      onStay={handleStay}
+      onDiscard={handleDiscard}
+    />
+  );
+
+  return {
+    showModal,
+    handleStay,
+    handleDiscard,
+    UnsavedModal,
+  };
 }

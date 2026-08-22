@@ -1,24 +1,39 @@
-// app/welcome.tsx — Phase 2 v2.11 Canonical Welcome Screen
+// app/welcome.tsx — Phase 1 & Phase 2 Modern Welcome & Store Hub
 
 import React, { useState, useCallback } from 'react';
-import { View, Text, ActivityIndicator, Alert, Image, ScrollView } from 'react-native';
+import { View, Text, ActivityIndicator, Alert, Image, ScrollView, TouchableOpacity } from 'react-native';
 import { useRouter, useFocusEffect } from 'expo-router';
 import * as FileSystem from 'expo-file-system/legacy';
+import * as Haptics from 'expo-haptics';
 import { TwoToneWrapper } from '@/components/TwoToneWrapper';
-import { GlassCard, GlassButton } from '@/components/ui/Glass';
+import { GlassCard, GlassButton, HeaderPill } from '@/components/ui/Glass';
 import { restoreService } from '@/services/phase1/restoreService';
 import { useSession } from '@/hooks/useSession';
 import { useFirmStore } from '@/store/phase1/useFirmStore';
 import { firmRepository, Firm } from '@/repositories/phase1/firmRepository';
-import { ShieldCheck, HardDriveUpload, Plus, Building2, ArrowRight, CheckCircle2 } from 'lucide-react-native';
 import { RestorePreviewModal } from '@/components/RestorePreviewModal';
 import { BackupEnvelope } from '@/services/phase1/backupService';
-import { COLORS } from '@/constants/theme';
+import { appSettingsStore } from '@/store/phase1/appSettingsStore';
+import { COLORS, getThemeColors } from '@/constants/theme';
+import {
+  ShieldCheck,
+  HardDriveUpload,
+  Plus,
+  Building2,
+  ArrowRight,
+  CheckCircle2,
+  Store,
+  Sparkles,
+  Lock,
+  Database
+} from 'lucide-react-native';
 
 export default function WelcomeScreen() {
   const router = useRouter();
   const { refreshSession } = useSession();
   const { switchFirm, setFirms } = useFirmStore();
+  const activeTheme = appSettingsStore((s) => s.theme);
+  const colors = getThemeColors(activeTheme);
 
   const [isScanning, setIsScanning] = useState(true);
   const [hasBackup, setHasBackup] = useState(false);
@@ -40,7 +55,7 @@ export default function WelcomeScreen() {
         try {
           const allFirms = firmRepository.getAll();
           const activeFirms = allFirms.filter((f) => !f.isArchived);
-          
+
           if (isMounted) {
             setExistingFirms(activeFirms);
             setFirms(allFirms);
@@ -74,10 +89,13 @@ export default function WelcomeScreen() {
 
   const handleEnterFirm = async (firmId: string) => {
     try {
+      try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); } catch (e) {}
       setEnteringFirmId(firmId);
       await switchFirm(firmId);
       await refreshSession();
-      try { router.dismissAll(); } catch {}
+      if (router.canDismiss()) {
+        router.dismissAll();
+      }
       router.replace('/dashboard');
     } catch (err: any) {
       Alert.alert('Error', err.message || 'Failed to enter store workspace.');
@@ -87,6 +105,7 @@ export default function WelcomeScreen() {
 
   const handleRestore = async () => {
     try {
+      try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch (e) {}
       const result = await restoreService.inspectBackupFile();
       if (!result) return;
 
@@ -106,7 +125,9 @@ export default function WelcomeScreen() {
       await refreshSession();
       setPreviewModalVisible(false);
       Alert.alert('Welcome Back', 'Database restored successfully.');
-      try { router.dismissAll(); } catch {}
+      if (router.canDismiss()) {
+        router.dismissAll();
+      }
       router.replace('/dashboard');
     } catch (error: any) {
       Alert.alert('Restore Failed', error.message);
@@ -128,153 +149,241 @@ export default function WelcomeScreen() {
     );
   }
 
+  const isMaxFirmsReached = existingFirms.length >= 3;
+
   const welcomeHeader = (
-    <View className="items-center pb-3 pt-2">
-      <View className="bg-white/15 p-4 rounded-full mb-3 border border-white/20 shadow-sm items-center justify-center">
-        <ShieldCheck size={48} color="#FCFBF8" />
+    <View className="items-center pb-2 pt-1">
+      <View className="bg-white/15 p-3.5 rounded-3xl mb-3 border border-white/25 shadow-sm items-center justify-center">
+        <ShieldCheck size={42} color="#FCFBF8" />
       </View>
-      
-      <Text className="text-4xl font-black text-vj-bg text-center tracking-tight mb-2">
+
+      <Text className="text-3xl font-black text-vj-bg text-center tracking-tight mb-1.5">
         VJ Billing
       </Text>
 
-      <View className="bg-white/10 px-4 py-1.5 rounded-full border border-white/20 shadow-xs">
-        <Text className="text-[#FDBA74] text-center font-black tracking-widest text-[10px] uppercase">
+      <View className="bg-white/10 px-3.5 py-1 rounded-full border border-white/20 shadow-xs mb-2">
+        <Text className="text-[#FDBA74] text-center font-black tracking-widest text-[9px] uppercase">
           By Raghav Ramdas Vedpathak
         </Text>
       </View>
+
+      {existingFirms.length > 0 && (
+        <View className="flex-row items-center gap-2 mt-1">
+          <HeaderPill
+            icon={<Building2 size={12} color="#4ADE80" />}
+            label={`${existingFirms.length} OF 3 STORES ACTIVE`}
+            variant="success"
+          />
+          <HeaderPill
+            icon={<Database size={12} color={colors.vjBg} />}
+            label="SQLITE v7"
+          />
+        </View>
+      )}
     </View>
   );
 
   return (
     <TwoToneWrapper title="" headerContent={welcomeHeader}>
-      <ScrollView 
+      <ScrollView
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
-        contentContainerStyle={{ paddingHorizontal: 8, paddingTop: 16, paddingBottom: 60, flexGrow: 1, justifyContent: 'center' }}
-        className="w-full max-w-md self-center"
+        contentContainerStyle={{
+          paddingHorizontal: 12,
+          paddingVertical: 20,
+          flexGrow: 1,
+          justifyContent: 'center',
+          alignItems: 'center',
+        }}
       >
-        {/* ACTIVE STORE WORKSPACE */}
+        <View className="w-full max-w-md">
+        {/* 1. ACTIVE STORE WORKSPACES (WHEN FIRMS EXIST) */}
         {existingFirms.length > 0 && (
-          <GlassCard 
-            style={{ 
-              backgroundColor: 'rgba(238, 242, 255, 0.85)', 
-              borderColor: 'rgba(99, 102, 241, 0.35)', 
-              marginBottom: 16
-            }}
-          >
-            <View className="items-center text-center">
-              <View className="bg-indigo-600/15 p-2.5 rounded-2xl mb-2 border border-indigo-600/25 items-center justify-center">
-                <Building2 size={22} color="#4338CA" />
-              </View>
-              <Text className="text-vj-text/60 font-black text-[10px] uppercase tracking-widest mb-2 text-center">
-                Active Store Workspace
+          <View className="mb-6">
+            <View className="flex-row items-center justify-between mb-3 px-1">
+              <Text className="text-vj-text/60 font-black text-xs uppercase tracking-widest">
+                Active Store Workspaces
               </Text>
+              <Text className="text-vj-text/40 font-bold text-[10px]">
+                Tap to enter
+              </Text>
+            </View>
 
-              {existingFirms.map((f) => (
-                <View key={f.id} className="w-full bg-white/85 p-3.5 rounded-2xl border border-white/90 shadow-xs items-center mb-1">
-                  <View className="flex-row items-center gap-3 mb-3 w-full">
-                    <View className="h-11 w-11 bg-indigo-500/10 rounded-2xl items-center justify-center border border-indigo-500/20 overflow-hidden">
-                      {f.firmLogoRef ? (
-                        <Image source={{ uri: f.firmLogoRef }} style={{ width: '100%', height: '100%' }} />
-                      ) : (
-                        <Text className="font-black text-xl text-indigo-900">{f.name.substring(0, 1)}</Text>
-                      )}
-                    </View>
-                    <View className="flex-1">
-                      <Text className="text-vj-text font-black text-base leading-tight" numberOfLines={1}>
+            {existingFirms.map((f) => (
+              <GlassCard
+                key={f.id}
+                style={{
+                  marginBottom: 12,
+                  padding: 16,
+                  borderColor: 'rgba(212, 175, 55, 0.45)',
+                  borderWidth: 1.5,
+                  backgroundColor: 'rgba(255, 255, 255, 0.92)',
+                }}
+              >
+                <View className="flex-row items-center gap-3.5 mb-4">
+                  {/* Store Logo / Monogram */}
+                  <View className="h-12 w-12 rounded-2xl bg-amber-500/10 items-center justify-center border-2 border-amber-500/30 overflow-hidden shadow-xs">
+                    {f.firmLogoRef ? (
+                      <Image
+                        source={{ uri: f.firmLogoRef }}
+                        style={{ width: '100%', height: '100%' }}
+                        resizeMode="contain"
+                      />
+                    ) : (
+                      <Text className="font-black text-xl text-amber-800">
+                        {f.name.substring(0, 1).toUpperCase()}
+                      </Text>
+                    )}
+                  </View>
+
+                  {/* Store Details */}
+                  <View className="flex-1">
+                    <View className="flex-row items-center gap-2">
+                      <Text className="text-vj-text font-black text-base leading-tight flex-1" numberOfLines={1}>
                         {f.name}
                       </Text>
-                      <Text className="text-vj-text/60 text-xs font-semibold mt-0.5" numberOfLines={1}>
-                        {f.proprietor} • Code: {f.firmCode || 'MAIN'}
-                      </Text>
+                      <View className="px-2 py-0.5 rounded-md bg-amber-500/15 border border-amber-500/30">
+                        <Text className="text-[9px] font-black text-amber-900 uppercase">
+                          {f.firmCode || 'MAIN'}
+                        </Text>
+                      </View>
                     </View>
-                  </View>
 
-                  <View className="w-full">
-                    <GlassButton
-                      title={enteringFirmId === f.id ? "Entering Workspace..." : "Enter Store Workspace"}
-                      icon={enteringFirmId !== f.id ? <ArrowRight size={18} color="#FCFBF8" /> : undefined}
-                      onPress={() => handleEnterFirm(f.id)}
-                      loading={enteringFirmId === f.id}
-                    />
+                    <Text className="text-vj-text/60 text-xs font-semibold mt-0.5" numberOfLines={1}>
+                      {f.proprietor} • {f.city || 'Store'}
+                    </Text>
+
+                    {f.gstin && (
+                      <Text className="text-vj-text/40 text-[10px] font-bold mt-0.5">
+                        GSTIN: {f.gstin}
+                      </Text>
+                    )}
                   </View>
                 </View>
-              ))}
-            </View>
-          </GlassCard>
+
+                {/* Enter Action Button */}
+                <GlassButton
+                  title={enteringFirmId === f.id ? "Entering Workspace..." : `Enter ${f.name}`}
+                  icon={enteringFirmId !== f.id ? <ArrowRight size={18} color="#FCFBF8" /> : undefined}
+                  onPress={() => handleEnterFirm(f.id)}
+                  loading={enteringFirmId === f.id}
+                  variant="primary"
+                />
+              </GlassCard>
+            ))}
+          </View>
         )}
 
-        {/* CREATE FIRM & RESTORE BACKUP */}
-        <View className="flex-row justify-between items-stretch w-full gap-3">
-          {/* Left Card: Establish New Firm */}
-          <View className="flex-1">
-            <GlassCard style={{ marginBottom: 0 }}>
-              <View className="items-center text-center justify-between min-h-[160px]">
-                <View className="items-center text-center">
-                  <View className="bg-vj-text/10 p-3 rounded-2xl mb-2 border border-vj-text/10 items-center justify-center">
-                    <Plus size={22} color={COLORS.vjText} />
-                  </View>
-                  <Text className="text-vj-text font-black text-sm text-center leading-tight mb-1">
-                    Establish New Firm
-                  </Text>
-                  <Text className="text-vj-text/50 text-[10px] text-center font-semibold mb-3">
-                    Create from scratch
-                  </Text>
-                </View>
+        {/* 2. ACTIONS SECTION: ESTABLISH NEW FIRM & RESTORE BACKUP */}
+        <View className="mb-2">
+          {existingFirms.length > 0 && (
+            <Text className="text-vj-text/60 font-black text-xs uppercase tracking-widest mb-3 px-1">
+              Store Setup & Recovery
+            </Text>
+          )}
 
-                <View className="w-full">
-                  <GlassButton 
-                    title="Create Firm"
-                    onPress={() => router.push('/create-firm')}
-                    disabled={restoring || enteringFirmId !== null}
-                  />
-                </View>
+          {/* Card A: Establish New Firm */}
+          <GlassCard
+            style={{
+              marginBottom: 14,
+              borderColor: 'rgba(212, 175, 55, 0.40)',
+              borderWidth: 1.5,
+              backgroundColor: 'rgba(255, 255, 255, 0.90)',
+            }}
+          >
+            <View className="flex-row items-start gap-4 mb-4">
+              <View className="p-3 rounded-2xl bg-amber-500/10 border border-amber-500/25 items-center justify-center">
+                <Store size={26} color="#D4AF37" />
               </View>
-            </GlassCard>
-          </View>
-
-          {/* Right Card: Restore Backup */}
-          <View className="flex-1">
-            <GlassCard 
-              style={{ 
-                marginBottom: 0,
-                ...(hasBackup ? { backgroundColor: 'rgba(220, 252, 231, 0.65)', borderColor: 'rgba(22, 163, 74, 0.35)' } : {})
-              }}
-            >
-              <View className="items-center text-center justify-between min-h-[160px]">
-                <View className="items-center text-center">
-                  <View className="bg-emerald-600/15 p-3 rounded-2xl mb-2 border border-emerald-600/25 items-center justify-center">
-                    <HardDriveUpload size={22} color="#15803D" />
+              <View className="flex-1">
+                <View className="flex-row items-center gap-2 mb-1">
+                  <Text className="text-vj-text font-black text-lg">Establish New Firm</Text>
+                  <View className="px-2 py-0.5 rounded-full bg-amber-500/15 border border-amber-500/30">
+                    <Text className="text-[8px] font-black text-amber-800 uppercase tracking-wider">
+                      SETUP
+                    </Text>
                   </View>
-                  <Text className="text-vj-text font-black text-sm text-center leading-tight mb-1">
-                    Restore Backup
-                  </Text>
+                </View>
+                <Text className="text-vj-text/70 text-xs leading-4">
+                  {isMaxFirmsReached
+                    ? "Maximum capacity reached (3 of 3 active firms registered)."
+                    : "Create a fresh store profile with GSTIN, BIS hallmarking, logos & address."}
+                </Text>
+              </View>
+            </View>
+
+            <GlassButton
+              title={isMaxFirmsReached ? "Maximum 3 Firms Reached" : "Establish New Firm"}
+              onPress={() => router.push('/create-firm')}
+              disabled={isMaxFirmsReached || restoring || enteringFirmId !== null}
+              variant={existingFirms.length === 0 ? "primary" : "secondary"}
+              icon={!isMaxFirmsReached ? <Plus size={18} color={existingFirms.length === 0 ? "#FCFBF8" : COLORS.vjText} /> : undefined}
+            />
+          </GlassCard>
+
+          {/* Card B: Restore Database Backup */}
+          <GlassCard
+            style={{
+              marginBottom: 14,
+              borderWidth: 1.5,
+              borderColor: hasBackup ? 'rgba(16, 185, 129, 0.55)' : 'rgba(124, 58, 237, 0.35)',
+              backgroundColor: hasBackup ? 'rgba(236, 253, 245, 0.90)' : 'rgba(255, 255, 255, 0.90)',
+            }}
+          >
+            <View className="flex-row items-start gap-4 mb-4">
+              <View
+                className={`p-3 rounded-2xl border items-center justify-center ${
+                  hasBackup
+                    ? 'bg-emerald-500/15 border-emerald-500/35'
+                    : 'bg-purple-500/10 border-purple-500/25'
+                }`}
+              >
+                <HardDriveUpload size={26} color={hasBackup ? "#10B981" : "#7C3AED"} />
+              </View>
+              <View className="flex-1">
+                <View className="flex-row items-center gap-2 mb-1">
+                  <Text className="text-vj-text font-black text-lg">Restore Database</Text>
                   {hasBackup ? (
-                    <View className="px-2 py-0.5 rounded-full bg-emerald-600/15 border border-emerald-600/30 flex-row items-center gap-1 mb-3">
-                      <CheckCircle2 size={10} color="#15803D" />
-                      <Text className="text-emerald-800 font-extrabold text-[8px] uppercase tracking-wider text-center">
-                        Backup Found
+                    <View className="px-2 py-0.5 rounded-full bg-emerald-500/15 border border-emerald-500/30 flex-row items-center gap-1">
+                      <CheckCircle2 size={10} color="#10B981" />
+                      <Text className="text-emerald-800 font-black text-[8px] uppercase tracking-wider">
+                        BACKUP FOUND
                       </Text>
                     </View>
                   ) : (
-                    <Text className="text-vj-text/50 text-[10px] text-center font-semibold mb-3">
-                      From .vjb file
-                    </Text>
+                    <View className="px-2 py-0.5 rounded-full bg-black/5 border border-black/10">
+                      <Text className="text-vj-text/50 font-bold text-[8px] uppercase tracking-wider">
+                        .VJB VAULT
+                      </Text>
+                    </View>
                   )}
                 </View>
-
-                <View className="w-full">
-                  <GlassButton 
-                    title={restoring ? "Restoring..." : "Restore Backup"}
-                    onPress={handleRestore}
-                    loading={restoring}
-                    disabled={enteringFirmId !== null}
-                  />
-                </View>
+                <Text className="text-vj-text/70 text-xs leading-4">
+                  {hasBackup
+                    ? "Encrypted .vjb file detected on device. Inspect and restore your existing store data."
+                    : "Import an encrypted .vjb backup file from your phone's storage or Drive."}
+                </Text>
               </View>
-            </GlassCard>
-          </View>
+            </View>
+
+            <GlassButton
+              title={restoring ? "Restoring Database..." : "Select & Restore Backup"}
+              onPress={handleRestore}
+              loading={restoring}
+              disabled={enteringFirmId !== null}
+              variant="secondary"
+              icon={!restoring ? <HardDriveUpload size={18} color={COLORS.vjText} /> : undefined}
+            />
+          </GlassCard>
+        </View>
+
+        {/* 3. SECURITY FOOTER */}
+        <View className="mt-4 items-center flex-row justify-center gap-2 opacity-50">
+          <ShieldCheck size={14} color={COLORS.vjText} />
+          <Text className="text-vj-text text-xs font-semibold">
+            100% Offline • AES-256 Encrypted • SQLite v7
+          </Text>
+        </View>
         </View>
       </ScrollView>
 

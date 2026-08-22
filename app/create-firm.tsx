@@ -106,7 +106,7 @@ export default function CreateFirmScreen() {
     );
   }, [form]);
 
-  useUnsavedChangesGuard(isDirty);
+  const { UnsavedModal } = useUnsavedChangesGuard(isDirty);
 
   const pickImage = async (field: 'firmLogoUri' | 'bisLogoUri') => {
     Alert.alert(
@@ -624,7 +624,9 @@ export default function CreateFirmScreen() {
                 icon={<ArrowRight size={20} color="#FCFBF8" />}
                 onPress={() => {
                   setShowSuccessModal(false);
-                  try { router.dismissAll(); } catch {}
+                  if (router.canDismiss()) {
+                    router.dismissAll();
+                  }
                   router.replace('/dashboard');
                 }}
               />
@@ -656,6 +658,9 @@ export default function CreateFirmScreen() {
           </View>
         </View>
       </Modal>
+
+      {/* UNSAVED CHANGES MODAL */}
+      {UnsavedModal}
 
     </TwoToneWrapper>
   );

@@ -81,7 +81,9 @@ export default function SetupScreen() {
       await refreshSession();
       setPreviewModalVisible(false);
       Alert.alert("Success", "Database restored successfully.");
-      try { router.dismissAll(); } catch {}
+      if (router.canDismiss()) {
+        router.dismissAll();
+      }
       router.replace('/dashboard');
     } catch (error: any) {
       Alert.alert("Restore Failed", error.message);
