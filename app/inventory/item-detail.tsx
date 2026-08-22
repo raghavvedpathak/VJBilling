@@ -502,6 +502,7 @@ export default function ItemDetailScreen() {
 
   const detailHeaderPills = (
     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginTop: 4 }}>
+      <HeaderPill icon={<Crown size={12} color={colors.vjBg} />} label={item.designName} />
       <HeaderPill icon={<Tag size={12} color={colors.vjBg} />} label={formatSKUDisplay(item.sku)} />
       <HeaderPill icon={<Shield size={12} color="#4ADE80" />} label={item.status} variant="success" />
       {isEditing && (

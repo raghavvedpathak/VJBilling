@@ -1,4 +1,4 @@
-// app/inventory/design-items.tsx — Phase 2 v2.15 Canonical Screen (Screen C) with Enhanced Multi-Size Filter & Interactive Sorting
+// app/inventory/design-items.tsx — Phase 2 v2.15 Canonical Screen (Screen C) with Modern Stock Card & Interactive Sorting
 
 import React, { useState, useCallback, memo, useMemo } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, ScrollView, Modal } from 'react-native';
@@ -6,12 +6,13 @@ import { FlashList } from '@shopify/flash-list';
 import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { TwoToneWrapper } from '@/components/TwoToneWrapper';
-import { HeaderPill, GlassCard, GlassButton } from '@/components/ui/Glass';
+import { HeaderPill, GlassCard } from '@/components/ui/Glass';
 import { appSettingsStore } from '@/store/phase1/appSettingsStore';
 import { useFirmStore } from '@/store/phase1/useFirmStore';
 import { inventoryDrillDownService } from '@/services/phase2/inventoryDrillDownService';
+import { designRepository } from '@/repositories/phase2/designRepository';
 import { getDisplayPurity, formatSKUDisplay, formatWeightMg as formatWeight } from '@/utils/calculations';
-import { MapPin, Package, Printer, Scale, Sparkles, Filter, ArrowUpDown, Check, X } from 'lucide-react-native';
+import { MapPin, Package, Printer, Scale, Sparkles, ArrowUpDown, Check, X, ShieldCheck, ShieldAlert } from 'lucide-react-native';
 import type { ItemSearchResult } from '@/types/phase2/phase2.types';
 import { COLORS, getThemeColors } from '@/constants/theme';
 
@@ -29,7 +30,6 @@ interface SortPreset {
   id: SortOption;
   label: string;
   sublabel: string;
-  iconName?: string;
 }
 
 const SORT_PRESETS: SortPreset[] = [
@@ -47,63 +47,79 @@ const ItemRow = memo(({ item, colors, onPress, onPrint }: { item: ItemSearchResu
   const metalColor = item.metal === 'GOLD' ? (colors.vjAccent || COLORS.gold) : COLORS.silver;
 
   const purityFull = item.purityKarat 
-    ? `${item.purityKarat}K (${item.purityPercent.toFixed(1)}%)`
+    ? `${item.purityKarat}K · ${item.purityPercent.toFixed(1)}%`
     : `${item.purityPercent.toFixed(1)}%`;
 
   const hasSize = item.sizeValue !== null && item.sizeValue !== undefined;
-  const sizeDisplay = hasSize ? `${item.sizeValue}${item.sizeUnit ? ' ' + item.sizeUnit : ''}` : null;
+  const sizeDisplay = hasSize ? `Size ${item.sizeValue}${item.sizeUnit ? ' ' + item.sizeUnit : ''}` : null;
 
   return (
     <TouchableOpacity 
-      activeOpacity={0.75} 
+      activeOpacity={0.8} 
       style={s.itemCard} 
       onPress={() => {
         try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
         onPress(item.itemId);
       }}
     >
+      {/* Left Metal Accent Indicator */}
       <View style={[s.metalStripe, { backgroundColor: metalColor }]} />
 
       <View style={s.cardBody}>
-        {/* TOP ROW: SKU WITH SIZE IN FRONT & PURITY IN TOP-RIGHT CORNER */}
-        <View style={s.itemMainRow}>
-          <View style={{ flex: 1 }}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-              <Text style={[s.skuText, { color: colors.vjText }]}>{formatSKUDisplay(item.sku)}</Text>
-              {sizeDisplay && (
-                <View style={[s.sizeBadge, { backgroundColor: `${colors.vjAccent}12`, borderColor: `${colors.vjAccent}30` }]}>
-                  <Text style={[s.sizeBadgeText, { color: colors.vjText }]}>{sizeDisplay}</Text>
-                </View>
-              )}
-            </View>
-            <Text style={[s.barcodeText, { color: colors.vjText, opacity: 0.5 }]}>Barcode: {item.barcode}</Text>
+        {/* TOP ROW: DESIGN NAME + SKU + SIZE PILL & PURITY BADGE */}
+        <View style={s.itemHeaderRow}>
+          <View style={s.skuContainer}>
+            {item.designName ? (
+              <Text style={[s.designNameText, { color: colors.vjText }]}>{item.designName}</Text>
+            ) : null}
+            <Text style={[s.skuText, { color: colors.vjAccent }]}>{formatSKUDisplay(item.sku)}</Text>
+            {sizeDisplay && (
+              <View style={[s.sizeBadge, { backgroundColor: 'rgba(212, 175, 55, 0.14)', borderColor: 'rgba(212, 175, 55, 0.35)' }]}>
+                <Text style={s.sizeBadgeText}>{sizeDisplay}</Text>
+              </View>
+            )}
           </View>
 
-          {/* PURITY BADGE */}
-          <View style={[s.purityBadge, { borderColor: metalColor, backgroundColor: `${metalColor}15` }]}>
+          {/* Karat & Purity Pill */}
+          <View style={[s.purityBadge, { borderColor: metalColor, backgroundColor: `${metalColor}14` }]}>
+            <Sparkles size={11} color={metalColor} style={{ marginRight: 4 }} />
             <Text style={[s.purityBadgeText, { color: metalColor }]}>{purityFull}</Text>
           </View>
         </View>
 
-        {/* METRICS ROW: GROSS WT -> NET WT -> HUID */}
-        <View style={[s.itemDetailsRow, { backgroundColor: `${colors.vjAccent}0A`, borderColor: `${colors.vjAccent}25` }]}>
-          <View style={s.weightCol}>
-            <Text style={[s.detailLabel, { color: colors.vjText, opacity: 0.5 }]}>GROSS WT</Text>
-            <Text style={[s.weightValue, { color: colors.vjText }]}>{formatWeight(item.grossWeightMg)}</Text>
+        {/* HERO METRICS CONTAINER */}
+        <View style={[s.heroMetricsContainer, { backgroundColor: 'rgba(255, 255, 255, 0.7)', borderColor: 'rgba(92, 22, 35, 0.08)' }]}>
+          {/* Left Metadata: Barcode & HUID */}
+          <View style={s.metaCol}>
+            <View style={s.barcodeCapsule}>
+              <Text style={s.barcodeLabel}>BARCODE</Text>
+              <Text style={s.barcodeValue}>{item.barcode}</Text>
+            </View>
+
+            {item.huid ? (
+              <View style={s.huidVerifiedCapsule}>
+                <ShieldCheck size={13} color="#15803d" />
+                <Text style={s.huidVerifiedText}>HUID: {item.huid}</Text>
+              </View>
+            ) : (
+              <View style={s.huidPendingCapsule}>
+                <ShieldAlert size={12} color="rgba(92, 22, 35, 0.4)" />
+                <Text style={s.huidPendingText}>No HUID</Text>
+              </View>
+            )}
           </View>
 
-          <View style={[s.colDivider, { backgroundColor: `${colors.vjText}1A` }]} />
-
-          <View style={s.weightCol}>
-            <Text style={[s.detailLabel, { color: colors.vjAccent }]}>NET WT</Text>
-            <Text style={[s.weightValue, { color: colors.vjAccent }]}>{formatWeight(item.netWeightMg ?? item.grossWeightMg)}</Text>
-          </View>
-
-          <View style={[s.colDivider, { backgroundColor: `${colors.vjText}1A` }]} />
-
-          <View style={s.weightCol}>
-            <Text style={[s.detailLabel, { color: colors.vjText, opacity: 0.5 }]}>HUID</Text>
-            <Text style={[s.huidValue, { color: item.huid ? colors.vjAccent : colors.vjText }, !item.huid && s.noHuidValue]}>{item.huid || 'No HUID'}</Text>
+          {/* Right Hero: Net Weight */}
+          <View style={s.heroWeightCol}>
+            <Text style={s.heroNetLabel}>AVAILABLE NET WT</Text>
+            <View style={s.weightNumberRow}>
+              <Text style={[s.heroNetValue, { color: colors.vjAccent }]}>
+                {formatWeight(item.netWeightMg ?? item.grossWeightMg)}
+              </Text>
+            </View>
+            <Text style={s.grossSubText}>
+              Gross: {formatWeight(item.grossWeightMg)}
+            </Text>
           </View>
         </View>
 
@@ -138,6 +154,7 @@ export default function DesignItemsScreen() {
   const { activeFirmId } = useFirmStore();
   
   const [items, setItems] = useState<ItemSearchResult[]>([]);
+  const [dbDesignName, setDbDesignName] = useState<string>(designName || '');
   const [selectedSizeFilter, setSelectedSizeFilter] = useState<string>('ALL');
   const [selectedSort, setSelectedSort] = useState<SortOption>('DEFAULT');
   const [isSortModalOpen, setIsSortModalOpen] = useState(false);
@@ -155,8 +172,16 @@ export default function DesignItemsScreen() {
         if (!activeFirmId || !designId) return;
         setLoading(true);
         try {
-          const results = await inventoryDrillDownService.getItemsByDesign(activeFirmId, designId, purityNum);
-          if (active) setItems(results);
+          const [results, designRecord] = await Promise.all([
+            inventoryDrillDownService.getItemsByDesign(activeFirmId, designId, purityNum),
+            designRepository.getById(designId)
+          ]);
+          if (active) {
+            setItems(results);
+            if (designRecord?.name) {
+              setDbDesignName(designRecord.name);
+            }
+          }
         } catch (e) {
           console.error('[DesignItems] getItemsByDesign failed:', e);
         } finally {
@@ -186,7 +211,7 @@ export default function DesignItemsScreen() {
         if (existing) {
           existing.count += 1;
         } else {
-          const label = `${i.sizeValue}${i.sizeUnit ? ' ' + i.sizeUnit : ''}`;
+          const label = `Size ${i.sizeValue}${i.sizeUnit ? ' ' + i.sizeUnit : ''}`;
           sizeMap.set(key, { label, count: 1 });
         }
       }
@@ -269,7 +294,7 @@ export default function DesignItemsScreen() {
   );
 
   return (
-    <TwoToneWrapper title={designName || 'Design Stock'} showBack headerContent={designHeaderPills}>
+    <TwoToneWrapper title={dbDesignName || designName || 'Design Stock'} showBack headerContent={designHeaderPills}>
       
       {/* Interactive Toolbar: Size Filter Chips + Quick Sort Button */}
       <View style={s.filterBarContainer}>
@@ -352,7 +377,7 @@ export default function DesignItemsScreen() {
             <ItemRow item={item} colors={colors} onPress={handleItemPress} onPrint={handlePrint} />
           )}
           // @ts-ignore
-          estimatedItemSize={140}
+          estimatedItemSize={145}
           contentContainerStyle={{ paddingTop: 12, paddingBottom: 100, paddingHorizontal: 14 }}
           ListEmptyComponent={
             <View style={s.emptyContainer}>
@@ -514,18 +539,18 @@ const s = StyleSheet.create({
     color: '#FFFFFF',
   },
 
+  // MODERN STOCK CARD STYLES
   itemCard: {
     flexDirection: 'row',
-    alignItems: 'center',
     marginBottom: 12,
     borderRadius: 20,
     overflow: 'hidden',
     backgroundColor: '#FCFBF8',
     borderWidth: 1,
-    borderColor: 'rgba(212, 175, 55, 0.25)',
-    shadowColor: '#000',
+    borderColor: 'rgba(212, 175, 55, 0.28)',
+    shadowColor: '#5C1623',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.08,
+    shadowOpacity: 0.07,
     shadowRadius: 10,
     elevation: 3,
   },
@@ -538,78 +563,153 @@ const s = StyleSheet.create({
     padding: 14,
     gap: 10,
   },
-  itemMainRow: {
+  itemHeaderRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'flex-start',
+    alignItems: 'center',
+  },
+  skuContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    flexWrap: 'wrap',
+    flex: 1,
+  },
+  designNameText: {
+    fontSize: 15,
+    fontWeight: '900',
+    letterSpacing: 0.2,
   },
   skuText: {
     fontFamily: 'monospace',
     fontWeight: '800',
-    fontSize: 15,
+    fontSize: 13,
+    letterSpacing: 0.5,
+    opacity: 0.85,
   },
-  barcodeText: {
+  sizeBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 2.5,
+    borderRadius: 8,
+    borderWidth: 1,
+  },
+  sizeBadgeText: {
     fontSize: 11,
-    fontWeight: '600',
-    marginTop: 2,
+    fontWeight: '800',
+    color: '#5C1623',
   },
   purityBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 6,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 9,
+    paddingVertical: 3.5,
+    borderRadius: 8,
     borderWidth: 1,
   },
   purityBadgeText: {
     fontSize: 11,
     fontWeight: '800',
-    letterSpacing: 0.5,
+    letterSpacing: 0.4,
   },
-  sizeBadge: {
-    paddingHorizontal: 7,
-    paddingVertical: 2,
-    borderRadius: 6,
-    borderWidth: 1,
-  },
-  sizeBadgeText: {
-    fontSize: 10,
-    fontWeight: '700',
-  },
-  itemDetailsRow: {
+
+  // HERO METRICS CONTAINER
+  heroMetricsContainer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    borderRadius: 12,
-    borderWidth: 1,
-    paddingHorizontal: 14,
     paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 14,
+    borderWidth: 1,
   },
-  weightCol: {
-    alignItems: 'center',
+  metaCol: {
     flex: 1,
+    gap: 6,
+    justifyContent: 'center',
   },
-  colDivider: {
-    width: 1,
-    height: 22,
+  barcodeCapsule: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
   },
-  detailLabel: {
+  barcodeLabel: {
     fontSize: 9,
     fontWeight: '900',
-    textTransform: 'uppercase',
+    color: 'rgba(92, 22, 35, 0.45)',
+    letterSpacing: 0.5,
+  },
+  barcodeValue: {
+    fontSize: 11,
+    fontWeight: '700',
+    fontFamily: 'monospace',
+    color: 'rgba(92, 22, 35, 0.75)',
+  },
+  huidVerifiedCapsule: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: 'rgba(22, 163, 74, 0.08)',
+    paddingHorizontal: 7,
+    paddingVertical: 2.5,
+    borderRadius: 6,
+    alignSelf: 'flex-start',
+    borderWidth: 1,
+    borderColor: 'rgba(22, 163, 74, 0.25)',
+  },
+  huidVerifiedText: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#15803d',
+    letterSpacing: 0.3,
+  },
+  huidPendingCapsule: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: 'rgba(92, 22, 35, 0.04)',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+    alignSelf: 'flex-start',
+  },
+  huidPendingText: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: 'rgba(92, 22, 35, 0.45)',
+    fontStyle: 'italic',
+  },
+
+  // HERO WEIGHT
+  heroWeightCol: {
+    alignItems: 'flex-end',
+    justifyContent: 'center',
+    paddingLeft: 10,
+  },
+  heroNetLabel: {
+    fontSize: 8.5,
+    fontWeight: '900',
+    color: 'rgba(92, 22, 35, 0.5)',
     letterSpacing: 0.8,
     marginBottom: 2,
+    textTransform: 'uppercase',
   },
-  weightValue: {
-    fontSize: 13,
+  weightNumberRow: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+  },
+  heroNetValue: {
+    fontSize: 17,
     fontWeight: '900',
+    letterSpacing: 0.3,
   },
-  huidValue: {
-    fontSize: 12,
-    fontWeight: '800',
+  grossSubText: {
+    fontSize: 10.5,
+    fontWeight: '600',
+    color: 'rgba(92, 22, 35, 0.55)',
+    marginTop: 1,
   },
-  noHuidValue: {
-    opacity: 0.4,
-    fontWeight: '500',
-  },
+
+  // CARD BOTTOM ROW
   bottomRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',

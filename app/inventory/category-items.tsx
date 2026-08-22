@@ -14,7 +14,7 @@ import type { DesignCategoryStockResult } from '@/types/phase2/phase2.types';
 import { formatWeightMg as formatWeight } from '@/utils/calculations';
 import { appSettingsStore } from '@/store/phase1/appSettingsStore';
 import { COLORS, getThemeColors } from '@/constants/theme';
-import { ChevronRight, Layers, Bell, X, AlertTriangle, Scale, Package } from 'lucide-react-native';
+import { ChevronRight, Layers, Bell, X, AlertTriangle, Scale, Package, Tag } from 'lucide-react-native';
 import { getJewelryCategoryIcon } from '@/utils/jewelryIcons';
 
 type DesignRowProps = {
@@ -244,6 +244,7 @@ export default function CategoryItemsScreen() {
 
   const categoryHeaderPills = (
     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginTop: 4 }}>
+      <HeaderPill icon={<Tag size={12} color={colors.vjBg} />} label="Designs & Variants" />
       <HeaderPill icon={<Package size={12} color={colors.vjBg} />} label={`${totalItems} Items`} />
       <HeaderPill icon={<Scale size={12} color="#4ADE80" />} label={`Net: ${formatWeight(totalWeightMg)}`} variant="success" />
     </View>

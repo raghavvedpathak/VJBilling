@@ -13,7 +13,7 @@ import { formatWeightMg as formatWeight } from '@/utils/calculations';
 import { HeaderPill } from '@/components/ui/Glass';
 import { appSettingsStore } from '@/store/phase1/appSettingsStore';
 import { getThemeColors } from '@/constants/theme';
-import { ChevronRight, Package, Plus, Scale } from 'lucide-react-native';
+import { ChevronRight, Package, Plus, Scale, Layers } from 'lucide-react-native';
 import { getJewelryCategoryIcon } from '@/utils/jewelryIcons';
 
 type CategoryRowProps = {
@@ -99,6 +99,7 @@ export default function DrillDownScreen() {
 
   const ledgerHeaderPills = (
     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginTop: 4 }}>
+      <HeaderPill icon={<Layers size={12} color={colors.vjBg} />} label="Category Ledger" />
       <HeaderPill icon={<Package size={12} color={colors.vjBg} />} label={`${totalItems} Active Items`} />
       <HeaderPill icon={<Scale size={12} color="#4ADE80" />} label={`Net: ${formatWeight(totalWeightMg)}`} variant="success" />
     </View>
