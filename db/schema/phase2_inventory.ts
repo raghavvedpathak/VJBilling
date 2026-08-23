@@ -1,4 +1,4 @@
-import { sqliteTable, text, integer, real, index, foreignKey, unique, primaryKey } from 'drizzle-orm/sqlite-core';
+import { sqliteTable, text, integer, real, index, foreignKey, unique, primaryKey, uniqueIndex, check } from 'drizzle-orm/sqlite-core';
 import { isNotNull, sql } from 'drizzle-orm';
 import { firms } from './phase1_core';
 
@@ -50,6 +50,7 @@ export const categories = sqliteTable('categories', {
   updatedAt: text('updated_at').notNull(),
 }, (table) => ({
   firmFk: foreignKey({ columns: [table.firmId], foreignColumns: [firms.id] }),
+  uqCategoryFirmName: uniqueIndex('uq_category_firm_name').on(table.firmId, sql`lower(${table.name})`),
   idxCategoriesFirmActive: index('idx_categories_firm_active').on(table.firmId, table.isActive),
 })); 
 
@@ -128,6 +129,7 @@ export const items = sqliteTable('items', {
   designFk: foreignKey({ columns: [table.designId], foreignColumns: [designs.id] }),
   firmFk: foreignKey({ columns: [table.firmId], foreignColumns: [firms.id] }),
   stoneFk: foreignKey({ columns: [table.primaryStoneId], foreignColumns: [stones.id] }),
+  sizePairingCheck: check('chk_items_size_pairing', sql`(${table.sizeValue} IS NULL AND ${table.sizeUnit} IS NULL) OR (${table.sizeValue} IS NOT NULL AND ${table.sizeUnit} IS NOT NULL)`),
   idxItemsFirmStatus: index('idx_items_firm_status').on(table.firmId, table.status),
   idxItemsDesignId: index('idx_items_design_id').on(table.designId),
   idxItemsDesignStatus: index('idx_items_design_status').on(table.designId, table.status),

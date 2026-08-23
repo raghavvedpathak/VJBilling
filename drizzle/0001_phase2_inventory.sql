@@ -9,6 +9,8 @@ CREATE TABLE `categories` (
 	FOREIGN KEY (`firm_id`) REFERENCES `firms`(`id`) ON UPDATE no action ON DELETE no action
 );
 --> statement-breakpoint
+CREATE UNIQUE INDEX IF NOT EXISTS `uq_category_firm_name` ON `categories` (`firm_id`, lower(`name`));
+--> statement-breakpoint
 CREATE TABLE `design_category_map` (
 	`id` text PRIMARY KEY NOT NULL,
 	`design_id` text NOT NULL,
@@ -121,6 +123,7 @@ CREATE TABLE `items` (
 	`status` text DEFAULT 'DRAFT' NOT NULL,
 	`created_at` text NOT NULL,
 	`updated_at` text NOT NULL,
+	CHECK ((`size_value` IS NULL AND `size_unit` IS NULL) OR (`size_value` IS NOT NULL AND `size_unit` IS NOT NULL)),
 	FOREIGN KEY (`design_id`) REFERENCES `designs`(`id`) ON UPDATE no action ON DELETE no action,
 	FOREIGN KEY (`firm_id`) REFERENCES `firms`(`id`) ON UPDATE no action ON DELETE no action,
 	FOREIGN KEY (`primary_stone_id`) REFERENCES `stones`(`id`) ON UPDATE no action ON DELETE no action
@@ -270,4 +273,4 @@ CREATE INDEX IF NOT EXISTS idx_urd_purchases_firm ON urd_purchases(firm_id, stat
 --> statement-breakpoint
 CREATE INDEX IF NOT EXISTS idx_urd_purchases_customer ON urd_purchases(firm_id, customer_id) WHERE customer_id IS NOT NULL;
 --> statement-breakpoint
-CREATE INDEX IF NOT EXISTS idx_audit_logs_entity_event ON audit_logs(entity_id, event_type, firm_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_audit_logs_entity_event ON audit_logs(entity_id, event_type, firm_id, timestamp DESC);

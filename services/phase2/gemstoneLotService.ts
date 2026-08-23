@@ -22,7 +22,7 @@ export const gemstoneLotService = {
   // --- createGemstoneLot (Step 4.5 / GEMSTONE-1 v1.21 + FIX-V1-2 v1.23) ---
   async createGemstoneLot(input: CreateGemstoneLotInput, firmId: string): Promise<GemstoneLot> {
     await leaseService.assertNoActiveLease(); // GUARD 1
-    safeModeService.assertNotInSafeMode();    // GUARD 2
+    safeModeService.assertNotInSafeMode();     // GUARD 2
 
     // FIX-V1-2 (v1.23): Input validation before insert
     if (input.weightCaratX100 <= 0) throw new Error(ERR.GEMSTONE_WEIGHT_INVALID);
@@ -40,32 +40,32 @@ export const gemstoneLotService = {
         id: Crypto.randomUUID(), 
         firmId, 
         stoneId: input.stoneId, 
-        name: sanitizedGemName,
+        name: sanitizedGemName, 
         weightCaratX100: input.weightCaratX100, 
-        quantity: input.quantity ?? 1,
-        purchaseRatePaisePerCarat: input.purchaseRatePaisePerCarat ?? null,
-        totalPurchaseAmountPaise: input.totalPurchaseAmountPaise ?? null,
-        supplierName: input.supplierName ? sanitizeText(input.supplierName) : null,
-        certificationRef: input.certificationRef ?? null,
+        quantity: input.quantity ?? 1, 
+        purchaseRatePaisePerCarat: input.purchaseRatePaisePerCarat ?? null, 
+        totalPurchaseAmountPaise: input.totalPurchaseAmountPaise ?? null, 
+        supplierName: input.supplierName ? sanitizeText(input.supplierName) : null, 
+        certificationRef: input.certificationRef ?? null, 
         status: 'AVAILABLE', 
-        notes: input.notes ? sanitizeText(input.notes) : null,
+        notes: input.notes ? sanitizeText(input.notes) : null, 
         createdAt: now(), 
-        updatedAt: now(),
+        updatedAt: now(), 
       });
 
       auditRepository.log(tx, { 
         eventType: 'GEMSTONE_LOT_CREATED', 
         firmId, 
-        entityId: lot.id,
+        entityId: lot.id, 
         deviceId, 
         payload: { 
           lotId: lot.id, 
           stoneId: lot.stoneId, 
-          name: lot.name,
+          name: lot.name, 
           weightCaratX100: lot.weightCaratX100, 
-          quantity: lot.quantity,
-          purchaseRatePaisePerCarat: lot.purchaseRatePaisePerCarat!,
-          totalPurchaseAmountPaise: lot.totalPurchaseAmountPaise! 
+          quantity: lot.quantity, 
+          purchaseRatePaisePerCarat: lot.purchaseRatePaisePerCarat ?? null, 
+          totalPurchaseAmountPaise: lot.totalPurchaseAmountPaise ?? null 
         } 
       });
 
@@ -81,7 +81,7 @@ export const gemstoneLotService = {
     reason?: string
   ): Promise<void> {
     await leaseService.assertNoActiveLease(); // GUARD 1
-    safeModeService.assertNotInSafeMode();    // GUARD 2
+    safeModeService.assertNotInSafeMode();     // GUARD 2
 
     const deviceId = await getDeviceId();
 
@@ -99,8 +99,8 @@ export const gemstoneLotService = {
       auditRepository.log(tx, { 
         eventType: 'GEMSTONE_LOT_STATUS_CHANGED', 
         firmId, 
-        entityId: lotId,
-        deviceId,
+        entityId: lotId, 
+        deviceId, 
         payload: { 
           lotId, 
           oldStatus: lot.status, 

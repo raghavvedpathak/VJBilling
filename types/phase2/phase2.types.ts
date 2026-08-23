@@ -107,7 +107,7 @@ export interface CreateOldGoldLotInput {
   purityPercent: number;
   metalSource?: MetalSource;   // defaults to 'CUSTOMER'
   customerId?: string | null;  // FIX-OLDGOLD-CUSTOMER-1 (v1.49): nullable FK -> customers.id
-  purchaseRatePaise?: number;  // FIX-OLDGOLD-COST-1 (v1.51): paise per gram
+  purchaseRatePaise?: number | null; // FIX-OLDGOLD-COST-1 (v1.51): paise per gram
   notes?: string | null;
 }
 
@@ -374,8 +374,8 @@ export type Phase2AuditPayload =
   | { eventType: 'DESIGN_SOFT_DELETED'; payload: { designId: string; name: string } }
   | { eventType: 'STONE_CREATED'; payload: { name: string; type: string } }
   | { eventType: 'GEMSTONE_LOT_CREATED'; payload: { lotId: string; stoneId: string; name: string;
-      weightCaratX100: number; quantity: number; purchaseRatePaisePerCarat: number;
-      totalPurchaseAmountPaise: number } }
+      weightCaratX100: number; quantity: number; purchaseRatePaisePerCarat: number | null;
+      totalPurchaseAmountPaise: number | null } }
   | { eventType: 'GEMSTONE_LOT_STATUS_CHANGED'; payload: { lotId: string; oldStatus: string;
       newStatus: string; reason: string | null } }
   | { eventType: 'ITEM_CREATED'; payload: { sku: string; designId: string; categoryId: string;

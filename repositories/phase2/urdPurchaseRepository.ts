@@ -1,4 +1,4 @@
-// repositories/phase2/urdPurchaseRepository.ts — Phase 2 v2.11 Canonical Repository
+// repositories/phase2/urdPurchaseRepository.ts — Phase 2 v2.15 Canonical Repository
 
 import { eq, and, desc } from 'drizzle-orm';
 import { db } from '@/db/client';
@@ -10,8 +10,9 @@ export interface URDPurchaseRepository {
   // --- insert (Step 12.11 createURDPurchase) ---
   insert(tx: DrizzleTransaction, data: NewURDPurchase): URDPurchase;
 
-  // --- getById (Overloaded for (id), (tx, id), and (tx, firmId, id)) ---
+  // --- getById (Overloaded for (id), (firmId, id), (tx, id), and (tx, firmId, id)) ---
   getById(id: string): Promise<URDPurchase | null>;
+  getById(firmId: string, id: string): Promise<URDPurchase | null>;
   getById(tx: DrizzleTransaction, id: string): URDPurchase | null;
   getById(tx: DrizzleTransaction, firmId: string, id: string): URDPurchase | null;
 
@@ -25,6 +26,9 @@ export interface URDPurchaseRepository {
 
   // --- findByFirmId ---
   findByFirmId(firmId: string): Promise<URDPurchase[]>;
+
+  // --- findByFyId ---
+  findByFyId(firmId: string, fyId: string): Promise<URDPurchase[]>;
 
   // --- findByCustomerId ---
   findByCustomerId(firmId: string, customerId: string): Promise<URDPurchase[]>;
@@ -43,7 +47,20 @@ export const urdPurchaseRepository: URDPurchaseRepository = {
     third?: string
   ): any {
     if (typeof first === 'string') {
-      return db.select().from(urdPurchases).where(eq(urdPurchases.id, first)).limit(1).then(r => r[0] || null);
+      if (second !== undefined) {
+        return db
+          .select()
+          .from(urdPurchases)
+          .where(and(eq(urdPurchases.id, second), eq(urdPurchases.firmId, first)))
+          .limit(1)
+          .then(r => r[0] || null);
+      }
+      return db
+        .select()
+        .from(urdPurchases)
+        .where(eq(urdPurchases.id, first))
+        .limit(1)
+        .then(r => r[0] || null);
     }
     const tx = first as DrizzleTransaction;
     if (third !== undefined) {
@@ -65,13 +82,13 @@ export const urdPurchaseRepository: URDPurchaseRepository = {
     if (typeof third === 'object') {
       // 3-arg call: update(tx, id, data)
       tx.update(urdPurchases)
-        .set(third)
+        .set({ ...third, updatedAt: now() })
         .where(eq(urdPurchases.id, second))
         .run();
     } else {
       // 4-arg call: update(tx, firmId, id, data)
       tx.update(urdPurchases)
-        .set(fourth!)
+        .set({ ...fourth, updatedAt: now() })
         .where(and(eq(urdPurchases.id, third as string), eq(urdPurchases.firmId, second)))
         .run();
     }
@@ -89,6 +106,13 @@ export const urdPurchaseRepository: URDPurchaseRepository = {
     return db.select()
       .from(urdPurchases)
       .where(eq(urdPurchases.firmId, firmId))
+      .orderBy(desc(urdPurchases.purchaseDate), desc(urdPurchases.createdAt));
+  },
+
+  async findByFyId(firmId: string, fyId: string): Promise<URDPurchase[]> {
+    return db.select()
+      .from(urdPurchases)
+      .where(and(eq(urdPurchases.firmId, firmId), eq(urdPurchases.fyId, fyId)))
       .orderBy(desc(urdPurchases.purchaseDate), desc(urdPurchases.createdAt));
   },
 

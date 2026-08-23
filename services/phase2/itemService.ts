@@ -1,4 +1,4 @@
-// services/itemService.ts — Phase 2 v2.11 Canonical Service
+// services/phase2/itemService.ts — Phase 2 v2.15 Canonical Service
 
 import { db } from '@/db/client';
 import { itemRepository } from '@/repositories/phase2/itemRepository';
@@ -35,7 +35,7 @@ export const itemService = {
   // --- createPhantomItem (FEAT-PHANTOM-INVENTORY-1 v1.67) ---
   async createPhantomItem(input: CreatePhantomItemInput, firmId: string): Promise<Item> {
     await leaseService.assertNoActiveLease(); // GUARD 1
-    safeModeService.assertNotInSafeMode();    // GUARD 2
+    safeModeService.assertNotInSafeMode();     // GUARD 2
     const deviceId = await getDeviceId();
 
     return db.transaction((tx) => {
@@ -134,7 +134,7 @@ export const itemService = {
   // --- reconcilePhantomItem (FEAT-PHANTOM-INVENTORY-1 v1.67) ---
   async reconcilePhantomItem(phantomItemId: string, realItemId: string, firmId: string): Promise<void> {
     await leaseService.assertNoActiveLease(); // GUARD 1
-    safeModeService.assertNotInSafeMode();    // GUARD 2
+    safeModeService.assertNotInSafeMode();     // GUARD 2
     const deviceId = await getDeviceId();
 
     return db.transaction((tx) => {
@@ -204,7 +204,7 @@ export const itemService = {
   // --- createItem (Step 6) ---
   async createItem(input: CreateItemInput, firmId: string): Promise<Item> {
     await leaseService.assertNoActiveLease(); // GUARD 1
-    safeModeService.assertNotInSafeMode();    // GUARD 2
+    safeModeService.assertNotInSafeMode();     // GUARD 2
     const deviceId = await getDeviceId();
 
     // FIX-GAP-P2-BACKDATE-1 (v1.76): resolve + validate entry date
@@ -309,8 +309,8 @@ export const itemService = {
           netWeightMg,
           fineWeightMg,
           wastagePercent,
-          fineGoldChargedMg: fineGoldChargedMg!,
-          purchaseRatePaise: item.purchaseRatePaise!,
+          fineGoldChargedMg,
+          purchaseRatePaise: item.purchaseRatePaise,
           purityPercent: item.purityPercent,
           purityRoundingDeltaMg: item.purityRoundingDeltaMg,
           makingChargePaise: item.makingChargePaise,
@@ -340,7 +340,7 @@ export const itemService = {
     newWastagePercent?: number
   ): Promise<void> {
     await leaseService.assertNoActiveLease(); // GUARD 1
-    safeModeService.assertNotInSafeMode();    // GUARD 2
+    safeModeService.assertNotInSafeMode();     // GUARD 2
 
     if (newGrossWeightMg <= 0) throw new Error(ERR.ITEM_GROSS_WEIGHT_INVALID);
     const newNetWeightMg = newGrossWeightMg - newStoneWeightMg - newBeadsWeightMg;
@@ -399,7 +399,7 @@ export const itemService = {
           newNetWeightMg,
           newFineWeightMg,
           newPurityRoundingDeltaMg,
-          newFineGoldChargedMg: newFineGoldChargedMg!,
+          newFineGoldChargedMg,
           reason
         },
       });
@@ -414,7 +414,7 @@ export const itemService = {
     reason?: string
   ): Promise<void> {
     await leaseService.assertNoActiveLease(); // GUARD 1
-    safeModeService.assertNotInSafeMode();    // GUARD 2
+    safeModeService.assertNotInSafeMode();     // GUARD 2
 
     const EDITABLE: (keyof UpdateableItemDraftFields)[] = [
       'purityPercent', 'purityKarat', 'primaryStoneId',
@@ -491,7 +491,7 @@ export const itemService = {
   // --- createItemsBulk (Step 6.6 / FIX-BULK-1 v1.51) ---
   async createItemsBulk(inputs: CreateItemInput[], firmId: string): Promise<Item[]> {
     await leaseService.assertNoActiveLease(); // GUARD 1
-    safeModeService.assertNotInSafeMode();    // GUARD 2
+    safeModeService.assertNotInSafeMode();     // GUARD 2
 
     const BULK_ITEM_MAX = 50;
     if (inputs.length === 0) return [];
@@ -591,12 +591,14 @@ export const itemService = {
             netWeightMg,
             fineWeightMg,
             wastagePercent,
-            fineGoldChargedMg: fineGoldChargedMg!,
+            fineGoldChargedMg,
             purityRoundingDeltaMg: item.purityRoundingDeltaMg,
-            purchaseRatePaise: item.purchaseRatePaise!,
+            purchaseRatePaise: item.purchaseRatePaise,
             purityPercent: item.purityPercent,
             hsnCode: item.hsnCode,
             metalSource: item.metalSource,
+            bulkInsert: true,
+            entryDate,
           }
         });
 
@@ -611,7 +613,7 @@ export const itemService = {
   // --- deleteItem (Step 6.7.1 / FEAT-ITEM-CORRECTION-1 v1.88 / FEAT-SCREEN-D-DELETE-1 v2.07) ---
   async deleteItem(itemId: string, firmId: string, reason: string): Promise<void> {
     await leaseService.assertNoActiveLease(); // GUARD 1
-    safeModeService.assertNotInSafeMode();    // GUARD 2
+    safeModeService.assertNotInSafeMode();     // GUARD 2
     if (!reason || reason.trim().length === 0) throw new Error(ERR.ITEM_ACTION_REASON_REQUIRED);
     const deviceId = await getDeviceId();
 
@@ -639,7 +641,7 @@ export const itemService = {
   // --- updateItemStatus (Step 10.6) ---
   async updateItemStatus(itemId: string, firmId: string, newStatus: StockStatus, reason?: string): Promise<void> {
     await leaseService.assertNoActiveLease(); // GUARD 1
-    safeModeService.assertNotInSafeMode();    // GUARD 2
+    safeModeService.assertNotInSafeMode();     // GUARD 2
     const deviceId = await getDeviceId();
 
     return db.transaction((tx) => {
@@ -684,7 +686,7 @@ export const itemService = {
   // --- addHUID (Step 5.2 / FEAT-HUID-ASSIGN-1 v1.85) ---
   async addHUID(itemId: string, firmId: string, huid: string): Promise<Item> {
     await leaseService.assertNoActiveLease(); // GUARD 1
-    safeModeService.assertNotInSafeMode();    // GUARD 2
+    safeModeService.assertNotInSafeMode();     // GUARD 2
     const deviceId = await getDeviceId();
 
     return db.transaction((tx) => {
@@ -709,7 +711,7 @@ export const itemService = {
         performedBy: deviceId, 
         reason: null,
         oldValue: null,
-        newValue: null,
+        newValue: huid,
         timestamp: now(),
       });
 
@@ -729,7 +731,7 @@ export const itemService = {
   // Widened from DRAFT-only to non-terminal-status items (v2.11 Fix 411)
   async correctMetalSource(itemId: string, firmId: string, metalSource: MetalSource, reason: string): Promise<void> {
     await leaseService.assertNoActiveLease(); // GUARD 1
-    safeModeService.assertNotInSafeMode();    // GUARD 2
+    safeModeService.assertNotInSafeMode();     // GUARD 2
     if (!reason || reason.trim().length === 0) throw new Error(ERR.ITEM_ACTION_REASON_REQUIRED);
     const deviceId = await getDeviceId();
 
@@ -770,7 +772,7 @@ export const itemService = {
   // --- correctHUID (Step 6.7.3 / FEAT-ITEM-CORRECTION-1 v1.88) ---
   async correctHUID(itemId: string, firmId: string, huid: string, reason: string): Promise<void> {
     await leaseService.assertNoActiveLease(); // GUARD 1
-    safeModeService.assertNotInSafeMode();    // GUARD 2
+    safeModeService.assertNotInSafeMode();     // GUARD 2
     if (!reason || reason.trim().length === 0) throw new Error(ERR.ITEM_ACTION_REASON_REQUIRED);
     const deviceId = await getDeviceId();
 
@@ -794,6 +796,9 @@ export const itemService = {
         eventType: 'HUID_CORRECTED',
         severity: 'INFO',
         performedBy: deviceId,
+        reason,
+        oldValue: oldHuid,
+        newValue: huid,
         timestamp: now()
       });
       
@@ -810,7 +815,7 @@ export const itemService = {
   // --- correctItemEntryDate (Step 6.7.8 / GAP-P2-DATE-SKU-EDIT-1 v1.79) ---
   async correctItemEntryDate(itemId: string, newEntryDate: string, firmId: string): Promise<Item> {
     await leaseService.assertNoActiveLease(); // GUARD 1
-    safeModeService.assertNotInSafeMode();    // GUARD 2
+    safeModeService.assertNotInSafeMode();     // GUARD 2
     
     const todayIso = now().split('T')[0];
     const deviceId = await getDeviceId();
@@ -867,6 +872,9 @@ export const itemService = {
         eventType: 'SKU_CHANGED',
         severity: 'INFO',
         performedBy: deviceId,
+        oldValue: oldSku,
+        newValue: newSku,
+        reason: 'ENTRY_DATE_CORRECTION',
         timestamp: now(),
       });
       
@@ -891,7 +899,7 @@ export const itemService = {
   // RETIRED v1.88: discardDraftItem (superseded by deleteItem)
   async discardDraftItem(itemId: string, firmId: string): Promise<void> {
     await leaseService.assertNoActiveLease(); // GUARD 1
-    safeModeService.assertNotInSafeMode();    // GUARD 2
+    safeModeService.assertNotInSafeMode();     // GUARD 2
     const deviceId = await getDeviceId();
     
     return db.transaction((tx) => {

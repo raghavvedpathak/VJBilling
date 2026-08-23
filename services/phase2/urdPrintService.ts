@@ -1,7 +1,6 @@
-// services/phase2/urdPrintService.ts — Phase 2 v2.11 Canonical Service
+// services/phase2/urdPrintService.ts — Phase 2 v2.15 Canonical Service
 
 import * as FileSystem from 'expo-file-system/legacy';
-import { db } from '@/db/client';
 import { urdPurchaseRepository } from '@/repositories/phase2/urdPurchaseRepository';
 import { firmRepository } from '@/repositories/phase1/firmRepository';
 import { bisLogoRepository } from '@/repositories/phase1/bisLogoRepository';
@@ -38,13 +37,13 @@ export const urdPrintService = {
    * Generates standard A5 URD Purchase Bill HTML (Template 1)
    */
   async generateURDPurchaseBill(urdId: string, firmId: string): Promise<string> {
-    const urd = await urdPurchaseRepository.getById(urdId);
+    const urd = await urdPurchaseRepository.getById(firmId, urdId);
     if (!urd || urd.firmId !== firmId) throw new Error(ERR.URD_NOT_FOUND_OR_WRONG_FIRM);
 
     const firm = await firmRepository.getById(firmId);
     if (!firm) throw new Error(ERR.FIRM_NOT_FOUND);
 
-    const activeBisLogo = bisLogoRepository.findActiveByFirmId(firmId);
+    const activeBisLogo = await bisLogoRepository.findActiveByFirmId(firmId);
     const bisLogoUri = await getBase64ImageUri(activeBisLogo?.fileRef);
     const firmLogoUri = await getBase64ImageUri(firm.firmLogoRef);
 
@@ -116,13 +115,13 @@ export const urdPrintService = {
    * Generates Customer Declaration / Affidavit HTML (Template 1 Marathi or Template 2 English)
    */
   async generateURDCustomerDeclaration(urdId: string, firmId: string, templateId: 'template1' | 'template2' = 'template1'): Promise<string> {
-    const urd = await urdPurchaseRepository.getById(urdId);
+    const urd = await urdPurchaseRepository.getById(firmId, urdId);
     if (!urd || urd.firmId !== firmId) throw new Error(ERR.URD_NOT_FOUND_OR_WRONG_FIRM);
 
     const firm = await firmRepository.getById(firmId);
     if (!firm) throw new Error(ERR.FIRM_NOT_FOUND);
 
-    const activeBisLogo = bisLogoRepository.findActiveByFirmId(firmId);
+    const activeBisLogo = await bisLogoRepository.findActiveByFirmId(firmId);
     const bisLogoUri = await getBase64ImageUri(activeBisLogo?.fileRef);
     const firmLogoUri = await getBase64ImageUri(firm.firmLogoRef);
 
@@ -192,8 +191,8 @@ export const urdPrintService = {
       });
     }
 
-    let idProofType = urd.customerAadhaar ? 'आधार कार्ड' : (urd.customerPAN ? 'पॅन कार्ड' : 'आधार / पॅन कार्ड');
-    let idProofNumber = urd.customerAadhaar || urd.customerPAN || '-';
+    const idProofType = urd.customerAadhaar ? 'आधार कार्ड' : (urd.customerPAN ? 'पॅन कार्ड' : 'आधार / पॅन कार्ड');
+    const idProofNumber = urd.customerAadhaar || urd.customerPAN || '-';
 
     return renderURDCustomerDeclaration({
       urd,
