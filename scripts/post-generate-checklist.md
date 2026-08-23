@@ -71,9 +71,9 @@ This DB-level constraint prevents two ACTIVE FYs per firm — it complements ver
 
 ---
 
-## ACTION 4 — All v7.7 Indexes (IDX-* additions)
+## ACTION 4 — All v7.39 Indexes (IDX-* additions — 12 total)
 
-Drizzle does NOT auto-generate index DDL. Manually add ALL 14 `CREATE INDEX IF NOT EXISTS`
+Drizzle does NOT auto-generate index DDL. Manually add ALL 12 `CREATE INDEX IF NOT EXISTS`
 statements below to the generated SQL file (after all CREATE TABLE statements).
 
 ```sql
@@ -88,8 +88,8 @@ CREATE INDEX IF NOT EXISTS idx_audit_logs_event_type ON audit_logs(event_type, f
 CREATE INDEX IF NOT EXISTS idx_financial_years_firm_status ON financial_years(firm_id, status);
 CREATE INDEX IF NOT EXISTS idx_financial_years_firm_dates ON financial_years(firm_id, start_date, end_date);
 
--- firms (firm manager + countActiveFirms + getActiveFirmId)
-CREATE INDEX IF NOT EXISTS idx_firms_archived ON firms(is_archived, firm_id);
+-- firms (firm manager + countActiveFirms + getActiveFirmId — v7.39 FIX-V739-1)
+CREATE INDEX IF NOT EXISTS idx_firms_archived ON firms(is_archived);
 
 -- bis_logos (findActiveByFirmId — called inside updateFirm)
 CREATE INDEX IF NOT EXISTS idx_bis_logos_firm_active ON bis_logos(firm_id, is_archived);
@@ -100,13 +100,11 @@ CREATE INDEX IF NOT EXISTS idx_tax_groups_firm_active ON tax_groups(firm_id, is_
 CREATE INDEX IF NOT EXISTS idx_tax_group_components_group ON tax_group_components(tax_group_id);
 CREATE INDEX IF NOT EXISTS idx_tax_group_components_rate ON tax_group_components(tax_rate_id);
 
--- dormant sync/archive tables (Future Sync Phase + Phase 2 FY close)
-CREATE INDEX IF NOT EXISTS idx_sync_log_firm_date ON sync_log(firm_id, created_at DESC);
-CREATE INDEX IF NOT EXISTS idx_sync_devices_firm ON sync_devices(firm_id, is_enabled);
+-- dormant archive table (Phase 2 FY close — v7.39 FIX-V739-2/3)
 CREATE INDEX IF NOT EXISTS idx_audit_archive_firm_fy ON audit_archive_index(firm_id, fy_id);
 ```
 
-- [ ] All 14 indexes present. Verified by: `npx ts-node scripts/verify-migration-zero.ts`
+- [ ] All 12 indexes present. Verified by: `npx ts-node scripts/verify-migration-zero.ts`
 
 ---
 

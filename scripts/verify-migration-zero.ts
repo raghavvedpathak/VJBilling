@@ -2,6 +2,7 @@
 // v7.8 FIX-V78-1 — CI validation script for migration zero SQL
 // v7.9 FIX-V79-2 — Canonical implementation
 // v7.12 FIX-V712-3 / v7.22 FIX-V722-3/4 — Table & seed validation additions
+// v7.39 FIX-V739-1/2/3 — Canonical 12-index audit alignment
 //
 // Run: npx ts-node scripts/verify-migration-zero.ts
 // Add to CI pipeline — exits non-zero on any failure.
@@ -12,16 +13,26 @@ import * as glob from 'glob';
 import { fileURLToPath } from 'url';
 
 const getMigrationsDir = (): string => {
+  const dirs = [
+    path.join(process.cwd(), 'drizzle', 'migrations'),
+    path.join(process.cwd(), 'drizzle'),
+  ];
   try {
-    return path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'drizzle');
-  } catch {
-    return path.join(process.cwd(), 'drizzle');
+    const fromMeta = path.dirname(fileURLToPath(import.meta.url));
+    dirs.unshift(path.join(fromMeta, '..', 'drizzle', 'migrations'));
+    dirs.unshift(path.join(fromMeta, '..', 'drizzle'));
+  } catch {}
+  for (const d of dirs) {
+    if (fs.existsSync(d) && glob.sync('**/0000_*.sql', { cwd: d }).length > 0) {
+      return d;
+    }
   }
+  return path.join(process.cwd(), 'drizzle');
 };
 
 const MIGRATIONS_DIR = getMigrationsDir();
 
-// Required indexes — 14 total
+// Required indexes — 12 Canonical Indexes (v7.39 Alignment)
 const REQUIRED_INDEXES: string[] = [
   'idx_writer_leases_expires',
   'idx_audit_logs_firm_date',
@@ -34,8 +45,6 @@ const REQUIRED_INDEXES: string[] = [
   'idx_tax_groups_firm_active',
   'idx_tax_group_components_group',
   'idx_tax_group_components_rate',
-  'idx_sync_log_firm_date',
-  'idx_sync_devices_firm',
   'idx_audit_archive_firm_fy',
 ];
 

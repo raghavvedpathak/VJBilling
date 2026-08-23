@@ -1,10 +1,9 @@
 // app/settings/backup-restore.tsx — Phase 1 & Phase 2 Dedicated Backup & Restore Screen
 
 import React, { useState, useEffect } from 'react';
-import { View, Text, TouchableOpacity, ScrollView, Alert, ActivityIndicator, Modal } from 'react-native';
+import { View, Text, ScrollView, Alert, ActivityIndicator, Modal, TouchableOpacity } from 'react-native';
 import { useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
-import * as FileSystem from 'expo-file-system/legacy';
 import { StorageAccessFramework } from 'expo-file-system/legacy';
 import { TwoToneWrapper } from '@/components/TwoToneWrapper';
 import { useSession } from '@/hooks/useSession';
@@ -23,9 +22,6 @@ import {
   ShieldCheck,
   Lock,
   X,
-  CheckCircle2,
-  AlertTriangle,
-  FileSpreadsheet,
   Info
 } from 'lucide-react-native';
 
@@ -49,7 +45,7 @@ export default function BackupRestoreScreen() {
   // Manual Backup Password Modal State
   const [showBackupModal, setShowBackupModal] = useState(false);
   const [backupPassword, setBackupPassword] = useState('');
-  const [lastBackupInfo, setLastBackupInfo] = useState<{ fileName: string; sizeKb: string; time: string } | null>(null);
+  const [lastBackupInfo, setLastBackupInfo] = useState<{ fileName: string; sizeKb: string; time: string; path: string } | null>(null);
 
   useEffect(() => {
     // Check SAF Public Backup Directory URI
@@ -62,15 +58,28 @@ export default function BackupRestoreScreen() {
   const handleGrantPublicAccess = async () => {
     try {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-      const permissions = await StorageAccessFramework.requestDirectoryPermissionsAsync();
-      if (permissions.granted) {
-        storage.set('vjbilling_public_backup_dir_uri', permissions.directoryUri);
-        setPublicDirUri(permissions.directoryUri);
-        Alert.alert(
-          "Public Backup Access Granted",
-          "Backups will now automatically be mirrored to your public Documents folder under 'VJ Billing/backups/'."
-        );
-      }
+
+      Alert.alert(
+        "Select Public Folder",
+        "In the next screen, open your 'Documents' folder and tap 'USE THIS FOLDER' at the bottom to enable public backup mirroring.",
+        [
+          { text: "Cancel", style: "cancel" },
+          {
+            text: "Open Folder Picker",
+            onPress: async () => {
+              const permissions = await StorageAccessFramework.requestDirectoryPermissionsAsync();
+              if (permissions.granted) {
+                storage.set('vjbilling_public_backup_dir_uri', permissions.directoryUri);
+                setPublicDirUri(permissions.directoryUri);
+                Alert.alert(
+                  "Public Backup Access Granted",
+                  "Backups will now automatically be mirrored to your public Documents folder under 'VJ Billing/backups/'."
+                );
+              }
+            },
+          },
+        ]
+      );
     } catch (e: any) {
       Alert.alert("Permission Error", e?.message || "Could not grant public storage access.");
     }
@@ -93,15 +102,16 @@ export default function BackupRestoreScreen() {
       setLastBackupInfo({
         fileName: result.fileName,
         sizeKb: `${sizeKb} KB`,
-        time: new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })
+        time: new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }),
+        path: result.filePath,
       });
 
-      let successMsg = `Backup File: ${result.fileName}\nSize: ${sizeKb} KB\nSaved at: App Internal Storage`;
+      let successMsg = `File: ${result.fileName}\nSize: ${sizeKb} KB\nLocation: ${result.filePath}`;
 
       if (result.mirroredToPublicStorage) {
-        successMsg += '\n\n✓ Also copied to Documents/VJ Billing/backups/';
+        successMsg += '\n\n✓ Also copied to: Documents/VJ Billing/backups/';
       } else {
-        successMsg += '\n\nTip: Tap "Grant Public Backup Access" to also mirror backups to your Documents folder.';
+        successMsg += '\n\n⚠️ Note: Saved in internal app sandbox storage (not directly visible in standard file managers).\n\nTip: Tap "Grant Public Backup Access" to also mirror backups to your Documents folder.';
       }
 
       Alert.alert("Backup Created Successfully", successMsg);
@@ -117,7 +127,7 @@ export default function BackupRestoreScreen() {
     try {
       try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch (e) {}
       const result = await restoreService.inspectBackupFile();
-      if (!result) return; // User canceled picker
+      if (!result) return;
 
       setPreviewBackup(result.backup);
       setPreviewFileContent(result.fileContent);
@@ -211,7 +221,7 @@ export default function BackupRestoreScreen() {
               <Text className="text-vj-text/70 text-xs leading-4">
                 {publicDirUri
                   ? "✓ Backups automatically copy to: Documents/VJ Billing/backups/."
-                  : "Allow VJ Billing to automatically copy your backups to your phone's public Documents folder so they are accessible even if the app is reinstalled."}
+                  : "Allow VJ Billing to automatically copy your backups to your phone's public Documents folder so they are accessible in your file manager."}
               </Text>
             </View>
           </View>
@@ -242,15 +252,15 @@ export default function BackupRestoreScreen() {
           </View>
 
           {lastBackupInfo && (
-            <View className="bg-vj-text/5 p-3 rounded-2xl border border-vj-text/10 mb-4 flex-row items-center justify-between">
-              <View>
+            <View className="bg-vj-text/5 p-3 rounded-2xl border border-vj-text/10 mb-4">
+              <View className="flex-row items-center justify-between mb-1">
                 <Text className="text-vj-text font-bold text-xs">Last Created Backup</Text>
-                <Text className="text-vj-text/60 text-[11px] mt-0.5">{lastBackupInfo.fileName}</Text>
-              </View>
-              <View className="items-end">
                 <Text className="text-emerald-700 font-bold text-xs">{lastBackupInfo.sizeKb}</Text>
-                <Text className="text-vj-text/50 text-[10px]">{lastBackupInfo.time}</Text>
               </View>
+              <Text className="text-vj-text/70 text-[11px] font-mono">{lastBackupInfo.fileName}</Text>
+              <Text className="text-vj-text/40 text-[10px] mt-1 font-mono" numberOfLines={1}>
+                {lastBackupInfo.path}
+              </Text>
             </View>
           )}
 

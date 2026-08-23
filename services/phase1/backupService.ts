@@ -1,11 +1,10 @@
 // services/phase1/backupService.ts
-// Phase 1 v7.38 Canonical Implementation — Native Accelerated (v7.38)
+// Phase 1 (v7.39) Canonical Implementation — Native Accelerated
 // Fast Native PBKDF2 + AES-256-GCM via react-native-quick-crypto (<40ms)
-// Full backward/forward compatibility with WebCrypto AES-GCM envelopes
+// Silent Direct Device Storage (Internal documentDirectory + SAF Documents Mirror)
 
 import * as FileSystem from 'expo-file-system/legacy';
 import { StorageAccessFramework } from 'expo-file-system/legacy';
-import * as Sharing from 'expo-sharing';
 import * as Haptics from 'expo-haptics';
 import quickCrypto, { Buffer } from 'react-native-quick-crypto';
 import { storage } from '@/utils/storage';
@@ -209,7 +208,7 @@ export async function createBackup(password?: string): Promise<BackupResult> {
     const fileName = `vjbilling_${timestamp}.vjb`;
     const filePath = BACKUP_DIR + fileName;
 
-    // 3. Primary write to app document directory
+    // 3. Primary write to app internal document directory (Auto-creates directory if missing)
     await FileSystem.makeDirectoryAsync(BACKUP_DIR, { intermediates: true });
     await FileSystem.writeAsStringAsync(filePath, encryptedBlob, {
       encoding: FileSystem.EncodingType.UTF8,
@@ -220,7 +219,7 @@ export async function createBackup(password?: string): Promise<BackupResult> {
       ? (fileInfo as any).size ?? 0
       : encryptedBlob.length;
 
-    // 4. v7.33 FIX-V733-4 / FIX-V733-5: Best-effort public storage mirror (Android SAF)
+    // 4. v7.33 FIX-V733-4 / FIX-V733-5: Best-effort public storage mirror (Android SAF Documents/VJ Billing/backups/)
     let mirroredToPublicStorage = false;
     try {
       const publicDirUri = storage.getString('vjbilling_public_backup_dir_uri');
@@ -242,24 +241,11 @@ export async function createBackup(password?: string): Promise<BackupResult> {
       mirroredToPublicStorage = false;
     }
 
-    // 5. Trigger sharing sheet if available
-    try {
-      const canShare = await Sharing.isAvailableAsync();
-      if (canShare) {
-        await Sharing.shareAsync(filePath, {
-          mimeType: 'application/octet-stream',
-          dialogTitle: 'Save VJ Billing Backup',
-        });
-      }
-    } catch (shareErr) {
-      console.warn('[Backup] Sharing sheet skipped/failed:', shareErr);
-    }
-
     try {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch {}
 
-    // 6. G41: Audit write OUTSIDE transaction (Call Site 3)
+    // 5. G41: Audit write OUTSIDE transaction (Call Site 3)
     await auditRepository.log(null, {
       eventType: 'BACKUP_CREATED',
       firmId: null,

@@ -1,4 +1,4 @@
-// app/welcome.tsx — Phase 1 & Phase 2 Modern Welcome & Store Hub
+// app/welcome.tsx — Phase 1 (v7.39) & Phase 2 Modern Welcome & Store Hub
 
 import React, { useState, useCallback } from 'react';
 import { View, Text, ActivityIndicator, Alert, Image, ScrollView, TouchableOpacity } from 'react-native';
@@ -23,8 +23,6 @@ import {
   ArrowRight,
   CheckCircle2,
   Store,
-  Sparkles,
-  Lock,
   Database
 } from 'lucide-react-native';
 
@@ -62,13 +60,33 @@ export default function WelcomeScreen() {
           }
 
           const fsAny = FileSystem as any;
-          const baseDir = fsAny.documentDirectory ?? fsAny.cacheDirectory ?? '';
-          if (baseDir) {
-            const files = await FileSystem.readDirectoryAsync(baseDir);
-            const vjbFiles = files.filter((f) => f.endsWith('.vjb'));
-            if (isMounted) {
-              setHasBackup(vjbFiles.length > 0);
+          const docDir = fsAny.documentDirectory ?? fsAny.cacheDirectory ?? '';
+          const backupDir = docDir + 'backups/';
+          let vjbExists = false;
+
+          // 1. Scan internal backups/ directory
+          try {
+            const backupDirInfo = await FileSystem.getInfoAsync(backupDir);
+            if (backupDirInfo.exists) {
+              const backupFiles = await FileSystem.readDirectoryAsync(backupDir);
+              if (backupFiles.some((f: string) => f.endsWith('.vjb'))) {
+                vjbExists = true;
+              }
             }
+          } catch {}
+
+          // 2. Scan root directory as fallback
+          if (!vjbExists && docDir) {
+            try {
+              const rootFiles = await FileSystem.readDirectoryAsync(docDir);
+              if (rootFiles.some((f: string) => f.endsWith('.vjb'))) {
+                vjbExists = true;
+              }
+            } catch {}
+          }
+
+          if (isMounted) {
+            setHasBackup(vjbExists);
           }
         } catch (error) {
           console.error('[Welcome] Focus initialization error:', error);

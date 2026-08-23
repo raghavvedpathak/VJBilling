@@ -1,4 +1,4 @@
-// app/setup.tsx — Phase 2 v2.11 Canonical Setup Screen
+// app/setup.tsx — Phase 1 (v7.39) & Phase 2 Canonical Setup Screen
 
 import React, { useEffect, useState, useCallback } from 'react';
 import { View, Text, TouchableOpacity, ActivityIndicator, Alert, ScrollView } from 'react-native';
@@ -38,14 +38,31 @@ export default function SetupScreen() {
       const checkBackups = async () => {
         try {
           const fsAny = FileSystem as any;
-          const dir = fsAny.documentDirectory ?? fsAny.cacheDirectory ?? '';
-          if (!dir) {
-            if (isMounted) setHasBackup(false);
-            return;
+          const docDir = fsAny.documentDirectory ?? fsAny.cacheDirectory ?? '';
+          const backupDir = docDir + 'backups/';
+          let vjbExists = false;
+
+          // 1. Scan internal backups/ directory
+          try {
+            const backupDirInfo = await FileSystem.getInfoAsync(backupDir);
+            if (backupDirInfo.exists) {
+              const backupFiles = await FileSystem.readDirectoryAsync(backupDir);
+              if (backupFiles.some((file: string) => file.endsWith('.vjb'))) {
+                vjbExists = true;
+              }
+            }
+          } catch {}
+
+          // 2. Scan root directory as fallback
+          if (!vjbExists && docDir) {
+            try {
+              const rootFiles = await FileSystem.readDirectoryAsync(docDir);
+              if (rootFiles.some((file: string) => file.endsWith('.vjb'))) {
+                vjbExists = true;
+              }
+            } catch {}
           }
-          
-          const files = await FileSystem.readDirectoryAsync(dir);
-          const vjbExists = files.some((file: string) => file.endsWith('.vjb'));
+
           if (isMounted) setHasBackup(vjbExists);
         } catch (e) {
           console.error("Failed to scan for backups:", e);

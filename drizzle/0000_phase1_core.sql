@@ -195,13 +195,13 @@ END;
 
 --> statement-breakpoint
 -- =============================================================================
--- CONSTITUTIONAL INDEXES (MIGRATION ZERO CHECKLIST)
+-- CONSTITUTIONAL INDEXES (MIGRATION ZERO CHECKLIST — v7.39)
 -- =============================================================================
 
 -- 1. Enforce single active financial year per firm
 CREATE UNIQUE INDEX `uq_one_active_fy_per_firm` ON `financial_years` (`firm_id`) WHERE status = 'ACTIVE';
 --> statement-breakpoint
--- 2. Performance & Lookups
+-- 2. Performance & Lookups (12 Canonical Indexes)
 CREATE INDEX IF NOT EXISTS idx_writer_leases_expires ON writer_leases(expires_at);
 --> statement-breakpoint
 CREATE INDEX IF NOT EXISTS idx_audit_logs_firm_date ON audit_logs(firm_id, created_at DESC);
@@ -212,7 +212,7 @@ CREATE INDEX IF NOT EXISTS idx_financial_years_firm_status ON financial_years(fi
 --> statement-breakpoint
 CREATE INDEX IF NOT EXISTS idx_financial_years_firm_dates ON financial_years(firm_id, start_date, end_date);
 --> statement-breakpoint
-CREATE INDEX IF NOT EXISTS idx_firms_archived ON firms(is_archived, id);
+CREATE INDEX IF NOT EXISTS idx_firms_archived ON firms(is_archived);
 --> statement-breakpoint
 CREATE INDEX IF NOT EXISTS idx_bis_logos_firm_active ON bis_logos(firm_id, is_archived);
 --> statement-breakpoint
@@ -223,10 +223,6 @@ CREATE INDEX IF NOT EXISTS idx_tax_groups_firm_active ON tax_groups(firm_id, is_
 CREATE INDEX IF NOT EXISTS idx_tax_group_components_group ON tax_group_components(tax_group_id);
 --> statement-breakpoint
 CREATE INDEX IF NOT EXISTS idx_tax_group_components_rate ON tax_group_components(tax_rate_id);
---> statement-breakpoint
-CREATE INDEX IF NOT EXISTS idx_sync_log_firm_date ON sync_log(device_id, occurred_at DESC);
---> statement-breakpoint
-CREATE INDEX IF NOT EXISTS idx_sync_devices_firm ON sync_devices(device_id, is_enabled);
 --> statement-breakpoint
 CREATE INDEX IF NOT EXISTS idx_audit_archive_firm_fy ON audit_archive_index(firm_id, fy_id);
 --> statement-breakpoint

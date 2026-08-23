@@ -12,11 +12,11 @@ import { now } from '@/utils/now';
 export interface ItemRepository {
   // --- getById (FIX-GETBYID-TX-1 v1.56 & FIX-P2-SYNC-CONTRACT-1 v1.81) ---
   getById(id: string): Promise<Item | null>;
+  getById(firmId: string, id: string): Promise<Item | null>;
   getById(tx: DrizzleTransaction, id: string): Item | null;
   getById(tx: DrizzleTransaction, firmId: string, id: string): Item | null;
 
   // --- findBySku ---
-  findBySku(sku: string): Promise<Item | null>;
   findBySku(firmId: string, sku: string): Promise<Item | null>;
   findBySku(tx: DrizzleTransaction, firmId: string, sku: string): Item | null;
 
@@ -91,11 +91,28 @@ export const itemRepository: ItemRepository = {
     third?: string
   ): any {
     if (typeof first === 'string') {
-      return db.select().from(items).where(eq(items.id, first)).limit(1).then(r => r[0] || null);
+      if (second !== undefined) {
+        return db
+          .select()
+          .from(items)
+          .where(and(eq(items.id, second), eq(items.firmId, first)))
+          .limit(1)
+          .then(r => r[0] || null);
+      }
+      return db
+        .select()
+        .from(items)
+        .where(eq(items.id, first))
+        .limit(1)
+        .then(r => r[0] || null);
     }
     const tx = first as DrizzleTransaction;
     if (third !== undefined) {
-      const res = tx.select().from(items).where(and(eq(items.id, third), eq(items.firmId, second!))).get();
+      const res = tx
+        .select()
+        .from(items)
+        .where(and(eq(items.id, third), eq(items.firmId, second!)))
+        .get();
       return (res as Item) || null;
     }
     const res = tx.select().from(items).where(eq(items.id, second!)).get();
@@ -104,19 +121,27 @@ export const itemRepository: ItemRepository = {
 
   findBySku(
     first: DrizzleTransaction | string,
-    second?: string,
+    second: string,
     third?: string
   ): any {
     if (typeof first === 'string') {
-      if (second !== undefined) {
-        return db.select().from(items).where(and(eq(items.sku, second), eq(items.firmId, first))).limit(1).then(r => r[0] || null);
-      }
-      return db.select().from(items).where(eq(items.sku, first)).limit(1).then(r => r[0] || null);
+      const firmId = first;
+      const sku = second;
+      return db
+        .select()
+        .from(items)
+        .where(and(eq(items.sku, sku), eq(items.firmId, firmId)))
+        .limit(1)
+        .then(r => r[0] || null);
     }
     const tx = first as DrizzleTransaction;
-    const firmId = second!;
+    const firmId = second;
     const sku = third!;
-    const res = tx.select().from(items).where(and(eq(items.sku, sku), eq(items.firmId, firmId))).get();
+    const res = tx
+      .select()
+      .from(items)
+      .where(and(eq(items.sku, sku), eq(items.firmId, firmId)))
+      .get();
     return (res as Item) || null;
   },
 

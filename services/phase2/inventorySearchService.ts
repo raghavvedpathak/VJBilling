@@ -20,5 +20,12 @@ export const inventorySearchService = {
     if (!firmId) throw new Error(ERR.FIRM_ID_REQUIRED);
     if (!query || query.trim().length < 2) return [];
     return designRepository.searchStock(firmId, query.trim());
+  },
+
+  // --- getItemBySku (Exact Single Item SKU / Barcode Lookup) ---
+  async getItemBySku(firmId: string, sku: string) {
+    if (!firmId) throw new Error(ERR.FIRM_ID_REQUIRED);
+    if (!sku || !sku.trim()) return null;
+    return itemRepository.findBySku(firmId, sku.trim());
   }
 };

@@ -910,5 +910,15 @@ export const itemService = {
         payload: { sku: item.sku, designId: item.designId },
       });
     });
+  },
+
+  // --- getItemBySku (Canonical Firm-Scoped Lookup) ---
+  async getItemBySku(firmId: string, sku: string): Promise<Item | null> {
+    return itemRepository.findBySku(firmId, sku);
+  },
+
+  // --- getItemById (Canonical Firm-Scoped Lookup) ---
+  async getItemById(firmId: string, itemId: string): Promise<Item | null> {
+    return itemRepository.getById(firmId, itemId);
   }
 };
