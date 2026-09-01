@@ -210,11 +210,13 @@ CREATE TABLE `urd_purchases` (
 -- CONSTITUTIONAL TRIGGERS & INDEXES (PHASE 2 INVENTORY)
 -- =============================================================================
 
-CREATE TRIGGER prevent_phantom_stock_id_update BEFORE UPDATE OF phantom_stock_id ON items
-FOR EACH ROW
-WHEN OLD.phantom_stock_id IS NOT NULL AND OLD.phantom_stock_id != NEW.phantom_stock_id
+-- FIX-AUDIT-TRIGGER-1: spec-exact trigger text (GAP-C4) — was missing
+-- IF NOT EXISTS (non-idempotent on re-run) and was scoped to
+-- "different value only" instead of true write-once-ever semantics.
+CREATE TRIGGER IF NOT EXISTS prevent_phantom_stock_id_update BEFORE UPDATE OF phantom_stock_id ON items
+WHEN OLD.phantom_stock_id IS NOT NULL
 BEGIN
-  SELECT RAISE(ABORT, 'PHANTOM_STOCK_IMMUTABLE: phantom_stock_id cannot be changed once reconciled');
+  SELECT RAISE(ABORT, 'PHANTOM_STOCK_ID_IMMUTABLE: cannot change once set');
 END;
 --> statement-breakpoint
 CREATE INDEX IF NOT EXISTS idx_items_firm_status ON items(firm_id, status);
