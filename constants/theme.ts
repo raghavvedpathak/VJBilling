@@ -13,21 +13,21 @@ export const THEME_PRESETS = {
     glassHeaderRim: 'rgba(255, 255, 255, 0.14)',
     glassJunctionRim: 'rgba(255, 255, 255, 0.85)',
   },
-  lotus_silk: { // Kashmir Lotus Silk & Soft Rose Gold
-    id: 'lotus_silk',
-    label: 'Kashmir Lotus Silk & Soft Rose Gold',
-    vjHeaderBg: '#4E121E', // Richer Deep Kashmir Crimson Header
-    vjText: '#36141D',
-    vjBg: '#FAF0F2',
-    vjAccent: '#C97A63',
-    vjAccentLight: '#FBECE9',
-    vjAccentDark: '#A1523E',
-    glassBorderDark: 'rgba(201, 122, 99, 0.2)',
-    border: 'rgba(201, 122, 99, 0.16)',
+  mayura_teal: { // Option 2: Mayura Teal & Temple Gold
+    id: 'mayura_teal',
+    label: 'Mayura Teal & Temple Gold',
+    vjHeaderBg: '#0C343D', // Deep Peacock Mayura Teal Silk Header
+    vjText: '#082026',
+    vjBg: '#F2F9FA',
+    vjAccent: '#D4AF37', // Temple Gold Accent
+    vjAccentLight: '#E0F2F5',
+    vjAccentDark: '#115E59',
+    glassBorderDark: 'rgba(12, 52, 61, 0.25)',
+    border: 'rgba(12, 52, 61, 0.18)',
     glassHeaderRim: 'rgba(255, 255, 255, 0.14)',
     glassJunctionRim: 'rgba(255, 255, 255, 0.85)',
   },
-  sandstone_ochre: { // Reth Sandstone Silk & Warm Ochre
+  sandstone_ochre: { // Option 3: Reth Sandstone Silk & Warm Ochre
     id: 'sandstone_ochre',
     label: 'Reth Sandstone Silk & Warm Ochre',
     vjHeaderBg: '#481B00', // Richer Deep Sandstone Ochre Header
@@ -38,6 +38,20 @@ export const THEME_PRESETS = {
     vjAccentDark: '#AC5A16',
     glassBorderDark: 'rgba(217, 131, 56, 0.2)',
     border: 'rgba(217, 131, 56, 0.16)',
+    glassHeaderRim: 'rgba(255, 255, 255, 0.14)',
+    glassJunctionRim: 'rgba(255, 255, 255, 0.85)',
+  },
+  dalimbi: { // Option 4: Royal Dalimbi Silk & Zari Gold
+    id: 'dalimbi',
+    label: 'Royal Dalimbi Silk & Zari Gold',
+    vjHeaderBg: '#581124', // Deep Regal Dalimbi Crimson Silk Header
+    vjText: '#380C17',
+    vjBg: '#FDF4F6',
+    vjAccent: '#D4AF37', // Shimmering Zari Gold Accent
+    vjAccentLight: '#FCE8ED',
+    vjAccentDark: '#871932',
+    glassBorderDark: 'rgba(88, 17, 36, 0.25)',
+    border: 'rgba(88, 17, 36, 0.18)',
     glassHeaderRim: 'rgba(255, 255, 255, 0.14)',
     glassJunctionRim: 'rgba(255, 255, 255, 0.85)',
   },

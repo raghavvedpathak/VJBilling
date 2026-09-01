@@ -98,8 +98,10 @@ export default function SettingsScreen() {
   const getThemeLabel = (t: string) => {
     const currentTheme = t && t !== 'system' ? t : activeStoreTheme;
     switch(currentTheme) {
-      case 'lotus_silk': return 'Kashmir Lotus Silk & Rose Gold';
+      case 'mayura_teal': return 'Mayura Teal & Temple Gold';
       case 'sandstone_ochre': return 'Reth Sandstone Silk & Ochre';
+      case 'dalimbi': return 'Royal Dalimbi Silk & Zari Gold';
+      case 'saffron':
       default: return 'Royal Kesari Gold (Default)';
     }
   };

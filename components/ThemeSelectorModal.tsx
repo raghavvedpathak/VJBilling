@@ -40,8 +40,9 @@ export function ThemeSelectorModal({
           <View className="mb-2">
             {[
               { id: 'saffron', label: 'Royal Kesari Gold (Default)' },
-              { id: 'lotus_silk', label: 'Kashmir Lotus Silk & Rose Gold' },
+              { id: 'mayura_teal', label: 'Mayura Teal & Temple Gold' },
               { id: 'sandstone_ochre', label: 'Reth Sandstone Silk & Ochre' },
+              { id: 'dalimbi', label: 'Royal Dalimbi Silk & Zari Gold' },
             ].map((t) => {
               const preset = THEME_PRESETS[t.id as keyof typeof THEME_PRESETS] || THEME_PRESETS.saffron;
               const isApplied = activeTheme === t.id || activeStoreTheme === t.id;
