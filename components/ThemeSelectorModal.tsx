@@ -29,7 +29,7 @@ export function ThemeSelectorModal({
       onRequestClose={onClose}
     >
       <View className="flex-1 bg-black/50 justify-center items-center px-6">
-        <View className="w-full bg-vj-bg rounded-3xl p-6 shadow-xl border border-white/50">
+        <View className="w-full bg-vj-bg rounded-3xl p-6 border border-white/50">
           <View className="flex-row justify-between items-center mb-6">
             <Text className="text-vj-text font-bold text-xl">App Theme</Text>
             <TouchableOpacity onPress={onClose} className="p-1 bg-black/5 rounded-full">
@@ -56,15 +56,15 @@ export function ThemeSelectorModal({
                   <View className="flex-row items-center gap-3 flex-1 mr-2">
                     <View className="flex-row items-center p-1 rounded-full bg-black/10 border border-black/10 gap-1">
                       <View
-                        className="w-4 h-4 rounded-full border border-white/40 shadow-sm"
+                        className="w-4 h-4 rounded-full border border-white/40"
                         style={{ backgroundColor: preset.vjText }}
                       />
                       <View
-                        className="w-4 h-4 rounded-full border border-black/20 shadow-sm"
+                        className="w-4 h-4 rounded-full border border-black/20"
                         style={{ backgroundColor: preset.vjBg }}
                       />
                       <View
-                        className="w-4 h-4 rounded-full border border-white/40 shadow-sm"
+                        className="w-4 h-4 rounded-full border border-white/40"
                         style={{ backgroundColor: preset.vjAccent }}
                       />
                     </View>

@@ -36,9 +36,9 @@ export function UnsavedChangesModal({
       onRequestClose={handleStay}
     >
       <View className="flex-1 bg-black/60 justify-center items-center px-6">
-        <View className="w-full max-w-sm bg-[#FFFDF9] rounded-3xl p-6 shadow-2xl border-2 border-amber-500/30 items-center">
+        <View className="w-full max-w-sm bg-[#FFFDF9] rounded-3xl p-6 border-2 border-amber-500/30 items-center">
           {/* Header Icon */}
-          <View className="h-16 w-16 rounded-3xl bg-amber-500/15 border-2 border-amber-500/30 items-center justify-center mb-4 shadow-xs">
+          <View className="h-16 w-16 rounded-3xl bg-amber-500/15 border-2 border-amber-500/30 items-center justify-center mb-4">
             <AlertTriangle size={32} color="#D97706" />
           </View>
 

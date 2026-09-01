@@ -6,7 +6,7 @@ import * as Crypto from 'expo-crypto';
 import { now } from '../utils/now';
 
 // FIX-HSN-MASTER-1 (v1.46): Seed script for Phase 2 HSN Master table.
-// Minimum Seed Data — Chapter 71 codes for Indian jewellery.
+// Minimum Seed Data — Chapter 71 codes for Bhartiya jewellery.
 export async function seedHsnCodes(): Promise<void> {
   const codes = [
     { code: '7113', description: 'Jewellery and parts of precious metal' },

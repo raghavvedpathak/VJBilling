@@ -4,6 +4,7 @@ import { BlurView } from 'expo-blur';
 import * as Haptics from 'expo-haptics';
 import { ChevronDown, ChevronRight } from 'lucide-react-native';
 import { COLORS } from '../../constants/theme';
+import { getCurrencySymbol } from '../../utils/currency';
 
 // ============================================================================
 // 1. GLASS CARD
@@ -25,7 +26,11 @@ export function GlassCard({ children, style, intensity = 30, ...props }: GlassCa
   const overflowStyle = flatStyle.overflow !== undefined ? flatStyle.overflow : 'hidden';
 
   return (
-    <View className="rounded-3xl mb-4 bg-white/60 border border-white/40" style={[{ overflow: overflowStyle }, flatStyle]} {...props}>
+    <View
+      className="rounded-3xl mb-4 bg-white/60 border border-white/40"
+      style={[{ overflow: overflowStyle }, flatStyle]}
+      {...props}
+    >
       <BlurView intensity={intensity} tint="light" style={{ padding: 14, borderRadius: 24, overflow: overflowStyle }}>
         {children}
       </BlurView>
@@ -337,7 +342,6 @@ export function GlassSmartSearch({
             padding: 8,
             borderWidth: 1,
             borderColor: 'rgba(92,22,35,0.1)',
-            shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.1, shadowRadius: 10, elevation: 3,
             zIndex: 1000,
           }}
           nestedScrollEnabled={true}
@@ -431,10 +435,6 @@ export function BullionBar3D({ isGold, scale = 1 }: { isGold: boolean; scale?: n
         borderRightColor: isGold ? '#B8860B' : '#4B5563',
         justifyContent: 'center',
         alignItems: 'center',
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.3,
-        shadowRadius: 3,
         overflow: 'hidden',
         position: 'relative'
       }}
@@ -475,6 +475,134 @@ export function BullionBar3D({ isGold, scale = 1 }: { isGold: boolean; scale?: n
           999
         </Text>
       </View>
+    </View>
+  );
+}
+
+// ============================================================================
+// 7B. 3D GOLD RUPEE COIN COMPONENT
+// Premium 3D metallic Gold Coin element with bevels, reflection & Rupee symbol
+// ============================================================================
+export function RupeeCoin3D({ size = 38 }: { size?: number }) {
+  const innerSize = size * 0.72;
+  const currencySymbol = getCurrencySymbol();
+  return (
+    <View 
+      style={{
+        width: size,
+        height: size,
+        borderRadius: size / 2,
+        backgroundColor: '#D4AF37',
+        borderWidth: 1.5,
+        borderColor: '#FFE87C',
+        borderBottomWidth: 3,
+        borderBottomColor: '#8B6508',
+        borderRightWidth: 2.5,
+        borderRightColor: '#B8860B',
+        justifyContent: 'center',
+        alignItems: 'center',
+        overflow: 'hidden',
+        position: 'relative'
+      }}
+    >
+      {/* Glossy Metallic Light Reflective Highlight */}
+      <View 
+        style={{
+          position: 'absolute',
+          top: -2,
+          left: -4,
+          right: 0,
+          height: size * 0.45,
+          backgroundColor: 'rgba(255, 255, 255, 0.45)',
+          transform: [{ skewY: '-15deg' }],
+        }}
+      />
+      {/* Inner Coin Bevel Ring */}
+      <View 
+        style={{
+          width: innerSize,
+          height: innerSize,
+          borderRadius: innerSize / 2,
+          borderWidth: 1,
+          borderColor: 'rgba(255, 255, 255, 0.75)',
+          justifyContent: 'center',
+          alignItems: 'center',
+          backgroundColor: 'rgba(184, 134, 11, 0.25)',
+        }}
+      >
+        <Text 
+          style={{
+            fontSize: size * 0.46,
+            fontWeight: '900',
+            color: '#4A2E00',
+            textAlign: 'center',
+            includeFontPadding: false,
+          }}
+        >
+          {currencySymbol}
+        </Text>
+      </View>
+    </View>
+  );
+}
+
+// ============================================================================
+// 7C. MODERN BHARTIYA TRICOLOR FLAG EMBLEM
+// Crisp, modern vector flag emblem with Saffron, White, Green bands & Chakra
+// ============================================================================
+export function BhartiyaFlagEmblem({ width = 20, height = 14 }: { width?: number; height?: number }) {
+  const chakraSize = height * 0.3;
+  return (
+    <View 
+      style={{
+        width,
+        height,
+        borderRadius: 3,
+        overflow: 'hidden',
+        borderWidth: 0.8,
+        borderColor: 'rgba(0, 0, 0, 0.18)',
+        flexDirection: 'column',
+        justifyContent: 'space-between',
+        backgroundColor: '#FFFFFF',
+      }}
+    >
+      {/* Saffron / Kesari Top Band */}
+      <View style={{ flex: 1, backgroundColor: '#FF9933' }} />
+
+      {/* White Middle Band with Ashoka Chakra */}
+      <View 
+        style={{ 
+          flex: 1, 
+          backgroundColor: '#FFFFFF', 
+          justifyContent: 'center', 
+          alignItems: 'center' 
+        }}
+      >
+        <View 
+          style={{
+            width: chakraSize,
+            height: chakraSize,
+            borderRadius: chakraSize / 2,
+            borderWidth: 0.8,
+            borderColor: '#000080',
+            backgroundColor: 'transparent',
+            justifyContent: 'center',
+            alignItems: 'center',
+          }}
+        >
+          <View 
+            style={{
+              width: chakraSize * 0.35,
+              height: chakraSize * 0.35,
+              borderRadius: (chakraSize * 0.35) / 2,
+              backgroundColor: '#000080',
+            }}
+          />
+        </View>
+      </View>
+
+      {/* India Green Bottom Band */}
+      <View style={{ flex: 1, backgroundColor: '#138808' }} />
     </View>
   );
 }
@@ -816,6 +944,8 @@ export interface GlassSettingsTileProps {
   title: string;
   subtitle?: string;
   icon: React.ReactNode;
+  iconBg?: string;
+  borderColor?: string;
   onPress?: () => void;
   disabled?: boolean;
 }
@@ -824,6 +954,8 @@ export function GlassSettingsTile({
   title,
   subtitle,
   icon,
+  iconBg = 'rgba(255, 255, 255, 0.6)',
+  borderColor = 'rgba(212, 175, 55, 0.25)',
   onPress,
   disabled,
 }: GlassSettingsTileProps) {
@@ -837,17 +969,17 @@ export function GlassSettingsTile({
       activeOpacity={0.7}
       className="mb-2"
     >
-      <GlassCard style={{ padding: 16, borderWidth: 1, borderColor: 'rgba(92,22,35,0.2)' }}>
+      <GlassCard style={{ padding: 14, borderWidth: 1, borderColor }}>
         <View className={`flex-row items-center gap-4 ${disabled ? 'opacity-50' : ''}`}>
-          <View className="bg-white/40 p-3 rounded-full border border-white/50">
+          <View style={{ backgroundColor: iconBg, padding: 10, borderRadius: 16, borderWidth: 1, borderColor: 'rgba(0,0,0,0.05)', alignItems: 'center', justifyContent: 'center' }}>
             {icon}
           </View>
           <View className="flex-1">
             <Text className="text-vj-text font-bold text-base">{title}</Text>
-            {subtitle ? <Text className="text-vj-text/60 text-xs">{subtitle}</Text> : null}
+            {subtitle ? <Text className="text-vj-text/60 text-xs mt-0.5">{subtitle}</Text> : null}
           </View>
-          <View className="opacity-50">
-            <ChevronRight size={20} color="#D4AF37" />
+          <View className="p-1.5 rounded-full bg-black/5">
+            <ChevronRight size={18} color="#D4AF37" />
           </View>
         </View>
       </GlassCard>

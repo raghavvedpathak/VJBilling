@@ -314,7 +314,7 @@ export default function BackupRestoreScreen() {
       {/* Manual Backup Password Modal */}
       <Modal animationType="fade" transparent={true} visible={showBackupModal} onRequestClose={() => setShowBackupModal(false)}>
         <View className="flex-1 bg-black/50 justify-center items-center px-6">
-          <View className="w-full bg-vj-bg rounded-3xl p-6 shadow-xl border border-white/50">
+          <View className="w-full bg-vj-bg rounded-3xl p-6 border border-white/50">
             <View className="flex-row justify-between items-center mb-4">
               <Text className="text-vj-text font-black text-xl">Create Secure Backup</Text>
               <TouchableOpacity onPress={() => setShowBackupModal(false)} className="p-1 bg-black/5 rounded-full">

@@ -254,7 +254,7 @@ export default function FirmManagerScreen() {
       <Modal animationType="fade" transparent={true} visible={!!dialog && dialog.visible}>
         {dialog && (
           <View className="flex-1 bg-black/50 justify-center items-center px-6">
-            <View className="w-full bg-vj-bg rounded-3xl p-8 shadow-xl items-center border border-white/50">
+            <View className="w-full bg-vj-bg rounded-3xl p-8 items-center border border-white/50">
               
               <View className={`p-6 rounded-full mb-6 border ${dialog.type === 'ARCHIVE' && !dialog.isArchived ? 'bg-vj-danger/10 border-vj-danger/30' : 'bg-vj-accent/20 border-vj-accent/30'}`}>
                 {dialog.type === 'INFO' ? <AlertTriangle size={48} color="#D4AF37" /> : 

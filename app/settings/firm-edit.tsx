@@ -321,7 +321,7 @@ export default function EditFirmScreen() {
                 <TouchableOpacity
                   onPress={() => pickImage('logoUri')}
                   activeOpacity={0.8}
-                  className="h-24 w-24 rounded-2xl justify-center items-center overflow-hidden border-2 border-amber-500/30 shadow-xs mb-2 bg-black/5"
+                  className="h-24 w-24 rounded-2xl justify-center items-center overflow-hidden border-2 border-amber-500/30 mb-2 bg-black/5"
                 >
                   {form.logoUri ? (
                     <Image 
@@ -361,7 +361,7 @@ export default function EditFirmScreen() {
                   <TouchableOpacity
                     onPress={() => pickImage('bisLogoUri')}
                     activeOpacity={0.8}
-                    className="h-24 w-24 rounded-2xl justify-center items-center overflow-hidden border-2 border-amber-400/50 shadow-xs mb-2 bg-black/5 p-2"
+                    className="h-24 w-24 rounded-2xl justify-center items-center overflow-hidden border-2 border-amber-400/50 mb-2 bg-black/5 p-2"
                   >
                     {form.bisLogoUri ? (
                       <Image 
@@ -576,7 +576,7 @@ export default function EditFirmScreen() {
         onRequestClose={() => setShowStatePicker(false)}
       >
         <View className="flex-1 bg-black/50 justify-end">
-          <View className="bg-vj-bg rounded-t-3xl h-2/3 p-6 shadow-xl">
+          <View className="bg-vj-bg rounded-t-3xl h-2/3 p-6 border-t border-white/50">
             <View className="flex-row justify-between items-center mb-4 border-b border-black/10 pb-4">
               <Text className="text-xl font-bold text-vj-text">Select Jurisdiction</Text>
               <TouchableOpacity onPress={() => setShowStatePicker(false)} className="p-1 bg-black/5 rounded-full">
@@ -602,7 +602,7 @@ export default function EditFirmScreen() {
       {/* SUCCESS MODAL */}
       <Modal animationType="fade" transparent={true} visible={showSuccessModal}>
         <View className="flex-1 bg-black/50 justify-center items-center px-6">
-          <View className="w-full bg-vj-bg rounded-3xl p-8 shadow-xl items-center border border-white/50">
+          <View className="w-full bg-vj-bg rounded-3xl p-8 items-center border border-white/50">
             <View className="bg-vj-success/20 p-6 rounded-full mb-6 border border-vj-success/30">
               <CheckCircle2 size={48} color="#15803d" />
             </View>

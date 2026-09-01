@@ -8,9 +8,10 @@ import { TwoToneWrapper } from '@/components/TwoToneWrapper';
 import { useSession } from '@/hooks/useSession';
 import { storage } from '@/utils/storage';
 import { settingsService } from '@/services/phase1/settingsService'; 
-import { GlassCard, HeaderPill, GlassSettingsTile } from '@/components/ui/Glass';
+import { GlassCard, HeaderPill, GlassSettingsTile, RupeeCoin3D, BhartiyaFlagEmblem } from '@/components/ui/Glass';
 import { isPinSet, isPinSkipped } from '@/services/phase1/pinService'; 
 import { appSettingsStore } from '@/store/phase1/appSettingsStore';
+import { getCurrencySymbol } from '@/utils/currency';
 import { ThemeSelectorModal } from '@/components/ThemeSelectorModal';
 import { DateFormatModal } from '@/components/DateFormatModal';
 import {
@@ -23,7 +24,6 @@ import {
   Lock,
   FileText,
   AlertCircle,
-  IndianRupee,
   Wrench,
   Percent,
   MonitorSmartphone,
@@ -175,15 +175,21 @@ export default function SettingsScreen() {
         <SectionHeader title="General" />
         
         <View className="px-1 mb-2" pointerEvents="none">
-          <GlassCard style={{ opacity: 0.5, borderWidth: 1, borderColor: COLORS.border }}>
-            <View className="flex-row items-center gap-4" accessibilityRole="text" accessibilityLabel="Currency: Indian Rupee, fixed">
-              <View className="bg-vj-glass p-3 rounded-full border border-white/20">
-                <IndianRupee size={24} color={COLORS.vjText} />
+          <GlassCard style={{ padding: 14, borderWidth: 1, borderColor: 'rgba(212, 175, 55, 0.35)', backgroundColor: 'rgba(255, 255, 255, 0.95)' }}>
+            <View className="flex-row items-center justify-between" accessibilityRole="text" accessibilityLabel="Currency: Bhartiya Rupee, fixed">
+              <View className="flex-row items-center gap-3.5 flex-1 mr-2">
+                <RupeeCoin3D size={40} />
+                <View className="flex-1">
+                  <Text className="text-vj-text font-bold text-base">{`Bhartiya Rupee (${['I','N','R'].join('')})`}</Text>
+                  <Text className="text-vj-text/60 text-xs mt-0.5">Fixed For Bhartiya Jewellers</Text>
+                </View>
               </View>
-              <View className="flex-1">
-                <Text className="text-vj-text font-bold text-base">Currency</Text>
-                <Text className="text-vj-text/60 text-xs">{['I','N','R'].join('')} — Indian Rupee</Text>
-                <Text className="text-vj-text/40 text-[10px] mt-0.5">Fixed for Indian GST compliance</Text>
+              <View className="flex-row items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-500/15 border border-amber-500/30">
+                <BhartiyaFlagEmblem width={18} height={12} />
+                <Text className="text-[9px] font-black text-amber-950 tracking-wider uppercase">
+                  BHARTIYA REGION
+                </Text>
+                <Lock size={10} color="#B8860B" />
               </View>
             </View>
           </GlassCard>
@@ -192,9 +198,11 @@ export default function SettingsScreen() {
         <GlassSettingsTile
           title={hasPin ? "Change PIN" : "Set Up PIN"}
           subtitle={hasPin ? "PIN is set" : "Not set — tap to secure your app"}
+          iconBg="rgba(217, 119, 6, 0.12)"
+          borderColor="rgba(217, 119, 6, 0.25)"
           icon={
             <View className="relative">
-              <KeyRound size={24} color="#D4AF37" />
+              <KeyRound size={22} color="#D97706" />
               {(!hasPin && skippedPin) && (
                 <View className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-vj-danger rounded-full border border-white" />
               )}
@@ -206,20 +214,22 @@ export default function SettingsScreen() {
         <GlassSettingsTile
           title="Date Format"
           subtitle={getTodayPreview(dateFormat)}
-          icon={<CalendarClock size={24} color={COLORS.vjText} />}
+          iconBg="rgba(79, 70, 229, 0.12)"
+          borderColor="rgba(79, 70, 229, 0.25)"
+          icon={<CalendarClock size={22} color="#4F46E5" />}
           onPress={() => setShowDateModal(true)}
         />
 
         <View className="px-1 mb-2">
-          <GlassCard style={{ borderWidth: 1, borderColor: COLORS.border }}>
+          <GlassCard style={{ padding: 14, borderWidth: 1, borderColor: 'rgba(212, 175, 55, 0.25)', backgroundColor: 'rgba(255, 255, 255, 0.92)' }}>
             <View className="flex-row items-center justify-between">
-              <View className="flex-row items-center gap-4 flex-1">
-                <View className="bg-vj-glass p-3 rounded-full border border-white/20">
-                  <AlertCircle size={24} color="#D4AF37" />
+              <View className="flex-row items-center gap-3.5 flex-1 mr-2">
+                <View style={{ backgroundColor: 'rgba(212, 175, 55, 0.12)', padding: 10, borderRadius: 16, borderWidth: 1, borderColor: 'rgba(0,0,0,0.05)', alignItems: 'center', justifyContent: 'center' }}>
+                  <AlertCircle size={22} color="#D4AF37" />
                 </View>
                 <View className="flex-1">
                   <Text className="text-vj-text font-bold text-base">Unsaved Changes</Text>
-                  <Text className="text-vj-text/60 text-xs">Warn before exiting forms</Text>
+                  <Text className="text-vj-text/60 text-xs mt-0.5">Warn before exiting forms</Text>
                 </View>
               </View>
               <Switch
@@ -235,14 +245,18 @@ export default function SettingsScreen() {
         <GlassSettingsTile
           title="App Theme"
           subtitle={`${getThemeLabel(theme)} • APPLIED`}
-          icon={<Palette size={24} color={COLORS.vjText} />}
+          iconBg="rgba(219, 39, 119, 0.12)"
+          borderColor="rgba(219, 39, 119, 0.25)"
+          icon={<Palette size={22} color="#DB2777" />}
           onPress={() => setShowThemeModal(true)}
         />
 
         <GlassSettingsTile
           title="Invoice Settings"
           subtitle="Prefixes, Terms & Conditions"
-          icon={<FileBox size={24} color={COLORS.vjText} />}
+          iconBg="rgba(8, 145, 178, 0.12)"
+          borderColor="rgba(8, 145, 178, 0.25)"
+          icon={<FileBox size={22} color="#0891B2" />}
           onPress={() => Alert.alert("Coming Soon", "Invoice customization unlocks in Phase 4.")}
         />
 
@@ -250,14 +264,18 @@ export default function SettingsScreen() {
         <GlassSettingsTile
           title="Firm Identity"
           subtitle="Manage Firms, Addresses & Logos"
-          icon={<Building2 size={24} color="#D4AF37" />}
+          iconBg="rgba(5, 150, 105, 0.12)"
+          borderColor="rgba(5, 150, 105, 0.25)"
+          icon={<Building2 size={22} color="#059669" />}
           onPress={() => router.push('/settings/firms')}
         />
 
         <GlassSettingsTile
           title="Close Financial Year"
           subtitle="Lock current year data"
-          icon={<Lock size={24} color="#D4AF37" />}
+          iconBg="rgba(225, 29, 72, 0.12)"
+          borderColor="rgba(225, 29, 72, 0.25)"
+          icon={<Lock size={22} color="#E11D48" />}
           onPress={() => router.push('/settings/close-fy')}
         />
 
@@ -265,13 +283,17 @@ export default function SettingsScreen() {
         <GlassSettingsTile
           title="GST Tax Rates"
           subtitle="Manage CGST/SGST groups"
-          icon={<Percent size={24} color={COLORS.vjText} />}
+          iconBg="rgba(124, 58, 237, 0.12)"
+          borderColor="rgba(124, 58, 237, 0.25)"
+          icon={<Percent size={22} color="#7C3AED" />}
           onPress={() => Alert.alert("Phase 3 Feature", "GST settings are configured in the full setup. Available after Phase 3.")}
         />
         <GlassSettingsTile
           title="Paired Devices"
           subtitle="Primary/Secondary Sync setup"
-          icon={<MonitorSmartphone size={24} color={COLORS.vjText} />}
+          iconBg="rgba(2, 132, 199, 0.12)"
+          borderColor="rgba(2, 132, 199, 0.25)"
+          icon={<MonitorSmartphone size={22} color="#0284C7" />}
           onPress={() => Alert.alert("Future Feature", "Device sync is available in a future update.")}
         />
 
@@ -280,28 +302,36 @@ export default function SettingsScreen() {
         <GlassSettingsTile
           title="Backup & Restore"
           subtitle="Encrypted .vjb Exports, Public Mirroring & Restore"
-          icon={<HardDriveDownload size={24} color="#D4AF37" />}
+          iconBg="rgba(212, 175, 55, 0.12)"
+          borderColor="rgba(212, 175, 55, 0.35)"
+          icon={<HardDriveDownload size={22} color="#D4AF37" />}
           onPress={() => router.push('/settings/backup-restore')}
         />
 
         <GlassSettingsTile
           title="Audit Logs"
           subtitle="View immutable system events"
-          icon={<FileText size={24} color={COLORS.vjText} />}
+          iconBg="rgba(99, 102, 241, 0.12)"
+          borderColor="rgba(99, 102, 241, 0.25)"
+          icon={<FileText size={22} color="#6366F1" />}
           onPress={() => router.push('/settings/audit-logs')}
         />
 
         <GlassSettingsTile
           title="Verify My Data"
           subtitle="Run deep integrity scan"
-          icon={<ShieldAlert size={24} color={COLORS.vjText} />}
+          iconBg="rgba(16, 185, 129, 0.12)"
+          borderColor="rgba(16, 185, 129, 0.25)"
+          icon={<ShieldAlert size={22} color="#10B981" />}
           onPress={() => router.push('/settings/verify')}
         />
 
         <GlassSettingsTile
           title="Data Utilities"
           subtitle="Export Ledgers & Inventory"
-          icon={<Wrench size={24} color={COLORS.vjText} />}
+          iconBg="rgba(180, 83, 9, 0.12)"
+          borderColor="rgba(180, 83, 9, 0.25)"
+          icon={<Wrench size={22} color="#B45309" />}
           onPress={() => Alert.alert("Phase 6 Feature", "Data Utilities unlock in Phase 6.")}
         />
 

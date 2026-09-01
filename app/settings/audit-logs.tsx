@@ -423,7 +423,7 @@ const AuditLogItem = memo(({
           <View className="mt-4 pt-4 border-t border-vj-text/10">
             
             {/* Plain English Narrative Summary Box */}
-            <View className="bg-white/80 p-3.5 rounded-2xl border border-vj-text/10 mb-3 shadow-xs">
+            <View className="bg-white/80 p-3.5 rounded-2xl border border-vj-text/10 mb-3">
               <Text className="text-vj-text/40 font-bold text-[10px] uppercase tracking-widest mb-1">
                 Summary Description
               </Text>

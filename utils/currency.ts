@@ -33,7 +33,7 @@ function threeDigitWords(n: number): string {
 }
 
 /**
- * Converts integer paise to Indian denomination words.
+ * Converts integer paise to Bhartiya denomination words.
  * Max limit: 999999999 paise (₹99,99,999.99)
  */
 export function amountToWords(paise: number): string {

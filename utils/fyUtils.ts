@@ -12,7 +12,7 @@ export interface FYBounds {
 }
 
 /**
- * Indian Financial Year Logic
+ * Bhartiya Financial Year Logic
  * FY starts April 1st and ends March 31st of the following calendar year.
  * Examples:
  * - Feb 12, 2026 -> FY: 2025-2026 (Apr 01, 2025 – Mar 31, 2026)

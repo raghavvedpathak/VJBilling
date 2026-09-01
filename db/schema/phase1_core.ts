@@ -25,7 +25,7 @@ export const appSettings = sqliteTable('app_settings', {
   theme: text('theme').notNull().default('system'),
   auditRetentionDays: integer('audit_retention_days').notNull().default(30), // v7.10: was 365
   auditRetentionLastRunAt: text('audit_retention_last_run_at'), // v7.10: nullable ISO-8601
-  currency: text('currency').notNull().default('INR'),           // v6.2 G67: Indian Rupee — read-only, not user-changeable
+  currency: text('currency').notNull().default('INR'),           // v6.2 G67: Bhartiya Rupee — read-only, not user-changeable
   currencySymbol: text('currency_symbol').notNull().default('₹'), // v6.2 G67 (FIXED: was 'Rs')
   currencyDecimalPlaces: integer('currency_decimal_places').notNull().default(2), // v6.2 G67: paise = 2dp
   dateFormatToken: text('date_format_token').notNull().default('dd/MM/yyyy'), // v6.2 G68: date-fns v3 token (lowercase)
