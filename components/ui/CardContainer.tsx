@@ -1,17 +1,17 @@
 // components/ui/CardContainer.tsx — Centralized Card Container Design System for VJ Billing
 // Purpose: Unified single source of truth for all card containers across all screens and hubs.
 // Note: Android HWUI safe — zero shadow/elevation to prevent black rectangular clipping artifacts.
+// Visual Architecture: Crisp 4-Sided Jewel Gold Borders, Spacious Luxury Sizing, and High-Definition Clarity.
 
 import React from 'react';
-import { View, Text, TouchableOpacity, ViewProps, ViewStyle, StyleProp } from 'react-native';
-import { BlurView } from 'expo-blur';
+import { View, Text, TouchableOpacity, ViewProps, ViewStyle } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { ChevronRight } from 'lucide-react-native';
 import { COLORS } from '../../constants/theme';
 
 // ============================================================================
 // 1. BASE GLASS CARD CONTAINER
-// Foundational glassmorphism container with BlurView and Android-safe borders.
+// Foundational glassmorphism container with crisp uniform Android-safe borders.
 // ============================================================================
 export interface GlassCardProps extends ViewProps {
   children: React.ReactNode;
@@ -25,53 +25,30 @@ export interface GlassCardProps extends ViewProps {
 export function GlassCard({
   children,
   style,
-  intensity = 30,
-  contentPadding = 14,
+  contentPadding = 16,
   borderColor,
   backgroundColor,
   rounded = 24,
   ...props
 }: GlassCardProps) {
-  const flatStyle = React.useMemo(() => {
-    if (!style) return {};
-    if (Array.isArray(style)) return Object.assign({}, ...style);
-    return typeof style === 'object' ? style : {};
-  }, [style]);
-
-  const overflowStyle = flatStyle.overflow !== undefined ? flatStyle.overflow : 'hidden';
-
-  const resolvedBg = backgroundColor || flatStyle.backgroundColor || 'rgba(255, 255, 255, 0.90)';
-  const resolvedBorder = borderColor || flatStyle.borderColor || 'rgba(212, 175, 55, 0.22)';
-
-  const containerStyle: StyleProp<ViewStyle> = [
-    {
-      borderRadius: rounded,
-      overflow: overflowStyle,
-      backgroundColor: resolvedBg,
-      borderWidth: flatStyle.borderWidth !== undefined ? flatStyle.borderWidth : 1,
-      borderColor: resolvedBorder,
-      marginBottom: flatStyle.marginBottom !== undefined ? flatStyle.marginBottom : 16,
-    },
-    flatStyle,
-    {
-      ...(backgroundColor ? { backgroundColor } : {}),
-      ...(borderColor ? { borderColor } : {}),
-    },
-  ];
-
   return (
-    <View style={containerStyle} {...props}>
-      <BlurView
-        intensity={intensity}
-        tint="light"
-        style={{
-          padding: flatStyle.padding !== undefined ? flatStyle.padding : contentPadding,
+    <View
+      style={[
+        {
           borderRadius: rounded,
-          overflow: overflowStyle,
-        }}
-      >
-        {children}
-      </BlurView>
+          backgroundColor: 'rgba(255, 255, 255, 0.92)',
+          borderWidth: 1.2,
+          borderColor: 'rgba(212, 175, 55, 0.45)',
+          padding: contentPadding,
+          marginBottom: 16,
+        },
+        style,
+        backgroundColor ? { backgroundColor } : undefined,
+        borderColor ? { borderColor } : undefined,
+      ]}
+      {...props}
+    >
+      {children}
     </View>
   );
 }
@@ -98,9 +75,9 @@ export function MenuTile({
   title,
   subtitle,
   icon,
-  iconBg = 'rgba(255, 255, 255, 0.6)',
+  iconBg = 'rgba(255, 255, 255, 0.7)',
   cardBg,
-  borderColor = 'rgba(212, 175, 55, 0.25)',
+  borderColor = 'rgba(212, 175, 55, 0.45)',
   badgeText,
   badgeVariant = 'default',
   alertCount,
@@ -122,24 +99,25 @@ export function MenuTile({
       >
         <GlassCard
           style={{
-            height: 146,
+            height: 148,
             marginBottom: 0,
-            opacity: disabled ? 0.6 : 1,
+            opacity: disabled ? 0.65 : 1,
             borderColor: hasAlert ? '#F59E0B' : borderColor,
-            borderWidth: hasAlert ? 1.5 : (borderColor ? 1 : 1),
-            backgroundColor: hasAlert ? 'rgba(254, 243, 199, 0.75)' : (cardBg || 'rgba(255, 255, 255, 0.90)'),
+            borderWidth: hasAlert ? 1.5 : 1.2,
+            backgroundColor: hasAlert ? 'rgba(254, 243, 199, 0.85)' : (cardBg || 'rgba(255, 255, 255, 0.92)'),
             padding: 14,
           }}
         >
-          <View style={{ height: '100%', justifyContent: 'space-between' }}>
+          <View style={{ flex: 1, justifyContent: 'space-between', paddingBottom: 4 }}>
+            {/* Top Row: Icon & Status Badge */}
             <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
               <View style={{ position: 'relative' }}>
                 <View
                   style={{
-                    padding: 10,
-                    borderRadius: 16,
-                    borderWidth: 1,
-                    borderColor: hasAlert ? 'rgba(245,158,11,0.4)' : 'rgba(0,0,0,0.05)',
+                    padding: 11,
+                    borderRadius: 18,
+                    borderWidth: 1.5,
+                    borderColor: 'rgba(255, 255, 255, 0.95)',
                     alignItems: 'center',
                     justifyContent: 'center',
                     backgroundColor: iconBg,
@@ -174,25 +152,38 @@ export function MenuTile({
               {badgeText ? (
                 <View
                   style={{
+                    flexDirection: 'row',
+                    alignItems: 'center',
                     paddingHorizontal: 8,
-                    paddingVertical: 2,
+                    paddingVertical: 2.5,
                     borderRadius: 999,
                     borderWidth: 1,
                     backgroundColor: hasAlert
                       ? 'rgba(245, 158, 11, 0.2)'
                       : badgeVariant === 'active'
-                      ? 'rgba(16, 185, 129, 0.1)'
+                      ? 'rgba(16, 185, 129, 0.12)'
                       : 'rgba(0, 0, 0, 0.05)',
                     borderColor: hasAlert
                       ? 'rgba(245, 158, 11, 0.4)'
                       : badgeVariant === 'active'
-                      ? 'rgba(16, 185, 129, 0.2)'
-                      : 'rgba(0, 0, 0, 0.1)',
+                      ? 'rgba(16, 185, 129, 0.25)'
+                      : 'rgba(0, 0, 0, 0.10)',
                   }}
                 >
+                  {badgeVariant === 'active' && (
+                    <View
+                      style={{
+                        width: 5,
+                        height: 5,
+                        borderRadius: 2.5,
+                        backgroundColor: '#10B981',
+                        marginRight: 4,
+                      }}
+                    />
+                  )}
                   <Text
                     style={{
-                      fontSize: 8,
+                      fontSize: 8.5,
                       fontWeight: '900',
                       textTransform: 'uppercase',
                       letterSpacing: 0.8,
@@ -209,32 +200,51 @@ export function MenuTile({
               ) : null}
             </View>
 
-            <View style={{ marginTop: 6 }}>
-              <Text
-                style={{
-                  color: COLORS.vjText,
-                  fontWeight: '900',
-                  fontSize: 16,
-                  lineHeight: 20,
-                  marginBottom: 2,
-                }}
-                numberOfLines={1}
-              >
-                {title}
-              </Text>
-              {subtitle ? (
+            {/* Bottom Row: Title, Subtitle, and Micro-Navigation Indicator */}
+            <View style={{ flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between' }}>
+              <View style={{ flex: 1, paddingRight: 4, marginTop: 4 }}>
                 <Text
                   style={{
-                    color: 'rgba(42, 18, 8, 0.5)',
-                    fontSize: 10,
-                    fontWeight: '700',
-                    textTransform: 'uppercase',
+                    color: COLORS.vjText,
+                    fontWeight: '900',
+                    fontSize: 16,
+                    lineHeight: 20,
+                    marginBottom: 2,
                   }}
                   numberOfLines={1}
                 >
-                  {subtitle}
+                  {title}
                 </Text>
-              ) : null}
+                {subtitle ? (
+                  <Text
+                    style={{
+                      color: 'rgba(42, 18, 8, 0.55)',
+                      fontSize: 10,
+                      fontWeight: '800',
+                      textTransform: 'uppercase',
+                      letterSpacing: 0.5,
+                    }}
+                    numberOfLines={1}
+                  >
+                    {subtitle}
+                  </Text>
+                ) : null}
+              </View>
+
+              {!disabled && (
+                <View
+                  style={{
+                    padding: 4,
+                    borderRadius: 999,
+                    backgroundColor: 'rgba(212, 175, 55, 0.12)',
+                    borderWidth: 1,
+                    borderColor: 'rgba(212, 175, 55, 0.30)',
+                    marginBottom: 2,
+                  }}
+                >
+                  <ChevronRight size={13} color="#D4AF37" />
+                </View>
+              )}
             </View>
           </View>
         </GlassCard>
@@ -262,8 +272,8 @@ export function ListTileCard({
   title,
   subtitle,
   icon,
-  iconBg = 'rgba(255, 255, 255, 0.6)',
-  borderColor = 'rgba(212, 175, 55, 0.25)',
+  iconBg = 'rgba(255, 255, 255, 0.7)',
+  borderColor = 'rgba(212, 175, 55, 0.45)',
   rightElement,
   onPress,
   disabled,
@@ -280,15 +290,15 @@ export function ListTileCard({
       activeOpacity={0.7}
       style={{ marginBottom: 8 }}
     >
-      <GlassCard style={{ padding: 14, borderWidth: 1, borderColor }}>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 16, opacity: disabled ? 0.5 : 1 }}>
+      <GlassCard style={{ padding: 12, borderWidth: 1.2, borderColor }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, opacity: disabled ? 0.5 : 1 }}>
           <View
             style={{
               backgroundColor: iconBg,
               padding: 10,
-              borderRadius: 16,
-              borderWidth: 1,
-              borderColor: 'rgba(0,0,0,0.05)',
+              borderRadius: 15,
+              borderWidth: 1.5,
+              borderColor: 'rgba(255, 255, 255, 0.90)',
               alignItems: 'center',
               justifyContent: 'center',
             }}
@@ -296,16 +306,26 @@ export function ListTileCard({
             {icon}
           </View>
           <View style={{ flex: 1 }}>
-            <Text style={{ color: COLORS.vjText, fontWeight: '700', fontSize: 16 }}>{title}</Text>
+            <Text style={{ color: COLORS.vjText, fontWeight: '800', fontSize: 15.5 }}>{title}</Text>
             {subtitle ? (
-              <Text style={{ color: 'rgba(42, 18, 8, 0.6)', fontSize: 12, marginTop: 2 }}>{subtitle}</Text>
+              <Text style={{ color: 'rgba(42, 18, 8, 0.60)', fontSize: 11.5, fontWeight: '600', marginTop: 1 }}>
+                {subtitle}
+              </Text>
             ) : null}
           </View>
           {rightElement ? (
             rightElement
           ) : (
-            <View style={{ padding: 6, borderRadius: 999, backgroundColor: 'rgba(0,0,0,0.05)' }}>
-              <ChevronRight size={18} color="#D4AF37" />
+            <View 
+              style={{ 
+                padding: 6, 
+                borderRadius: 999, 
+                backgroundColor: 'rgba(212, 175, 55, 0.10)',
+                borderWidth: 1,
+                borderColor: 'rgba(212, 175, 55, 0.30)',
+              }}
+            >
+              <ChevronRight size={17} color="#D4AF37" />
             </View>
           )}
         </View>
@@ -340,22 +360,22 @@ export function BannerCard({
   subtitle,
   icon,
   iconBg = 'rgba(180, 83, 9, 0.12)',
-  borderColor = 'rgba(180, 83, 9, 0.25)',
+  borderColor = 'rgba(212, 175, 55, 0.45)',
   badgeText,
-  badgeBg = 'rgba(245, 158, 11, 0.1)',
+  badgeBg = 'rgba(212, 175, 55, 0.15)',
   badgeTextColor = '#92400E',
   onPress,
   rightAction,
 }: BannerCardProps) {
   const content = (
-    <GlassCard style={{ padding: 0, borderColor }}>
-      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 16, padding: 16 }}>
+    <GlassCard style={{ padding: 0, borderWidth: 1.2, borderColor }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 16, padding: 18 }}>
         <View
           style={{
-            padding: 12,
-            borderRadius: 16,
-            borderWidth: 1,
-            borderColor: 'rgba(0,0,0,0.05)',
+            padding: 14,
+            borderRadius: 20,
+            borderWidth: 1.5,
+            borderColor: 'rgba(255, 255, 255, 0.90)',
             alignItems: 'center',
             justifyContent: 'center',
             backgroundColor: iconBg,
@@ -370,16 +390,16 @@ export function BannerCard({
               <View
                 style={{
                   paddingHorizontal: 8,
-                  paddingVertical: 2,
+                  paddingVertical: 2.5,
                   borderRadius: 999,
                   backgroundColor: badgeBg,
                   borderWidth: 1,
-                  borderColor: 'rgba(0,0,0,0.05)',
+                  borderColor: 'rgba(212, 175, 55, 0.40)',
                 }}
               >
                 <Text
                   style={{
-                    fontSize: 8,
+                    fontSize: 8.5,
                     fontWeight: '900',
                     color: badgeTextColor,
                     textTransform: 'uppercase',
@@ -392,7 +412,7 @@ export function BannerCard({
             ) : null}
           </View>
           {subtitle ? (
-            <Text style={{ color: 'rgba(92, 22, 35, 0.6)', fontSize: 12, fontWeight: '600' }}>
+            <Text style={{ color: 'rgba(92, 22, 35, 0.65)', fontSize: 12.5, fontWeight: '600' }}>
               {subtitle}
             </Text>
           ) : null}
@@ -403,13 +423,13 @@ export function BannerCard({
           <View
             style={{
               padding: 8,
-              backgroundColor: 'rgba(92, 22, 35, 0.05)',
+              backgroundColor: 'rgba(212, 175, 55, 0.10)',
               borderRadius: 999,
               borderWidth: 1,
-              borderColor: 'rgba(92, 22, 35, 0.1)',
+              borderColor: 'rgba(212, 175, 55, 0.35)',
             }}
           >
-            <ChevronRight size={18} color={COLORS.vjText} />
+            <ChevronRight size={18} color="#D4AF37" />
           </View>
         ) : null}
       </View>
@@ -460,15 +480,15 @@ export function FormSectionCard({
   style,
 }: FormSectionCardProps) {
   return (
-    <GlassCard style={[{ padding: 16, marginBottom: 16, borderColor }, style]}>
+    <GlassCard style={[{ padding: 18, marginBottom: 16, borderWidth: 1.2, borderColor: borderColor || 'rgba(212, 175, 55, 0.45)' }, style]}>
       {title ? (
-        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
             {icon ? <View style={{ marginRight: 2 }}>{icon}</View> : null}
             <View>
-              <Text style={{ fontSize: 15, fontWeight: '900', color: COLORS.vjText }}>{title}</Text>
+              <Text style={{ fontSize: 16, fontWeight: '900', color: COLORS.vjText }}>{title}</Text>
               {subtitle ? (
-                <Text style={{ fontSize: 11, color: 'rgba(92, 22, 35, 0.6)', marginTop: 1 }}>{subtitle}</Text>
+                <Text style={{ fontSize: 11.5, color: 'rgba(92, 22, 35, 0.6)', marginTop: 1 }}>{subtitle}</Text>
               ) : null}
             </View>
           </View>
@@ -476,14 +496,14 @@ export function FormSectionCard({
             <View
               style={{
                 paddingHorizontal: 8,
-                paddingVertical: 2,
+                paddingVertical: 2.5,
                 borderRadius: 999,
                 backgroundColor: 'rgba(212, 175, 55, 0.15)',
                 borderWidth: 1,
-                borderColor: 'rgba(212, 175, 55, 0.3)',
+                borderColor: 'rgba(212, 175, 55, 0.40)',
               }}
             >
-              <Text style={{ fontSize: 8, fontWeight: '900', color: '#92400E', textTransform: 'uppercase' }}>
+              <Text style={{ fontSize: 8.5, fontWeight: '900', color: '#92400E', textTransform: 'uppercase' }}>
                 {badgeText}
               </Text>
             </View>
@@ -515,22 +535,22 @@ export function StatCard({
   subtitle,
   icon,
   color = COLORS.vjText,
-  borderColor = 'rgba(212, 175, 55, 0.25)',
+  borderColor = 'rgba(212, 175, 55, 0.45)',
   style,
 }: StatCardProps) {
   return (
-    <GlassCard style={[{ padding: 12, borderWidth: 1, borderColor, flex: 1 }, style]}>
-      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
-        <Text style={{ fontSize: 10, fontWeight: '800', color: 'rgba(42, 18, 8, 0.6)', textTransform: 'uppercase', letterSpacing: 0.5 }}>
+    <GlassCard style={[{ padding: 14, borderWidth: 1.2, borderColor, flex: 1 }, style]}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+        <Text style={{ fontSize: 10.5, fontWeight: '800', color: 'rgba(42, 18, 8, 0.6)', textTransform: 'uppercase', letterSpacing: 0.5 }}>
           {label}
         </Text>
         {icon}
       </View>
-      <Text style={{ fontSize: 18, fontWeight: '900', color }} numberOfLines={1}>
+      <Text style={{ fontSize: 19, fontWeight: '900', color }} numberOfLines={1}>
         {value}
       </Text>
       {subtitle ? (
-        <Text style={{ fontSize: 10, color: 'rgba(42, 18, 8, 0.5)', marginTop: 2 }} numberOfLines={1}>
+        <Text style={{ fontSize: 10.5, color: 'rgba(42, 18, 8, 0.5)', marginTop: 2 }} numberOfLines={1}>
           {subtitle}
         </Text>
       ) : null}
