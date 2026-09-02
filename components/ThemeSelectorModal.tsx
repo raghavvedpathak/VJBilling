@@ -40,9 +40,9 @@ export function ThemeSelectorModal({
           <View className="mb-2">
             {[
               { id: 'saffron', label: 'Royal Kesari Gold (Default)' },
-              { id: 'mayura_teal', label: 'Mayura Teal & Temple Gold' },
+              { id: 'platinum_sapphire', label: 'Platinum & Star Sapphire' },
               { id: 'sandstone_ochre', label: 'Reth Sandstone Silk & Ochre' },
-              { id: 'dalimbi', label: 'Royal Dalimbi Silk & Zari Gold' },
+              { id: 'tourmaline_rosegold', label: 'Rose Gold & Pink Tourmaline' },
             ].map((t) => {
               const preset = THEME_PRESETS[t.id as keyof typeof THEME_PRESETS] || THEME_PRESETS.saffron;
               const isApplied = activeTheme === t.id || activeStoreTheme === t.id;
@@ -58,7 +58,7 @@ export function ThemeSelectorModal({
                     <View className="flex-row items-center p-1 rounded-full bg-black/10 border border-black/10 gap-1">
                       <View
                         className="w-4 h-4 rounded-full border border-white/40"
-                        style={{ backgroundColor: preset.vjText }}
+                        style={{ backgroundColor: preset.vjHeaderBg }}
                       />
                       <View
                         className="w-4 h-4 rounded-full border border-black/20"

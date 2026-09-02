@@ -1,57 +1,57 @@
 export const THEME_PRESETS = {
-  saffron: { // DEFAULT - Option 2: Deep Royal Saffron Shadow
+  saffron: { // DEFAULT - Option 1: Imperial Swarna Kesari
     id: 'saffron',
     label: 'Royal Kesari Gold (Default)',
-    vjHeaderBg: '#7A2200', // Deep Royal Saffron Silk Shadow Header from Image
-    vjText: '#2A1208',
-    vjBg: '#FDF9F3',
-    vjAccent: '#D9531E', // Vibrant Saffron Silk Accent
-    vjAccentLight: '#FCE7D8',
+    vjHeaderBg: '#731E00', // Deep Imperial Kesari Silk Header
+    vjText: '#260F04',
+    vjBg: '#FDF9F2',
+    vjAccent: '#E07A1E', // Radiant Kesari Gold Accent
+    vjAccentLight: '#FDEBD2',
     vjAccentDark: '#5C1600',
-    glassBorderDark: 'rgba(217, 83, 30, 0.25)',
-    border: 'rgba(217, 83, 30, 0.18)',
+    glassBorderDark: 'rgba(224, 122, 30, 0.25)',
+    border: 'rgba(212, 175, 55, 0.22)',
     glassHeaderRim: 'rgba(255, 255, 255, 0.14)',
     glassJunctionRim: 'rgba(255, 255, 255, 0.85)',
   },
-  mayura_teal: { // Option 2: Mayura Teal & Temple Gold
-    id: 'mayura_teal',
-    label: 'Mayura Teal & Temple Gold',
-    vjHeaderBg: '#0C343D', // Deep Peacock Mayura Teal Silk Header
-    vjText: '#082026',
-    vjBg: '#F2F9FA',
-    vjAccent: '#D4AF37', // Temple Gold Accent
-    vjAccentLight: '#E0F2F5',
-    vjAccentDark: '#115E59',
-    glassBorderDark: 'rgba(12, 52, 61, 0.25)',
-    border: 'rgba(12, 52, 61, 0.18)',
+  platinum_sapphire: { // Option 2: Himalayan Platinum & Star Sapphire
+    id: 'platinum_sapphire',
+    label: 'Platinum & Star Sapphire',
+    vjHeaderBg: '#111827', // Deep Obsidian Velvet Header
+    vjText: '#0F172A',
+    vjBg: '#F8FAFC',
+    vjAccent: '#D4AF37', // Sun Gold Accent
+    vjAccentLight: '#E2E8F0',
+    vjAccentDark: '#94761E',
+    glassBorderDark: 'rgba(17, 24, 39, 0.25)',
+    border: 'rgba(17, 24, 39, 0.18)',
     glassHeaderRim: 'rgba(255, 255, 255, 0.14)',
     glassJunctionRim: 'rgba(255, 255, 255, 0.85)',
   },
-  sandstone_ochre: { // Option 3: Reth Sandstone Silk & Warm Ochre
+  sandstone_ochre: { // Option 3: Reth Sandstone & Polki Gold
     id: 'sandstone_ochre',
-    label: 'Reth Sandstone Silk & Warm Ochre',
-    vjHeaderBg: '#481B00', // Richer Deep Sandstone Ochre Header
-    vjText: '#381A08',
-    vjBg: '#FAF4EC',
-    vjAccent: '#D98338',
-    vjAccentLight: '#FCECDD',
-    vjAccentDark: '#AC5A16',
-    glassBorderDark: 'rgba(217, 131, 56, 0.2)',
-    border: 'rgba(217, 131, 56, 0.16)',
+    label: 'Reth Sandstone Silk & Ochre',
+    vjHeaderBg: '#421700', // Richer Deep Sandstone Teak Header
+    vjText: '#301302',
+    vjBg: '#FAF5ED',
+    vjAccent: '#E09224', // Radiant Sandstone Topaz Gold Accent
+    vjAccentLight: '#FDECD8',
+    vjAccentDark: '#9C3D06',
+    glassBorderDark: 'rgba(224, 146, 36, 0.25)',
+    border: 'rgba(212, 175, 55, 0.22)',
     glassHeaderRim: 'rgba(255, 255, 255, 0.14)',
     glassJunctionRim: 'rgba(255, 255, 255, 0.85)',
   },
-  dalimbi: { // Option 4: Royal Dalimbi Silk & Zari Gold
-    id: 'dalimbi',
-    label: 'Royal Dalimbi Silk & Zari Gold',
-    vjHeaderBg: '#581124', // Deep Regal Dalimbi Crimson Silk Header
-    vjText: '#380C17',
-    vjBg: '#FDF4F6',
-    vjAccent: '#D4AF37', // Shimmering Zari Gold Accent
-    vjAccentLight: '#FCE8ED',
-    vjAccentDark: '#871932',
-    glassBorderDark: 'rgba(88, 17, 36, 0.25)',
-    border: 'rgba(88, 17, 36, 0.18)',
+  tourmaline_rosegold: { // Option 4: Rose Gold & Pink Tourmaline
+    id: 'tourmaline_rosegold',
+    label: 'Rose Gold & Pink Tourmaline',
+    vjHeaderBg: '#420D1C', // Deep Midnight Rose Gold Velvet Header
+    vjText: '#2E0812',
+    vjBg: '#FCF5F7',
+    vjAccent: '#E11D48', // Radiant Pink Tourmaline Accent
+    vjAccentLight: '#FFE4E6',
+    vjAccentDark: '#881337',
+    glassBorderDark: 'rgba(66, 13, 28, 0.25)',
+    border: 'rgba(225, 29, 72, 0.18)',
     glassHeaderRim: 'rgba(255, 255, 255, 0.14)',
     glassJunctionRim: 'rgba(255, 255, 255, 0.85)',
   },

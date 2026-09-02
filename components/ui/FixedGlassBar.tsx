@@ -1,8 +1,20 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, ViewStyle, TextStyle, Keyboard, Platform, useWindowDimensions } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  ActivityIndicator,
+  ViewStyle,
+  TextStyle,
+  Keyboard,
+  Platform,
+  useWindowDimensions,
+} from 'react-native';
 import { BlurView } from 'expo-blur';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { COLORS } from '@/constants/theme';
+import { getThemeColors, COLORS } from '@/constants/theme';
+import { appSettingsStore } from '@/store/phase1/appSettingsStore';
 
 export interface FixedGlassBarProps {
   children: React.ReactNode;
@@ -18,6 +30,10 @@ export function FixedGlassBar({ children, style, cardStyle, hideOnKeyboard = tru
   // Safe clearance above Android 3-button navigation, tablet taskbar, gesture bar, or iOS home indicator
   const bottomOffset = Math.max(insets.bottom, 16);
   const [keyboardVisible, setKeyboardVisible] = useState(false);
+
+  // Subscribe to active theme in store so FixedGlassBar re-renders live on theme switch
+  const activeTheme = appSettingsStore((s) => s.theme);
+  const colors = getThemeColors(activeTheme);
 
   useEffect(() => {
     if (!hideOnKeyboard) return;
@@ -40,7 +56,17 @@ export function FixedGlassBar({ children, style, cardStyle, hideOnKeyboard = tru
 
   return (
     <View style={[s.fixedPillWrapper, { bottom: bottomOffset }, style]} pointerEvents="box-none">
-      <View style={[s.fixedPillCard, { maxWidth: isTablet ? 720 : 580 }, cardStyle]}>
+      <View
+        style={[
+          s.fixedPillCard,
+          {
+            maxWidth: isTablet ? 720 : 580,
+            borderColor: colors.border || 'rgba(212, 175, 55, 0.25)',
+            backgroundColor: 'rgba(255, 255, 255, 0.95)',
+          },
+          cardStyle,
+        ]}
+      >
         <BlurView intensity={50} tint="light" style={s.fixedPillBlurContent}>
           <View style={s.fixedBottomBarRow}>
             {children}
@@ -51,39 +77,53 @@ export function FixedGlassBar({ children, style, cardStyle, hideOnKeyboard = tru
   );
 }
 
-export const fixedBarStyles = StyleSheet.create({
-  pillPrimaryBtn: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    backgroundColor: COLORS.vjAccent,
-    paddingVertical: 14,
-    borderRadius: 28,
+// Dynamic theme-aware pill styles resolved live on every render
+export const fixedBarStyles = {
+  get pillPrimaryBtn(): ViewStyle {
+    const colors = getThemeColors();
+    return {
+      flex: 1,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 8,
+      backgroundColor: colors.vjAccent,
+      paddingVertical: 14,
+      borderRadius: 28,
+    };
   },
-  pillPrimaryText: {
-    color: '#ffffff',
-    fontSize: 15,
-    fontWeight: '800',
-    letterSpacing: 0.3,
+  get pillPrimaryText(): TextStyle {
+    return {
+      color: '#ffffff',
+      fontSize: 15,
+      fontWeight: '800',
+      letterSpacing: 0.3,
+    };
   },
-  pillSecondaryBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-    backgroundColor: 'rgba(92, 22, 35, 0.08)',
-    paddingVertical: 14,
-    paddingHorizontal: 18,
-    borderRadius: 28,
+  get pillSecondaryBtn(): ViewStyle {
+    const colors = getThemeColors();
+    return {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 6,
+      backgroundColor: colors.vjAccentLight || 'rgba(212, 175, 55, 0.12)',
+      borderWidth: 1,
+      borderColor: colors.border || 'rgba(212, 175, 55, 0.25)',
+      paddingVertical: 14,
+      paddingHorizontal: 18,
+      borderRadius: 28,
+    };
   },
-  pillSecondaryText: {
-    color: COLORS.vjText,
-    fontSize: 14,
-    fontWeight: '700',
+  get pillSecondaryText(): TextStyle {
+    const colors = getThemeColors();
+    return {
+      color: colors.vjText,
+      fontSize: 14,
+      fontWeight: '700',
+    };
   },
-});
+};
 
 const s = StyleSheet.create({
   fixedPillWrapper: {
@@ -100,8 +140,6 @@ const s = StyleSheet.create({
     borderRadius: 36,
     overflow: 'hidden',
     borderWidth: 1.5,
-    borderColor: 'rgba(212, 175, 55, 0.35)',
-    backgroundColor: 'rgba(255, 253, 249, 0.95)',
   },
   fixedPillBlurContent: {
     paddingHorizontal: 8,

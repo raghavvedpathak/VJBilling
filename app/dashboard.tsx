@@ -6,7 +6,7 @@ import { useRouter, useFocusEffect } from 'expo-router';
 import { TwoToneWrapper } from '@/components/TwoToneWrapper'; 
 import { useSession } from '@/hooks/useSession';
 import { useFirmStore } from '@/store/phase1/useFirmStore';
-import { GlassCard, GlassButton, HeaderPill, MenuTile } from '@/components/ui/Glass'; 
+import { GlassCard, GlassButton, HeaderPill, MenuTile, ListTileCard } from '@/components/ui/Glass'; 
 import { LeaseStatusBanner } from '@/components/LeaseStatusBanner'; 
 import { FYEndBanner } from '@/components/FYEndBanner'; 
 import { 
@@ -211,24 +211,14 @@ export default function Dashboard() {
           System Settings
         </Text>
 
-        <TouchableOpacity activeOpacity={0.8} onPress={() => router.push('/settings')}>
-          <GlassCard style={{ padding: 0 }}>
-            <View className="flex-row items-center gap-4 p-4">
-              <View className="bg-vj-text/10 p-3.5 rounded-2xl border border-vj-text/10 items-center justify-center">
-                <Settings size={24} color={COLORS.vjText} />
-              </View>
-              <View className="flex-1">
-                <Text className="text-vj-text font-black text-lg">Firm Settings</Text>
-                <Text className="text-vj-text/60 text-xs font-semibold mt-0.5">
-                  Manage Identity, Backup & Restore
-                </Text>
-              </View>
-              <View className="p-2 bg-vj-text/5 rounded-full border border-vj-text/10">
-                <ChevronRight size={20} color={COLORS.vjText} />
-              </View>
-            </View>
-          </GlassCard>
-        </TouchableOpacity>
+        <ListTileCard
+          title="Firm Settings"
+          subtitle="Manage Identity, Backup & Restore"
+          icon={<Settings size={22} color="#D97706" />}
+          iconBg="rgba(217, 119, 6, 0.12)"
+          borderColor="rgba(212, 175, 55, 0.25)"
+          onPress={() => router.push('/settings')}
+        />
 
         <View className="mt-12 items-center opacity-40 mb-4">
           <Gem size={20} color={COLORS.vjText} />

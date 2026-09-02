@@ -91,11 +91,6 @@ export function TwoToneWrapper({ title, children, showBack, actionIcon, onAction
           backgroundColor: colors.vjBg,
           borderTopWidth: 1.5,
           borderTopColor: colors.glassJunctionRim || 'rgba(255, 255, 255, 0.85)',
-          shadowColor: '#000',
-          shadowOffset: { width: 0, height: -3 },
-          shadowOpacity: 0.08,
-          shadowRadius: 8,
-          elevation: 4,
         }}
       >
         <View
