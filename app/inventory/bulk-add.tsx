@@ -24,6 +24,7 @@ import { formatDate } from '@/utils/formatDate';
 import { 
   PURITY_MAP,
   percentToKarat, 
+  formatKaratBadge,
   resolveFineWeightMg, 
   computeFineGoldChargedMg, 
   computeEffectivePricePerGram,
@@ -33,6 +34,7 @@ import {
   rupeesToPaise,
   getCurrencySymbol,
   getPurityPresets,
+  isPresetMatchingPurity,
   parseCleanFloat,
 } from '@/utils/calculations';
 import { COLORS } from '@/constants/theme';
@@ -68,12 +70,8 @@ interface BulkItemRowProps {
 
 const BulkItemRow = ({ index, row, updateRow, removeRow, stones, metal, openPickerModal }: BulkItemRowProps) => {
   const computedKarat = useMemo(() => {
-    const p = parseCleanFloat(row.purityPercent);
-    if (isNaN(p) || p <= 0) return '';
-    if (metal === 'SILVER') return 'SILVER';
-    if (PURITY_MAP[p] !== undefined) return `${p}K`;
-    const k = percentToKarat(p);
-    return k && k > 0 ? `${k}K` : '';
+    if (metal === 'SILVER') return '';
+    return formatKaratBadge(row.purityPercent, metal || 'GOLD') || '';
   }, [row.purityPercent, metal]);
 
   const calculations = useMemo(() => {
@@ -198,29 +196,32 @@ const BulkItemRow = ({ index, row, updateRow, removeRow, stones, metal, openPick
         </View>
 
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 12 }}>
-          {getPurityPresets(metal || 'GOLD').map((preset) => (
-            <TouchableOpacity
-              key={preset.id}
-              onPress={() => {
-                try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
-                updateRow(index, 'purityPercent', preset.val);
-              }}
-              style={{
-                backgroundColor: row.purityPercent === preset.val ? '#D4AF37' : 'rgba(212,175,55,0.12)',
-                paddingHorizontal: 8,
-                paddingVertical: 4,
-                borderRadius: 6,
-              }}
-            >
-              <Text style={{
-                fontSize: 11,
-                fontWeight: '700',
-                color: row.purityPercent === preset.val ? '#FFF' : COLORS.vjText,
-              }}>
-                {preset.label}
-              </Text>
-            </TouchableOpacity>
-          ))}
+          {getPurityPresets(metal || 'GOLD').map((preset) => {
+            const isSelected = isPresetMatchingPurity(row.purityPercent, preset.val);
+            return (
+              <TouchableOpacity
+                key={preset.id}
+                onPress={() => {
+                  try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
+                  updateRow(index, 'purityPercent', preset.val);
+                }}
+                style={{
+                  backgroundColor: isSelected ? '#D4AF37' : 'rgba(212,175,55,0.12)',
+                  paddingHorizontal: 8,
+                  paddingVertical: 4,
+                  borderRadius: 6,
+                }}
+              >
+                <Text style={{
+                  fontSize: 11,
+                  fontWeight: '700',
+                  color: isSelected ? '#FFF' : COLORS.vjText,
+                }}>
+                  {preset.label}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
         </View>
 
         <View style={s.inputGrid}>

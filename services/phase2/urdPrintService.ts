@@ -6,8 +6,7 @@ import { urdPurchaseRepository } from '@/repositories/phase2/urdPurchaseReposito
 import { firmRepository } from '@/repositories/phase1/firmRepository';
 import { bisLogoRepository } from '@/repositories/phase1/bisLogoRepository';
 import { ERR } from '@/constants/errorCodes';
-import { amountToWords, getCurrencySymbol } from '@/utils/calculations';
-import { formatWeightMg } from '@/utils/purity.constants';
+import { amountToWords, getCurrencySymbol, formatWeightMg } from '@/utils/calculations';
 import { formatDate } from '@/utils/formatDate';
 import { renderURDTemplate1, renderURDTemplate2, renderURDCustomerDeclaration } from '@/templates/urd';
 

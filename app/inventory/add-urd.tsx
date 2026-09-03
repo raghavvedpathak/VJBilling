@@ -16,7 +16,9 @@ import {
   computeURDCostBreakdown, 
   parseCleanFloat, 
   percentToKarat, 
+  formatKaratBadge,
   getPurityPresets,
+  isPresetMatchingPurity,
   rupeesToPaise 
 } from '@/utils/calculations';
 import { User, Scale, Banknote, CheckCircle, Trash2, Plus, Calendar as CalendarIcon, Building2 } from 'lucide-react-native';
@@ -128,7 +130,7 @@ export default function AddURDScreen() {
       const adjustmentPaise = rupeesToPaise(signedAdj) || 0;
 
       return {
-        ...computeURDCostBreakdown(grossMg, purity, ratePaise, adjustmentPaise),
+        ...computeURDCostBreakdown(grossMg, purity, ratePaise, adjustmentPaise, row.metalType),
         metalType: row.metalType,
         grossWeightG: grossG,
         isValid: grossMg > 0 && purity > 0 && ratePaise > 0,
@@ -373,10 +375,10 @@ export default function AddURDScreen() {
                 <View style={{ marginBottom: 12 }}>
                   <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
                     <Text style={{ fontSize: 12, fontWeight: '700', color: 'rgba(92,22,35,0.6)', textTransform: 'uppercase' }}>Purity (%) *</Text>
-                    {row.metalType === 'GOLD' && parseCleanFloat(row.purityPercent) > 0 && percentToKarat(parseCleanFloat(row.purityPercent)) ? (
+                    {formatKaratBadge(row.purityPercent, row.metalType) ? (
                       <View style={{ backgroundColor: 'rgba(212,175,55,0.2)', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 }}>
                         <Text style={{ fontSize: 11, fontWeight: '800', color: '#D4AF37' }}>
-                          {percentToKarat(parseCleanFloat(row.purityPercent))}K
+                          {formatKaratBadge(row.purityPercent, row.metalType)}
                         </Text>
                       </View>
                     ) : null}
@@ -391,22 +393,25 @@ export default function AddURDScreen() {
 
                 {/* Quick Purity Preset Chips */}
                 <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 12, marginTop: -4 }}>
-                  {getPurityPresets(row.metalType || 'GOLD').map((preset) => (
-                    <TouchableOpacity
-                      key={preset.id}
-                      onPress={() => updateRow(index, 'purityPercent', preset.val)}
-                      style={{
-                        backgroundColor: row.purityPercent === preset.val ? '#D4AF37' : 'rgba(212,175,55,0.12)',
-                        paddingHorizontal: 8,
-                        paddingVertical: 4,
-                        borderRadius: 6,
-                      }}
-                    >
-                      <Text style={{ fontSize: 11, fontWeight: '700', color: row.purityPercent === preset.val ? '#FFF' : COLORS.vjText }}>
-                        {preset.label}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
+                  {getPurityPresets(row.metalType || 'GOLD').map((preset) => {
+                    const isSelected = isPresetMatchingPurity(row.purityPercent, preset.val);
+                    return (
+                      <TouchableOpacity
+                        key={preset.id}
+                        onPress={() => updateRow(index, 'purityPercent', preset.val)}
+                        style={{
+                          backgroundColor: isSelected ? '#D4AF37' : 'rgba(212,175,55,0.12)',
+                          paddingHorizontal: 8,
+                          paddingVertical: 4,
+                          borderRadius: 6,
+                        }}
+                      >
+                        <Text style={{ fontSize: 11, fontWeight: '700', color: isSelected ? '#FFF' : COLORS.vjText }}>
+                          {preset.label}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
                 </View>
 
                 <GlassInput

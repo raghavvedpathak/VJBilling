@@ -52,9 +52,9 @@ import { generateDesignPrefix, formatSKUDisplay } from '@/services/phase2/skuEng
 import { ERR } from '@/constants/errorCodes';
 import { 
   computeEffectivePricePaisePerGram, 
-  computeEstTotalCostPaise 
+  computeEstTotalCostPaise,
+  resolveFineWeightMg,
 } from '@/utils/calculations';
-import { resolveFineWeightMg } from '@/utils/purity.constants';
 import { gemstoneLotService } from '@/services/phase2/gemstoneLotService';
 import { oldGoldLotService } from '@/services/phase2/oldGoldLotService';
 import { inventorySearchService } from '@/services/phase2/inventorySearchService';
@@ -558,6 +558,34 @@ describe('URD Purchases', () => {
     const confirmed = await urdPurchaseService.confirmURDPurchase(urd.id, FIRM_ID);
     expect(confirmed.status).toBe('CONFIRMED');
     expect(confirmed.urdNumber).toBe('URD/2020-2030/0001');
+  });
+
+  it('correctly calculates 100% fine weight for 99.5% and 99.9% URD purchases per trade convention', async () => {
+    // 99.5% Gold (24KS)
+    const urd995 = await urdPurchaseService.createURDPurchase({
+      customerName: 'Bullion Seller',
+      purchaseDate: '2026-07-15',
+      metalType: 'GOLD',
+      grossWeightMg: 10000,
+      purityPercent: 99.5,
+      ratePerGramPaise: 700000,
+      paymentMode: 'CASH',
+    }, FIRM_ID);
+
+    expect(urd995.fineWeightMg).toBe(10000); // 100% of 10.000g gross weight
+
+    // 99.9% Silver (Fine Silver)
+    const urdSilver999 = await urdPurchaseService.createURDPurchase({
+      customerName: 'Silver Bullion Seller',
+      purchaseDate: '2026-07-15',
+      metalType: 'SILVER',
+      grossWeightMg: 50000,
+      purityPercent: 99.9,
+      ratePerGramPaise: 8000,
+      paymentMode: 'CASH',
+    }, FIRM_ID);
+
+    expect(urdSilver999.fineWeightMg).toBe(50000); // 100% of 50.000g gross weight
   });
 });
 

@@ -9,7 +9,7 @@ import * as Haptics from 'expo-haptics';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { Search, PackageSearch, Ghost, Hash, Sparkles, Coins, ScanLine, X, ShieldCheck } from 'lucide-react-native';
 import { inventorySearchService } from '@/services/phase2/inventorySearchService';
-import { formatWeightMg as formatWeight } from '@/utils/calculations';
+import { formatWeightMg as formatWeight, formatKaratBadge } from '@/utils/calculations';
 import { formatSKUDisplay } from '@/utils/skuDisplay';
 import type { ItemSearchResult } from '@/types/phase2/phase2.types';
 import { useFirmStore } from '@/store/phase1/useFirmStore';
@@ -96,7 +96,7 @@ const SearchResultRow = memo(({ item, query, colors, onPress }: SearchResultRowP
           <View style={[s.metalBadge, { backgroundColor: `${metalColor}18`, flexDirection: 'row', alignItems: 'center', gap: 4 }]}>
             {isGold ? <Sparkles size={12} color={metalColor} /> : <Coins size={12} color={metalColor} />}
             <Text style={[s.metalText, { color: metalColor }]}>
-              {item.metal} {isGold && item.purityKarat ? `${item.purityKarat}K` : `${item.purityPercent}%`}
+              {item.metal} {formatKaratBadge(item.purityPercent, item.metal) ?? `${item.purityPercent}%`}
             </Text>
           </View>
           

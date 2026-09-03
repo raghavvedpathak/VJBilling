@@ -13,6 +13,7 @@ import { useFirmStore } from '@/store/phase1/useFirmStore';
 import { inventoryDrillDownService } from '@/services/phase2/inventoryDrillDownService';
 import { 
   getDisplayPurity, 
+  formatKaratBadge,
   formatSKUDisplay, 
   formatWeightMg as formatWeight,
   parseCleanFloat 
@@ -37,8 +38,9 @@ const SkuRow = React.memo(({
   const metalColor = item.metal === 'GOLD' ? (colors.vjAccent || COLORS.gold) : COLORS.silver;
   const isGold = item.metal === 'GOLD';
 
-  const purityDisplay = (isGold && item.purityKarat && item.purityKarat > 0)
-    ? `${item.purityKarat}K · ${item.purityPercent.toFixed(1)}%`
+  const karatBadge = formatKaratBadge(item.purityPercent, item.metal);
+  const purityDisplay = (isGold && karatBadge)
+    ? `${karatBadge} · ${item.purityPercent.toFixed(1)}%`
     : getDisplayPurity(item.purityPercent, item.purityKarat ?? null, item.metal);
 
   const displaySku = formatSKUDisplay(item.sku);
@@ -195,8 +197,9 @@ export default function PurityItemsScreen() {
     const targetPurity = purityPercent ? parseCleanFloat(purityPercent) : 0;
     const isGold = metal === 'GOLD';
     
-    const purityDisplay = (isGold && karat && karat > 0)
-      ? `${karat}K (${targetPurity.toFixed(1)}%)`
+    const karatBadge = formatKaratBadge(targetPurity, metal);
+    const purityDisplay = (isGold && karatBadge)
+      ? `${karatBadge} (${targetPurity.toFixed(1)}%)`
       : getDisplayPurity(targetPurity, karat, metal);
 
     return (

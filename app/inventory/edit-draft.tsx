@@ -12,6 +12,7 @@ import { itemService } from '@/services/phase2/itemService';
 import { 
   formatSKUDisplay, 
   percentToKarat, 
+  formatKaratBadge,
   resolveFineWeightMg, 
   computeFineGoldChargedMg, 
   computeEffectivePricePerGram,
@@ -21,6 +22,7 @@ import {
   rupeesToPaise,
   getCurrencySymbol,
   getPurityPresets,
+  isPresetMatchingPurity,
   parseCleanFloat,
 } from '@/utils/calculations';
 import { Edit3, Save, Calculator, CheckCircle, Package } from 'lucide-react-native';
@@ -178,8 +180,7 @@ export default function EditDraftScreen() {
     const p = parseCleanFloat(purityPercent);
     if (isNaN(p) || p <= 0) return '';
     if (metal === 'SILVER') return `${p.toFixed(1)}%`;
-    const k = percentToKarat(p) || 0;
-    return k > 0 ? `${k}K` : '';
+    return formatKaratBadge(p, metal || 'GOLD') || '';
   }, [purityPercent, metal]);
 
   const handleSave = async () => {
@@ -372,29 +373,32 @@ export default function EditDraftScreen() {
               </View>
 
               <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 4, marginBottom: 12 }}>
-                {getPurityPresets(metal || 'GOLD').map(preset => (
-                  <TouchableOpacity
-                    key={preset.id}
-                    onPress={() => {
-                      try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
-                      setPurityPercent(preset.val);
-                    }}
-                    style={{
-                      backgroundColor: purityPercent === preset.val ? '#D4AF37' : 'rgba(212,175,55,0.12)',
-                      paddingHorizontal: 8,
-                      paddingVertical: 4,
-                      borderRadius: 6
-                    }}
-                  >
-                    <Text style={{
-                      fontSize: 11,
-                      fontWeight: '700',
-                      color: purityPercent === preset.val ? '#FFF' : colors.vjText
-                    }}>
-                      {preset.label}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
+                {getPurityPresets(metal || 'GOLD').map(preset => {
+                  const isSelected = isPresetMatchingPurity(purityPercent, preset.val);
+                  return (
+                    <TouchableOpacity
+                      key={preset.id}
+                      onPress={() => {
+                        try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
+                        setPurityPercent(preset.val);
+                      }}
+                      style={{
+                        backgroundColor: isSelected ? '#D4AF37' : 'rgba(212,175,55,0.12)',
+                        paddingHorizontal: 8,
+                        paddingVertical: 4,
+                        borderRadius: 6
+                      }}
+                    >
+                      <Text style={{
+                        fontSize: 11,
+                        fontWeight: '700',
+                        color: isSelected ? '#FFF' : colors.vjText
+                      }}>
+                        {preset.label}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
               </View>
 
               <View style={s.row}>

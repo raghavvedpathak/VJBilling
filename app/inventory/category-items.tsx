@@ -11,7 +11,7 @@ import { useFirmStore } from '@/store/phase1/useFirmStore';
 import { inventoryDrillDownService } from '@/services/phase2/inventoryDrillDownService';
 import { designService } from '@/services/phase2/designService';
 import type { DesignCategoryStockResult } from '@/types/phase2/phase2.types';
-import { formatWeightMg as formatWeight } from '@/utils/calculations';
+import { formatWeightMg as formatWeight, formatKaratBadge } from '@/utils/calculations';
 import { appSettingsStore } from '@/store/phase1/appSettingsStore';
 import { COLORS, getThemeColors } from '@/constants/theme';
 import { ChevronRight, Layers, Bell, X, AlertTriangle, Scale, Package, Tag } from 'lucide-react-native';
@@ -31,8 +31,9 @@ const DesignRow = memo(({ item, categoryName, isLowStock, currentThreshold, colo
   const metalColor = item.metal === 'GOLD' ? (colors.vjAccent || COLORS.gold) : COLORS.silver;
   const isGold = item.metal === 'GOLD';
 
-  const purityFull = (isGold && item.purityKarat && item.purityKarat > 0)
-    ? `${item.purityKarat}K (${item.purityPercent.toFixed(1)}%)`
+  const karatBadge = formatKaratBadge(item.purityPercent, item.metal);
+  const purityFull = (isGold && karatBadge)
+    ? `${karatBadge} (${item.purityPercent.toFixed(1)}%)`
     : `${item.purityPercent.toFixed(1)}%`;
 
   return (

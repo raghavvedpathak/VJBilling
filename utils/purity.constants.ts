@@ -141,6 +141,10 @@ export function getDisplayPurity(
 ): string {
   const safePercent = purityPercent != null && !isNaN(Number(purityPercent)) ? Number(purityPercent) : 0;
 
+  if (metal === 'GOLD' && Math.abs(safePercent - 99.50) < 0.05) {
+    return '24KS';
+  }
+
   const resolvedKarat =
     purityKarat !== undefined && purityKarat !== null
       ? purityKarat
@@ -152,6 +156,21 @@ export function getDisplayPurity(
     return `${resolvedKarat}K`;
   }
   return `${safePercent}%`;
+}
+
+// formatKaratBadge() — Formats top-right highlighter badge for purity inputs
+export function formatKaratBadge(
+  purityPercent: number | string | null | undefined,
+  metal: 'GOLD' | 'SILVER' | string = 'GOLD'
+): string | null {
+  if (metal !== 'GOLD') return null;
+  const p = typeof purityPercent === 'number' ? purityPercent : parseCleanFloat(purityPercent);
+  if (isNaN(p) || p <= 0) return null;
+  if (Math.abs(p - 99.50) < 0.05) {
+    return '24KS';
+  }
+  const k = percentToKarat(p);
+  return k ? `${k}K` : null;
 }
 
 // =============================================================================
@@ -239,6 +258,17 @@ export function parseCleanFloat(input: string | number | null | undefined): numb
   return isNaN(val) ? 0 : val;
 }
 
+export function isPresetMatchingPurity(
+  inputPurity: string | number | undefined | null,
+  presetVal: string | number
+): boolean {
+  if (inputPurity === undefined || inputPurity === null) return false;
+  const numInput = parseCleanFloat(inputPurity);
+  const numPreset = parseCleanFloat(presetVal);
+  if (numInput <= 0 || numPreset <= 0) return false;
+  return Math.abs(numInput - numPreset) < 0.05;
+}
+
 export function mgToGrams(mg: number): number {
   return mg / 1000;
 }
@@ -303,10 +333,15 @@ export interface URDCostBreakdown {
   formattedFineGrams: string;
 }
 
-export function computeURDFineWeightMg(grossWeightMg: number, purityPercent: number): number {
+export function computeURDFineWeightMg(
+  grossWeightMg: number,
+  purityPercent: number,
+  metal: 'GOLD' | 'SILVER' = 'GOLD'
+): number {
   const safeGrossMg = Math.max(0, grossWeightMg || 0);
   const safePurity = Math.max(0, Math.min(100, purityPercent || 0));
-  return Math.round(safeGrossMg * (safePurity / 100));
+  const effectivePurity = resolveEffectivePurityPercent(safePurity, metal);
+  return Math.round(safeGrossMg * (effectivePurity / 100));
 }
 
 export function computeURDTotalValuePaise(
@@ -325,14 +360,15 @@ export function computeURDCostBreakdown(
   grossWeightMg: number,
   purityPercent: number,
   ratePerGramPaise: number,
-  adjustmentPaise: number = 0
+  adjustmentPaise: number = 0,
+  metal: 'GOLD' | 'SILVER' = 'GOLD'
 ): URDCostBreakdown {
   const safeGrossMg = Math.max(0, grossWeightMg || 0);
   const safePurity = Math.max(0, Math.min(100, purityPercent || 0));
   const safeRatePaise = Math.max(0, ratePerGramPaise || 0);
   const safeAdjustmentPaise = adjustmentPaise || 0;
 
-  const fineWeightMg = computeURDFineWeightMg(safeGrossMg, safePurity);
+  const fineWeightMg = computeURDFineWeightMg(safeGrossMg, safePurity, metal);
   const grossValuePaise = Math.round((fineWeightMg / 1000) * safeRatePaise);
   const subtotalAfterAdjustmentPaise = Math.max(0, grossValuePaise + safeAdjustmentPaise);
 

@@ -14,9 +14,10 @@ import { stoneRepository } from '@/repositories/phase2/stoneRepository';
 import { 
   caratsToCaratX100, 
   computeGemstoneTotalPaise,
-  parseCleanFloat 
-} from '@/utils/purity.constants';
-import { getCurrencySymbol, rupeesToPaise } from '@/utils/currency';
+  parseCleanFloat,
+  getCurrencySymbol,
+  rupeesToPaise,
+} from '@/utils/calculations';
 import { Gem, Diamond, Banknote, CheckCircle, Plus } from 'lucide-react-native';
 import type { Stone } from '@/types/phase2/phase2.types';
 import { COLORS } from '@/constants/theme';

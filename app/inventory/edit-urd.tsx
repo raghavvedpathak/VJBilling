@@ -15,7 +15,9 @@ import {
   computeURDCostBreakdown, 
   parseCleanFloat, 
   percentToKarat, 
+  formatKaratBadge,
   getPurityPresets,
+  isPresetMatchingPurity,
   rupeesToPaise 
 } from '@/utils/calculations';
 import { User, Scale, Banknote, CheckCircle, Save, X, Building2 } from 'lucide-react-native';
@@ -118,14 +120,14 @@ export default function EditURDScreen() {
     const signedAdj = adjustmentType === '-' ? -Math.abs(rawAdj) : Math.abs(rawAdj);
     const adjustmentPaise = rupeesToPaise(signedAdj) || 0;
 
-    const breakdown = computeURDCostBreakdown(grossMg, purity, ratePaise, adjustmentPaise);
+    const breakdown = computeURDCostBreakdown(grossMg, purity, ratePaise, adjustmentPaise, metalType);
     return {
       ...breakdown,
       isValid: grossMg > 0 && purity > 0 && ratePaise > 0,
       formattedFineGrams: (breakdown.fineWeightMg / 1000).toFixed(3) + ' g',
       formattedTotalPayout: formatRupees(breakdown.totalValuePaise),
     };
-  }, [grossWeight, purityPercent, ratePerGram, discount, adjustmentType]);
+  }, [grossWeight, purityPercent, ratePerGram, discount, adjustmentType, metalType]);
 
   const handleSubmit = async () => {
     try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); } catch {}
@@ -326,10 +328,10 @@ export default function EditURDScreen() {
             <View style={{ marginBottom: 12 }}>
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
                 <Text style={{ fontSize: 12, fontWeight: '700', color: 'rgba(92,22,35,0.6)', textTransform: 'uppercase' }}>Purity (%) *</Text>
-                {metalType === 'GOLD' && parseCleanFloat(purityPercent) > 0 && percentToKarat(parseCleanFloat(purityPercent)) ? (
+                {formatKaratBadge(purityPercent, metalType) ? (
                   <View style={{ backgroundColor: 'rgba(212,175,55,0.2)', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 }}>
                     <Text style={{ fontSize: 11, fontWeight: '800', color: '#D4AF37' }}>
-                      {percentToKarat(parseCleanFloat(purityPercent))}K
+                      {formatKaratBadge(purityPercent, metalType)}
                     </Text>
                   </View>
                 ) : null}
@@ -344,22 +346,25 @@ export default function EditURDScreen() {
 
             {/* Quick Purity Preset Chips */}
             <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 12, marginTop: -4 }}>
-              {getPurityPresets(metalType || 'GOLD').map((preset) => (
-                <TouchableOpacity
-                  key={preset.id}
-                  onPress={() => setPurityPercent(preset.val)}
-                  style={{
-                    backgroundColor: purityPercent === preset.val ? '#D4AF37' : 'rgba(212,175,55,0.12)',
-                    paddingHorizontal: 8,
-                    paddingVertical: 4,
-                    borderRadius: 6,
-                  }}
-                >
-                  <Text style={{ fontSize: 11, fontWeight: '700', color: purityPercent === preset.val ? '#FFF' : colors.vjText }}>
-                    {preset.label}
-                  </Text>
-                </TouchableOpacity>
-              ))}
+              {getPurityPresets(metalType || 'GOLD').map((preset) => {
+                const isSelected = isPresetMatchingPurity(purityPercent, preset.val);
+                return (
+                  <TouchableOpacity
+                    key={preset.id}
+                    onPress={() => setPurityPercent(preset.val)}
+                    style={{
+                      backgroundColor: isSelected ? '#D4AF37' : 'rgba(212,175,55,0.12)',
+                      paddingHorizontal: 8,
+                      paddingVertical: 4,
+                      borderRadius: 6,
+                    }}
+                  >
+                    <Text style={{ fontSize: 11, fontWeight: '700', color: isSelected ? '#FFF' : colors.vjText }}>
+                      {preset.label}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
             </View>
 
             <GlassInput

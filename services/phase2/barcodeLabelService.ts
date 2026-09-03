@@ -10,7 +10,7 @@ import { itemRepository } from '@/repositories/phase2/itemRepository';
 import { itemEventRepository } from '@/repositories/phase2/itemEventRepository';
 import { auditRepository } from '@/repositories/phase1/auditRepository';
 import { getDeviceId } from '@/utils/deviceId';
-import { getDisplayPurity, formatWeightMg } from '@/utils/purity.constants';
+import { getDisplayPurity, formatWeightMg } from '@/utils/calculations';
 import { formatSKUDisplay } from '@/services/phase2/skuEngine';
 import { now } from '@/utils/now';
 import * as Crypto from 'expo-crypto';

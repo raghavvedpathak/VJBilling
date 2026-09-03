@@ -12,7 +12,7 @@ import { safeModeService } from '@/services/phase1/safeModeService';
 import { getDeviceId } from '@/utils/deviceId';
 import { now } from '@/utils/now';
 import { sanitizeText } from '@/utils/sanitize';
-import { resolveFineWeightMg } from '@/utils/purity.constants';
+import { resolveFineWeightMg } from '@/utils/calculations';
 import * as Crypto from 'expo-crypto';
 
 // --- getPendingRefineryLots (Step 12.6A / FEAT-GAP5-REFINERYPENDING-1 v1.66) ---

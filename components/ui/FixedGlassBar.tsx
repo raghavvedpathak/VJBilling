@@ -20,10 +20,11 @@ export interface FixedGlassBarProps {
   children: React.ReactNode;
   style?: ViewStyle | ViewStyle[] | undefined;
   cardStyle?: ViewStyle | undefined;
+  contentStyle?: ViewStyle | undefined;
   hideOnKeyboard?: boolean | undefined;
 }
 
-export function FixedGlassBar({ children, style, cardStyle, hideOnKeyboard = true }: FixedGlassBarProps) {
+export function FixedGlassBar({ children, style, cardStyle, contentStyle, hideOnKeyboard = true }: FixedGlassBarProps) {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const isTablet = width >= 768;
@@ -38,6 +39,10 @@ export function FixedGlassBar({ children, style, cardStyle, hideOnKeyboard = tru
   // Subscribe to active theme in store so FixedGlassBar re-renders live on theme switch
   const activeTheme = appSettingsStore((s) => s.theme);
   const colors = getThemeColors(activeTheme);
+
+  const resolvedRadius = (cardStyle && 'borderRadius' in cardStyle && typeof cardStyle.borderRadius === 'number')
+    ? cardStyle.borderRadius
+    : 36;
 
   useEffect(() => {
     if (!hideOnKeyboard) return;
@@ -67,6 +72,7 @@ export function FixedGlassBar({ children, style, cardStyle, hideOnKeyboard = tru
             maxWidth: isTablet ? 720 : 580,
             borderColor: colors.border ? `${colors.vjAccent}35` : 'rgba(212, 175, 55, 0.35)',
             backgroundColor: 'transparent',
+            borderRadius: resolvedRadius,
           },
           cardStyle,
         ]}
@@ -79,7 +85,9 @@ export function FixedGlassBar({ children, style, cardStyle, hideOnKeyboard = tru
             s.fixedPillBlurContent,
             {
               backgroundColor: activeTheme === 'dark' ? 'rgba(28, 20, 24, 0.88)' : 'rgba(255, 255, 255, 0.88)',
+              borderRadius: resolvedRadius,
             },
+            contentStyle,
           ]}
         >
           <View style={s.fixedBottomBarRow}>

@@ -20,6 +20,7 @@ import { COLORS, getThemeColors } from '@/constants/theme';
 import {
   getDisplayPurity,
   percentToKarat,
+  formatKaratBadge,
   computeEffectivePricePerGram,
   computeVaultTruthGrams,
   computeCostTruthGrams,
@@ -31,6 +32,7 @@ import {
   resolveFineWeightMg,
   computeFineGoldChargedMg,
   getPurityPresets,
+  isPresetMatchingPurity,
   parseCleanFloat,
   rupeesToPaise,
 } from '@/utils/calculations';
@@ -440,8 +442,9 @@ export default function ItemDetailScreen() {
     const totalAmount = computeAbsoluteTotalCostRupees(netWeightG, effectivePricePerGram, making, stoneC);
     const metalCostRupees = netWeightG * effectivePricePerGram;
 
-    const purityDisplayStr = (item.metal === 'GOLD' && livePurityKarat && livePurityKarat > 0)
-      ? `${livePurityKarat}K · ${livePurityPercent.toFixed(1)}%`
+    const karatBadge = formatKaratBadge(livePurityPercent, item.metal);
+    const purityDisplayStr = (item.metal === 'GOLD' && karatBadge)
+      ? `${karatBadge} · ${livePurityPercent.toFixed(1)}%`
       : getDisplayPurity(livePurityPercent, livePurityKarat, item.metal);
 
     const finParts: string[] = [];
@@ -624,10 +627,10 @@ export default function ItemDetailScreen() {
                 <View style={s.detailLabelRow}>
                   <Percent size={14} color={colors.vjAccent} />
                   <Text style={s.detailLabel}>Purity Grade</Text>
-                  {isEditing && item.metal === 'GOLD' && editPurityKarat ? (
+                  {isEditing && formatKaratBadge(editPurityPercent, item.metal) ? (
                     <View style={{ backgroundColor: 'rgba(212,175,55,0.2)', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4, marginLeft: 8 }}>
                       <Text style={{ fontSize: 11, fontWeight: '800', color: '#D4AF37' }}>
-                        {editPurityKarat}K
+                        {formatKaratBadge(editPurityPercent, item.metal)}
                       </Text>
                     </View>
                   ) : null}
@@ -649,28 +652,31 @@ export default function ItemDetailScreen() {
                       placeholderTextColor="rgba(92,22,35,0.35)"
                     />
                     <View style={s.unitSelectorRow}>
-                      {getPurityPresets(item.metal || 'GOLD').map((preset) => (
-                        <TouchableOpacity
-                          key={preset.id}
-                          style={[
-                            s.unitChip,
-                            editPurityPercent === preset.val && s.unitChipSelected,
-                          ]}
-                          onPress={() => {
-                            setEditPurityPercent(preset.val);
-                            setEditPurityKarat(item.metal === 'GOLD' ? preset.karat : null);
-                          }}
-                        >
-                          <Text
+                      {getPurityPresets(item.metal || 'GOLD').map((preset) => {
+                        const isSelected = isPresetMatchingPurity(editPurityPercent, preset.val);
+                        return (
+                          <TouchableOpacity
+                            key={preset.id}
                             style={[
-                              s.unitChipText,
-                              editPurityPercent === preset.val && s.unitChipTextSelected,
+                              s.unitChip,
+                              isSelected && s.unitChipSelected,
                             ]}
+                            onPress={() => {
+                              setEditPurityPercent(preset.val);
+                              setEditPurityKarat(item.metal === 'GOLD' ? preset.karat : null);
+                            }}
                           >
-                            {preset.label}
-                          </Text>
-                        </TouchableOpacity>
-                      ))}
+                            <Text
+                              style={[
+                                s.unitChipText,
+                                isSelected && s.unitChipTextSelected,
+                              ]}
+                            >
+                              {preset.label}
+                            </Text>
+                          </TouchableOpacity>
+                        );
+                      })}
                     </View>
                   </View>
                 ) : (

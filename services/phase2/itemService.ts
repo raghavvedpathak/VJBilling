@@ -21,7 +21,7 @@ import { now } from '@/utils/now';
 import {
   resolveFineWeightMg,
   computeFineGoldChargedMg
-} from '@/utils/purity.constants';
+} from '@/utils/calculations';
 import * as Crypto from 'expo-crypto';
 import { ERR } from '@/constants/errorCodes';
 import type {

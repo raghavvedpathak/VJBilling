@@ -15,7 +15,7 @@ import { urdPrintService } from '@/services/phase2/urdPrintService';
 import type { CreateURDPurchaseInput, URDPurchase } from '@/types/phase2/phase2.types';
 import { getDeviceId } from '@/utils/deviceId';
 import { now } from '@/utils/now';
-import { computeURDFineWeightMg, computeURDTotalValuePaise } from '@/utils/purity.constants';
+import { computeURDFineWeightMg, computeURDTotalValuePaise } from '@/utils/calculations';
 import { sanitizeText } from '@/utils/sanitize';
 import * as Crypto from 'expo-crypto';
 
@@ -55,7 +55,7 @@ export async function createURDPurchase(
   const sanitizedCustomerAddress = input.customerAddress ? sanitizeText(input.customerAddress) : null;
   const sanitizedNotes = input.notes ? sanitizeText(input.notes) : null;
 
-  const fineWeightMg = computeURDFineWeightMg(input.grossWeightMg, input.purityPercent);
+  const fineWeightMg = computeURDFineWeightMg(input.grossWeightMg, input.purityPercent, input.metalType);
   const totalValuePaise = input.totalValuePaise ?? computeURDTotalValuePaise(fineWeightMg, input.ratePerGramPaise, input.adjustmentPaise ?? 0);
   const totalAmountPaise = totalValuePaise; // Resolves TS18004 shorthand scope error
   if (totalValuePaise > 999999999) throw new Error(ERR.URD_AMOUNT_EXCEEDS_MAX); // ALIGN-P1-V77
@@ -163,7 +163,7 @@ export async function updateURDPurchase(
     if (purityPercent <= 0 || purityPercent > 100) throw new Error(ERR.URD_PURITY_PERCENT_INVALID);
     if (ratePerGramPaise <= 0) throw new Error(ERR.URD_RATE_INVALID);
 
-    const fineWeightMg = computeURDFineWeightMg(grossWeightMg, purityPercent);
+    const fineWeightMg = computeURDFineWeightMg(grossWeightMg, purityPercent, (urd.metalType as 'GOLD' | 'SILVER') || 'GOLD');
     const totalValuePaise = input.totalValuePaise ?? computeURDTotalValuePaise(fineWeightMg, ratePerGramPaise, input.adjustmentPaise ?? 0);
     const totalAmountPaise = totalValuePaise;
     if (totalValuePaise > 999999999) throw new Error(ERR.URD_AMOUNT_EXCEEDS_MAX);

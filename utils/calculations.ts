@@ -16,6 +16,7 @@ export {
   PURITY_PRESETS,
   getPurityPresets,
   getPurityPresetById,
+  isPresetMatchingPurity,
 
   // Fine Weight & Purity Formulas
   resolveEffectivePurityPercent, // FIX-EFFPRICE-PURITYROUND-1 (v2.14)
@@ -23,6 +24,7 @@ export {
   karatToPercent,
   percentToKarat,
   getDisplayPurity,
+  formatKaratBadge,
 
   // Costing & Wholesale Formulas
   computeFineGoldChargedMg,

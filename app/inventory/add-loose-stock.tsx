@@ -13,11 +13,13 @@ import { designRepository } from '@/repositories/phase2/designRepository';
 import { looseStockService } from '@/services/phase2/looseStockService';
 import { 
   getPurityPresets, 
+  formatKaratBadge,
   gramsToMg, 
   parseCleanFloat, 
-  type PurityPreset 
-} from '@/utils/purity.constants';
-import { getCurrencySymbol, rupeesToPaise } from '@/utils/currency';
+  type PurityPreset,
+  getCurrencySymbol,
+  rupeesToPaise,
+} from '@/utils/calculations';
 import { Layers, Scale, Banknote, CheckCircle, Plus } from 'lucide-react-native';
 import type { Design, AddLooseStockInput } from '@/types/phase2/phase2.types';
 import { COLORS } from '@/constants/theme';
@@ -130,7 +132,7 @@ export default function AddLooseStockScreen() {
 
     const totalWeightMg = gramsToMg(wtGramsVal);
     const purityPct = parseCleanFloat(selectedPurity.val);
-    const karatDisplay = selectedPurity.karat ? `${selectedPurity.karat}K` : `${purityPct}%`;
+    const karatDisplay = formatKaratBadge(purityPct, selectedDesign.metal) ?? `${purityPct}%`;
 
     // Construct input with exact optional property adherence
     const input: AddLooseStockInput = {

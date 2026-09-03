@@ -11,7 +11,7 @@ import { useFirmStore } from '@/store/phase1/useFirmStore';
 import { inventoryDrillDownService } from '@/services/phase2/inventoryDrillDownService';
 import { itemService } from '@/services/phase2/itemService';
 import type { ItemSearchResult } from '@/types/phase2/phase2.types';
-import { getDisplayPurity, formatSKUDisplay, formatWeightMg as formatWeight } from '@/utils/calculations';
+import { getDisplayPurity, formatKaratBadge, formatSKUDisplay, formatWeightMg as formatWeight } from '@/utils/calculations';
 import { Check, PackageSearch, Edit3, CheckCircle, Package, Scale, ShieldCheck } from 'lucide-react-native';
 import { appSettingsStore } from '@/store/phase1/appSettingsStore';
 import { COLORS, getThemeColors } from '@/constants/theme';
@@ -27,8 +27,9 @@ const DraftRow = memo(({ item, colors, onActivate, onEdit }: DraftRowProps) => {
   const metalColor = item.metal === 'GOLD' ? (colors.vjAccent || COLORS.gold) : COLORS.silver;
   const isGold = item.metal === 'GOLD';
 
-  const purityDisplay = (isGold && item.purityKarat && item.purityKarat > 0)
-    ? `${item.purityKarat}K · ${item.purityPercent.toFixed(1)}%`
+  const karatBadge = formatKaratBadge(item.purityPercent, item.metal);
+  const purityDisplay = (isGold && karatBadge)
+    ? `${karatBadge} · ${item.purityPercent.toFixed(1)}%`
     : getDisplayPurity(item.purityPercent, item.purityKarat ?? null, item.metal);
 
   const displaySku = formatSKUDisplay(item.sku);
