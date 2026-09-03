@@ -1,4 +1,4 @@
-// app/inventory/drill-down.tsx — Phase 2 v2.11 Canonical Screen
+// app/inventory/drill-down.tsx — Phase 2 v2.24 Canonical Screen
 
 import React, { useState, useCallback, memo } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
@@ -25,10 +25,15 @@ type CategoryRowProps = {
 const CategoryRow = memo(({ item, colors, onPress }: CategoryRowProps) => {
   return (
     <TouchableOpacity
-      id={`category-row-${item.id}`}
+      testID={`category-row-${item.id}`}
       onPress={() => onPress(item.id, item.name)}
       activeOpacity={0.75}
-      style={s.card}
+      style={[
+        s.card,
+        {
+          borderColor: `${colors.vjAccent}25`,
+        },
+      ]}
     >
       <View style={[s.metalBadge, { backgroundColor: `${colors.vjAccent}1A`, borderColor: `${colors.vjAccent}40` }]}>
         {getJewelryCategoryIcon(item.name, undefined, undefined, 24, colors.vjAccent)}
@@ -45,7 +50,7 @@ const CategoryRow = memo(({ item, colors, onPress }: CategoryRowProps) => {
         </View>
       </View>
 
-      <View style={[s.countBadge, { backgroundColor: 'rgba(255, 255, 255, 0.9)', borderColor: `${colors.vjAccent}40` }]}>
+      <View style={[s.countBadge, { backgroundColor: '#FFFFFF', borderColor: `${colors.vjAccent}40` }]}>
         <Text style={[s.countText, { color: colors.vjText }]}>{item.availableCount}</Text>
         <Text style={[s.countLabel, { color: colors.vjText, opacity: 0.5 }]}>items</Text>
       </View>
@@ -74,7 +79,7 @@ export default function DrillDownScreen() {
         setLoading(true);
         try {
           const results = await inventoryDrillDownService.getCategoriesWithStock(activeFirmId);
-          if (active) setData(results);
+          if (active) setData(results || []);
         } catch (e) {
           console.error('[DrillDown] getCategoriesWithStock failed:', e);
         } finally {
@@ -87,7 +92,7 @@ export default function DrillDownScreen() {
   );
 
   const handleCategoryPress = useCallback((categoryId: string, categoryName: string) => {
-    try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch (e) {}
+    try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
     router.push({
       pathname: '/inventory/category-items',
       params: { categoryId, categoryName },
@@ -108,7 +113,7 @@ export default function DrillDownScreen() {
   return (
     <TwoToneWrapper title="Stock Ledger" showBack headerContent={ledgerHeaderPills}>
       <View style={s.listContainer}>
-        {loading ? (
+        {loading && data.length === 0 ? (
           <View style={s.loadingContainer}>
             <ActivityIndicator size="large" color={colors.vjAccent} />
             <Text style={[s.loadingText, { color: colors.vjText }]}>Loading inventory...</Text>
@@ -120,9 +125,9 @@ export default function DrillDownScreen() {
             renderItem={({ item }) => (
               <CategoryRow item={item} colors={colors} onPress={handleCategoryPress} />
             )}
-            // @ts-ignore: estimatedItemSize required by spec
+            // @ts-ignore: estimatedItemSize required by FlashList
             estimatedItemSize={88}
-            contentContainerStyle={{paddingBottom: 100, paddingTop: 32}}
+            contentContainerStyle={{ paddingBottom: Math.max(insets.bottom + 120, 140), paddingTop: 32 }}
             showsVerticalScrollIndicator={false}
             ListEmptyComponent={
               <View style={s.emptyContainer}>
@@ -135,9 +140,10 @@ export default function DrillDownScreen() {
         )}
       </View>
       <TouchableOpacity 
-        style={[s.fab, { backgroundColor: colors.vjAccent, bottom: Math.max(insets.bottom + 24, 64) }]}
+        testID="drill-down-fab-add-stock"
+        style={[s.fab, { backgroundColor: colors.vjAccent, bottom: Math.max(insets.bottom + 24, 40) }]}
         onPress={() => {
-          try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch (e) {}
+          try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
           router.push('/inventory/add-stock');
         }}
         activeOpacity={0.85}
@@ -158,7 +164,6 @@ const s = StyleSheet.create({
     padding: 16,
     backgroundColor: '#FCFBF8',
     borderWidth: 1,
-    borderColor: 'rgba(212, 175, 55, 0.25)',
     gap: 14,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
@@ -228,7 +233,6 @@ const s = StyleSheet.create({
   loadingText: {
     fontSize: 14,
     fontWeight: '600',
-    opacity: 0.6,
   },
   emptyContainer: {
     alignItems: 'center',
@@ -238,14 +242,12 @@ const s = StyleSheet.create({
   emptyTitle: {
     fontSize: 18,
     fontWeight: '700',
-    opacity: 0.7,
   },
   emptySubtitle: {
     fontSize: 13,
   },
   fab: {
     position: 'absolute',
-    bottom: 100,
     right: 24,
     width: 64,
     height: 64,

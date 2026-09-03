@@ -27,8 +27,12 @@ export function FixedGlassBar({ children, style, cardStyle, hideOnKeyboard = tru
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const isTablet = width >= 768;
-  // Safe clearance above Android 3-button navigation, tablet taskbar, gesture bar, or iOS home indicator
-  const bottomOffset = Math.max(insets.bottom, 16);
+  // Safe clearance above Android 3-button navigation bar (48-56dp), gesture home bar, or iOS home indicator
+  const bottomOffset = Platform.select({
+    ios: Math.max(insets.bottom, 16),
+    android: Math.max(insets.bottom + 16, 64),
+    default: 16,
+  });
   const [keyboardVisible, setKeyboardVisible] = useState(false);
 
   // Subscribe to active theme in store so FixedGlassBar re-renders live on theme switch
@@ -61,13 +65,23 @@ export function FixedGlassBar({ children, style, cardStyle, hideOnKeyboard = tru
           s.fixedPillCard,
           {
             maxWidth: isTablet ? 720 : 580,
-            borderColor: colors.border || 'rgba(212, 175, 55, 0.25)',
-            backgroundColor: 'rgba(255, 255, 255, 0.95)',
+            borderColor: colors.border ? `${colors.vjAccent}35` : 'rgba(212, 175, 55, 0.35)',
+            backgroundColor: 'transparent',
           },
           cardStyle,
         ]}
       >
-        <BlurView intensity={50} tint="light" style={s.fixedPillBlurContent}>
+        <BlurView 
+          intensity={Platform.OS === 'ios' ? 70 : 0} 
+          tint={activeTheme === 'dark' ? 'dark' : 'light'} 
+          {...(Platform.OS === 'android' ? { blurMethod: 'none' as const } : {})}
+          style={[
+            s.fixedPillBlurContent,
+            {
+              backgroundColor: activeTheme === 'dark' ? 'rgba(28, 20, 24, 0.88)' : 'rgba(255, 255, 255, 0.88)',
+            },
+          ]}
+        >
           <View style={s.fixedBottomBarRow}>
             {children}
           </View>

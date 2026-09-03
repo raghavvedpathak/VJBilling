@@ -1,10 +1,13 @@
-import React, { useState, useEffect, useCallback, memo } from 'react';
+// app/inventory/search.tsx — Phase 2 v2.24 Canonical Screen
+
+import React, { useState, useEffect, useCallback, memo, useRef } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator, Modal, Alert, Keyboard } from 'react-native';
 import { FlashList } from '@shopify/flash-list';
 import { useRouter } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import { CameraView, useCameraPermissions } from 'expo-camera';
-import { Search, PackageSearch, Ghost, Hash, Sparkles, Coins, ScanLine, X } from 'lucide-react-native';
+import { Search, PackageSearch, Ghost, Hash, Sparkles, Coins, ScanLine, X, ShieldCheck } from 'lucide-react-native';
 import { inventorySearchService } from '@/services/phase2/inventorySearchService';
 import { formatWeightMg as formatWeight } from '@/utils/calculations';
 import { formatSKUDisplay } from '@/utils/skuDisplay';
@@ -20,7 +23,7 @@ const COLORS = {
   highlight: 'rgba(212, 175, 55, 0.22)',
 };
 
-const HighlightText = memo(({ text, query, style }: { text?: string | null, query: string, style: any }) => {
+const HighlightText = memo(({ text, query, style }: { text?: string | null; query: string; style: any }) => {
   if (!text) return null;
   const activeQuery = query.trim();
   if (!activeQuery) return <Text style={style}>{text}</Text>;
@@ -30,7 +33,7 @@ const HighlightText = memo(({ text, query, style }: { text?: string | null, quer
 
   let parts: string[] = [text];
   try {
-    const escapedTokens = tokens.map(t => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+    const escapedTokens = tokens.map((t) => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
     const pattern = new RegExp(`(${escapedTokens.join('|')})`, 'gi');
     parts = text.split(pattern);
   } catch {
@@ -40,10 +43,10 @@ const HighlightText = memo(({ text, query, style }: { text?: string | null, quer
   return (
     <Text style={style}>
       {parts.map((part, index) => {
-        const isMatch = tokens.some(t => t.toLowerCase() === part.toLowerCase());
+        const isMatch = tokens.some((t) => t.toLowerCase() === part.toLowerCase());
         return isMatch ? (
           <Text 
-            key={index} 
+            key={`${part}-${index}`} 
             style={[
               style, 
               { 
@@ -58,7 +61,7 @@ const HighlightText = memo(({ text, query, style }: { text?: string | null, quer
             {part}
           </Text>
         ) : (
-          <Text key={index} style={style}>{part}</Text>
+          <Text key={`${part}-${index}`} style={style}>{part}</Text>
         );
       })}
     </Text>
@@ -68,81 +71,95 @@ const HighlightText = memo(({ text, query, style }: { text?: string | null, quer
 type SearchResultRowProps = {
   item: ItemSearchResult;
   query: string;
+  colors: ReturnType<typeof getThemeColors>;
   onPress: (itemId: string) => void;
 };
 
-const SearchResultRow = memo(({ item, query, onPress }: SearchResultRowProps) => {
+const SearchResultRow = memo(({ item, query, colors, onPress }: SearchResultRowProps) => {
   const isGold = item.metal === 'GOLD';
   const isPhantom = item.status === 'PHANTOM_AVAILABLE';
   const activeQuery = query.trim();
+  const metalColor = isGold ? colors.vjAccent : COLORS.silver;
 
   return (
     <TouchableOpacity 
-      style={s.card}
+      testID={`search-result-row-${item.itemId}`}
+      style={[s.card, { borderColor: `${colors.vjAccent}25` }]}
       activeOpacity={0.7}
       onPress={() => {
-        try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch (e) {}
+        try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
         onPress(item.itemId);
       }}
     >
       <View style={s.cardHeader}>
         <View style={s.badgeRow}>
-          <View style={[s.metalBadge, { backgroundColor: isGold ? COLORS.goldAccent + '20' : COLORS.silverAccent + '20', flexDirection: 'row', alignItems: 'center', gap: 4 }]}>
-            {isGold ? <Sparkles size={12} color={COLORS.goldAccent} /> : <Coins size={12} color={COLORS.silverAccent} />}
-            <Text style={[s.metalText, { color: isGold ? COLORS.goldAccent : COLORS.silverAccent }]}>
-              {item.metal} {item.purityKarat ? `${item.purityKarat}K` : `${item.purityPercent}%`}
+          <View style={[s.metalBadge, { backgroundColor: `${metalColor}18`, flexDirection: 'row', alignItems: 'center', gap: 4 }]}>
+            {isGold ? <Sparkles size={12} color={metalColor} /> : <Coins size={12} color={metalColor} />}
+            <Text style={[s.metalText, { color: metalColor }]}>
+              {item.metal} {isGold && item.purityKarat ? `${item.purityKarat}K` : `${item.purityPercent}%`}
             </Text>
           </View>
           
           {item.sizeValue != null && (
-            <View style={[s.metalBadge, { backgroundColor: COLORS.border + '30', marginLeft: 6 }]}>
-              <Text style={[s.metalText, { color: COLORS.vjText }]}>
+            <View style={[s.metalBadge, { backgroundColor: `${colors.vjAccent}14`, marginLeft: 6 }]}>
+              <Text style={[s.metalText, { color: colors.vjText }]}>
                 SZ:{' '}
                 <HighlightText 
                   text={`${item.sizeValue}${item.sizeUnit ? ' ' + item.sizeUnit : ''}`} 
                   query={activeQuery} 
-                  style={[s.metalText, { color: COLORS.vjText }]} 
+                  style={[s.metalText, { color: colors.vjText }]} 
                 />
               </Text>
             </View>
           )}
           
           {isPhantom && (
-            <View style={[s.metalBadge, { backgroundColor: COLORS.phantom + '15', marginLeft: 6 }]}>
+            <View style={[s.metalBadge, { backgroundColor: `${COLORS.phantom}15`, marginLeft: 6 }]}>
               <Ghost size={10} color={COLORS.phantom} style={{ marginRight: 4 }} />
               <Text style={[s.metalText, { color: COLORS.phantom }]}>PHANTOM</Text>
             </View>
           )}
         </View>
         
-        <Text style={s.huidText}>
-          HUID: <HighlightText text={item.huid || 'N/A'} query={activeQuery} style={s.huidText} />
-        </Text>
+        {item.huid ? (
+          <View style={s.huidContainer}>
+            <ShieldCheck size={12} color="#15803d" />
+            <Text style={s.huidText}>
+              HUID: <HighlightText text={item.huid} query={activeQuery} style={s.huidText} />
+            </Text>
+          </View>
+        ) : (
+          <Text style={[s.huidTextMuted, { color: colors.vjText }]}>No HUID</Text>
+        )}
       </View>
 
       <View style={s.cardBody}>
         <View style={s.mainDetails}>
-          <Text style={s.itemNameText} numberOfLines={1}>
-            <HighlightText text={item.designName} query={activeQuery} style={s.itemNameText} />
+          <Text style={[s.itemNameText, { color: colors.vjText }]} numberOfLines={1}>
+            <HighlightText text={item.designName} query={activeQuery} style={[s.itemNameText, { color: colors.vjText }]} />
             {item.categoryName ? (
-              <Text style={s.itemCategorySub}> ({item.categoryName})</Text>
+              <Text style={[s.itemCategorySub, { color: colors.vjText }]}> ({item.categoryName})</Text>
             ) : null}
           </Text>
-          <Text style={s.skuSubText}>
-            SKU: <HighlightText text={formatSKUDisplay(item.sku)} query={activeQuery} style={s.skuSubText} />
+          <Text style={[s.skuSubText, { color: colors.vjText, opacity: 0.6 }]}>
+            SKU: <HighlightText text={formatSKUDisplay(item.sku)} query={activeQuery} style={[s.skuSubText, { color: colors.vjText, opacity: 0.8 }]} />
             {item.barcode ? (
               <>
                 {' • Barcode: '}
-                <HighlightText text={item.barcode} query={activeQuery} style={s.skuSubText} />
+                <HighlightText text={item.barcode} query={activeQuery} style={[s.skuSubText, { color: colors.vjText, opacity: 0.8 }]} />
               </>
             ) : null}
           </Text>
-          <View style={s.inlineWeightRow}>
-            <Text style={s.weightInlineLabel}>Gross Wt: </Text>
-            <Text style={s.weightInlineVal}>{formatWeight(item.grossWeightMg)}</Text>
+          <View style={[s.inlineWeightRow, { backgroundColor: `${colors.vjAccent}08`, borderColor: `${colors.vjAccent}18` }]}>
+            <Text style={[s.weightInlineLabel, { color: colors.vjText }]}>Gross: </Text>
+            <Text style={[s.weightInlineVal, { color: colors.vjText }]}>{formatWeight(item.grossWeightMg)}</Text>
             <Text style={s.weightInlineDivider}>   •   </Text>
-            <Text style={s.weightInlineLabel}>Net Wt: </Text>
-            <HighlightText text={formatWeight(item.netWeightMg)} query={activeQuery} style={s.weightInlineValBold} />
+            <Text style={[s.weightInlineLabel, { color: colors.vjText }]}>Net: </Text>
+            <HighlightText 
+              text={formatWeight(item.netWeightMg ?? item.grossWeightMg ?? 0)} 
+              query={activeQuery} 
+              style={[s.weightInlineValBold, { color: colors.vjAccent }]} 
+            />
           </View>
         </View>
       </View>
@@ -152,12 +169,17 @@ const SearchResultRow = memo(({ item, query, onPress }: SearchResultRowProps) =>
 
 export default function InventorySearchScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const { activeFirmId } = useFirmStore();
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<ItemSearchResult[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [showScanner, setShowScanner] = useState(false);
   const [permission, requestPermission] = useCameraPermissions();
+  const isScanningRef = useRef(false);
+
+  const activeTheme = appSettingsStore((s: any) => s.theme);
+  const colors = getThemeColors(activeTheme);
 
   useEffect(() => {
     const trimmedQuery = query.trim();
@@ -168,50 +190,63 @@ export default function InventorySearchScreen() {
       return;
     }
 
+    let isCurrent = true;
     setIsSearching(true);
     const delayDebounceFn = setTimeout(async () => {
       try {
         const data = await inventorySearchService.searchItems(activeFirmId, trimmedQuery);
-        setResults(data);
+        if (isCurrent) {
+          setResults(data || []);
+        }
       } catch (error) {
-        console.error('[Search] Failed to fetch results:', error);
+        if (isCurrent) {
+          console.error('[Search] Failed to fetch results:', error);
+        }
       } finally {
-        setIsSearching(false);
+        if (isCurrent) {
+          setIsSearching(false);
+        }
       }
-    }, 80); 
+    }, 80);
 
-    return () => clearTimeout(delayDebounceFn);
+    return () => {
+      isCurrent = false;
+      clearTimeout(delayDebounceFn);
+    };
   }, [query, activeFirmId]);
 
   const handleItemPress = useCallback((itemId: string) => {
-    router.push(`/inventory/item-detail?itemId=${itemId}`);
+    router.push({ pathname: '/inventory/item-detail', params: { itemId } });
   }, [router]);
 
   const handleScanPress = async () => {
-    try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); } catch (e) {}
+    try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); } catch {}
     if (!permission?.granted) {
       const res = await requestPermission();
       if (!res.granted) {
-        Alert.alert("Permission Required", "Camera access is needed to scan product barcodes.");
+        Alert.alert('Permission Required', 'Camera access is needed to scan product barcodes.');
         return;
       }
     }
+    isScanningRef.current = false;
     setShowScanner(true);
   };
 
   const handleBarcodeScanned = useCallback(async ({ data }: { data: string }) => {
-    if (!data) return;
-    try { Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success); } catch (e) {}
+    if (!data || isScanningRef.current) return;
+    isScanningRef.current = true;
+    
+    try { Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success); } catch {}
     setShowScanner(false);
-    setQuery(data);
+    setQuery(data.trim());
 
     if (activeFirmId) {
       try {
         setIsSearching(true);
-        const searchResults = await inventorySearchService.searchItems(activeFirmId, data);
-        setResults(searchResults);
-        if (searchResults.length === 1) {
-          router.push(`/inventory/item-detail?itemId=${searchResults[0].itemId}`);
+        const searchResults = await inventorySearchService.searchItems(activeFirmId, data.trim());
+        setResults(searchResults || []);
+        if (searchResults && searchResults.length === 1) {
+          router.push({ pathname: '/inventory/item-detail', params: { itemId: searchResults[0].itemId } });
         }
       } catch (e) {
         console.error('[Search] Barcode lookup failed:', e);
@@ -220,9 +255,6 @@ export default function InventorySearchScreen() {
       }
     }
   }, [activeFirmId, router]);
-
-  const activeTheme = appSettingsStore((s: any) => s.theme);
-  const colors = getThemeColors(activeTheme);
 
   const searchHeaderPills = (
     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 4, flexWrap: 'wrap' }}>
@@ -233,14 +265,14 @@ export default function InventorySearchScreen() {
 
   return (
     <TwoToneWrapper title="Stock Search" showBack headerContent={searchHeaderPills}>
-      
       <View style={s.topSearchSection}>
-        <View style={s.searchBox}>
-          <Search size={18} color="#D4AF37" style={s.searchIcon} />
+        <View style={[s.searchBox, { borderColor: `${colors.vjAccent}40` }]}>
+          <Search size={18} color={colors.vjAccent} style={s.searchIcon} />
           <TextInput
-            style={s.input}
+            testID="inventory-search-input"
+            style={[s.input, { color: colors.vjText }]}
             placeholder="Scan Barcode / Search SKU, HUID, Size..."
-            placeholderTextColor="rgba(46, 29, 0, 0.4)"
+            placeholderTextColor="rgba(92, 22, 35, 0.4)"
             value={query}
             onChangeText={setQuery}
             onSubmitEditing={() => Keyboard.dismiss()}
@@ -251,22 +283,24 @@ export default function InventorySearchScreen() {
             spellCheck={false}
           />
           {isSearching ? (
-            <ActivityIndicator size="small" color="#D4AF37" style={s.spinner} />
+            <ActivityIndicator size="small" color={colors.vjAccent} style={s.spinner} />
           ) : query.length > 0 ? (
             <TouchableOpacity 
+              testID="clear-search-btn"
               onPress={() => setQuery('')}
               style={s.clearBtn}
             >
-              <X size={16} color="rgba(46, 29, 0, 0.5)" />
+              <X size={16} color={colors.vjText} style={{ opacity: 0.5 }} />
             </TouchableOpacity>
           ) : null}
 
           <TouchableOpacity
+            testID="barcode-scan-btn"
             activeOpacity={0.7}
             onPress={handleScanPress}
-            style={s.scanBtn}
+            style={[s.scanBtn, { backgroundColor: `${colors.vjAccent}14`, borderColor: `${colors.vjAccent}35` }]}
           >
-            <ScanLine size={20} color="#B8860B" />
+            <ScanLine size={20} color={colors.vjAccent} />
           </TouchableOpacity>
         </View>
       </View>
@@ -274,35 +308,43 @@ export default function InventorySearchScreen() {
       <View style={s.listContainer}>
         {query.trim().length === 0 ? (
           <View style={s.emptyState}>
-            <Hash size={44} color="rgba(92,22,35,0.25)" />
-            <Text style={s.emptyTitle}>Search Inventory</Text>
-            <Text style={s.emptySub}>Type SKU, HUID, Category, Design, or scan barcode</Text>
+            <Hash size={44} color={colors.vjAccent} style={{ opacity: 0.3 }} />
+            <Text style={[s.emptyTitle, { color: colors.vjText }]}>Search Inventory</Text>
+            <Text style={[s.emptySub, { color: colors.vjText, opacity: 0.55 }]}>
+              Type SKU, HUID, Category, Design, or scan barcode
+            </Text>
           </View>
         ) : results.length === 0 && !isSearching ? (
           <View style={s.emptyState}>
-            <PackageSearch size={44} color="rgba(92,22,35,0.25)" />
-            <Text style={s.emptyTitle}>No items found</Text>
-            <Text style={s.emptySub}>Try searching for a different SKU, HUID, or tag</Text>
+            <PackageSearch size={44} color={colors.vjAccent} style={{ opacity: 0.3 }} />
+            <Text style={[s.emptyTitle, { color: colors.vjText }]}>No items found</Text>
+            <Text style={[s.emptySub, { color: colors.vjText, opacity: 0.55 }]}>
+              Try searching for a different SKU, HUID, or tag
+            </Text>
           </View>
         ) : (
           <>
             {results.length > 0 && (
               <View style={{ paddingHorizontal: 16, paddingTop: 6, paddingBottom: 4 }}>
-                <Text style={{ fontSize: 11, fontWeight: '800', color: '#78350F', letterSpacing: 0.5 }}>
+                <Text style={{ fontSize: 11, fontWeight: '800', color: colors.vjAccent, letterSpacing: 0.5 }}>
                   ✨ {results.length} {results.length === 1 ? 'ITEM' : 'ITEMS'} FOUND
                 </Text>
               </View>
             )}
             <FlashList
               data={results}
-              // @ts-ignore: estimatedItemSize required by spec
+              // @ts-ignore: estimatedItemSize required by FlashList
               estimatedItemSize={95}
               getItemType={(item) => item.metal}
               keyExtractor={(item) => item.itemId}
               renderItem={({ item }) => (
-                <SearchResultRow item={item} query={query} onPress={handleItemPress} />
+                <SearchResultRow item={item} query={query} colors={colors} onPress={handleItemPress} />
               )}
-              contentContainerStyle={s.listPadding}
+              contentContainerStyle={{
+                paddingHorizontal: 14,
+                paddingTop: 12,
+                paddingBottom: Math.max(insets.bottom + 24, 40),
+              }}
               keyboardShouldPersistTaps="handled"
             />
           </>
@@ -312,7 +354,10 @@ export default function InventorySearchScreen() {
       <Modal
         visible={showScanner}
         animationType="slide"
-        onRequestClose={() => setShowScanner(false)}
+        onRequestClose={() => {
+          setShowScanner(false);
+          isScanningRef.current = false;
+        }}
       >
         <View style={s.scannerContainer}>
           <CameraView
@@ -325,9 +370,12 @@ export default function InventorySearchScreen() {
           />
 
           <View style={s.overlay}>
-            <View style={s.scannerHeader}>
+            <View style={[s.scannerHeader, { paddingTop: Math.max(insets.top + 16, 48) }]}>
               <TouchableOpacity
-                onPress={() => setShowScanner(false)}
+                onPress={() => {
+                  setShowScanner(false);
+                  isScanningRef.current = false;
+                }}
                 style={s.closeScannerBtn}
               >
                 <X size={24} color="#FFF" />
@@ -338,14 +386,14 @@ export default function InventorySearchScreen() {
 
             <View style={s.viewfinderContainer}>
               <View style={s.viewfinderBox}>
-                <View style={[s.corner, s.cornerTL]} />
-                <View style={[s.corner, s.cornerTR]} />
-                <View style={[s.corner, s.cornerBL]} />
-                <View style={[s.corner, s.cornerBR]} />
+                <View style={[s.corner, s.cornerTL, { borderColor: colors.vjAccent }]} />
+                <View style={[s.corner, s.cornerTR, { borderColor: colors.vjAccent }]} />
+                <View style={[s.corner, s.cornerBL, { borderColor: colors.vjAccent }]} />
+                <View style={[s.corner, s.cornerBR, { borderColor: colors.vjAccent }]} />
               </View>
             </View>
 
-            <View style={s.scannerFooter}>
+            <View style={[s.scannerFooter, { paddingBottom: Math.max(insets.bottom + 24, 48) }]}>
               <Text style={s.scannerHint}>Align jewelry tag barcode inside frame</Text>
             </View>
           </View>
@@ -367,13 +415,13 @@ const s = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     borderRadius: 18,
     borderWidth: 1,
-    borderColor: 'rgba(212, 175, 55, 0.3)',
     height: 52,
     paddingHorizontal: 14,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.04,
     shadowRadius: 6,
+    elevation: 2,
   },
   searchIcon: {
     marginRight: 8,
@@ -382,7 +430,6 @@ const s = StyleSheet.create({
     flex: 1,
     fontSize: 15,
     fontWeight: '700',
-    color: COLORS.vjText,
     height: '100%',
   },
   clearBtn: {
@@ -392,9 +439,7 @@ const s = StyleSheet.create({
   scanBtn: {
     padding: 8,
     borderRadius: 12,
-    backgroundColor: 'rgba(212, 175, 55, 0.12)',
     borderWidth: 1,
-    borderColor: 'rgba(212, 175, 55, 0.25)',
     marginLeft: 4,
   },
   spinner: {
@@ -403,22 +448,17 @@ const s = StyleSheet.create({
   listContainer: {
     flex: 1,
   },
-  listPadding: {
-    paddingHorizontal: 14,
-    paddingTop: 12,
-    paddingBottom: 40,
-  },
   card: {
     backgroundColor: '#FFFFFF',
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: 'rgba(212, 175, 55, 0.2)',
     padding: 14,
     marginBottom: 10,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.04,
     shadowRadius: 4,
+    elevation: 2,
   },
   cardHeader: {
     flexDirection: 'row',
@@ -443,11 +483,28 @@ const s = StyleSheet.create({
     fontWeight: '800',
     letterSpacing: 0.5,
   },
+  huidContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: 'rgba(22, 163, 74, 0.08)',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: 'rgba(22, 163, 74, 0.25)',
+  },
   huidText: {
     fontSize: 11,
-    fontWeight: '700',
-    color: COLORS.muted,
+    fontWeight: '800',
+    color: '#15803d',
     fontFamily: 'monospace',
+  },
+  huidTextMuted: {
+    fontSize: 11,
+    fontWeight: '600',
+    fontStyle: 'italic',
+    opacity: 0.4,
   },
   cardBody: {
     flexDirection: 'row',
@@ -459,49 +516,43 @@ const s = StyleSheet.create({
     marginRight: 8,
   },
   itemNameText: {
-    fontSize: 17,
+    fontSize: 16,
     fontWeight: '900',
-    color: COLORS.vjText,
-    letterSpacing: 0.3,
+    letterSpacing: 0.2,
     marginBottom: 2,
   },
   itemCategorySub: {
     fontSize: 12,
-    fontWeight: '700',
-    color: 'rgba(92,22,35,0.5)',
+    fontWeight: '600',
+    opacity: 0.55,
   },
   skuSubText: {
     fontSize: 12,
     fontWeight: '700',
-    color: COLORS.muted,
   },
   inlineWeightRow: {
     flexDirection: 'row',
     alignItems: 'center',
     marginTop: 6,
-    backgroundColor: 'rgba(92,22,35,0.04)',
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: 8,
     alignSelf: 'flex-start',
     borderWidth: 1,
-    borderColor: 'rgba(92,22,35,0.08)',
   },
   weightInlineLabel: {
     fontSize: 11,
-    fontWeight: '800',
-    color: 'rgba(92,22,35,0.5)',
+    fontWeight: '700',
+    opacity: 0.6,
   },
   weightInlineVal: {
     fontSize: 12,
     fontWeight: '800',
-    color: COLORS.vjText,
     fontFamily: 'monospace',
   },
   weightInlineValBold: {
     fontSize: 12,
     fontWeight: '900',
-    color: COLORS.vjAccent,
     fontFamily: 'monospace',
   },
   weightInlineDivider: {
@@ -517,14 +568,12 @@ const s = StyleSheet.create({
   emptyTitle: {
     fontSize: 18,
     fontWeight: '800',
-    color: COLORS.vjText,
     marginTop: 16,
     marginBottom: 6,
   },
   emptySub: {
     fontSize: 13,
     fontWeight: '500',
-    color: COLORS.muted,
   },
   scannerContainer: {
     flex: 1,
@@ -539,7 +588,6 @@ const s = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingTop: 50,
     paddingHorizontal: 20,
     paddingBottom: 20,
   },
@@ -571,7 +619,6 @@ const s = StyleSheet.create({
     position: 'absolute',
     width: 32,
     height: 32,
-    borderColor: '#D4AF37',
   },
   cornerTL: {
     top: -2,
@@ -602,7 +649,6 @@ const s = StyleSheet.create({
     borderBottomRightRadius: 16,
   },
   scannerFooter: {
-    paddingBottom: 60,
     alignItems: 'center',
   },
   scannerHint: {

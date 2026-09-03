@@ -1,6 +1,6 @@
-// app/inventory/item-detail.tsx — Phase 2 v2.15 Canonical Screen with Full Inline Editing, HUID Correction & Live Pricing
+// app/inventory/item-detail.tsx — Phase 2 v2.24 Canonical Screen with Full Inline Editing, HUID Correction & Live Pricing
 
-import React, { useState, useCallback, memo, useMemo } from 'react';
+import React, { useState, useCallback, memo, useMemo, useEffect } from 'react';
 import {
   View, Text, StyleSheet, ActivityIndicator, ScrollView,
   TouchableOpacity, Modal, TextInput, Alert, KeyboardAvoidingView, Platform
@@ -31,6 +31,8 @@ import {
   resolveFineWeightMg,
   computeFineGoldChargedMg,
   getPurityPresets,
+  parseCleanFloat,
+  rupeesToPaise,
 } from '@/utils/calculations';
 import { format, parseISO } from 'date-fns';
 import { formatDate } from '@/utils/formatDate';
@@ -92,7 +94,6 @@ function getSeverityColor(severity: string) {
   }
 }
 
-// FIX-DATEFORMAT-1 (v1.97): Timeline formats timestamps using app_settings.dateFormatToken
 const TimelineRow = memo(({ event, isLast, dateFormatToken }: { event: ItemTimelineEvent; isLast: boolean; dateFormatToken: string }) => {
   const severityColor = getSeverityColor(event.severity);
   let dateStr = '';
@@ -147,10 +148,13 @@ function DetailRow({ label, subLabel, value, icon, valueColor, style }: { label:
 
 export default function ItemDetailScreen() {
   const router = useRouter();
-  const { itemId } = useLocalSearchParams<{ itemId: string }>();
+  const params = useLocalSearchParams<{ itemId: string }>();
+  const itemId = Array.isArray(params.itemId) ? params.itemId[0] : params.itemId;
+
   const { activeFirmId } = useFirmStore();
   const activeTheme = useStore(appSettingsStore, (st) => st.theme);
   const dateFormatToken = useStore(appSettingsStore, (st) => st.dateFormatToken) || 'dd/MM/yyyy';
+  const colors = getThemeColors(activeTheme);
 
   const [item, setItem] = useState<ItemDetail | null>(() => {
     if (activeFirmId && itemId) {
@@ -201,8 +205,8 @@ export default function ItemDetailScreen() {
     setEditMakingChargeRupees(item.makingChargePaise !== null ? (item.makingChargePaise / 100).toString() : '');
     setEditStoneCostRupees(item.stoneCostPaise !== null ? (item.stoneCostPaise / 100).toString() : '');
     setEditPurchaseRateRupees(item.purchaseRatePaise !== null ? (item.purchaseRatePaise / 100).toString() : '');
-    setEditSizeValue(item.sizeValue !== null ? item.sizeValue.toString() : '');
-    setEditSizeUnit(item.sizeUnit || '');
+    setEditSizeValue(item.sizeValue !== null && item.sizeValue !== undefined ? item.sizeValue.toString() : '');
+    setEditSizeUnit((item.sizeUnit as 'INCH' | 'MM' | 'CM' | 'RING_SIZE') || '');
     setEditHuid(item.huid || '');
     setEditDateIso(item.createdAt ? item.createdAt.slice(0, 10) : new Date().toISOString().slice(0, 10));
     setEditReason('');
@@ -224,15 +228,15 @@ export default function ItemDetailScreen() {
       return;
     }
 
-    const purPct = Number(editPurityPercent);
+    const purPct = parseCleanFloat(editPurityPercent);
     if (isNaN(purPct) || purPct <= 0 || purPct > 100) {
       Alert.alert('Invalid Purity', 'Purity percent must be greater than 0 and up to 100%.');
       return;
     }
 
-    const grossG = Number(editGrossGrams);
-    const stoneG = editStoneGrams.trim() !== '' ? Number(editStoneGrams) : 0;
-    const beadsG = editBeadsGrams.trim() !== '' ? Number(editBeadsGrams) : 0;
+    const grossG = parseCleanFloat(editGrossGrams);
+    const stoneG = editStoneGrams.trim() !== '' ? parseCleanFloat(editStoneGrams) : 0;
+    const beadsG = editBeadsGrams.trim() !== '' ? parseCleanFloat(editBeadsGrams) : 0;
     if (isNaN(grossG) || grossG <= 0) {
       Alert.alert('Invalid Weight', 'Gross weight must be greater than 0.');
       return;
@@ -252,7 +256,7 @@ export default function ItemDetailScreen() {
     const newGrossMg = Math.round(grossG * 1000);
     const newStoneMg = Math.round(stoneG * 1000);
     const newBeadsMg = Math.round(beadsG * 1000);
-    const newWastage = editWastagePercent.trim() !== '' ? Number(editWastagePercent) : 0;
+    const newWastage = editWastagePercent.trim() !== '' ? parseCleanFloat(editWastagePercent) : 0;
 
     const weightsChanged =
       newGrossMg !== item.grossWeightMg ||
@@ -260,24 +264,42 @@ export default function ItemDetailScreen() {
       newBeadsMg !== item.beadsWeightMg ||
       newWastage !== (item.wastagePercent || 0);
 
+    const purityChanged = purPct !== item.purityPercent;
     const metalSourceChanged = editMetalSource !== item.metalSource;
     const huidChanged = (item.huid || '') !== trimmedHuid;
 
     const oldDateIso = item.createdAt.slice(0, 10);
     const dateChanged = oldDateIso !== editDateIso;
 
-    const criticalChanged = weightsChanged || metalSourceChanged || (huidChanged && item.huid !== null);
+    const criticalChanged = weightsChanged || purityChanged || metalSourceChanged || (huidChanged && item.huid !== null);
     if (criticalChanged && !editReason.trim()) {
-      Alert.alert('Reason Required', 'Please enter a reason for adjusting weights, metal source, or HUID.');
+      Alert.alert('Reason Required', 'Please enter a reason for adjusting weights, purity, metal source, or HUID.');
       return;
     }
 
     setSavingInline(true);
     try {
       const reasonText = editReason.trim() || 'Inline editing update';
+      const parsedSizeVal = hasSizeValue ? parseCleanFloat(editSizeValue) : null;
+      const parsedSizeUnit: 'INCH' | 'MM' | 'CM' | 'RING_SIZE' | null = editSizeUnit ? editSizeUnit : null;
+      const newPurityKarat = item.metal === 'GOLD' ? (percentToKarat(purPct) || 0) : 0;
 
-      // 1. Adjust Weights if changed
-      if (weightsChanged) {
+      // 1. Update non-weight & classification fields first so updated purity is persisted
+      const payload: UpdateableItemDraftFields = {
+        purityPercent: purPct,
+        purityKarat: newPurityKarat,
+        location: editLocation.trim() || null,
+        makingChargePaise: editMakingChargeRupees.trim() !== '' ? rupeesToPaise(parseCleanFloat(editMakingChargeRupees)) : null,
+        stoneCostPaise: editStoneCostRupees.trim() !== '' ? rupeesToPaise(parseCleanFloat(editStoneCostRupees)) : null,
+        purchaseRatePaise: editPurchaseRateRupees.trim() !== '' ? rupeesToPaise(parseCleanFloat(editPurchaseRateRupees)) : null,
+        sizeValue: parsedSizeVal,
+        sizeUnit: parsedSizeUnit,
+      };
+
+      await itemService.updateItem(item.id, activeFirmId, payload, reasonText);
+
+      // 2. Adjust Weights if physical weights or purity changed (fineWeightMg recalculated against new purity)
+      if (weightsChanged || purityChanged) {
         await itemService.adjustWeight(
           item.id,
           activeFirmId,
@@ -289,12 +311,12 @@ export default function ItemDetailScreen() {
         );
       }
 
-      // 2. Correct Metal Source if changed
+      // 3. Correct Metal Source if changed
       if (metalSourceChanged) {
         await itemService.correctMetalSource(item.id, activeFirmId, editMetalSource, reasonText);
       }
 
-      // 3. Update HUID if changed
+      // 4. Update HUID if changed
       if (huidChanged) {
         if (item.huid === null && trimmedHuid) {
           await itemService.addHUID(item.id, activeFirmId, trimmedHuid);
@@ -303,24 +325,10 @@ export default function ItemDetailScreen() {
         }
       }
 
-      // 4. Correct Entry Date if changed
+      // 5. Correct Entry Date if changed
       if (dateChanged) {
         await itemService.correctItemEntryDate(item.id, editDateIso, activeFirmId);
       }
-
-      // 5. Update General Fields
-      const payload: UpdateableItemDraftFields = {
-        purityPercent: purPct,
-        ...(editPurityKarat !== null ? { purityKarat: editPurityKarat } : {}),
-        location: editLocation.trim() || null,
-        makingChargePaise: editMakingChargeRupees.trim() !== '' ? Math.round(Number(editMakingChargeRupees) * 100) : null,
-        stoneCostPaise: editStoneCostRupees.trim() !== '' ? Math.round(Number(editStoneCostRupees) * 100) : null,
-        purchaseRatePaise: editPurchaseRateRupees.trim() !== '' ? Math.round(Number(editPurchaseRateRupees) * 100) : null,
-        sizeValue: hasSizeValue ? Number(editSizeValue) : null,
-        sizeUnit: hasSizeUnit ? (editSizeUnit as any) : null,
-      };
-
-      await itemService.updateItem(item.id, activeFirmId, payload, reasonText);
 
       const detail = await inventoryDrillDownService.getItemDetail(activeFirmId, item.id);
       setItem(detail);
@@ -378,26 +386,25 @@ export default function ItemDetailScreen() {
     }, [activeFirmId, itemId])
   );
 
-  // FIX-EFFPRICE-PURITYROUND-1 (v2.14): pass metal to computeEffectivePricePerGram
   const liveCalculations = useMemo(() => {
     if (!item) return null;
 
     const gGrams = isEditing
-      ? (editGrossGrams.trim() !== '' ? Number(editGrossGrams) : 0)
+      ? (editGrossGrams.trim() !== '' ? parseCleanFloat(editGrossGrams) : 0)
       : item.grossWeightMg / 1000;
 
     const sGrams = isEditing
-      ? (editStoneGrams.trim() !== '' ? Number(editStoneGrams) : 0)
+      ? (editStoneGrams.trim() !== '' ? parseCleanFloat(editStoneGrams) : 0)
       : (item.stoneWeightMg ? item.stoneWeightMg / 1000 : 0);
 
     const bGrams = isEditing
-      ? (editBeadsGrams.trim() !== '' ? Number(editBeadsGrams) : 0)
+      ? (editBeadsGrams.trim() !== '' ? parseCleanFloat(editBeadsGrams) : 0)
       : (item.beadsWeightMg ? item.beadsWeightMg / 1000 : 0);
 
     const netWeightMg = Math.max(0, Math.round((gGrams - sGrams - bGrams) * 1000));
 
     const livePurityPercent = isEditing
-      ? (editPurityPercent.trim() !== '' ? Number(editPurityPercent) : item.purityPercent)
+      ? (editPurityPercent.trim() !== '' ? parseCleanFloat(editPurityPercent) : item.purityPercent)
       : item.purityPercent;
 
     const livePurityKarat = isEditing
@@ -405,7 +412,7 @@ export default function ItemDetailScreen() {
       : item.purityKarat;
 
     const wastagePercent = isEditing
-      ? (editWastagePercent.trim() !== '' ? Number(editWastagePercent) : 0)
+      ? (editWastagePercent.trim() !== '' ? parseCleanFloat(editWastagePercent) : 0)
       : (item.wastagePercent || 0);
 
     const { fineWeightMg } = resolveFineWeightMg(netWeightMg, livePurityPercent, item.metal);
@@ -416,15 +423,15 @@ export default function ItemDetailScreen() {
     const wastageGold = computeWastageGoldGrams(costTruth, vaultTruth);
 
     const rate = isEditing
-      ? (editPurchaseRateRupees.trim() !== '' ? Number(editPurchaseRateRupees) : 0)
+      ? (editPurchaseRateRupees.trim() !== '' ? parseCleanFloat(editPurchaseRateRupees) : 0)
       : (item.purchaseRatePaise ? item.purchaseRatePaise / 100 : 0);
 
     const making = isEditing
-      ? (editMakingChargeRupees.trim() !== '' ? Number(editMakingChargeRupees) : 0)
+      ? (editMakingChargeRupees.trim() !== '' ? parseCleanFloat(editMakingChargeRupees) : 0)
       : (item.makingChargePaise ? item.makingChargePaise / 100 : 0);
 
     const stoneC = isEditing
-      ? (editStoneCostRupees.trim() !== '' ? Number(editStoneCostRupees) : 0)
+      ? (editStoneCostRupees.trim() !== '' ? parseCleanFloat(editStoneCostRupees) : 0)
       : (item.stoneCostPaise ? item.stoneCostPaise / 100 : 0);
 
     const effectivePricePerGram = computeEffectivePricePerGram(rate, livePurityPercent, wastagePercent, item.metal);
@@ -433,7 +440,9 @@ export default function ItemDetailScreen() {
     const totalAmount = computeAbsoluteTotalCostRupees(netWeightG, effectivePricePerGram, making, stoneC);
     const metalCostRupees = netWeightG * effectivePricePerGram;
 
-    const purityDisplayStr = getDisplayPurity(livePurityPercent, livePurityKarat, item.metal);
+    const purityDisplayStr = (item.metal === 'GOLD' && livePurityKarat && livePurityKarat > 0)
+      ? `${livePurityKarat}K · ${livePurityPercent.toFixed(1)}%`
+      : getDisplayPurity(livePurityPercent, livePurityKarat, item.metal);
 
     const finParts: string[] = [];
     if (rate > 0) finParts.push(`Metal: ${getCurrencySymbol()}${metalCostRupees.toLocaleString('en-IN', { maximumFractionDigits: 0 })}`);
@@ -489,16 +498,15 @@ export default function ItemDetailScreen() {
     return (
       <TwoToneWrapper title="" showBack>
         <View style={s.loadingContainer}>
-          <ActivityIndicator size="large" color={COLORS.vjAccent} />
-          <Text style={s.loadingText}>Loading item details...</Text>
+          <ActivityIndicator size="large" color={colors.vjAccent} />
+          <Text style={[s.loadingText, { color: colors.vjText }]}>Loading item details...</Text>
         </View>
       </TwoToneWrapper>
     );
   }
 
-  const metalColor = item.metal === 'GOLD' ? COLORS.gold : COLORS.silver;
+  const metalColor = item.metal === 'GOLD' ? (colors.vjAccent || COLORS.gold) : COLORS.silver;
   const isEditable = !TERMINAL_ITEM_STATUSES.includes(item.status);
-  const colors = getThemeColors(activeTheme);
 
   const detailHeaderPills = (
     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginTop: 4 }}>
@@ -528,8 +536,8 @@ export default function ItemDetailScreen() {
             <GlassCard style={s.topEditingBannerCard}>
               <View style={s.topEditingBannerHeader}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                  <Edit3 size={16} color={COLORS.vjAccent} />
-                  <Text style={s.topEditingTitle}>Editing All Fields & HUID</Text>
+                  <Edit3 size={16} color={colors.vjAccent} />
+                  <Text style={[s.topEditingTitle, { color: colors.vjText }]}>Editing All Fields & HUID</Text>
                 </View>
                 <Text style={{ fontSize: 11, fontWeight: '700', color: '#92400E' }}>
                   Tap Save at the bottom
@@ -540,9 +548,9 @@ export default function ItemDetailScreen() {
 
           {/* DETAILS CARD */}
           <View style={s.section}>
-            <View style={s.sectionCard}>
-              <DetailRow label="Design" value={item.designName} icon={<Crown size={14} color={COLORS.vjAccent} />} />
-              <DetailRow label="Category" value={item.categoryName} icon={<Tag size={14} color={COLORS.vjAccent} />} />
+            <View style={[s.sectionCard, { borderColor: `${colors.vjAccent}25` }]}>
+              <DetailRow label="Design" value={item.designName} icon={<Crown size={14} color={colors.vjAccent} />} />
+              <DetailRow label="Category" value={item.categoryName} icon={<Tag size={14} color={colors.vjAccent} />} />
               <DetailRow label="Metal" value={item.metal.charAt(0) + item.metal.slice(1).toLowerCase()} valueColor={metalColor} icon={<Coins size={14} color={metalColor} />} />
               
               <View style={s.divider} />
@@ -551,70 +559,70 @@ export default function ItemDetailScreen() {
               {/* GROSS WEIGHT */}
               <View style={s.detailRow}>
                 <View style={s.detailLabelRow}>
-                  <Scale size={14} color={COLORS.vjAccent} />
+                  <Scale size={14} color={colors.vjAccent} />
                   <Text style={s.detailLabel}>Gross Weight (g)</Text>
                 </View>
                 {isEditing ? (
                   <TextInput
-                    style={s.inlineInput}
+                    style={[s.inlineInput, { color: colors.vjText, borderColor: `${colors.vjAccent}50` }]}
                     value={editGrossGrams}
                     onChangeText={setEditGrossGrams}
                     placeholder="0.000"
-                    keyboardType="numeric"
+                    keyboardType="decimal-pad"
                     placeholderTextColor="rgba(92,22,35,0.35)"
                   />
                 ) : (
-                  <Text style={s.detailValue}>{formatWeight(liveCalculations.grossMg)}</Text>
+                  <Text style={[s.detailValue, { color: colors.vjText }]}>{formatWeight(liveCalculations.grossMg)}</Text>
                 )}
               </View>
 
               {/* STONE WEIGHT */}
               <View style={s.detailRow}>
                 <View style={s.detailLabelRow}>
-                  <Gem size={14} color={COLORS.vjAccent} />
+                  <Gem size={14} color={colors.vjAccent} />
                   <Text style={s.detailLabel}>Stone Weight (g)</Text>
                 </View>
                 {isEditing ? (
                   <TextInput
-                    style={s.inlineInput}
+                    style={[s.inlineInput, { color: colors.vjText, borderColor: `${colors.vjAccent}50` }]}
                     value={editStoneGrams}
                     onChangeText={setEditStoneGrams}
                     placeholder="0.000"
-                    keyboardType="numeric"
+                    keyboardType="decimal-pad"
                     placeholderTextColor="rgba(92,22,35,0.35)"
                   />
                 ) : (
-                  <Text style={s.detailValue}>{formatWeight(liveCalculations.stoneMg)}</Text>
+                  <Text style={[s.detailValue, { color: colors.vjText }]}>{formatWeight(liveCalculations.stoneMg)}</Text>
                 )}
               </View>
 
               {/* BEADS WEIGHT */}
               <View style={s.detailRow}>
                 <View style={s.detailLabelRow}>
-                  <Package size={14} color={COLORS.vjAccent} />
+                  <Package size={14} color={colors.vjAccent} />
                   <Text style={s.detailLabel}>Beads Weight (g)</Text>
                 </View>
                 {isEditing ? (
                   <TextInput
-                    style={s.inlineInput}
+                    style={[s.inlineInput, { color: colors.vjText, borderColor: `${colors.vjAccent}50` }]}
                     value={editBeadsGrams}
                     onChangeText={setEditBeadsGrams}
                     placeholder="0.000"
-                    keyboardType="numeric"
+                    keyboardType="decimal-pad"
                     placeholderTextColor="rgba(92,22,35,0.35)"
                   />
                 ) : (
-                  <Text style={s.detailValue}>{formatWeight(liveCalculations.beadsMg)}</Text>
+                  <Text style={[s.detailValue, { color: colors.vjText }]}>{formatWeight(liveCalculations.beadsMg)}</Text>
                 )}
               </View>
 
               {/* LIVE COMPUTED NET WEIGHT */}
-              <DetailRow label="Net Weight" value={formatWeight(liveCalculations.netMg)} icon={<Scale size={14} color={COLORS.vjAccent} />} />
+              <DetailRow label="Net Weight" value={formatWeight(liveCalculations.netMg)} icon={<Scale size={14} color={colors.vjAccent} />} />
               
               {/* EDITABLE PURITY ROW */}
               <View style={[s.detailRow, isEditing && { flexDirection: 'column', alignItems: 'flex-start', gap: 8 }]}>
                 <View style={s.detailLabelRow}>
-                  <Percent size={14} color={COLORS.vjAccent} />
+                  <Percent size={14} color={colors.vjAccent} />
                   <Text style={s.detailLabel}>Purity Grade</Text>
                   {isEditing && item.metal === 'GOLD' && editPurityKarat ? (
                     <View style={{ backgroundColor: 'rgba(212,175,55,0.2)', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4, marginLeft: 8 }}>
@@ -627,17 +635,17 @@ export default function ItemDetailScreen() {
                 {isEditing ? (
                   <View style={{ width: '100%', gap: 8 }}>
                     <TextInput
-                      style={s.inlineInputFull}
+                      style={[s.inlineInputFull, { color: colors.vjText, borderColor: `${colors.vjAccent}50` }]}
                       value={editPurityPercent}
                       onChangeText={(val) => {
                         setEditPurityPercent(val);
-                        const num = Number(val);
+                        const num = parseCleanFloat(val);
                         if (!isNaN(num) && num > 0) {
-                          setEditPurityKarat(percentToKarat(num));
+                          setEditPurityKarat(item.metal === 'GOLD' ? (percentToKarat(num) || 0) : null);
                         }
                       }}
                       placeholder="Purity %"
-                      keyboardType="numeric"
+                      keyboardType="decimal-pad"
                       placeholderTextColor="rgba(92,22,35,0.35)"
                     />
                     <View style={s.unitSelectorRow}>
@@ -650,7 +658,7 @@ export default function ItemDetailScreen() {
                           ]}
                           onPress={() => {
                             setEditPurityPercent(preset.val);
-                            setEditPurityKarat(preset.karat);
+                            setEditPurityKarat(item.metal === 'GOLD' ? preset.karat : null);
                           }}
                         >
                           <Text
@@ -666,34 +674,34 @@ export default function ItemDetailScreen() {
                     </View>
                   </View>
                 ) : (
-                  <Text style={s.detailValue}>{liveCalculations.purityDisplay}</Text>
+                  <Text style={[s.detailValue, { color: colors.vjText }]}>{liveCalculations.purityDisplay}</Text>
                 )}
               </View>
 
               {/* WASTAGE PERCENT */}
               <View style={s.detailRow}>
                 <View style={s.detailLabelRow}>
-                  <Percent size={14} color={COLORS.vjAccent} />
+                  <Percent size={14} color={colors.vjAccent} />
                   <Text style={s.detailLabel}>Wastage %</Text>
                 </View>
                 {isEditing ? (
                   <TextInput
-                    style={s.inlineInput}
+                    style={[s.inlineInput, { color: colors.vjText, borderColor: `${colors.vjAccent}50` }]}
                     value={editWastagePercent}
                     onChangeText={setEditWastagePercent}
                     placeholder="0.00"
-                    keyboardType="numeric"
+                    keyboardType="decimal-pad"
                     placeholderTextColor="rgba(92,22,35,0.35)"
                   />
                 ) : (
-                  <Text style={s.detailValue}>{liveCalculations.wastagePercent.toFixed(2) + '%'}</Text>
+                  <Text style={[s.detailValue, { color: colors.vjText }]}>{liveCalculations.wastagePercent.toFixed(2) + '%'}</Text>
                 )}
               </View>
 
             </View>
           </View>
 
-          {/* LIVE COST BREAKDOWN (FEAT-EFFECTIVE-PRICE-1 / FIX-EFFPRICE-PURITYROUND-1 v2.14) */}
+          {/* LIVE COST BREAKDOWN */}
           {liveCalculations.isValid && (
             <View className="px-4 mb-4 mt-1" style={{ zIndex: 10 }}>
               <GlassCard style={{ backgroundColor: 'rgba(252,251,248, 0.98)', borderColor: '#D4AF37', borderWidth: 1.5, padding: 16 }}>
@@ -795,22 +803,22 @@ export default function ItemDetailScreen() {
           {/* ITEM IDENTITY & ATTRIBUTES CARD */}
           <View style={s.section}>
             <Text style={s.sectionTitle}>Item Identity & Attributes</Text>
-            <View style={s.sectionCard}>
+            <View style={[s.sectionCard, { borderColor: `${colors.vjAccent}25` }]}>
 
               {/* SIZE & UNIT */}
               <View style={[s.detailRow, isEditing && { flexDirection: 'column', alignItems: 'flex-start', gap: 8 }]}>
                 <View style={s.detailLabelRow}>
-                  <TagIcon size={14} color={COLORS.vjAccent} />
+                  <TagIcon size={14} color={colors.vjAccent} />
                   <Text style={s.detailLabel}>Size & Unit</Text>
                 </View>
                 {isEditing ? (
                   <View style={{ width: '100%', gap: 8 }}>
                     <TextInput
-                      style={s.inlineInputFull}
+                      style={[s.inlineInputFull, { color: colors.vjText, borderColor: `${colors.vjAccent}50` }]}
                       value={editSizeValue}
                       onChangeText={setEditSizeValue}
                       placeholder="Size"
-                      keyboardType="numeric"
+                      keyboardType="decimal-pad"
                       placeholderTextColor="rgba(92,22,35,0.35)"
                     />
                     <View style={s.unitSelectorRow}>
@@ -828,20 +836,22 @@ export default function ItemDetailScreen() {
                     </View>
                   </View>
                 ) : (
-                  <Text style={s.detailValue}>{item.sizeValue !== null ? `${item.sizeValue} ${item.sizeUnit}` : '—'}</Text>
+                  <Text style={[s.detailValue, { color: colors.vjText }]}>
+                    {item.sizeValue !== null && item.sizeValue !== undefined ? `${item.sizeValue} ${item.sizeUnit || ''}` : '—'}
+                  </Text>
                 )}
               </View>
 
               {/* HUID */}
               <View style={[s.detailRow, isEditing && { flexDirection: 'column', alignItems: 'flex-start', gap: 8 }]}>
                 <View style={s.detailLabelRow}>
-                  <View style={s.detailIcon}><Shield size={14} color={COLORS.vjAccent} /></View>
+                  <View style={s.detailIcon}><Shield size={14} color={colors.vjAccent} /></View>
                   <Text style={s.detailLabel}>HUID Tag</Text>
                 </View>
                 {isEditing ? (
                   <View style={{ width: '100%' }}>
                     <TextInput
-                      style={s.inlineInputFull}
+                      style={[s.inlineInputFull, { color: colors.vjText, borderColor: `${colors.vjAccent}50` }]}
                       value={editHuid}
                       onChangeText={(val) => setEditHuid(val.toUpperCase())}
                       placeholder="6-char HUID"
@@ -855,7 +865,7 @@ export default function ItemDetailScreen() {
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                     {item.huid ? (
                       <View style={{ backgroundColor: 'rgba(212, 175, 55, 0.12)', borderColor: 'rgba(212, 175, 55, 0.3)', borderWidth: 1, paddingHorizontal: 8, paddingVertical: 2, borderRadius: 6 }}>
-                        <Text style={{ fontSize: 13, fontWeight: '800', color: COLORS.vjAccent, letterSpacing: 0.5 }}>
+                        <Text style={{ fontSize: 13, fontWeight: '800', color: colors.vjAccent, letterSpacing: 0.5 }}>
                           {item.huid}
                         </Text>
                       </View>
@@ -869,7 +879,7 @@ export default function ItemDetailScreen() {
               {/* METAL SOURCE */}
               <View style={[s.detailRow, isEditing && { flexDirection: 'column', alignItems: 'flex-start', gap: 8 }]}>
                 <View style={s.detailLabelRow}>
-                  <Shield size={14} color={COLORS.vjAccent} />
+                  <Shield size={14} color={colors.vjAccent} />
                   <Text style={s.detailLabel}>Metal Source</Text>
                 </View>
                 {isEditing ? (
@@ -887,7 +897,7 @@ export default function ItemDetailScreen() {
                     ))}
                   </View>
                 ) : (
-                  <Text style={s.detailValue}>
+                  <Text style={[s.detailValue, { color: colors.vjText }]}>
                     {item.metalSource === 'SUPPLIER_PURCHASE'
                       ? 'Supplier Purchase'
                       : item.metalSource === 'CUSTOMER_OLD_GOLD'
@@ -908,50 +918,50 @@ export default function ItemDetailScreen() {
               {/* LOCATION */}
               <View style={s.detailRow}>
                 <View style={s.detailLabelRow}>
-                  <MapPin size={14} color={COLORS.vjAccent} />
+                  <MapPin size={14} color={colors.vjAccent} />
                   <Text style={s.detailLabel}>Storage Location</Text>
                 </View>
                 {isEditing ? (
                   <TextInput
-                    style={s.inlineInput}
+                    style={[s.inlineInput, { color: colors.vjText, borderColor: `${colors.vjAccent}50` }]}
                     value={editLocation}
                     onChangeText={setEditLocation}
                     placeholder="Location / Tray"
                     placeholderTextColor="rgba(92,22,35,0.35)"
                   />
                 ) : (
-                  <Text style={s.detailValue}>{item.location || '—'}</Text>
+                  <Text style={[s.detailValue, { color: colors.vjText }]}>{item.location || '—'}</Text>
                 )}
               </View>
 
               {/* ENTRY DATE */}
               <View style={s.detailRow}>
                 <View style={s.detailLabelRow}>
-                  <Clock size={14} color={COLORS.vjAccent} />
+                  <Clock size={14} color={colors.vjAccent} />
                   <Text style={s.detailLabel}>Entry Date</Text>
                 </View>
                 {isEditing ? (
                   <TouchableOpacity
                     onPress={() => setShowDatePicker(true)}
-                    style={s.inlineDateBtn}
+                    style={[s.inlineDateBtn, { borderColor: `${colors.vjAccent}50` }]}
                     activeOpacity={0.75}
                   >
-                    <Calendar size={15} color={COLORS.vjAccent} />
-                    <Text style={s.inlineDateBtnText}>
+                    <Calendar size={15} color={colors.vjAccent} />
+                    <Text style={[s.inlineDateBtnText, { color: colors.vjText }]}>
                       {formatDate(editDateIso)}
                     </Text>
-                    <ChevronDown size={14} color={COLORS.vjText} style={{ opacity: 0.6 }} />
+                    <ChevronDown size={14} color={colors.vjText} style={{ opacity: 0.6 }} />
                   </TouchableOpacity>
                 ) : (
-                  <Text style={s.detailValue}>{formatDate(item.createdAt)}</Text>
+                  <Text style={[s.detailValue, { color: colors.vjText }]}>{formatDate(item.createdAt)}</Text>
                 )}
               </View>
 
               {isEditing && (
-                <View style={s.inlineReasonContainer}>
-                  <Text style={s.inlineReasonLabel}>Audit Reason for Edit (Optional)</Text>
+                <View style={[s.inlineReasonContainer, { borderColor: `${colors.vjAccent}35` }]}>
+                  <Text style={[s.inlineReasonLabel, { color: colors.vjText }]}>Audit Reason for Edit (Optional)</Text>
                   <TextInput
-                    style={s.inlineReasonInput}
+                    style={[s.inlineReasonInput, { color: colors.vjText, borderColor: `${colors.vjAccent}40` }]}
                     value={editReason}
                     onChangeText={setEditReason}
                     placeholder="Reason for change..."
@@ -966,65 +976,65 @@ export default function ItemDetailScreen() {
           {/* PRICING & COST BREAKDOWN CARD */}
           <View style={s.section}>
             <Text style={s.sectionTitle}>Pricing & Cost Breakdown</Text>
-            <View style={s.sectionCard}>
+            <View style={[s.sectionCard, { borderColor: `${colors.vjAccent}25` }]}>
               
               {/* PURCHASE RATE */}
               <View style={s.detailRow}>
                 <View style={s.detailLabelRow}>
-                  <Coins size={14} color={COLORS.vjAccent} />
+                  <Coins size={14} color={colors.vjAccent} />
                   <Text style={s.detailLabel}>{`Purchase Rate (${getCurrencySymbol()}/g)`}</Text>
                 </View>
                 {isEditing ? (
                   <TextInput
-                    style={s.inlineInput}
+                    style={[s.inlineInput, { color: colors.vjText, borderColor: `${colors.vjAccent}50` }]}
                     value={editPurchaseRateRupees}
                     onChangeText={setEditPurchaseRateRupees}
                     placeholder="0.00"
-                    keyboardType="numeric"
+                    keyboardType="decimal-pad"
                     placeholderTextColor="rgba(92,22,35,0.35)"
                   />
                 ) : (
-                  <Text style={s.detailValue}>{formatCurrency(item.purchaseRatePaise)}/g</Text>
+                  <Text style={[s.detailValue, { color: colors.vjText }]}>{formatCurrency(item.purchaseRatePaise)}/g</Text>
                 )}
               </View>
 
               {/* MAKING CHARGES */}
               <View style={s.detailRow}>
                 <View style={s.detailLabelRow}>
-                  <Coins size={14} color={COLORS.vjAccent} />
+                  <Coins size={14} color={colors.vjAccent} />
                   <Text style={s.detailLabel}>{`Making Charges (${getCurrencySymbol()})`}</Text>
                 </View>
                 {isEditing ? (
                   <TextInput
-                    style={s.inlineInput}
+                    style={[s.inlineInput, { color: colors.vjText, borderColor: `${colors.vjAccent}50` }]}
                     value={editMakingChargeRupees}
                     onChangeText={setEditMakingChargeRupees}
                     placeholder="0.00"
-                    keyboardType="numeric"
+                    keyboardType="decimal-pad"
                     placeholderTextColor="rgba(92,22,35,0.35)"
                   />
                 ) : (
-                  <Text style={s.detailValue}>{formatCurrency(item.makingChargePaise)}</Text>
+                  <Text style={[s.detailValue, { color: colors.vjText }]}>{formatCurrency(item.makingChargePaise)}</Text>
                 )}
               </View>
 
               {/* STONE COST */}
               <View style={s.detailRow}>
                 <View style={s.detailLabelRow}>
-                  <Gem size={14} color={COLORS.vjAccent} />
+                  <Gem size={14} color={colors.vjAccent} />
                   <Text style={s.detailLabel}>{`Stone Cost (${getCurrencySymbol()})`}</Text>
                 </View>
                 {isEditing ? (
                   <TextInput
-                    style={s.inlineInput}
+                    style={[s.inlineInput, { color: colors.vjText, borderColor: `${colors.vjAccent}50` }]}
                     value={editStoneCostRupees}
                     onChangeText={setEditStoneCostRupees}
                     placeholder="0.00"
-                    keyboardType="numeric"
+                    keyboardType="decimal-pad"
                     placeholderTextColor="rgba(92,22,35,0.35)"
                   />
                 ) : (
-                  <Text style={s.detailValue}>{formatCurrency(item.stoneCostPaise)}</Text>
+                  <Text style={[s.detailValue, { color: colors.vjText }]}>{formatCurrency(item.stoneCostPaise)}</Text>
                 )}
               </View>
 
@@ -1072,11 +1082,12 @@ export default function ItemDetailScreen() {
                   disabled={savingInline}
                   activeOpacity={0.7}
                 >
-                  <X size={18} color={COLORS.vjText} />
-                  <Text style={s.bottomCancelText}>Cancel</Text>
+                  <X size={18} color={colors.vjText} />
+                  <Text style={[s.bottomCancelText, { color: colors.vjText }]}>Cancel</Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity
+                  testID="save-inline-item-btn"
                   style={s.bottomSaveBtn}
                   onPress={handleSaveInlineEditing}
                   disabled={savingInline}
@@ -1095,7 +1106,8 @@ export default function ItemDetailScreen() {
             ) : (
               <>
                 <TouchableOpacity
-                  style={s.bottomEditBtn}
+                  testID="edit-item-details-btn"
+                  style={[s.bottomEditBtn, { backgroundColor: colors.vjAccent }]}
                   onPress={handleStartEditing}
                   activeOpacity={0.8}
                 >
@@ -1104,6 +1116,7 @@ export default function ItemDetailScreen() {
                 </TouchableOpacity>
 
                 <TouchableOpacity
+                  testID="delete-item-btn"
                   style={s.bottomDeleteBtn}
                   onPress={handleOpenDeleteModal}
                   activeOpacity={0.7}
@@ -1162,11 +1175,10 @@ export default function ItemDetailScreen() {
 
 const s = StyleSheet.create({
   loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 12 },
-  loadingText: { color: 'rgba(92,22,35,0.4)', fontSize: 14, fontWeight: '600' },
+  loadingText: { fontSize: 14, fontWeight: '600' },
 
   topEditingBannerCard: {
     backgroundColor: 'rgba(255, 253, 249, 0.98)',
-    borderColor: COLORS.vjAccent,
     borderWidth: 1.5,
     padding: 12,
     borderRadius: 14,
@@ -1180,7 +1192,6 @@ const s = StyleSheet.create({
   topEditingTitle: {
     fontSize: 14,
     fontWeight: '800',
-    color: COLORS.vjText,
   },
   bottomEditBtn: {
     flex: 1,
@@ -1188,7 +1199,6 @@ const s = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-    backgroundColor: COLORS.vjAccent,
     paddingVertical: 14,
     borderRadius: 28,
   },
@@ -1221,7 +1231,6 @@ const s = StyleSheet.create({
     borderRadius: 28,
   },
   bottomCancelText: {
-    color: COLORS.vjText,
     fontSize: 14,
     fontWeight: '700',
   },
@@ -1245,26 +1254,22 @@ const s = StyleSheet.create({
   inlineInput: {
     backgroundColor: '#ffffff',
     borderWidth: 1,
-    borderColor: 'rgba(212,175,55,0.4)',
     borderRadius: 8,
     paddingVertical: 6,
     paddingHorizontal: 10,
     fontSize: 13,
     fontWeight: '700',
-    color: COLORS.vjText,
     minWidth: 120,
     textAlign: 'right',
   },
   inlineInputFull: {
     backgroundColor: '#ffffff',
     borderWidth: 1,
-    borderColor: 'rgba(212,175,55,0.4)',
     borderRadius: 8,
     paddingVertical: 6,
     paddingHorizontal: 10,
     fontSize: 13,
     fontWeight: '700',
-    color: COLORS.vjText,
     width: '100%',
   },
   inlineDateBtn: {
@@ -1273,7 +1278,6 @@ const s = StyleSheet.create({
     gap: 8,
     backgroundColor: '#ffffff',
     borderWidth: 1,
-    borderColor: 'rgba(212,175,55,0.4)',
     borderRadius: 8,
     paddingVertical: 6,
     paddingHorizontal: 10,
@@ -1286,7 +1290,6 @@ const s = StyleSheet.create({
   inlineDateBtnText: {
     fontSize: 13,
     fontWeight: '700',
-    color: COLORS.vjText,
   },
   inlineReasonContainer: {
     paddingHorizontal: 14,
@@ -1297,23 +1300,19 @@ const s = StyleSheet.create({
     marginTop: 10,
     marginBottom: 6,
     borderWidth: 1,
-    borderColor: 'rgba(212,175,55,0.2)',
   },
   inlineReasonLabel: {
     fontSize: 12,
     fontWeight: '700',
-    color: COLORS.vjText,
     marginBottom: 4,
   },
   inlineReasonInput: {
     backgroundColor: '#ffffff',
     borderWidth: 1,
-    borderColor: 'rgba(212,175,55,0.3)',
     borderRadius: 8,
     paddingVertical: 8,
     paddingHorizontal: 10,
     fontSize: 13,
-    color: COLORS.vjText,
   },
 
   section: { marginBottom: 24 },
@@ -1323,7 +1322,7 @@ const s = StyleSheet.create({
   },
   sectionCard: {
     backgroundColor: 'rgba(255,255,255,0.6)', borderRadius: 16, padding: 4,
-    borderWidth: 1, borderColor: 'rgba(255, 255, 255, 0.5)',
+    borderWidth: 1,
   },
 
   detailRow: {
@@ -1334,7 +1333,7 @@ const s = StyleSheet.create({
   detailLabelRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   detailIcon: { opacity: 0.7 },
   detailLabel: { color: 'rgba(92,22,35,0.5)', fontSize: 13, fontWeight: '600' },
-  detailValue: { color: COLORS.vjText, fontSize: 14, fontWeight: '700', maxWidth: '60%', textAlign: 'right' },
+  detailValue: { fontSize: 14, fontWeight: '700', maxWidth: '60%', textAlign: 'right' },
   detailSubLabel: {
     color: 'rgba(92,22,35,0.4)',
     fontSize: 10,
@@ -1363,7 +1362,6 @@ const s = StyleSheet.create({
   unitChipText: {
     fontSize: 11,
     fontWeight: '700',
-    color: COLORS.vjText,
   },
   unitChipTextSelected: {
     color: '#ffffff',
@@ -1396,6 +1394,6 @@ const s = StyleSheet.create({
   modalActions: { flexDirection: 'row', justifyContent: 'flex-end', gap: 12, marginTop: 8 },
   modalBtnSecondary: { paddingVertical: 10, paddingHorizontal: 16, borderRadius: 8, backgroundColor: '#f3f4f6' },
   modalBtnTextSecondary: { color: '#4b5563', fontWeight: '600' },
-  modalBtnPrimary: { paddingVertical: 10, paddingHorizontal: 16, borderRadius: 8, backgroundColor: COLORS.vjAccent, minWidth: 80, alignItems: 'center' },
+  modalBtnPrimary: { paddingVertical: 10, paddingHorizontal: 16, borderRadius: 8, minWidth: 80, alignItems: 'center' },
   modalBtnTextPrimary: { color: '#fff', fontWeight: '600' },
 });

@@ -1,9 +1,10 @@
-// app/masters/edit-design.tsx — Phase 2 v2.15 Canonical Screen
+// app/masters/edit-design.tsx — Phase 2 v2.24 Canonical Screen
 
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, Alert, Modal, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import { useRouter, useLocalSearchParams } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import { TwoToneWrapper } from '@/components/TwoToneWrapper';
 import { HeaderPill, GlassButton, GlassInput, GlassMetalBadge, FixedGlassBar, fixedBarStyles } from '@/components/ui/Glass';
@@ -16,15 +17,22 @@ import { COLORS, getThemeColors } from '@/constants/theme';
 
 export default function EditDesignScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const { activeFirmId } = useFirmStore();
   
-  const { id, initialName, initialMetal, initialCode, initialDefaultHsn } = useLocalSearchParams<{ 
+  const params = useLocalSearchParams<{ 
     id: string; 
     initialName?: string; 
     initialMetal?: 'GOLD' | 'SILVER'; 
-    initialCode?: string;
+    initialCode?: string; 
     initialDefaultHsn?: string;
   }>();
+
+  const id = Array.isArray(params.id) ? params.id[0] : params.id;
+  const initialName = Array.isArray(params.initialName) ? params.initialName[0] : params.initialName;
+  const initialMetal = Array.isArray(params.initialMetal) ? params.initialMetal[0] : params.initialMetal;
+  const initialCode = Array.isArray(params.initialCode) ? params.initialCode[0] : params.initialCode;
+  const initialDefaultHsn = Array.isArray(params.initialDefaultHsn) ? params.initialDefaultHsn[0] : params.initialDefaultHsn;
   
   const [newName, setNewName] = useState(initialName || '');
   const [metal, setMetal] = useState<'GOLD' | 'SILVER'>(initialMetal || 'GOLD');
@@ -57,23 +65,33 @@ export default function EditDesignScreen() {
   const handleEditSubmit = async () => {
     try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); } catch {}
     if (!activeFirmId || !id) return;
-    if (!newName.trim()) {
-      Alert.alert('Validation Error', 'Design name is required');
+
+    const trimmedName = newName.trim();
+    if (!trimmedName) {
+      Alert.alert('Validation Error', 'Design name is required.');
+      return;
+    }
+
+    const words = trimmedName.split(/\s+/);
+    if (words.length > 2) {
+      Alert.alert('Validation Error', 'Design name should be 1 or 2 words only (e.g. "Classic Band", "Solitaire").');
       return;
     }
 
     setIsSubmitting(true);
     try {
       await designService.updateDesign(id, activeFirmId, { 
-        name: newName.trim(),
+        name: trimmedName,
         defaultHsn: defaultHsn.trim() || null
       });
-      setSuccessMessage('Design updated successfully');
+      setSuccessMessage(`Design "${trimmedName}" updated successfully.`);
     } catch (e: any) {
-      if (e.message === 'DESIGN_NAME_INVALID') {
+      if (e.message?.includes('DESIGN_NAME_TAKEN') || e.message?.includes('UNIQUE')) {
+        Alert.alert('Duplicate Design', `A design named "${trimmedName}" in ${metal} already exists.`);
+      } else if (e.message === 'DESIGN_NAME_INVALID') {
         Alert.alert('Invalid Name', 'Design names cannot contain special characters and must be 1 or 2 words only.');
       } else {
-        Alert.alert('Error', e.message);
+        Alert.alert('Error', e.message || 'Failed to update design.');
       }
     } finally {
       setIsSubmitting(false);
@@ -81,6 +99,7 @@ export default function EditDesignScreen() {
   };
 
   const handleSuccessDone = () => {
+    try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
     setSuccessMessage(null);
     router.back();
   };
@@ -105,7 +124,10 @@ export default function EditDesignScreen() {
         <KeyboardAwareScrollView 
           style={s.container} 
           showsVerticalScrollIndicator={false} 
-          contentContainerStyle={{ paddingTop: 32, paddingBottom: 190 }} 
+          contentContainerStyle={{ 
+            paddingTop: 32, 
+            paddingBottom: Math.max(insets.bottom + 120, 160) 
+          }} 
           keyboardShouldPersistTaps="handled"
           keyboardDismissMode="on-drag"
           enableOnAndroid={true}
@@ -113,13 +135,13 @@ export default function EditDesignScreen() {
           extraScrollHeight={120}
           extraHeight={140}
         >
-          <View style={s.card}>
+          <View style={[s.card, { borderColor: `${colors.vjAccent}25` }]}>
             {designCode ? (
               <View style={s.formGroup}>
-                <Text style={s.label}>Design Code (System ID)</Text>
-                <View style={s.codeBox}>
-                  <Tag size={14} color="#5C1623" style={{ marginRight: 6 }} />
-                  <Text style={s.codeText}>{designCode}</Text>
+                <Text style={[s.label, { color: colors.vjText, opacity: 0.6 }]}>Design Code (System ID)</Text>
+                <View style={[s.codeBox, { backgroundColor: `${colors.vjAccent}12`, borderColor: `${colors.vjAccent}30` }]}>
+                  <Tag size={14} color={colors.vjAccent} style={{ marginRight: 6 }} />
+                  <Text style={[s.codeText, { color: colors.vjText }]}>{designCode}</Text>
                 </View>
               </View>
             ) : null}
@@ -130,12 +152,16 @@ export default function EditDesignScreen() {
                 value={newName}
                 onChangeText={setNewName}
                 placeholder="e.g. Classic Band"
+                autoCapitalize="words"
+                maxLength={50}
               />
-              <Text style={s.helpText}>No special characters. Max 2 words.</Text>
+              <Text style={[s.helpText, { color: colors.vjText, opacity: 0.5 }]}>
+                No special characters. Max 2 words.
+              </Text>
             </View>
 
             <View style={s.formGroup}>
-              <Text style={s.label}>Metal Type (Immutable)</Text>
+              <Text style={[s.label, { color: colors.vjText, opacity: 0.6 }]}>Metal Type (Immutable)</Text>
               <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4 }}>
                 <GlassMetalBadge metal={metal} />
               </View>
@@ -147,7 +173,8 @@ export default function EditDesignScreen() {
                 value={defaultHsn}
                 onChangeText={setDefaultHsn}
                 placeholder="e.g. 7113"
-                keyboardType="numeric"
+                keyboardType="number-pad"
+                maxLength={10}
               />
             </View>
           </View>
@@ -155,14 +182,19 @@ export default function EditDesignScreen() {
 
         <FixedGlassBar>
           <TouchableOpacity
+            testID="cancel-edit-design-btn"
             style={fixedBarStyles.pillSecondaryBtn}
-            onPress={() => router.back()}
+            onPress={() => {
+              try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
+              router.back();
+            }}
             disabled={isSubmitting}
           >
-            <Text style={fixedBarStyles.pillSecondaryText}>Cancel</Text>
+            <Text style={[fixedBarStyles.pillSecondaryText, { color: colors.vjText }]}>Cancel</Text>
           </TouchableOpacity>
           <TouchableOpacity
-            style={fixedBarStyles.pillPrimaryBtn}
+            testID="save-edit-design-btn"
+            style={[fixedBarStyles.pillPrimaryBtn, { backgroundColor: colors.vjAccent }]}
             onPress={handleEditSubmit}
             disabled={isSubmitting}
           >
@@ -178,14 +210,22 @@ export default function EditDesignScreen() {
         </FixedGlassBar>
       </View>
 
-      <Modal visible={!!successMessage} transparent animationType="fade">
-        <View style={s.modalOverlayCenter}>
-          <View style={s.successModalContent}>
+      {/* SUCCESS MODAL */}
+      <Modal visible={!!successMessage} transparent animationType="fade" onRequestClose={handleSuccessDone}>
+        <TouchableOpacity 
+          style={s.modalOverlayCenter}
+          activeOpacity={1}
+          onPress={handleSuccessDone}
+        >
+          <TouchableOpacity 
+            activeOpacity={1}
+            style={[s.successModalContent, { backgroundColor: colors.vjBg, borderColor: colors.border }]}
+          >
             <View style={s.successIconContainer}>
               <CheckCircle size={56} color="#10B981" />
             </View>
-            <Text style={s.successTitle}>Success!</Text>
-            <Text style={s.successSubtitle}>{successMessage}</Text>
+            <Text style={[s.successTitle, { color: colors.vjText }]}>Success!</Text>
+            <Text style={[s.successSubtitle, { color: colors.vjText }]}>{successMessage}</Text>
             
             <View style={{ width: '100%', marginTop: 16 }}>
               <GlassButton 
@@ -193,8 +233,8 @@ export default function EditDesignScreen() {
                 onPress={handleSuccessDone} 
               />
             </View>
-          </View>
-        </View>
+          </TouchableOpacity>
+        </TouchableOpacity>
       </Modal>
     </TwoToneWrapper>
   );
@@ -207,11 +247,10 @@ const s = StyleSheet.create({
     borderRadius: 24,
     padding: 24,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.5)',
   },
   formGroup: { marginBottom: 20 },
-  label: { fontSize: 12, fontWeight: '700', color: 'rgba(92,22,35,0.6)', textTransform: 'uppercase', marginBottom: 8 },
-  helpText: { fontSize: 10, color: 'rgba(92,22,35,0.5)', marginTop: 4, fontStyle: 'italic' },
+  label: { fontSize: 12, fontWeight: '700', textTransform: 'uppercase', marginBottom: 8 },
+  helpText: { fontSize: 10, marginTop: 4, fontStyle: 'italic' },
   modalOverlayCenter: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.6)',
@@ -220,14 +259,12 @@ const s = StyleSheet.create({
     padding: 24,
   },
   successModalContent: {
-    backgroundColor: COLORS.vjBg,
     width: '100%',
     maxWidth: 400,
     borderRadius: 24,
     padding: 32,
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.5)',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 10 },
     shadowOpacity: 0.25,
@@ -243,30 +280,27 @@ const s = StyleSheet.create({
   successTitle: {
     fontSize: 24,
     fontWeight: '800',
-    color: COLORS.vjText,
     marginBottom: 8,
   },
   successSubtitle: {
     fontSize: 14,
-    color: 'rgba(92,22,35,0.6)',
     textAlign: 'center',
     marginBottom: 24,
+    opacity: 0.7,
   },
   codeBox: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(212, 175, 55, 0.12)',
     paddingHorizontal: 14,
     paddingVertical: 10,
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: 'rgba(212, 175, 55, 0.3)',
     alignSelf: 'flex-start',
   },
   codeText: {
     fontSize: 13,
     fontWeight: '800',
-    color: '#5C1623',
     letterSpacing: 0.5,
+    fontFamily: 'monospace',
   },
 });

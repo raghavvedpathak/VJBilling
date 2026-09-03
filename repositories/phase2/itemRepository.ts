@@ -1,6 +1,6 @@
-// repositories/phase2/itemRepository.ts — Phase 2 v2.15 Canonical Repository
+// repositories/phase2/itemRepository.ts — Phase 2 v2.24 Canonical Repository
 
-import { eq, and, sql, inArray, like, or, asc, desc } from 'drizzle-orm';
+import { eq, and, sql, inArray, like, or, asc } from 'drizzle-orm';
 import { db } from '@/db/client';
 import { items, designs, categories } from '@/db/schema';
 import type {
@@ -16,11 +16,11 @@ export interface ItemRepository {
   getById(tx: DrizzleTransaction, id: string): Item | null;
   getById(tx: DrizzleTransaction, firmId: string, id: string): Item | null;
 
-  // --- findBySku ---
+  // --- findBySku (RED-9: firmId required) ---
   findBySku(firmId: string, sku: string): Promise<Item | null>;
   findBySku(tx: DrizzleTransaction, firmId: string, sku: string): Item | null;
 
-  // --- findByHUID (v1.85 / v1.86 FIX-HUID-DEDUP-SYNC-1) ---
+  // --- findByHUID (v1.85 / v1.86 FIX-HUID-DEDUP-SYNC-1: global cross-firm check) ---
   findByHUID(huid: string): Promise<Item | null>;
   findByHUID(tx: DrizzleTransaction, huid: string): Item | null;
 
@@ -29,11 +29,11 @@ export interface ItemRepository {
   findByStatus(tx: DrizzleTransaction, firmId: string, status: StockStatus): Item[];
   findByStatusTx(tx: DrizzleTransaction, firmId: string, status: StockStatus): Item[];
 
-  // --- findByCategoryId (FIX-CAT-ITEM-FK v1.42) ---
+  // --- findByCategoryId (FIX-CAT-ITEM-FK v1.42 & FIX-CAT-DELETE-GUARD-1 v1.44) ---
   findByCategoryId(categoryId: string, firmId: string): Promise<Item[]>;
   findByCategoryId(tx: DrizzleTransaction, categoryId: string, firmId: string): Item[];
 
-  // --- findByDesignId (RED-9 firmId required) ---
+  // --- findByDesignId (FIX-FIRM-1 v1.25 / RED-9: firmId required) ---
   findByDesignId(designId: string, firmId: string): Promise<Item[]>;
   findByDesignId(tx: DrizzleTransaction, designId: string, firmId: string): Item[];
   findByDesignIdTx(tx: DrizzleTransaction, designId: string, firmId: string): Item[];
@@ -49,13 +49,14 @@ export interface ItemRepository {
   update(tx: DrizzleTransaction, firmId: string, id: string, data: UpdateableItemFields | Partial<Item>): void;
 
   // --- updateStatus ---
+  updateStatus(tx: DrizzleTransaction, id: string, status: StockStatus): void;
   updateStatus(tx: DrizzleTransaction, firmId: string, id: string, status: StockStatus): void;
 
   // --- updateBarcodeReprintFlag ---
   updateBarcodeReprintFlag(tx: DrizzleTransaction, itemId: string, required: boolean): void;
   updateBarcodeReprintFlag(tx: DrizzleTransaction, firmId: string, itemId: string, required: boolean): void;
 
-  // --- updateCreatedAt & updateSkuAndDate ---
+  // --- updateCreatedAt & updateSkuAndDate (GAP-P2-DATE-SKU-EDIT-1 v1.79) ---
   updateCreatedAt(tx: DrizzleTransaction, itemId: string, createdAt: string): void;
   updateSkuAndDate(
     tx: DrizzleTransaction,
@@ -63,7 +64,7 @@ export interface ItemRepository {
     fields: { sku: string; barcode: string; createdAt: string; barcodeReprintRequired: boolean }
   ): void;
 
-  // --- delete ---
+  // --- delete (FEAT-ITEM-CORRECTION-1 v1.88) ---
   delete(tx: DrizzleTransaction, id: string): void;
   delete(tx: DrizzleTransaction, firmId: string, id: string): void;
 
@@ -80,7 +81,7 @@ export interface ItemRepository {
     silverBalanceMg: number;
   }>;
 
-  // --- search (SEARCH-1 v1.13) ---
+  // --- search (SEARCH-1 v1.13 / RED-7 LIMIT 20) ---
   search(firmId: string, query: string): Promise<ItemSearchResult[]>;
 }
 
@@ -204,7 +205,7 @@ export const itemRepository: ItemRepository = {
   },
 
   update(tx: DrizzleTransaction, second: string, third: string | Partial<Item>, fourth?: Partial<Item>): void {
-    if (typeof third === 'object') {
+    if (typeof third === 'object' && third !== null) {
       const id = second;
       const data = third as Partial<Item>;
       tx.update(items).set(data).where(eq(items.id, id)).run();
@@ -216,11 +217,25 @@ export const itemRepository: ItemRepository = {
     }
   },
 
-  updateStatus(tx: DrizzleTransaction, firmId: string, id: string, status: StockStatus): void {
-    tx.update(items)
-      .set({ status, updatedAt: now() })
-      .where(and(eq(items.id, id), eq(items.firmId, firmId)))
-      .run();
+  updateStatus(tx: DrizzleTransaction, second: string, third: string | StockStatus, fourth?: StockStatus): void {
+    if (fourth === undefined) {
+      // 3-arg call: updateStatus(tx, id, status)
+      const id = second;
+      const status = third as StockStatus;
+      tx.update(items)
+        .set({ status, updatedAt: now() })
+        .where(eq(items.id, id))
+        .run();
+    } else {
+      // 4-arg call: updateStatus(tx, firmId, id, status)
+      const firmId = second;
+      const id = third as string;
+      const status = fourth;
+      tx.update(items)
+        .set({ status, updatedAt: now() })
+        .where(and(eq(items.id, id), eq(items.firmId, firmId)))
+        .run();
+    }
   },
 
   updateBarcodeReprintFlag(tx: DrizzleTransaction, second: string, third: string | boolean, fourth?: boolean): void {
@@ -274,7 +289,7 @@ export const itemRepository: ItemRepository = {
   async getAvailableStockForDesign(designId: string, firmId: string): Promise<{ totalNetWeightMg: number; count: number }> {
     const result = await db
       .select({
-        totalNetWeightMg: sql<number>`SUM(${items.grossWeightMg} - COALESCE(${items.stoneWeightMg}, 0) - COALESCE(${items.beadsWeightMg}, 0))`,
+        totalNetWeightMg: sql<number>`SUM(${items.netWeightMg})`,
         count: sql<number>`COUNT(${items.id})`
       })
       .from(items)
@@ -291,7 +306,7 @@ export const itemRepository: ItemRepository = {
     };
   },
 
-  // STEP 9-Lite & FEAT-PHANTOM-INVENTORY-1: Net available weight of AVAILABLE stock minus unreconciled phantom debt
+  // STEP 9-Lite & FEAT-PHANTOM-INVENTORY-1: Net weight of AVAILABLE stock minus unreconciled phantom debt
   async getStockWeightSummary(firmId: string) {
     const rows = await db
       .select({
@@ -336,7 +351,7 @@ export const itemRepository: ItemRepository = {
 
   // SEARCH-1 (v1.13): Item-level search with deterministic sort and LIMIT 20 (RED-7)
   async search(firmId: string, query: string): Promise<ItemSearchResult[]> {
-    const tokens = query.trim().split(/\s+/);
+    const tokens = query.trim().split(/\s+/).filter(t => t.length > 0);
     const sizeToken = tokens.find(t => /^\d+(\.\d+)?$/.test(t));
     const textQuery = tokens.filter(t => t !== sizeToken).join(' ');
 
@@ -381,8 +396,8 @@ export const itemRepository: ItemRepository = {
         sizeUnit: items.sizeUnit,
       })
       .from(items)
-      .innerJoin(designs, eq(items.designId, designs.id))
-      .innerJoin(categories, eq(items.categoryId, categories.id))
+      .innerJoin(designs, and(eq(items.designId, designs.id), eq(designs.firmId, items.firmId)))
+      .innerJoin(categories, and(eq(items.categoryId, categories.id), eq(categories.firmId, items.firmId)))
       .where(and(...conditions))
       .orderBy(asc(designs.name), asc(items.sku))
       .limit(20); // RED-7

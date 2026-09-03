@@ -1,8 +1,11 @@
-// utils/purity.constants.ts — Phase 2 v2.15 Canonical Purity & Math Utilities
+// utils/purity.constants.ts — Phase 2 v2.24 Canonical Purity & Math Utilities
 
-import { ERR } from '../constants/errorCodes';
+import { ERR } from '@/constants/errorCodes';
 
-// PURITY MAP (Step 6.1)
+// =============================================================================
+// PURITY MAP & CONSTANTS (STEP 6.1)
+// =============================================================================
+
 export const PURITY_MAP: Record<number, number> = {
   24: 99.9,
   23: 95.8,
@@ -15,9 +18,11 @@ export const PURITY_MAP: Record<number, number> = {
   9: 37.5,
 };
 
-// Reference lists for informational UI display ONLY (v1.94 FEAT-SILVER-PURITY-GRADES-1)
-export const SILVER_PURITY_GRADES: number[] = [80.0, 83.5, 92.5, 95.8, 97.0, 99.0, 99.9]; // BIS IS 2112:2025
-export const GOLD_PURITY_GRADES: number[] = Object.values(PURITY_MAP);
+// FIX-24K-PURITY-1 (v1.57): Extended reverse lookup for 24K sub-variants
+export const PURITY_PERCENT_EXTENDED: Record<number, number> = {
+  99.99: 24, // BIS 9999 — 4-nine fine (investment grade)
+  99.50: 24, // BIS 995 — hallmarked 24K fine gold
+};
 
 export interface PurityPreset {
   id: string;
@@ -51,6 +56,15 @@ export const SILVER_PURITY_PRESETS: PurityPreset[] = [
   { id: 'silver_800', label: '80.0%', val: '80.0', karat: null, metal: 'SILVER' },
 ];
 
+// Reference lists for informational UI display ONLY (v1.94 FEAT-SILVER-PURITY-GRADES-1)
+export const SILVER_PURITY_GRADES: number[] = [80.0, 83.5, 92.5, 95.8, 97.0, 99.0, 99.9]; // BIS IS 2112:2025
+export const GOLD_PURITY_GRADES: number[] = [
+  99.99,
+  99.9,
+  99.50,
+  ...Object.values(PURITY_MAP).filter((p) => p !== 99.9),
+];
+
 export const PURITY_PRESETS: Record<'GOLD' | 'SILVER', PurityPreset[]> = {
   GOLD: GOLD_PURITY_PRESETS,
   SILVER: SILVER_PURITY_PRESETS,
@@ -61,76 +75,89 @@ export function getPurityPresets(metal: 'GOLD' | 'SILVER' = 'GOLD'): PurityPrese
 }
 
 export function getPurityPresetById(id: string): PurityPreset | undefined {
-  return [...GOLD_PURITY_PRESETS, ...SILVER_PURITY_PRESETS].find(p => p.id === id);
+  return [...GOLD_PURITY_PRESETS, ...SILVER_PURITY_PRESETS].find((p) => p.id === id);
 }
 
-export function isStandardPurityGrade(purityPercent: number, metal: 'GOLD' | 'SILVER'): boolean {
+export function isStandardPurityGrade(purityPercent: number, metal: 'GOLD' | 'SILVER' = 'GOLD'): boolean {
   const grades = metal === 'SILVER' ? SILVER_PURITY_GRADES : GOLD_PURITY_GRADES;
-  return grades.some(g => Math.abs(g - purityPercent) <= 0.01);
+  return grades.some((g) => Math.abs(g - purityPercent) <= 0.05);
 }
 
-// FEAT-PURITY-ROUND-1 (v1.90/v1.91): Regular stock & MELT_OUTPUT old gold trade rounding
-export const PURITY_ROUND_TO_100: Record<'GOLD' | 'SILVER', number[]> = {
-  GOLD: [99.50, 99.9, 99.99],
-  SILVER: [99.9],
-};
-
-// FIX-EFFPRICE-PURITYROUND-1 (v2.14): SOLE lookup point for trade-convention 100% purity rounding
-export function resolveEffectivePurityPercent(purityPercent: number, metal: 'GOLD' | 'SILVER'): number {
-  const isRounded = PURITY_ROUND_TO_100[metal].some(target => Math.abs(target - purityPercent) < 0.01);
-  return isRounded ? 100 : purityPercent;
-}
-
-// SOLE fine-weight entry point for regular stock (Step 6.1)
-export function resolveFineWeightMg(
-  netWeightMg: number,
-  purityPercent: number,
-  metal: 'GOLD' | 'SILVER'
-): { fineWeightMg: number; purityRoundingDeltaMg: number } {
-  const trueFineWeightMg = Math.round((netWeightMg * purityPercent) / 100);
-  const effectivePurityPercent = resolveEffectivePurityPercent(purityPercent, metal);
-  if (effectivePurityPercent === purityPercent) return { fineWeightMg: trueFineWeightMg, purityRoundingDeltaMg: 0 };
-  return { fineWeightMg: netWeightMg, purityRoundingDeltaMg: netWeightMg - trueFineWeightMg };
-}
-
-// FIX-24K-PURITY-1 (v1.57) Extended reverse lookup
-export const PURITY_PERCENT_EXTENDED: Record<number, number> = {
-  99.99: 24, // 4-nine fine
-  99.50: 24, // BIS 995
-};
-
+// karatToPercent() — throws if karat not in map (STEP 6.1)
 export function karatToPercent(karat: number): number {
   const pct = PURITY_MAP[karat];
   if (pct === undefined) throw new Error(`${ERR.INVALID_KARAT}: ${karat}`);
   return pct;
 }
 
+// percentToKarat() — checks extended variants first, then PURITY_MAP with 0.05% tolerance
 export function percentToKarat(percent: number): number | null {
-  if (PURITY_PERCENT_EXTENDED[percent] !== undefined) return PURITY_PERCENT_EXTENDED[percent];
+  for (const [pStr, k] of Object.entries(PURITY_PERCENT_EXTENDED)) {
+    if (Math.abs(Number(pStr) - percent) < 0.05) return k;
+  }
   for (const [k, v] of Object.entries(PURITY_MAP)) {
     if (Math.abs(v - percent) < 0.05) return Number(k);
   }
   return null;
 }
 
-// UI DISPLAY LAYER ONLY — getDisplayPurity() (Step 6.1)
+// =============================================================================
+// TRADE CONVENTION PURITY ROUNDING (FEAT-PURITY-ROUND-1 v1.90 / v1.91 / v2.14)
+// =============================================================================
+
+export const PURITY_ROUND_TO_100: Record<'GOLD' | 'SILVER', number[]> = {
+  GOLD: [99.50, 99.9, 99.99],
+  SILVER: [99.9],
+};
+
+// FIX-EFFPRICE-PURITYROUND-1 (v2.14): SOLE lookup point for trade-convention 100% purity rounding
+export function resolveEffectivePurityPercent(
+  purityPercent: number,
+  metal: 'GOLD' | 'SILVER' = 'GOLD'
+): number {
+  const isRounded = PURITY_ROUND_TO_100[metal]?.some((target) => Math.abs(target - purityPercent) < 0.05);
+  return isRounded ? 100 : purityPercent;
+}
+
+// SOLE fine-weight entry point for regular stock & MELT_OUTPUT old gold lots (Step 6.1)
+export function resolveFineWeightMg(
+  netWeightMg: number,
+  purityPercent: number,
+  metal: 'GOLD' | 'SILVER' = 'GOLD'
+): { fineWeightMg: number; purityRoundingDeltaMg: number } {
+  const trueFineWeightMg = Math.round((netWeightMg * purityPercent) / 100);
+  const effectivePurityPercent = resolveEffectivePurityPercent(purityPercent, metal);
+  if (effectivePurityPercent === purityPercent) {
+    return { fineWeightMg: trueFineWeightMg, purityRoundingDeltaMg: 0 };
+  }
+  return { fineWeightMg: netWeightMg, purityRoundingDeltaMg: netWeightMg - trueFineWeightMg };
+}
+
+// UI DISPLAY LAYER ONLY — getDisplayPurity() (Step 6.1 / PURITY-INTAKE-1 v1.21)
 export function getDisplayPurity(
   purityPercent?: number | null,
   purityKarat?: number | null,
   metal: 'GOLD' | 'SILVER' = 'GOLD'
 ): string {
   const safePercent = purityPercent != null && !isNaN(Number(purityPercent)) ? Number(purityPercent) : 0;
-  const resolvedKarat = (purityKarat != null && purityKarat > 0)
-    ? purityKarat
-    : (metal === 'GOLD' ? percentToKarat(safePercent) : null);
 
-  if (metal === 'GOLD' && resolvedKarat && resolvedKarat > 0) {
+  const resolvedKarat =
+    purityKarat !== undefined && purityKarat !== null
+      ? purityKarat
+      : metal === 'GOLD'
+      ? (percentToKarat(safePercent) ?? 0)
+      : 0;
+
+  if (metal === 'GOLD' && resolvedKarat > 0) {
     return `${resolvedKarat}K`;
   }
   return `${safePercent}%`;
 }
 
-// FEAT-EFFECTIVE-PRICE-1 (v2.00), FIX-EFFPRICE-FORMULA-1 (v2.03) & FIX-EFFPRICE-PURITYROUND-1 (v2.14) — UI DISPLAY ONLY
+// =============================================================================
+// EFFECTIVE PRICE DISPLAY PREVIEWS (FEAT-EFFECTIVE-PRICE-1 v2.00 / FIX-EFFPRICE-PURITYROUND-1 v2.14)
+// =============================================================================
+
 export function computeEffectivePricePerGram(
   ratePerGram: number,
   purityPercent: number,
@@ -158,8 +185,6 @@ export function computeEstTotalCostPaise(
   return Math.round(effectivePricePaisePerGram * (netWeightMg / 1000));
 }
 
-// FIX-WAST-CENTRALIZE-1 (v2.04) & FIX-WAST-NETBASIS-1 (v2.04) — Supplier Cost Truth
-// Explicitly out of scope for FIX-EFFPRICE-PURITYROUND-1 (v2.14) — keeps raw purity formula by design
 export function computeFineGoldChargedMg(
   netWeightMg: number,
   purityPercent: number,
@@ -192,7 +217,10 @@ export function computeAbsoluteTotalCostRupees(
   return totalGoldCost + makingCharges + stoneCost;
 }
 
-// --- WEIGHT FORMULAS & CONVERSIONS (RULE-1A-WEIGHT-DISPLAY v1.54) ---
+// =============================================================================
+// WEIGHT FORMULAS & CONVERSIONS (RULE-1A-WEIGHT-DISPLAY v1.54)
+// =============================================================================
+
 export function formatWeightMg(mg: number | null | undefined): string {
   if (mg === null || mg === undefined || isNaN(mg)) return '0.000 g';
   return (mg / 1000).toFixed(3) + ' g';
@@ -248,7 +276,10 @@ export function computeGemstoneTotalPaise(
   return Math.round((weightCaratX100 / 100) * purchaseRatePaisePerCarat);
 }
 
-// --- CENTRAL URD PURCHASE FORMULAS ---
+// =============================================================================
+// CENTRAL URD PURCHASE FORMULAS (STEP 12.9 / FIX-URD-COST-1 v1.62)
+// =============================================================================
+
 export interface URDCostBreakdown {
   grossWeightMg: number;
   grossWeightGrams: number;
@@ -287,8 +318,7 @@ export function computeURDTotalValuePaise(
   const safeRatePaise = Math.max(0, ratePerGramPaise || 0);
   const safeAdjustmentPaise = adjustmentPaise || 0;
   const grossValuePaise = Math.round((safeFineMg / 1000) * safeRatePaise);
-  const subtotalPaise = Math.max(0, grossValuePaise + safeAdjustmentPaise);
-  return Math.round(subtotalPaise / 100) * 100;
+  return Math.max(0, grossValuePaise + safeAdjustmentPaise);
 }
 
 export function computeURDCostBreakdown(
@@ -305,17 +335,16 @@ export function computeURDCostBreakdown(
   const fineWeightMg = computeURDFineWeightMg(safeGrossMg, safePurity);
   const grossValuePaise = Math.round((fineWeightMg / 1000) * safeRatePaise);
   const subtotalAfterAdjustmentPaise = Math.max(0, grossValuePaise + safeAdjustmentPaise);
-  
-  // Round to nearest rupee (100 paise)
-  const totalValuePaise = Math.round(subtotalAfterAdjustmentPaise / 100) * 100;
-  const roundOffPaise = totalValuePaise - subtotalAfterAdjustmentPaise;
+
+  const totalValuePaise = subtotalAfterAdjustmentPaise;
+  const roundOffPaise = 0;
 
   const grossWeightGrams = safeGrossMg / 1000;
   const fineWeightGrams = fineWeightMg / 1000;
   const ratePerGramRupees = safeRatePaise / 100;
   const grossValueRupees = grossValuePaise / 100;
   const adjustmentRupees = safeAdjustmentPaise / 100;
-  const discountPaise = -safeAdjustmentPaise;
+  const discountPaise = safeAdjustmentPaise === 0 ? 0 : -safeAdjustmentPaise;
   const discountRupees = discountPaise / 100;
   const subtotalRupees = subtotalAfterAdjustmentPaise / 100;
   const roundOffRupees = roundOffPaise / 100;
@@ -341,6 +370,6 @@ export function computeURDCostBreakdown(
     roundOffRupees,
     totalValuePaise,
     totalValueRupees,
-    formattedFineGrams: (fineWeightGrams).toFixed(3) + ' g',
+    formattedFineGrams: fineWeightGrams.toFixed(3) + ' g',
   };
 }

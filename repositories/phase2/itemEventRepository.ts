@@ -1,4 +1,4 @@
-// repositories/phase2/itemEventRepository.ts — Phase 2 v2.11 Canonical Repository
+// repositories/phase2/itemEventRepository.ts — Phase 2 v2.24 Canonical Repository
 
 import { eq, and, sql, desc } from 'drizzle-orm';
 import { db } from '@/db/client';
@@ -18,23 +18,30 @@ export interface ItemEventRepository {
   findByItemId(itemId: string): Promise<ItemEvent[]>;
   findByItemId(firmId: string, itemId: string): Promise<ItemEvent[]>;
   findByItemId(tx: DrizzleTransaction, itemId: string): ItemEvent[];
+  findByItemId(tx: DrizzleTransaction, firmId: string, itemId: string): ItemEvent[];
 
   // --- countByItemIdAndEventType (Step 10.7 / sendToKarigar) ---
-  // Overloaded for 3-arg (tx, itemId, eventType) and 4-arg (tx, firmId, itemId, eventType)
   countByItemIdAndEventType(tx: DrizzleTransaction, itemId: string, eventType: ItemEventType): number;
   countByItemIdAndEventType(tx: DrizzleTransaction, firmId: string, itemId: string, eventType: ItemEventType): number;
 }
 
 export const itemEventRepository: ItemEventRepository = {
-  // --- insert (Accepts id from caller or auto-generates if omitted) ---
+  // --- insert (Normalizes karigarId and nullable columns per v2.18 / v2.20) ---
   insert(tx: DrizzleTransaction, data: Omit<NewItemEvent, 'id'> & { id?: string }): ItemEvent {
     const id = data.id ?? Crypto.randomUUID();
-    const row = { ...data, id };
+    const row = {
+      ...data,
+      id,
+      karigarId: data.karigarId ?? null,
+      reason: data.reason ?? null,
+      oldValue: data.oldValue ?? null,
+      newValue: data.newValue ?? null,
+    };
     tx.insert(itemEvents).values(row).run();
     return row as ItemEvent;
   },
 
-  // --- deleteByItemId (Overloaded for (tx, itemId) and (tx, firmId, itemId) - Step 6.7.1 deleteItem) ---
+  // --- deleteByItemId (Step 6.7.1 deleteItem - FK safe cleanup) ---
   deleteByItemId(tx: DrizzleTransaction, second: string, third?: string): void {
     if (third === undefined) {
       // 2-arg call: deleteByItemId(tx, itemId)
@@ -45,7 +52,7 @@ export const itemEventRepository: ItemEventRepository = {
     }
   },
 
-  // --- findByItemId (Sync tx overload and async standalone) ---
+  // --- findByItemId (Sync tx overload and async standalone with firm isolation) ---
   findByItemId(
     first: DrizzleTransaction | string,
     second?: string,
@@ -53,6 +60,7 @@ export const itemEventRepository: ItemEventRepository = {
   ): any {
     if (typeof first === 'string') {
       if (second !== undefined) {
+        // 2-arg async call: findByItemId(firmId, itemId)
         const firmId = first;
         const itemId = second;
         return db
@@ -61,6 +69,7 @@ export const itemEventRepository: ItemEventRepository = {
           .where(and(eq(itemEvents.itemId, itemId), eq(itemEvents.firmId, firmId)))
           .orderBy(desc(itemEvents.timestamp));
       }
+      // 1-arg async call: findByItemId(itemId)
       return db
         .select()
         .from(itemEvents)
@@ -68,6 +77,16 @@ export const itemEventRepository: ItemEventRepository = {
         .orderBy(desc(itemEvents.timestamp));
     }
     const tx = first as DrizzleTransaction;
+    if (third !== undefined) {
+      // 3-arg sync call: findByItemId(tx, firmId, itemId)
+      return tx
+        .select()
+        .from(itemEvents)
+        .where(and(eq(itemEvents.itemId, third), eq(itemEvents.firmId, second!)))
+        .orderBy(desc(itemEvents.timestamp))
+        .all() as ItemEvent[];
+    }
+    // 2-arg sync call: findByItemId(tx, itemId)
     const itemId = second!;
     return tx
       .select()
@@ -77,8 +96,7 @@ export const itemEventRepository: ItemEventRepository = {
       .all() as ItemEvent[];
   },
 
-  // --- countByItemIdAndEventType (Step 10.7 / sendToKarigar) ---
-  // Overloaded for 3-arg (tx, itemId, eventType) and 4-arg (tx, firmId, itemId, eventType)
+  // --- countByItemIdAndEventType (Step 10.7 / sendToKarigar loop guard) ---
   countByItemIdAndEventType(
     tx: DrizzleTransaction,
     second: string,
@@ -102,7 +120,7 @@ export const itemEventRepository: ItemEventRepository = {
 
     const conditions = [
       eq(itemEvents.itemId, itemId),
-      eq(itemEvents.eventType, eventType)
+      eq(itemEvents.eventType, eventType),
     ];
 
     if (firmIdFilter) {
@@ -116,5 +134,5 @@ export const itemEventRepository: ItemEventRepository = {
       .get();
 
     return Number(result?.count) || 0;
-  }
+  },
 };

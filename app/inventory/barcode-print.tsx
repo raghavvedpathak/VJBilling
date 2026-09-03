@@ -1,6 +1,6 @@
-// app/inventory/barcode-print.tsx — Phase 2 v2.15 Canonical Screen with Inline Action Dock & Purity Suffix
+// app/inventory/barcode-print.tsx — Phase 2 v2.24 Canonical Screen with Inline Action Dock & Offline Tag Generation
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, ActivityIndicator, Alert, TouchableOpacity, Modal, StyleSheet, ScrollView } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import * as Print from 'expo-print';
@@ -26,6 +26,8 @@ export default function BarcodePrintScreen() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
+  const qrRef = useRef<any>(null);
+
   useEffect(() => {
     let active = true;
     const fetchLabel = async () => {
@@ -34,7 +36,7 @@ export default function BarcodePrintScreen() {
         const data = await barcodeLabelService.generateBarcodeLabel(itemId, activeFirmId);
         if (active) setLabel(data);
       } catch (e: any) {
-        Alert.alert('Error', e.message);
+        Alert.alert('Error', e.message || 'Failed to load barcode label data.');
       } finally {
         if (active) setLoading(false);
       }
@@ -43,8 +45,21 @@ export default function BarcodePrintScreen() {
     return () => { active = false; };
   }, [activeFirmId, itemId]);
 
+  // Extract base64 raster from native SVG for 100% offline-resilient printing
+  const getQrBase64 = (): Promise<string> => {
+    return new Promise((resolve) => {
+      if (qrRef.current?.toDataURL) {
+        qrRef.current.toDataURL((data: string) => {
+          resolve(`data:image/png;base64,${data}`);
+        });
+      } else {
+        resolve('');
+      }
+    });
+  };
+
   // STEP 5.1 & RULE-1A-WEIGHT-DISPLAY (v1.54): Purity Displayed After Design Name on 50mm × 12mm Dumbbell Tag
-  const generateTagHTML = () => {
+  const generateTagHTML = (qrDataUri: string) => {
     if (!label) return '';
     
     return `
@@ -52,7 +67,6 @@ export default function BarcodePrintScreen() {
       <html>
         <head>
           <meta charset="utf-8">
-          <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
           <style>
             @page {
               size: 50mm 12mm;
@@ -103,7 +117,7 @@ export default function BarcodePrintScreen() {
               overflow: hidden;
             }
             .left-wing {
-              padding-left: 1mm;
+              padding-left: 0.8mm;
               align-items: flex-start;
             }
             .center-stem {
@@ -115,10 +129,10 @@ export default function BarcodePrintScreen() {
             }
             .stem-line {
               width: 100%;
-              border-top: 1px dashed #ccc;
+              border-top: 1px dashed #cbd5e1;
             }
             .right-wing {
-              padding-right: 1mm;
+              padding-right: 0.8mm;
               align-items: center;
               text-align: center;
             }
@@ -147,19 +161,19 @@ export default function BarcodePrintScreen() {
               margin-bottom: 0.5px;
             }
             .sku-text {
-              font-size: 7px;
+              font-size: 6.5px;
               font-weight: 900;
               font-family: monospace;
               color: #000;
               line-height: 1;
               margin-top: 0.5px;
             }
-            #qrcode {
-              display: flex;
-              justify-content: center;
-              align-items: center;
-              padding: 0.5px;
-              background: #ffffff;
+            .qr-img {
+              width: 28px;
+              height: 28px;
+              image-rendering: pixelated;
+              display: block;
+              margin: 0 auto;
             }
           </style>
         </head>
@@ -180,21 +194,10 @@ export default function BarcodePrintScreen() {
             <!-- RIGHT WING (BARCODE LOBE: 3 Lines) -->
             <div class="wing right-wing">
               <div class="firm-code">${label.backSide.firmCode}</div>
-              <div id="qrcode"></div>
+              ${qrDataUri ? `<img class="qr-img" src="${qrDataUri}" alt="QR" />` : ''}
               <div class="sku-text">${label.backSide.skuDisplay}</div>
             </div>
           </div>
-
-          <script>
-            new QRCode(document.getElementById("qrcode"), {
-              text: "${label.backSide.barcodeValue}",
-              width: 32,
-              height: 32,
-              colorDark : "#000000",
-              colorLight : "#ffffff",
-              correctLevel : QRCode.CorrectLevel.L
-            });
-          </script>
         </body>
       </html>
     `;
@@ -205,12 +208,13 @@ export default function BarcodePrintScreen() {
     try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
     setIsProcessing(true);
     try {
-      const html = generateTagHTML();
+      const qrDataUri = await getQrBase64();
+      const html = generateTagHTML(qrDataUri);
       await Print.printAsync({ html });
       await barcodeLabelService.logBarcodeReprint(itemId, activeFirmId);
-      setSuccessMessage('Label sent to printer and audit log updated.');
+      setSuccessMessage('Label sent to printer and reprint logged in timeline.');
     } catch (e: any) {
-      Alert.alert('Print Failed', e.message);
+      Alert.alert('Print Failed', e.message || 'Could not complete print job.');
     } finally {
       setIsProcessing(false);
     }
@@ -221,7 +225,8 @@ export default function BarcodePrintScreen() {
     try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
     setIsProcessing(true);
     try {
-      const html = generateTagHTML();
+      const qrDataUri = await getQrBase64();
+      const html = generateTagHTML(qrDataUri);
       const { uri } = await Print.printToFileAsync({ html });
       
       if (!(await Sharing.isAvailableAsync())) {
@@ -231,9 +236,9 @@ export default function BarcodePrintScreen() {
 
       await Sharing.shareAsync(uri, { UTI: '.pdf', mimeType: 'application/pdf' });
       await barcodeLabelService.logBarcodeReprint(itemId, activeFirmId);
-
+      setSuccessMessage('Label exported as PDF and reprint logged in timeline.');
     } catch (e: any) {
-      Alert.alert('Save Failed', e.message);
+      Alert.alert('Save Failed', e.message || 'Could not export label PDF.');
     } finally {
       setIsProcessing(false);
     }
@@ -301,6 +306,7 @@ export default function BarcodePrintScreen() {
               <Text style={{ fontSize: 11, fontWeight: '900', color: COLORS.vjText, marginBottom: 4 }}>{label.backSide.firmCode}</Text>
               <View style={{ marginBottom: 4, alignItems: 'center', justifyContent: 'center', backgroundColor: '#FFFFFF', padding: 2 }}>
                 <QRCode 
+                  getRef={(c) => { qrRef.current = c; }}
                   value={label.backSide.barcodeValue} 
                   size={42} 
                   color={COLORS.vjText} 
@@ -322,7 +328,7 @@ export default function BarcodePrintScreen() {
           </Text>
         </View>
 
-        {/* ACTION BUTTONS DOCK (INLINE, 100% CLEAR OF OS BUTTONS) */}
+        {/* ACTION BUTTONS DOCK */}
         <View style={s.actionRow}>
           <TouchableOpacity
             style={s.shareBtn}

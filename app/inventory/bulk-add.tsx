@@ -1,10 +1,11 @@
-// app/inventory/bulk-add.tsx — Phase 2 v2.15 Canonical Screen
+// app/inventory/bulk-add.tsx — Phase 2 v2.24 Canonical Screen
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { View, Text, Alert, Modal, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import { useRouter, useFocusEffect } from 'expo-router';
 import * as Haptics from 'expo-haptics';
+import * as Crypto from 'expo-crypto';
 import { TwoToneWrapper } from '@/components/TwoToneWrapper';
 import { GlassCard, GlassInput, GlassButton, GlassPickerInput, FixedGlassBar, fixedBarStyles } from '@/components/ui/Glass';
 import { GlassPickerModal, GlassPickerOption } from '@/components/ui/GlassPickerModal';
@@ -17,7 +18,7 @@ import { hsnMasterRepository } from '@/repositories/phase2/hsnMasterRepository';
 import { stoneRepository } from '@/repositories/phase2/stoneRepository';
 import { itemRepository } from '@/repositories/phase2/itemRepository';
 import { designCategoryMapRepository } from '@/repositories/phase2/designCategoryMapRepository';
-import type { Design, Category, HsnCode, Stone } from '@/types/phase2/phase2.types';
+import type { Design, Category, HsnCode, Stone, Metal, BulkItemInput } from '@/types/phase2/phase2.types';
 import { Package, Plus, Trash2, Calculator, Layers, CheckCircle, Calendar as CalendarIcon } from 'lucide-react-native';
 import { formatDate } from '@/utils/formatDate';
 import { 
@@ -32,14 +33,42 @@ import {
   rupeesToPaise,
   getCurrencySymbol,
   getPurityPresets,
+  parseCleanFloat,
 } from '@/utils/calculations';
 import { COLORS } from '@/constants/theme';
 
 const BULK_ITEM_MAX = 50;
 
-const BulkItemRow = ({ index, row, updateRow, removeRow, stones, metal, openPickerModal }: any) => {
+export interface BulkRowState {
+  id: string;
+  grossWeight: string;
+  stoneWeight: string;
+  beadsWeight: string;
+  purityPercent: string;
+  wastagePercent: string;
+  purchaseRate: string;
+  makingCharge: string;
+  stoneCost: string;
+  location: string;
+  sizeValue: string;
+  sizeUnit: 'INCH' | 'MM' | 'CM' | 'RING_SIZE' | '';
+  stoneId: string | null;
+  stoneName: string;
+}
+
+interface BulkItemRowProps {
+  index: number;
+  row: BulkRowState;
+  updateRow: (index: number, field: keyof BulkRowState, value: any) => void;
+  removeRow: (index: number) => void;
+  stones: Stone[];
+  metal: Metal;
+  openPickerModal: (config: any) => void;
+}
+
+const BulkItemRow = ({ index, row, updateRow, removeRow, stones, metal, openPickerModal }: BulkItemRowProps) => {
   const computedKarat = useMemo(() => {
-    const p = parseFloat(row.purityPercent);
+    const p = parseCleanFloat(row.purityPercent);
     if (isNaN(p) || p <= 0) return '';
     if (metal === 'SILVER') return 'SILVER';
     if (PURITY_MAP[p] !== undefined) return `${p}K`;
@@ -48,14 +77,14 @@ const BulkItemRow = ({ index, row, updateRow, removeRow, stones, metal, openPick
   }, [row.purityPercent, metal]);
 
   const calculations = useMemo(() => {
-    const gross = parseFloat(row.grossWeight) || 0;
-    const stone = parseFloat(row.stoneWeight) || 0;
-    const beads = parseFloat(row.beadsWeight) || 0;
-    const purity = parseFloat(row.purityPercent) || 0;
-    const wastage = parseFloat(row.wastagePercent) || 0;
-    const rate = parseFloat(row.purchaseRate) || 0;
-    const making = parseFloat(row.makingCharge) || 0;
-    const stoneC = parseFloat(row.stoneCost) || 0;
+    const gross = parseCleanFloat(row.grossWeight);
+    const stone = parseCleanFloat(row.stoneWeight);
+    const beads = parseCleanFloat(row.beadsWeight);
+    const purity = parseCleanFloat(row.purityPercent);
+    const wastage = parseCleanFloat(row.wastagePercent);
+    const rate = parseCleanFloat(row.purchaseRate);
+    const making = parseCleanFloat(row.makingCharge);
+    const stoneC = parseCleanFloat(row.stoneCost);
 
     const netWeightG = Math.max(0, gross - stone - beads);
     const netWeightMg = Math.round(netWeightG * 1000);
@@ -65,7 +94,6 @@ const BulkItemRow = ({ index, row, updateRow, removeRow, stones, metal, openPick
     const fineGoldChargedMg = computeFineGoldChargedMg(netWeightMg, purity, wastage);
     const costTruth = computeCostTruthGrams(fineGoldChargedMg, fineWeightMg);
     
-    // FIX-EFFPRICE-PURITYROUND-1 (v2.14) & FEAT-EFFECTIVE-PRICE-BULK-1: pass metal parameter for 100% rounding
     const effectivePricePerGram = computeEffectivePricePerGram(rate, purity, wastage, metal || 'GOLD');
     const absoluteTotalCost = computeAbsoluteTotalCostRupees(netWeightG, effectivePricePerGram, making, stoneC);
     const metalCostRupees = netWeightG * effectivePricePerGram;
@@ -99,7 +127,7 @@ const BulkItemRow = ({ index, row, updateRow, removeRow, stones, metal, openPick
       financialBreakdown: financialBreakdownText,
       pricePerGram: effectivePricePerGram,
       totalAmount: absoluteTotalCost,
-      isValid: netWeightG > 0 && purity > 0
+      isValid: netWeightG > 0 && purity > 0,
     };
   }, [row.grossWeight, row.stoneWeight, row.beadsWeight, row.purityPercent, row.wastagePercent, row.purchaseRate, row.makingCharge, row.stoneCost, metal]);
 
@@ -116,9 +144,30 @@ const BulkItemRow = ({ index, row, updateRow, removeRow, stones, metal, openPick
         </View>
 
         <View style={s.inputGrid}>
-          <View style={s.inputCol}><GlassInput label="Gross (g)*" value={row.grossWeight} onChangeText={(t: string) => updateRow(index, 'grossWeight', t)} keyboardType="numeric" /></View>
-          <View style={s.inputCol}><GlassInput label="Stone (g)" value={row.stoneWeight} onChangeText={(t: string) => updateRow(index, 'stoneWeight', t)} keyboardType="numeric" /></View>
-          <View style={s.inputCol}><GlassInput label="Beads (g)" value={row.beadsWeight} onChangeText={(t: string) => updateRow(index, 'beadsWeight', t)} keyboardType="numeric" /></View>
+          <View style={s.inputCol}>
+            <GlassInput 
+              label="Gross (g)*" 
+              value={row.grossWeight} 
+              onChangeText={(t: string) => updateRow(index, 'grossWeight', t)} 
+              keyboardType="decimal-pad" 
+            />
+          </View>
+          <View style={s.inputCol}>
+            <GlassInput 
+              label="Stone (g)" 
+              value={row.stoneWeight} 
+              onChangeText={(t: string) => updateRow(index, 'stoneWeight', t)} 
+              keyboardType="decimal-pad" 
+            />
+          </View>
+          <View style={s.inputCol}>
+            <GlassInput 
+              label="Beads (g)" 
+              value={row.beadsWeight} 
+              onChangeText={(t: string) => updateRow(index, 'beadsWeight', t)} 
+              keyboardType="decimal-pad" 
+            />
+          </View>
         </View>
 
         <View style={s.inputGrid}>
@@ -135,14 +184,21 @@ const BulkItemRow = ({ index, row, updateRow, removeRow, stones, metal, openPick
               placeholder={metal === 'SILVER' ? 'e.g. 92.5, 99.9' : 'e.g. 91.6, 75.0, 99.9'} 
               value={row.purityPercent} 
               onChangeText={(t: string) => updateRow(index, 'purityPercent', t)} 
-              keyboardType="numeric" 
+              keyboardType="decimal-pad" 
             />
           </View>
-          <View style={s.inputCol}><GlassInput label="Wastage %" value={row.wastagePercent} onChangeText={(t: string) => updateRow(index, 'wastagePercent', t)} keyboardType="numeric" /></View>
+          <View style={s.inputCol}>
+            <GlassInput 
+              label="Wastage %" 
+              value={row.wastagePercent} 
+              onChangeText={(t: string) => updateRow(index, 'wastagePercent', t)} 
+              keyboardType="decimal-pad" 
+            />
+          </View>
         </View>
 
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 12 }}>
-          {getPurityPresets(metal || 'GOLD').map(preset => (
+          {getPurityPresets(metal || 'GOLD').map((preset) => (
             <TouchableOpacity
               key={preset.id}
               onPress={() => {
@@ -150,16 +206,16 @@ const BulkItemRow = ({ index, row, updateRow, removeRow, stones, metal, openPick
                 updateRow(index, 'purityPercent', preset.val);
               }}
               style={{
-                backgroundColor: row.purityPercent === preset.val || row.purityPercent === preset.label.split('K')[0] ? '#D4AF37' : 'rgba(212,175,55,0.12)',
+                backgroundColor: row.purityPercent === preset.val ? '#D4AF37' : 'rgba(212,175,55,0.12)',
                 paddingHorizontal: 8,
                 paddingVertical: 4,
-                borderRadius: 6
+                borderRadius: 6,
               }}
             >
               <Text style={{
                 fontSize: 11,
                 fontWeight: '700',
-                color: row.purityPercent === preset.val || row.purityPercent === preset.label.split('K')[0] ? '#FFF' : COLORS.vjText
+                color: row.purityPercent === preset.val ? '#FFF' : COLORS.vjText,
               }}>
                 {preset.label}
               </Text>
@@ -168,24 +224,49 @@ const BulkItemRow = ({ index, row, updateRow, removeRow, stones, metal, openPick
         </View>
 
         <View style={s.inputGrid}>
-          <View style={s.inputCol}><GlassInput label={`Rate (${getCurrencySymbol()})`} value={row.purchaseRate} onChangeText={(t: string) => updateRow(index, 'purchaseRate', t)} keyboardType="numeric" /></View>
-          <View style={s.inputCol}><GlassInput label={`Making (${getCurrencySymbol()})`} value={row.makingCharge} onChangeText={(t: string) => updateRow(index, 'makingCharge', t)} keyboardType="numeric" /></View>
-          <View style={s.inputCol}><GlassInput label={`Stn Cost (${getCurrencySymbol()})`} value={row.stoneCost} onChangeText={(t: string) => updateRow(index, 'stoneCost', t)} keyboardType="numeric" /></View>
+          <View style={s.inputCol}>
+            <GlassInput 
+              label={`Rate (${getCurrencySymbol()})`} 
+              value={row.purchaseRate} 
+              onChangeText={(t: string) => updateRow(index, 'purchaseRate', t)} 
+              keyboardType="decimal-pad" 
+            />
+          </View>
+          <View style={s.inputCol}>
+            <GlassInput 
+              label={`Making (${getCurrencySymbol()})`} 
+              value={row.makingCharge} 
+              onChangeText={(t: string) => updateRow(index, 'makingCharge', t)} 
+              keyboardType="decimal-pad" 
+            />
+          </View>
+          <View style={s.inputCol}>
+            <GlassInput 
+              label={`Stn Cost (${getCurrencySymbol()})`} 
+              value={row.stoneCost} 
+              onChangeText={(t: string) => updateRow(index, 'stoneCost', t)} 
+              keyboardType="decimal-pad" 
+            />
+          </View>
         </View>
 
         <View style={s.inputGrid}>
-          <View style={s.inputCol}><GlassInput label="Location" value={row.location} onChangeText={(t: string) => updateRow(index, 'location', t)} autoCapitalize="characters" /></View>
-          <View style={s.inputCol}><GlassInput label="BIS HUID" value={row.huid} onChangeText={(t: string) => updateRow(index, 'huid', t)} autoCapitalize="characters" maxLength={6} /></View>
-        </View>
-
-        <View style={s.inputGrid}>
+          <View style={s.inputCol}>
+            <GlassInput 
+              label="Location" 
+              placeholder="Tray / Location" 
+              value={row.location} 
+              onChangeText={(t: string) => updateRow(index, 'location', t)} 
+              autoCapitalize="characters" 
+            />
+          </View>
           <View style={s.inputCol}>
             <GlassInput 
               label="Size Value" 
               placeholder="e.g. 18"
               value={row.sizeValue} 
               onChangeText={(t: string) => updateRow(index, 'sizeValue', t)} 
-              keyboardType="numeric" 
+              keyboardType="decimal-pad" 
             />
           </View>
           <View style={s.inputCol}>
@@ -194,7 +275,7 @@ const BulkItemRow = ({ index, row, updateRow, removeRow, stones, metal, openPick
               placeholder="Select Unit..."
               selectedLabel={
                 row.sizeUnit
-                  ? { INCH: 'Inches (INCH)', MM: 'Millimeters (MM)', CM: 'Centimeters (CM)', RING_SIZE: 'Ring Size' }[row.sizeUnit as string] || row.sizeUnit
+                  ? { INCH: 'Inches (INCH)', MM: 'Millimeters (MM)', CM: 'Centimeters (CM)', RING_SIZE: 'Ring Size' }[row.sizeUnit] || row.sizeUnit
                   : null
               }
               onPress={() => {
@@ -230,7 +311,7 @@ const BulkItemRow = ({ index, row, updateRow, removeRow, stones, metal, openPick
                 title: `Item #${index + 1} Primary Stone`,
                 placeholder: 'Search stone...',
                 selectedId: row.stoneId || null,
-                options: (stones || []).map((s: any) => ({
+                options: (stones || []).map((s) => ({
                   id: s.id,
                   label: s.name,
                   sublabel: s.type || undefined,
@@ -249,7 +330,6 @@ const BulkItemRow = ({ index, row, updateRow, removeRow, stones, metal, openPick
           />
         </View>
 
-        {/* Live Cost Preview (FEAT-EFFECTIVE-PRICE-BULK-1 v2.14) */}
         {calculations.isValid && (
           <View className="mb-2 mt-4" style={{ zIndex: 10 }}>
             <GlassCard style={{ backgroundColor: 'rgba(252,251,248, 0.98)', borderColor: '#D4AF37', borderWidth: 1.5, padding: 16 }}>
@@ -365,7 +445,7 @@ export default function BulkAddScreen() {
 
   const [loading, setLoading] = useState(false);
   const [successCount, setSuccessCount] = useState<number | null>(null);
-  const [designStock, setDesignStock] = useState<{ totalNetWeightMg: number, count: number } | null>(null);
+  const [designStock, setDesignStock] = useState<{ totalNetWeightMg: number; count: number } | null>(null);
 
   const todayIso = useMemo(() => {
     const t = new Date();
@@ -409,35 +489,57 @@ export default function BulkAddScreen() {
     fetchStock();
   }, [selectedDesign, activeFirmId]);
 
-  const getEmptyRow = () => ({
-    grossWeight: '', stoneWeight: '', beadsWeight: '',
-    purityPercent: '', wastagePercent: '', purchaseRate: '',
-    makingCharge: '', stoneCost: '',
-    location: '', huid: '',
-    sizeValue: '', sizeUnit: '',
-    stoneId: null, stoneName: ''
+  const getEmptyRow = (): BulkRowState => ({
+    id: Crypto.randomUUID(),
+    grossWeight: '',
+    stoneWeight: '',
+    beadsWeight: '',
+    purityPercent: '',
+    wastagePercent: '',
+    purchaseRate: '',
+    makingCharge: '',
+    stoneCost: '',
+    location: '',
+    sizeValue: '',
+    sizeUnit: '',
+    stoneId: null,
+    stoneName: '',
   });
 
-  const [rows, setRows] = useState([getEmptyRow()]);
+  const [rows, setRows] = useState<BulkRowState[]>([getEmptyRow()]);
 
   useFocusEffect(
-    React.useCallback(() => {
+    useCallback(() => {
       if (!activeFirmId) return;
+      let isMounted = true;
+
       const loadData = async () => {
-        const d = await designRepository.findByFirmId(activeFirmId);
-        const c = await categoryRepository.findByFirmId(activeFirmId);
-        const h = await hsnMasterRepository.findByChapter('71');
-        const s = await stoneRepository.findByFirmId(activeFirmId);
-        setDesigns(d);
-        setCategories(c);
-        setHsnCodes(h);
-        setStones(s);
+        try {
+          const d = await designRepository.findByFirmId(activeFirmId);
+          const c = await categoryRepository.findByFirmId(activeFirmId);
+          const h = await hsnMasterRepository.findByChapter('71');
+          const s = await stoneRepository.findByFirmId(activeFirmId);
+          
+          if (isMounted) {
+            // Exclude LOOSE designs and inactive records
+            setDesigns((d || []).filter((item) => item.isActive === 1 && item.stockType !== 'LOOSE'));
+            setCategories((c || []).filter((item) => item.isActive === 1));
+            setHsnCodes((h || []).filter((item) => item.isActive === 1));
+            setStones((s || []).filter((item) => item.isActive === 1));
+          }
+        } catch (err) {
+          console.error('[BulkAddScreen] Failed to load data:', err);
+        }
       };
+
       loadData();
+      return () => {
+        isMounted = false;
+      };
     }, [activeFirmId])
   );
 
-  const updateRow = (index: number, field: string, value: any) => {
+  const updateRow = (index: number, field: keyof BulkRowState, value: any) => {
     const newRows = [...rows];
     newRows[index] = { ...newRows[index], [field]: value };
     setRows(newRows);
@@ -451,42 +553,59 @@ export default function BulkAddScreen() {
     }
     const lastRow = rows[rows.length - 1];
     
-    setRows([...rows, { 
-      ...getEmptyRow(), 
-      purityPercent: lastRow.purityPercent, 
-      wastagePercent: lastRow.wastagePercent, 
-      purchaseRate: lastRow.purchaseRate,
-      makingCharge: lastRow.makingCharge,
-      stoneCost: lastRow.stoneCost,
-      location: lastRow.location,
-      sizeValue: lastRow.sizeValue,
-      sizeUnit: lastRow.sizeUnit,
-      stoneId: lastRow.stoneId,
-      stoneName: lastRow.stoneName
-    }]);
+    setRows([
+      ...rows,
+      { 
+        ...getEmptyRow(), 
+        purityPercent: lastRow.purityPercent, 
+        wastagePercent: lastRow.wastagePercent, 
+        purchaseRate: lastRow.purchaseRate,
+        makingCharge: lastRow.makingCharge,
+        stoneCost: lastRow.stoneCost,
+        location: lastRow.location,
+        sizeValue: lastRow.sizeValue,
+        sizeUnit: lastRow.sizeUnit,
+        stoneId: lastRow.stoneId,
+        stoneName: lastRow.stoneName,
+      },
+    ]);
   };
 
   const removeRow = (index: number) => {
     try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
+    if (rows.length <= 1) {
+      Alert.alert('Cannot Remove', 'A bulk intake must contain at least one item.');
+      return;
+    }
     setRows(rows.filter((_, i) => i !== index));
   };
 
   const handleSubmit = async () => {
     try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); } catch {}
+    if (!activeFirmId) {
+      Alert.alert('Error', 'No active firm selected.');
+      return;
+    }
     if (!selectedDesign || !selectedCategory || !selectedHsn) {
       Alert.alert('Missing Classification', 'Please select a Design, Category, and HSN Code for this batch.');
       return;
     }
 
-    const inputs: any[] = [];
+    const inputs: BulkItemInput[] = [];
 
     for (let i = 0; i < rows.length; i++) {
       const r = rows[i];
-      const gross = parseFloat(r.grossWeight);
-      let purity = parseFloat(r.purityPercent);
+      const gross = parseCleanFloat(r.grossWeight);
+      const stone = parseCleanFloat(r.stoneWeight);
+      const beads = parseCleanFloat(r.beadsWeight);
+      const purity = parseCleanFloat(r.purityPercent);
 
       if (isNaN(gross) || gross <= 0) {
         Alert.alert('Validation Error', `Item #${i + 1} has an invalid gross weight.`);
+        return;
+      }
+      if (stone + beads >= gross) {
+        Alert.alert('Validation Error', `Item #${i + 1}: Stone + Beads weight cannot be greater than or equal to Gross weight.`);
         return;
       }
       if (isNaN(purity) || purity <= 0 || purity > 100) {
@@ -494,32 +613,34 @@ export default function BulkAddScreen() {
         return;
       }
 
-      const hasSizeVal = r.sizeValue && r.sizeValue.trim() !== '';
-      const hasSizeUnit = r.sizeUnit && r.sizeUnit.trim() !== '';
+      const hasSizeVal = r.sizeValue.trim() !== '';
+      const hasSizeUnit = r.sizeUnit.trim() !== '';
       if ((hasSizeVal && !hasSizeUnit) || (!hasSizeVal && hasSizeUnit)) {
         Alert.alert('Validation Error', `Item #${i + 1}: Size Value and Size Unit must both be specified together, or both left blank.`);
         return;
       }
 
       const computedKarat = selectedDesign.metal === 'GOLD' ? (percentToKarat(purity) || 0) : 0;
+      const parsedSizeVal = hasSizeVal ? parseCleanFloat(r.sizeValue) : null;
+      const parsedSizeUnit = hasSizeUnit ? (r.sizeUnit as 'INCH' | 'MM' | 'CM' | 'RING_SIZE') : null;
 
       inputs.push({
         designId: selectedDesign.id,
         categoryId: selectedCategory.id,
         hsnCode: selectedHsn.code,
-        primaryStoneId: r.stoneId || undefined,
+        primaryStoneId: r.stoneId || null,
         grossWeightMg: Math.round(gross * 1000),
-        stoneWeightMg: Math.round((parseFloat(r.stoneWeight) || 0) * 1000),
-        beadsWeightMg: Math.round((parseFloat(r.beadsWeight) || 0) * 1000),
+        stoneWeightMg: Math.round(stone * 1000),
+        beadsWeightMg: Math.round(beads * 1000),
         purityPercent: purity,
         purityKarat: computedKarat,
-        wastagePercent: parseFloat(r.wastagePercent) || 0,
-        purchaseRatePaise: rupeesToPaise(r.purchaseRate) ?? undefined,
-        makingChargePaise: rupeesToPaise(r.makingCharge) ?? undefined,
-        stoneCostPaise: rupeesToPaise(r.stoneCost) ?? undefined,
-        location: r.location?.trim() || undefined,
-        sizeValue: r.sizeValue ? parseFloat(r.sizeValue) : undefined,
-        sizeUnit: r.sizeUnit || undefined,
+        wastagePercent: parseCleanFloat(r.wastagePercent),
+        purchaseRatePaise: r.purchaseRate.trim() ? rupeesToPaise(parseCleanFloat(r.purchaseRate)) : null,
+        makingChargePaise: r.makingCharge.trim() ? rupeesToPaise(parseCleanFloat(r.makingCharge)) : null,
+        stoneCostPaise: r.stoneCost.trim() ? rupeesToPaise(parseCleanFloat(r.stoneCost)) : null,
+        location: r.location.trim() || null,
+        sizeValue: parsedSizeVal,
+        sizeUnit: parsedSizeUnit,
         metalSource: 'SUPPLIER_PURCHASE',
         entryDate,
       });
@@ -527,10 +648,10 @@ export default function BulkAddScreen() {
 
     try {
       setLoading(true);
-      await itemService.createItemsBulk(inputs, activeFirmId!);
+      await itemService.createItemsBulk(inputs, activeFirmId);
       setSuccessCount(inputs.length);
     } catch (e: any) {
-      Alert.alert('Bulk Add Failed', e.message);
+      Alert.alert('Bulk Add Failed', e.message || 'Failed to process bulk items.');
     } finally {
       setLoading(false);
     }
@@ -591,7 +712,7 @@ export default function BulkAddScreen() {
                     let dList = designs;
                     if (activeFirmId) {
                       const fetched = await designRepository.findByFirmId(activeFirmId);
-                      dList = fetched || [];
+                      dList = (fetched || []).filter((item) => item.isActive === 1 && item.stockType !== 'LOOSE');
                       setDesigns(dList);
                     }
                     setPickerModal({
@@ -599,7 +720,7 @@ export default function BulkAddScreen() {
                       title: 'Select Batch Design',
                       placeholder: 'Search design by name or metal...',
                       selectedId: selectedDesign?.id || null,
-                      options: dList.map(d => ({
+                      options: dList.map((d) => ({
                         id: d.id,
                         label: d.name || 'Unnamed Design',
                         sublabel: d.metal ? `Metal: ${d.metal}` : undefined,
@@ -609,28 +730,34 @@ export default function BulkAddScreen() {
                           setSelectedDesign(null);
                           return;
                         }
-                        const selDesign = dList.find(d => d.id === opt.id)!;
+                        const selDesign = dList.find((d) => d.id === opt.id)!;
                         setSelectedDesign(selDesign);
 
+                        // Auto-select Default HSN
+                        if (selDesign.defaultHsn) {
+                          const matchedHsn = hsnCodes.find((h) => h.code === selDesign.defaultHsn);
+                          if (matchedHsn) setSelectedHsn(matchedHsn);
+                        }
+
+                        // Auto-select linked category
                         if (activeFirmId) {
                           try {
                             const mappings = await designCategoryMapRepository.findByDesignId(selDesign.id, activeFirmId);
                             let catList = categories;
                             if (catList.length === 0) {
-                              catList = await categoryRepository.findByFirmId(activeFirmId);
-                              setCategories(catList || []);
+                              catList = (await categoryRepository.findByFirmId(activeFirmId)) || [];
+                              setCategories(catList);
                             }
 
                             if (mappings.length > 0) {
                               mappings.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-                              const linkedCat = catList.find(c => c.id === mappings[0].categoryId);
+                              const linkedCat = catList.find((c) => c.id === mappings[0].categoryId);
                               if (linkedCat) {
                                 setSelectedCategory(linkedCat);
-                                return;
                               }
                             }
                           } catch (err) {
-                            console.warn("Failed to auto-select category in bulk add:", err);
+                            console.warn('Failed to auto-select category in bulk add:', err);
                           }
                         }
                       },
@@ -647,7 +774,7 @@ export default function BulkAddScreen() {
                   let cList = categories;
                   if (activeFirmId) {
                     const fetched = await categoryRepository.findByFirmId(activeFirmId);
-                    cList = fetched || [];
+                    cList = (fetched || []).filter((item) => item.isActive === 1);
                     setCategories(cList);
                   }
                   setPickerModal({
@@ -655,7 +782,7 @@ export default function BulkAddScreen() {
                     title: 'Select Batch Category',
                     placeholder: 'Search category...',
                     selectedId: selectedCategory?.id || null,
-                    options: cList.map(c => ({
+                    options: cList.map((c) => ({
                       id: c.id,
                       label: c.name || 'Unnamed Category',
                     })),
@@ -664,8 +791,8 @@ export default function BulkAddScreen() {
                         setSelectedCategory(null);
                         return;
                       }
-                      const selCat = cList.find(c => c.id === opt.id)!;
-                      setSelectedCategory(selCat);
+                      const selCat = cList.find((c) => c.id === opt.id);
+                      if (selCat) setSelectedCategory(selCat);
                     },
                   });
                 }}
@@ -678,15 +805,15 @@ export default function BulkAddScreen() {
                 onPress={async () => {
                   let hList = hsnCodes;
                   if (hList.length === 0) {
-                    hList = await hsnMasterRepository.findByChapter('71');
-                    setHsnCodes(hList || []);
+                    hList = (await hsnMasterRepository.findByChapter('71')) || [];
+                    setHsnCodes(hList);
                   }
                   setPickerModal({
                     visible: true,
                     title: 'Select Batch HSN Code',
                     placeholder: 'Search HSN code or description...',
                     selectedId: selectedHsn?.id || null,
-                    options: hList.map(h => ({
+                    options: hList.map((h) => ({
                       id: h.id,
                       label: h.code || 'No Code',
                       sublabel: h.description || '',
@@ -696,8 +823,8 @@ export default function BulkAddScreen() {
                         setSelectedHsn(null);
                         return;
                       }
-                      const selHsn = hList.find(h => h.id === opt.id)!;
-                      setSelectedHsn(selHsn);
+                      const selHsn = hList.find((h) => h.id === opt.id);
+                      if (selHsn) setSelectedHsn(selHsn);
                     },
                   });
                 }}
@@ -712,7 +839,7 @@ export default function BulkAddScreen() {
 
           {rows.map((row, index) => (
             <BulkItemRow 
-              key={index} 
+              key={row.id} 
               index={index} 
               row={row} 
               updateRow={updateRow} 
@@ -792,7 +919,6 @@ export default function BulkAddScreen() {
         onClose={() => setShowDatePicker(false)}
         onSelect={(d) => setEntryDate(d)}
       />
-
     </TwoToneWrapper>
   );
 }
@@ -800,10 +926,8 @@ export default function BulkAddScreen() {
 const s = StyleSheet.create({
   itemsHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12, marginTop: 8, marginLeft: 4 },
   itemsTitle: { fontSize: 18, fontWeight: '800', color: COLORS.vjText },
-  
   rowHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
   rowTitle: { fontSize: 14, fontWeight: '800', color: '#D4AF37', textTransform: 'uppercase', letterSpacing: 1 },
-  
   inputGrid: { flexDirection: 'row', gap: 8, marginBottom: 12 },
   inputCol: { flex: 1 },
 });

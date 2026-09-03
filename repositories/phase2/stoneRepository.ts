@@ -1,6 +1,7 @@
-// repositories/phase2/stoneRepository.ts — Phase 2 v2.11 Canonical Repository
+// repositories/phase2/stoneRepository.ts — Phase 2 v2.24 Canonical Repository
 
 import { eq, and, or } from 'drizzle-orm';
+import * as Crypto from 'expo-crypto';
 import { db } from '@/db/client';
 import { stones, items } from '@/db/schema';
 import type { DrizzleTransaction, Stone, NewStone } from '@/types/phase2/phase2.types';
@@ -10,13 +11,16 @@ export interface StoneRepository {
   // --- insert (Step 4 / createStone) ---
   insert(tx: DrizzleTransaction, data: NewStone): Stone;
 
-  // --- getById (Overloaded for (id), (tx, id), and (tx, id, firmId) / (tx, firmId, id)) ---
+  // --- getById (Overloaded for (id), (id, firmId), (tx, id), and (tx, id, firmId) / (tx, firmId, id)) ---
   getById(id: string): Promise<Stone | null>;
+  getById(id: string, firmId: string): Promise<Stone | null>;
   getById(tx: DrizzleTransaction, id: string): Stone | null;
   getById(tx: DrizzleTransaction, id: string, firmId: string): Stone | null;
+  getById(tx: DrizzleTransaction, firmId: string, id: string): Stone | null;
 
-  // --- findByFirmId (Step 4) ---
+  // --- findByFirmId (Sync tx overload and async standalone) ---
   findByFirmId(firmId: string): Promise<Stone[]>;
+  findByFirmId(tx: DrizzleTransaction, firmId: string): Stone[];
 
   // --- softDelete (Overloaded for (tx, id) and (tx, id, firmId) / (tx, firmId, id)) ---
   softDelete(tx: DrizzleTransaction, id: string): void;
@@ -32,19 +36,41 @@ export interface StoneRepository {
 export const stoneRepository: StoneRepository = {
   // --- insert (Step 4 / createStone) ---
   insert(tx: DrizzleTransaction, data: NewStone): Stone {
-    tx.insert(stones).values(data).run();
-    const result = tx.select().from(stones).where(eq(stones.id, data.id!)).get();
+    const id = data.id ?? Crypto.randomUUID();
+    const row = { ...data, id };
+    tx.insert(stones).values(row).run();
+    const result = tx.select().from(stones).where(eq(stones.id, id)).get();
     return result as Stone;
   },
 
-  // --- getById (Overloaded for (id), (tx, id), and (tx, id, firmId) / (tx, firmId, id)) ---
+  // --- getById (Overloaded for (id), (id, firmId), (tx, id), and (tx, id, firmId) / (tx, firmId, id)) ---
   getById(
     first: DrizzleTransaction | string,
     second?: string,
     third?: string
   ): any {
     if (typeof first === 'string') {
-      return db.select().from(stones).where(eq(stones.id, first)).limit(1).then(r => r[0] || null);
+      if (second !== undefined) {
+        // 2-arg async call: supports both (id, firmId) and (firmId, id)
+        return db
+          .select()
+          .from(stones)
+          .where(
+            or(
+              and(eq(stones.id, first), eq(stones.firmId, second)),
+              and(eq(stones.id, second), eq(stones.firmId, first))
+            )
+          )
+          .limit(1)
+          .then((r) => r[0] || null);
+      }
+      // 1-arg async call: getById(id)
+      return db
+        .select()
+        .from(stones)
+        .where(eq(stones.id, first))
+        .limit(1)
+        .then((r) => r[0] || null);
     }
     const tx = first as DrizzleTransaction;
     if (third !== undefined) {
@@ -79,8 +105,22 @@ export const stoneRepository: StoneRepository = {
   },
 
   // --- findByFirmId (Step 4) ---
-  async findByFirmId(firmId: string): Promise<Stone[]> {
-    return db
+  findByFirmId(first: DrizzleTransaction | string, second?: string): any {
+    if (typeof first === 'string') {
+      return db
+        .select()
+        .from(stones)
+        .where(
+          and(
+            eq(stones.firmId, first),
+            eq(stones.isActive, 1)
+          )
+        )
+        .orderBy(stones.name);
+    }
+    const tx = first as DrizzleTransaction;
+    const firmId = second!;
+    return tx
       .select()
       .from(stones)
       .where(
@@ -88,7 +128,9 @@ export const stoneRepository: StoneRepository = {
           eq(stones.firmId, firmId),
           eq(stones.isActive, 1)
         )
-      );
+      )
+      .orderBy(stones.name)
+      .all() as Stone[];
   },
 
   // --- softDelete (Overloaded for (tx, id) and (tx, id, firmId) / (tx, firmId, id)) ---
@@ -124,7 +166,7 @@ export const stoneRepository: StoneRepository = {
 
   isStoneUsedInItems(tx: DrizzleTransaction, stoneId: string, firmId: string): boolean {
     const res = tx
-      .select({ count: items.id })
+      .select({ id: items.id })
       .from(items)
       .where(
         and(
@@ -135,5 +177,5 @@ export const stoneRepository: StoneRepository = {
       .limit(1)
       .get();
     return !!res;
-  }
+  },
 };

@@ -3,7 +3,7 @@ import { openDatabaseSync } from 'expo-sqlite';
 import { drizzle } from 'drizzle-orm/expo-sqlite';
 import { migrate } from 'drizzle-orm/expo-sqlite/migrator';
 import migrations from '../drizzle/migrations';
-import { STORAGE_PATHS } from '../constants';
+import { STORAGE_PATHS, SCHEMA_VERSION } from '../constants';
 
 // ---------------------------------------------------------------------------
 // Database connection (single instance — module-level singleton)
@@ -44,7 +44,14 @@ export function useDatabase() {
         await migrate(db, migrations);
         console.log('[DB Client] Migrations complete.');
 
-        // 2. Self-healing schema check for design_purity_thresholds (v2.13 FIX-LOWSTOCK-PURITYGRAIN-1)
+        // 2. Synchronize schema_version to current active app schema (Phase 2 = v2)
+        try {
+          expoDb.execSync(`UPDATE schema_version SET current_version = ${SCHEMA_VERSION} WHERE id = 1 AND current_version < ${SCHEMA_VERSION};`);
+        } catch (e) {
+          console.warn('[DB Client] Updating schema_version to Phase 2:', e);
+        }
+
+        // 3. Self-healing schema check for design_purity_thresholds (v2.13 FIX-LOWSTOCK-PURITYGRAIN-1)
         try {
           expoDb.execSync(`
             CREATE TABLE IF NOT EXISTS design_purity_thresholds (
@@ -79,7 +86,7 @@ export function useDatabase() {
 
           // ASCII-only rows — execSync() is safe
           expoDb.execSync(`INSERT OR IGNORE INTO safe_mode_state (id, is_active) VALUES (1, 0);`);
-          expoDb.execSync(`INSERT OR IGNORE INTO schema_version (id, current_version) VALUES (1, 1);`);
+          expoDb.execSync(`INSERT OR IGNORE INTO schema_version (id, current_version) VALUES (1, ${SCHEMA_VERSION});`);
           expoDb.execSync(`INSERT OR IGNORE INTO audit_delete_gate (id, gate_open) VALUES (1, 0);`);
 
           // app_settings row — parameterized runSync() for ₹ symbol to prevent JNI crash

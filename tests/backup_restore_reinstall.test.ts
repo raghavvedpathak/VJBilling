@@ -4,9 +4,10 @@
 jest.mock('@/db/client', () => {
   const Database = require('better-sqlite3');
   const { drizzle } = require('drizzle-orm/better-sqlite3');
+  const schema = require('@/db/schema');
 
   const sqlite = new Database(':memory:');
-  const dbInstance = drizzle(sqlite);
+  const dbInstance = drizzle(sqlite, { schema });
   
   dbInstance.__rawClient = {
     execute: async (query: string) => {
@@ -73,6 +74,10 @@ beforeAll(async () => {
     id TEXT PRIMARY KEY, event_type TEXT NOT NULL, firm_id TEXT, entity_id TEXT,
     device_id TEXT NOT NULL, payload TEXT, created_at TEXT NOT NULL
   )`);
+  await _rawClient.execute(`CREATE TABLE IF NOT EXISTS audit_archive_index (
+    id TEXT PRIMARY KEY, firm_id TEXT NOT NULL, fy_id TEXT NOT NULL, fy_label TEXT NOT NULL,
+    archive_date TEXT NOT NULL, row_count INTEGER NOT NULL, storage_ref TEXT
+  )`);
   await _rawClient.execute(`CREATE TABLE IF NOT EXISTS bis_logos (
     id TEXT PRIMARY KEY, firm_id TEXT NOT NULL, file_ref TEXT NOT NULL, is_archived INTEGER NOT NULL DEFAULT 0,
     archived_at TEXT, archived_reason TEXT, created_at TEXT NOT NULL
@@ -81,7 +86,7 @@ beforeAll(async () => {
     id TEXT PRIMARY KEY, firm_id TEXT NOT NULL, name TEXT NOT NULL, code TEXT NOT NULL DEFAULT '', description TEXT, is_active INTEGER NOT NULL DEFAULT 1, created_at TEXT NOT NULL, updated_at TEXT NOT NULL
   )`);
   await _rawClient.execute(`CREATE TABLE IF NOT EXISTS designs (
-    id TEXT PRIMARY KEY, firm_id TEXT NOT NULL, name TEXT NOT NULL, code TEXT NOT NULL DEFAULT '', description TEXT, default_hsn TEXT, metal TEXT NOT NULL, is_active INTEGER NOT NULL DEFAULT 1, created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+    id TEXT PRIMARY KEY, firm_id TEXT NOT NULL, name TEXT NOT NULL, code TEXT NOT NULL DEFAULT '', description TEXT, default_hsn TEXT, metal TEXT NOT NULL, stock_type TEXT NOT NULL DEFAULT 'SERIALIZED', is_active INTEGER NOT NULL DEFAULT 1, created_at TEXT NOT NULL, updated_at TEXT NOT NULL
   )`);
   await _rawClient.execute(`CREATE TABLE IF NOT EXISTS design_purity_thresholds (
     design_id TEXT NOT NULL, purity_percent REAL NOT NULL, low_stock_threshold INTEGER NOT NULL, PRIMARY KEY (design_id, purity_percent)
@@ -91,11 +96,11 @@ beforeAll(async () => {
     metal TEXT NOT NULL, purity_percent REAL NOT NULL, purity_karat INTEGER NOT NULL,
     gross_weight_mg INTEGER NOT NULL, stone_weight_mg INTEGER NOT NULL DEFAULT 0, beads_weight_mg INTEGER NOT NULL DEFAULT 0, net_weight_mg INTEGER NOT NULL,
     fine_weight_mg INTEGER NOT NULL, wastage_percent REAL NOT NULL DEFAULT 0, fine_gold_charged_mg INTEGER, purchase_rate_paise INTEGER, making_charge_paise INTEGER, stone_cost_paise INTEGER, purity_rounding_delta_mg INTEGER NOT NULL DEFAULT 0,
-    status TEXT NOT NULL, metal_source TEXT NOT NULL, primary_stone_id TEXT, location TEXT, invoice_id TEXT, phantom_stock_id TEXT DEFAULT NULL, barcode_reprint_required INTEGER NOT NULL DEFAULT 0,
+    status TEXT NOT NULL, metal_source TEXT NOT NULL, primary_stone_id TEXT, location TEXT, sale_invoice_id TEXT, purchase_invoice_id TEXT, phantom_stock_id TEXT DEFAULT NULL, barcode_reprint_required INTEGER NOT NULL DEFAULT 0,
     size_value REAL, size_unit TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL
   )`);
   await _rawClient.execute(`CREATE TABLE IF NOT EXISTS item_events (
-    id TEXT PRIMARY KEY, item_id TEXT NOT NULL, firm_id TEXT NOT NULL, event_type TEXT NOT NULL, severity TEXT NOT NULL, performed_by TEXT NOT NULL, reason TEXT, old_value TEXT, new_value TEXT, timestamp TEXT NOT NULL
+    id TEXT PRIMARY KEY, item_id TEXT NOT NULL, firm_id TEXT NOT NULL, karigar_id TEXT, event_type TEXT NOT NULL, severity TEXT NOT NULL, performed_by TEXT NOT NULL, reason TEXT, old_value TEXT, new_value TEXT, timestamp TEXT NOT NULL
   )`);
   await _rawClient.execute(`CREATE TABLE IF NOT EXISTS sequence_counters (
     id TEXT PRIMARY KEY, firm_id TEXT NOT NULL, month TEXT NOT NULL, year TEXT NOT NULL, current_seq INTEGER NOT NULL, last_used_at TEXT NOT NULL
@@ -115,6 +120,12 @@ beforeAll(async () => {
     metal_type TEXT NOT NULL, gross_weight_mg INTEGER NOT NULL, purity_percent REAL NOT NULL, fine_weight_mg INTEGER NOT NULL,
     rate_per_gram_paise INTEGER NOT NULL, total_value_paise INTEGER NOT NULL, payment_mode TEXT NOT NULL, bank_account_id TEXT,
     old_gold_lot_id TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'DRAFT', notes TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+  )`);
+  await _rawClient.execute(`CREATE TABLE IF NOT EXISTS loose_stock_lots (
+    id TEXT PRIMARY KEY, firm_id TEXT NOT NULL, design_id TEXT NOT NULL, purity_percent REAL NOT NULL, purity_karat INTEGER, metal TEXT NOT NULL, piece_count INTEGER NOT NULL DEFAULT 0, total_weight_mg INTEGER NOT NULL DEFAULT 0, hsn_code TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'ACTIVE', created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+  )`);
+  await _rawClient.execute(`CREATE TABLE IF NOT EXISTS loose_stock_events (
+    id TEXT PRIMARY KEY, lot_id TEXT NOT NULL, firm_id TEXT NOT NULL, event_type TEXT NOT NULL, piece_count_delta INTEGER NOT NULL, weight_mg_delta INTEGER NOT NULL, purchase_rate_paise INTEGER, wastage_percent REAL, sale_invoice_id TEXT, performed_by TEXT NOT NULL, timestamp TEXT NOT NULL
   )`);
   await _rawClient.execute(`CREATE TABLE IF NOT EXISTS hsn_codes (
     id TEXT PRIMARY KEY, code TEXT NOT NULL UNIQUE, description TEXT NOT NULL, chapter TEXT NOT NULL DEFAULT '71', is_active INTEGER NOT NULL DEFAULT 1, created_at TEXT NOT NULL

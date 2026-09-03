@@ -1,4 +1,4 @@
-// repositories/phase2/hsnMasterRepository.ts — Phase 2 v2.11 Canonical Repository
+// repositories/phase2/hsnMasterRepository.ts — Phase 2 v2.24 Canonical Repository
 
 import { eq, and } from 'drizzle-orm';
 import { db } from '@/db/client';

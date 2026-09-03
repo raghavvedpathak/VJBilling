@@ -1,4 +1,4 @@
-// app/inventory/design-items.tsx — Phase 2 v2.15 Canonical Screen (Screen C) with Modern Stock Card & Interactive Sorting
+// app/inventory/design-items.tsx — Phase 2 v2.24 Canonical Screen (Screen C) with Modern Stock Card & Interactive Sorting
 
 import React, { useState, useCallback, memo, useMemo } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, ScrollView, Modal } from 'react-native';
@@ -6,7 +6,7 @@ import { FlashList } from '@shopify/flash-list';
 import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { TwoToneWrapper } from '@/components/TwoToneWrapper';
-import { HeaderPill, GlassCard } from '@/components/ui/Glass';
+import { HeaderPill } from '@/components/ui/Glass';
 import { appSettingsStore } from '@/store/phase1/appSettingsStore';
 import { useFirmStore } from '@/store/phase1/useFirmStore';
 import { inventoryDrillDownService } from '@/services/phase2/inventoryDrillDownService';
@@ -43,10 +43,21 @@ const SORT_PRESETS: SortPreset[] = [
   { id: 'SKU_DESC', label: 'SKU: Reverse (Z → A)', sublabel: 'Descending SKU code' },
 ];
 
-const ItemRow = memo(({ item, colors, onPress, onPrint }: { item: ItemSearchResult, colors: ReturnType<typeof getThemeColors>, onPress: (id: string) => void, onPrint: (id: string) => void }) => {
+const ItemRow = memo(({ 
+  item, 
+  colors, 
+  onPress, 
+  onPrint 
+}: { 
+  item: ItemSearchResult; 
+  colors: ReturnType<typeof getThemeColors>; 
+  onPress: (id: string) => void; 
+  onPrint: (id: string) => void; 
+}) => {
   const metalColor = item.metal === 'GOLD' ? (colors.vjAccent || COLORS.gold) : COLORS.silver;
+  const isGold = item.metal === 'GOLD';
 
-  const purityFull = item.purityKarat 
+  const purityFull = (isGold && item.purityKarat && item.purityKarat > 0)
     ? `${item.purityKarat}K · ${item.purityPercent.toFixed(1)}%`
     : `${item.purityPercent.toFixed(1)}%`;
 
@@ -55,6 +66,7 @@ const ItemRow = memo(({ item, colors, onPress, onPrint }: { item: ItemSearchResu
 
   return (
     <TouchableOpacity 
+      testID={`design-item-row-${item.itemId}`}
       activeOpacity={0.8} 
       style={s.itemCard} 
       onPress={() => {
@@ -75,7 +87,7 @@ const ItemRow = memo(({ item, colors, onPress, onPrint }: { item: ItemSearchResu
             <Text style={[s.skuText, { color: colors.vjAccent }]}>{formatSKUDisplay(item.sku)}</Text>
             {sizeDisplay && (
               <View style={[s.sizeBadge, { backgroundColor: 'rgba(212, 175, 55, 0.14)', borderColor: 'rgba(212, 175, 55, 0.35)' }]}>
-                <Text style={s.sizeBadgeText}>{sizeDisplay}</Text>
+                <Text style={[s.sizeBadgeText, { color: colors.vjText }]}>{sizeDisplay}</Text>
               </View>
             )}
           </View>
@@ -131,7 +143,8 @@ const ItemRow = memo(({ item, colors, onPress, onPrint }: { item: ItemSearchResu
           </View>
 
           <TouchableOpacity 
-            activeOpacity={0.75}
+            testID={`print-btn-${item.itemId}`}
+            activeOpacity={0.75} 
             onPress={(e) => {
               e.stopPropagation();
               try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
@@ -150,7 +163,11 @@ const ItemRow = memo(({ item, colors, onPress, onPrint }: { item: ItemSearchResu
 
 export default function DesignItemsScreen() {
   const router = useRouter();
-  const { designId, designName, purityPercent } = useLocalSearchParams<{ designId: string; designName: string; purityPercent?: string }>();
+  const params = useLocalSearchParams<{ designId: string; designName: string; purityPercent?: string }>();
+  const designId = Array.isArray(params.designId) ? params.designId[0] : params.designId;
+  const designName = Array.isArray(params.designName) ? params.designName[0] : params.designName;
+  const purityPercent = Array.isArray(params.purityPercent) ? params.purityPercent[0] : params.purityPercent;
+
   const { activeFirmId } = useFirmStore();
   
   const [items, setItems] = useState<ItemSearchResult[]>([]);
@@ -194,17 +211,17 @@ export default function DesignItemsScreen() {
   );
 
   const handleItemPress = useCallback((itemId: string) => {
-    router.push(`/inventory/item-detail?itemId=${itemId}`);
+    router.push({ pathname: '/inventory/item-detail', params: { itemId } });
   }, [router]);
 
   const handlePrint = useCallback((itemId: string) => {
     router.push({ pathname: '/inventory/barcode-print', params: { itemId } });
   }, [router]);
 
-  // Distinct sizes present in fetched batch with item count badges (FEAT-SCREEN-C-SIZE-FILTER-1 v2.13)
+  // Distinct sizes present in fetched batch, numerically sorted
   const distinctSizes = useMemo(() => {
-    const sizeMap = new Map<string, { label: string; count: number }>();
-    items.forEach(i => {
+    const sizeMap = new Map<string, { label: string; count: number; numericVal: number }>();
+    items.forEach((i) => {
       if (i.sizeValue !== null && i.sizeValue !== undefined) {
         const key = `${i.sizeValue}`;
         const existing = sizeMap.get(key);
@@ -212,48 +229,53 @@ export default function DesignItemsScreen() {
           existing.count += 1;
         } else {
           const label = `Size ${i.sizeValue}${i.sizeUnit ? ' ' + i.sizeUnit : ''}`;
-          sizeMap.set(key, { label, count: 1 });
+          sizeMap.set(key, { label, count: 1, numericVal: Number(i.sizeValue) || 0 });
         }
       }
     });
-    return Array.from(sizeMap.entries()).map(([key, info]) => ({
-      key,
-      label: info.label,
-      count: info.count,
-    }));
+
+    return Array.from(sizeMap.entries())
+      .sort(([, a], [, b]) => a.numericVal - b.numericVal)
+      .map(([key, info]) => ({
+        key,
+        label: info.label,
+        count: info.count,
+      }));
   }, [items]);
 
-  // Combined client-side filtering and multi-criteria sorting
+  // Client-side filtering and multi-criteria sorting
   const processedItems = useMemo(() => {
-    // 1. Filter by Size
     let result = selectedSizeFilter === 'ALL'
       ? [...items]
-      : items.filter(i => String(i.sizeValue) === selectedSizeFilter);
+      : items.filter((i) => String(i.sizeValue) === selectedSizeFilter);
 
-    // 2. Sort by Selected Criteria
     switch (selectedSort) {
       case 'SIZE_ASC':
         result.sort((a, b) => {
           const valA = a.sizeValue ?? 999999;
           const valB = b.sizeValue ?? 999999;
-          return valA - valB;
+          return valA - valB || a.sku.localeCompare(b.sku);
         });
         break;
       case 'SIZE_DESC':
         result.sort((a, b) => {
           const valA = a.sizeValue ?? -1;
           const valB = b.sizeValue ?? -1;
-          return valB - valA;
+          return valB - valA || a.sku.localeCompare(b.sku);
         });
         break;
       case 'WEIGHT_DESC':
-        result.sort((a, b) => (b.netWeightMg ?? b.grossWeightMg) - (a.netWeightMg ?? a.grossWeightMg));
+        result.sort((a, b) => 
+          (b.netWeightMg ?? b.grossWeightMg) - (a.netWeightMg ?? a.grossWeightMg) || a.sku.localeCompare(b.sku)
+        );
         break;
       case 'WEIGHT_ASC':
-        result.sort((a, b) => (a.netWeightMg ?? a.grossWeightMg) - (b.netWeightMg ?? b.grossWeightMg));
+        result.sort((a, b) => 
+          (a.netWeightMg ?? a.grossWeightMg) - (b.netWeightMg ?? b.grossWeightMg) || a.sku.localeCompare(b.sku)
+        );
         break;
       case 'PURITY_DESC':
-        result.sort((a, b) => b.purityPercent - a.purityPercent);
+        result.sort((a, b) => b.purityPercent - a.purityPercent || a.sku.localeCompare(b.sku));
         break;
       case 'SKU_ASC':
         result.sort((a, b) => a.sku.localeCompare(b.sku));
@@ -263,7 +285,6 @@ export default function DesignItemsScreen() {
         break;
       case 'DEFAULT':
       default:
-        // Canonical DB default order: purityPercent DESC, sizeValue ASC, createdAt DESC
         break;
     }
 
@@ -280,7 +301,7 @@ export default function DesignItemsScreen() {
   }, [purityNum, items]);
 
   const activeSortLabel = useMemo(() => {
-    return SORT_PRESETS.find(p => p.id === selectedSort)?.label || 'Sort';
+    return SORT_PRESETS.find((p) => p.id === selectedSort)?.label || 'Sort';
   }, [selectedSort]);
 
   const designHeaderPills = (
@@ -301,6 +322,7 @@ export default function DesignItemsScreen() {
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.filterScroll}>
           {/* Quick Sort Trigger Button */}
           <TouchableOpacity
+            testID="sort-modal-trigger"
             onPress={() => {
               try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
               setIsSortModalOpen(true);
@@ -312,7 +334,7 @@ export default function DesignItemsScreen() {
             activeOpacity={0.75}
           >
             <ArrowUpDown size={13} color={selectedSort !== 'DEFAULT' ? '#FFFFFF' : colors.vjAccent} />
-            <Text style={[s.sortTriggerText, selectedSort !== 'DEFAULT' && s.sortTriggerTextActive]}>
+            <Text style={[s.sortTriggerText, { color: selectedSort !== 'DEFAULT' ? '#FFFFFF' : colors.vjText }]}>
               {selectedSort === 'DEFAULT' ? 'Sort' : activeSortLabel.split(':')[0]}
             </Text>
           </TouchableOpacity>
@@ -321,6 +343,7 @@ export default function DesignItemsScreen() {
 
           {/* All Sizes (Select All / Reset) Chip */}
           <TouchableOpacity
+            testID="filter-size-all"
             onPress={() => {
               try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
               setSelectedSizeFilter('ALL');
@@ -330,16 +353,17 @@ export default function DesignItemsScreen() {
               selectedSizeFilter === 'ALL' && [s.filterChipActive, { backgroundColor: colors.vjAccent, borderColor: colors.vjAccent }]
             ]}
           >
-            <Text style={[s.filterChipText, selectedSizeFilter === 'ALL' && s.filterChipTextActive]}>
+            <Text style={[s.filterChipText, { color: selectedSizeFilter === 'ALL' ? '#FFFFFF' : colors.vjText }]}>
               All Sizes ({items.length})
             </Text>
           </TouchableOpacity>
 
           {/* Individual Size Filter Chips with Piece Counts */}
-          {distinctSizes.map(size => {
+          {distinctSizes.map((size) => {
             const isSelected = selectedSizeFilter === size.key;
             return (
               <TouchableOpacity
+                testID={`filter-size-${size.key}`}
                 key={size.key}
                 onPress={() => {
                   try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
@@ -350,7 +374,7 @@ export default function DesignItemsScreen() {
                   isSelected && [s.filterChipActive, { backgroundColor: colors.vjAccent, borderColor: colors.vjAccent }]
                 ]}
               >
-                <Text style={[s.filterChipText, isSelected && s.filterChipTextActive]}>
+                <Text style={[s.filterChipText, { color: isSelected ? '#FFFFFF' : colors.vjText }]}>
                   {size.label}
                 </Text>
                 <View style={[s.sizeCountBadge, isSelected && s.sizeCountBadgeActive]}>
@@ -376,7 +400,7 @@ export default function DesignItemsScreen() {
           renderItem={({ item }: { item: ItemSearchResult }) => (
             <ItemRow item={item} colors={colors} onPress={handleItemPress} onPrint={handlePrint} />
           )}
-          // @ts-ignore
+          // @ts-ignore: estimatedItemSize required by FlashList
           estimatedItemSize={145}
           contentContainerStyle={{ paddingTop: 12, paddingBottom: 100, paddingHorizontal: 14 }}
           ListEmptyComponent={
@@ -393,10 +417,17 @@ export default function DesignItemsScreen() {
         />
       )}
 
-      {/* Sort Options Modal */}
+      {/* Sort Options Modal with Backdrop Tap-to-Dismiss */}
       <Modal visible={isSortModalOpen} transparent animationType="fade">
-        <View style={s.modalOverlay}>
-          <View style={[s.sortModalCard, { backgroundColor: colors.vjBg, borderColor: colors.border }]}>
+        <TouchableOpacity 
+          style={s.modalOverlay} 
+          activeOpacity={1} 
+          onPress={() => setIsSortModalOpen(false)}
+        >
+          <TouchableOpacity 
+            activeOpacity={1} 
+            style={[s.sortModalCard, { backgroundColor: colors.vjBg, borderColor: colors.border }]}
+          >
             <View style={s.sortModalHeader}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                 <ArrowUpDown size={18} color={colors.vjAccent} />
@@ -412,6 +443,7 @@ export default function DesignItemsScreen() {
                 const isSelected = selectedSort === preset.id;
                 return (
                   <TouchableOpacity
+                    testID={`sort-option-${preset.id}`}
                     key={preset.id}
                     onPress={() => {
                       try { Haptics.selectionAsync(); } catch {}
@@ -441,8 +473,8 @@ export default function DesignItemsScreen() {
                 );
               })}
             </ScrollView>
-          </View>
-        </View>
+          </TouchableOpacity>
+        </TouchableOpacity>
       </Modal>
 
     </TwoToneWrapper>
@@ -489,10 +521,6 @@ const s = StyleSheet.create({
   sortTriggerText: {
     fontSize: 12,
     fontWeight: '800',
-    color: '#5C1623',
-  },
-  sortTriggerTextActive: {
-    color: '#FFFFFF',
   },
   filterChip: {
     flexDirection: 'row',
@@ -515,11 +543,6 @@ const s = StyleSheet.create({
   filterChipText: {
     fontSize: 12,
     fontWeight: '700',
-    color: 'rgba(92,22,35,0.75)',
-  },
-  filterChipTextActive: {
-    color: '#FFFFFF',
-    fontWeight: '800',
   },
   sizeCountBadge: {
     paddingHorizontal: 5,
@@ -596,7 +619,6 @@ const s = StyleSheet.create({
   sizeBadgeText: {
     fontSize: 11,
     fontWeight: '800',
-    color: '#5C1623',
   },
   purityBadge: {
     flexDirection: 'row',

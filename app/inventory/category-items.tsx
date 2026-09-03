@@ -1,4 +1,4 @@
-// app/inventory/category-items.tsx — Phase 2 v2.15 Canonical Screen (Screen B)
+// app/inventory/category-items.tsx — Phase 2 v2.24 Canonical Screen (Screen B)
 
 import React, { useState, useCallback, memo } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, Modal, TextInput } from 'react-native';
@@ -29,14 +29,15 @@ type DesignRowProps = {
 
 const DesignRow = memo(({ item, categoryName, isLowStock, currentThreshold, colors, onPress, onOpenLowStockModal }: DesignRowProps) => {
   const metalColor = item.metal === 'GOLD' ? (colors.vjAccent || COLORS.gold) : COLORS.silver;
+  const isGold = item.metal === 'GOLD';
 
-  const purityFull = item.purityKarat 
+  const purityFull = (isGold && item.purityKarat && item.purityKarat > 0)
     ? `${item.purityKarat}K (${item.purityPercent.toFixed(1)}%)`
     : `${item.purityPercent.toFixed(1)}%`;
 
   return (
     <TouchableOpacity
-      id={`design-row-${item.designId}-${item.purityPercent}`}
+      testID={`design-row-${item.designId}-${item.purityPercent}`}
       onPress={() => {
         try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
         onPress(item.designId, item.designName, item.purityPercent);
@@ -54,7 +55,7 @@ const DesignRow = memo(({ item, categoryName, isLowStock, currentThreshold, colo
           shadowOpacity: 0.04,
           shadowRadius: 6,
           elevation: 2,
-        }
+        },
       ]}
     >
       <View style={[s.metalStripe, { backgroundColor: metalColor }]} />
@@ -79,7 +80,7 @@ const DesignRow = memo(({ item, categoryName, isLowStock, currentThreshold, colo
 
           {/* Bell Icon & Low Stock Pill Keyed by (designId, purityPercent) variant */}
           <TouchableOpacity
-            id={`low-stock-bell-${item.designId}-${item.purityPercent}`}
+            testID={`low-stock-bell-${item.designId}-${item.purityPercent}`}
             onPress={(e) => {
               e.stopPropagation();
               try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
@@ -121,7 +122,10 @@ const DesignRow = memo(({ item, categoryName, isLowStock, currentThreshold, colo
 
 export default function CategoryItemsScreen() {
   const router = useRouter();
-  const { categoryId, categoryName } = useLocalSearchParams<{ categoryId: string; categoryName: string }>();
+  const params = useLocalSearchParams<{ categoryId: string; categoryName: string }>();
+  const categoryId = Array.isArray(params.categoryId) ? params.categoryId[0] : params.categoryId;
+  const categoryName = Array.isArray(params.categoryName) ? params.categoryName[0] : params.categoryName;
+
   const { activeFirmId } = useFirmStore();
   const [data, setData] = useState<DesignCategoryStockResult[]>([]);
   const [lowStockVariantKeys, setLowStockVariantKeys] = useState<Set<string>>(new Set());
@@ -151,7 +155,7 @@ export default function CategoryItemsScreen() {
       const lowKeys = new Set<string>();
       const threshMap: Record<string, number | null> = {};
 
-      lowStockList.forEach(v => {
+      lowStockList.forEach((v) => {
         const key = `${v.designId}_${v.purityPercent}`;
         lowKeys.add(key);
         threshMap[key] = v.lowStockThreshold;
@@ -181,42 +185,9 @@ export default function CategoryItemsScreen() {
 
   const handleOpenLowStockModal = useCallback((designId: string, designName: string, purityPercent: number, currentThreshold: number | null) => {
     setSelectedVariant({ id: designId, name: designName, purityPercent, threshold: currentThreshold });
-    setThresholdInput(currentThreshold !== null ? String(currentThreshold) : '');
+    setThresholdInput(currentThreshold !== null && currentThreshold !== undefined ? String(currentThreshold) : '');
     setInputError(null);
   }, []);
-
-  const handleSaveThreshold = async () => {
-    if (!selectedVariant || !activeFirmId) return;
-
-    const trimmed = thresholdInput.trim();
-    let finalVal: number | null = null;
-
-    if (trimmed !== '') {
-      const num = Number(trimmed);
-      if (isNaN(num) || !Number.isInteger(num) || num < 0) {
-        setInputError('Threshold must be a non-negative whole number (0 or greater)');
-        return;
-      }
-      finalVal = num;
-    }
-
-    setIsSubmitting(true);
-    setInputError(null);
-    try {
-      await designService.updateDesignPurityLowStockThreshold(
-        selectedVariant.id, 
-        activeFirmId, 
-        selectedVariant.purityPercent, 
-        finalVal
-      );
-      setSelectedVariant(null);
-      await loadData();
-    } catch (e: any) {
-      setInputError(e.message || 'Failed to update threshold');
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
 
   const handleClearThreshold = async () => {
     if (!selectedVariant || !activeFirmId) return;
@@ -234,6 +205,39 @@ export default function CategoryItemsScreen() {
       await loadData();
     } catch (e: any) {
       setInputError(e.message || 'Failed to clear threshold');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleSaveThreshold = async () => {
+    if (!selectedVariant || !activeFirmId) return;
+
+    const trimmed = thresholdInput.trim();
+    if (trimmed === '') {
+      await handleClearThreshold();
+      return;
+    }
+
+    const num = Number(trimmed);
+    if (isNaN(num) || !Number.isInteger(num) || num < 0) {
+      setInputError('Threshold must be a non-negative whole number (0 or greater)');
+      return;
+    }
+
+    setIsSubmitting(true);
+    setInputError(null);
+    try {
+      await designService.updateDesignPurityLowStockThreshold(
+        selectedVariant.id, 
+        activeFirmId, 
+        selectedVariant.purityPercent, 
+        num
+      );
+      setSelectedVariant(null);
+      await loadData();
+    } catch (e: any) {
+      setInputError(e.message || 'Failed to update threshold');
     } finally {
       setIsSubmitting(false);
     }
@@ -276,7 +280,7 @@ export default function CategoryItemsScreen() {
                 />
               );
             }}
-            // @ts-ignore: estimatedItemSize required by spec
+            // @ts-ignore: estimatedItemSize required by FlashList
             estimatedItemSize={88}
             contentContainerStyle={{ paddingBottom: 100, paddingTop: 32 }}
             showsVerticalScrollIndicator={false}
@@ -292,8 +296,15 @@ export default function CategoryItemsScreen() {
       </View>
 
       <Modal visible={!!selectedVariant} transparent animationType="fade">
-        <View style={s.modalOverlay}>
-          <View style={[s.modalCard, { backgroundColor: colors.vjBg, borderColor: colors.border }]}>
+        <TouchableOpacity 
+          style={s.modalOverlay} 
+          activeOpacity={1} 
+          onPress={() => setSelectedVariant(null)}
+        >
+          <TouchableOpacity 
+            activeOpacity={1} 
+            style={[s.modalCard, { backgroundColor: colors.vjBg, borderColor: colors.border }]}
+          >
             <View style={s.modalHeader}>
               <View style={s.modalTitleRow}>
                 <Bell size={20} color={colors.vjAccent} />
@@ -318,7 +329,7 @@ export default function CategoryItemsScreen() {
               }}
               placeholder="e.g. 5 (Leave blank for no alert)"
               placeholderTextColor="rgba(92,22,35,0.3)"
-              keyboardType="numeric"
+              keyboardType="number-pad"
               autoFocus
             />
 
@@ -347,8 +358,8 @@ export default function CategoryItemsScreen() {
                 />
               </View>
             </View>
-          </View>
-        </View>
+          </TouchableOpacity>
+        </TouchableOpacity>
       </Modal>
     </TwoToneWrapper>
   );

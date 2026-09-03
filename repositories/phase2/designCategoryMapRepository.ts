@@ -1,13 +1,11 @@
-// repositories/phase2/designCategoryMapRepository.ts — Phase 2 v2.11 Canonical Repository
+// repositories/phase2/designCategoryMapRepository.ts — Phase 2 v2.24 Canonical Repository
 
 import { eq, and } from 'drizzle-orm';
 import { db } from '@/db/client';
 import { designCategoryMap } from '@/db/schema';
-import type { DrizzleTransaction } from '@/types/phase2/phase2.types';
+import type { DrizzleTransaction, DesignCategoryMap } from '@/types/phase2/phase2.types';
 import * as Crypto from 'expo-crypto';
 import { now } from '@/utils/now';
-
-type DCMRecord = typeof designCategoryMap.$inferSelect;
 
 export interface DesignCategoryMapRepository {
   // --- insert (FIX-DCM-WRITE-1 v1.46 / Step 3.5 & Step 6) ---
@@ -17,12 +15,12 @@ export interface DesignCategoryMapRepository {
   ): void;
 
   // --- findByDesignId (Sync tx overload and async standalone) ---
-  findByDesignId(designId: string, firmId: string): Promise<DCMRecord[]>;
-  findByDesignId(tx: DrizzleTransaction, designId: string, firmId: string): DCMRecord[];
+  findByDesignId(designId: string, firmId: string): Promise<DesignCategoryMap[]>;
+  findByDesignId(tx: DrizzleTransaction, designId: string, firmId: string): DesignCategoryMap[];
 
   // --- findByCategory (Sync tx overload and async standalone) ---
-  findByCategory(categoryId: string, firmId: string): Promise<DCMRecord[]>;
-  findByCategory(tx: DrizzleTransaction, categoryId: string, firmId: string): DCMRecord[];
+  findByCategory(categoryId: string, firmId: string): Promise<DesignCategoryMap[]>;
+  findByCategory(tx: DrizzleTransaction, categoryId: string, firmId: string): DesignCategoryMap[];
 
   // --- delete (FIX-V718-1) ---
   delete(tx: DrizzleTransaction, designId: string, categoryId: string, firmId: string): void;
@@ -63,7 +61,8 @@ export const designCategoryMapRepository: DesignCategoryMapRepository = {
             eq(designCategoryMap.designId, first),
             eq(designCategoryMap.firmId, second)
           )
-        );
+        )
+        .orderBy(designCategoryMap.createdAt);
     }
     const tx = first as DrizzleTransaction;
     const designId = second;
@@ -77,7 +76,8 @@ export const designCategoryMapRepository: DesignCategoryMapRepository = {
           eq(designCategoryMap.firmId, firmId)
         )
       )
-      .all() as DCMRecord[];
+      .orderBy(designCategoryMap.createdAt)
+      .all() as DesignCategoryMap[];
   },
 
   // --- findByCategory (Sync tx overload and async standalone) ---
@@ -95,7 +95,8 @@ export const designCategoryMapRepository: DesignCategoryMapRepository = {
             eq(designCategoryMap.categoryId, first),
             eq(designCategoryMap.firmId, second)
           )
-        );
+        )
+        .orderBy(designCategoryMap.createdAt);
     }
     const tx = first as DrizzleTransaction;
     const categoryId = second;
@@ -109,7 +110,8 @@ export const designCategoryMapRepository: DesignCategoryMapRepository = {
           eq(designCategoryMap.firmId, firmId)
         )
       )
-      .all() as DCMRecord[];
+      .orderBy(designCategoryMap.createdAt)
+      .all() as DesignCategoryMap[];
   },
 
   // --- delete (FIX-V718-1) ---
@@ -123,5 +125,5 @@ export const designCategoryMapRepository: DesignCategoryMapRepository = {
         )
       )
       .run();
-  }
+  },
 };

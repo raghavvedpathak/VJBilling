@@ -21,6 +21,7 @@ export * from './phase2/inventoryDrillDownService';
 export * from './phase2/inventorySearchService';
 export * from './phase2/itemService';
 export * from './phase2/karigarService';
+export * from './phase2/looseStockService';
 export * from './phase2/oldGoldLotService';
 export * from './phase2/skuEngine';
 export * from './phase2/stoneService';

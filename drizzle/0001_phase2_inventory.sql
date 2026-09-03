@@ -1,3 +1,7 @@
+-- =============================================================================
+-- MASTER & LOOKUP TABLES
+-- =============================================================================
+
 CREATE TABLE `categories` (
 	`id` text PRIMARY KEY NOT NULL,
 	`firm_id` text NOT NULL,
@@ -11,16 +15,31 @@ CREATE TABLE `categories` (
 --> statement-breakpoint
 CREATE UNIQUE INDEX IF NOT EXISTS `uq_category_firm_name` ON `categories` (`firm_id`, lower(`name`));
 --> statement-breakpoint
-CREATE TABLE `design_category_map` (
+
+CREATE TABLE `stones` (
 	`id` text PRIMARY KEY NOT NULL,
-	`design_id` text NOT NULL,
-	`category_id` text NOT NULL,
+	`name` text NOT NULL,
+	`type` text NOT NULL,
 	`firm_id` text NOT NULL,
+	`is_active` integer DEFAULT 1 NOT NULL,
+	`created_at` text NOT NULL,
+	`updated_at` text NOT NULL,
+	FOREIGN KEY (`firm_id`) REFERENCES `firms`(`id`) ON UPDATE no action ON DELETE no action
+);
+--> statement-breakpoint
+
+CREATE TABLE `hsn_codes` (
+	`id` text PRIMARY KEY NOT NULL,
+	`code` text NOT NULL,
+	`description` text NOT NULL,
+	`chapter` text DEFAULT '71' NOT NULL,
+	`is_active` integer DEFAULT 1 NOT NULL,
 	`created_at` text NOT NULL
 );
 --> statement-breakpoint
-CREATE UNIQUE INDEX `design_category_map_design_id_category_id_firm_id_unique` ON `design_category_map` (`design_id`,`category_id`,`firm_id`);
+CREATE UNIQUE INDEX `hsn_codes_code_unique` ON `hsn_codes` (`code`);
 --> statement-breakpoint
+
 CREATE TABLE `designs` (
 	`id` text PRIMARY KEY NOT NULL,
 	`name` text NOT NULL,
@@ -28,6 +47,7 @@ CREATE TABLE `designs` (
 	`metal` text NOT NULL,
 	`default_hsn` text,
 	`firm_id` text NOT NULL,
+	`stock_type` text DEFAULT 'SERIALIZED' NOT NULL,
 	`is_active` integer DEFAULT 1 NOT NULL,
 	`created_at` text NOT NULL,
 	`updated_at` text NOT NULL,
@@ -36,6 +56,21 @@ CREATE TABLE `designs` (
 --> statement-breakpoint
 CREATE UNIQUE INDEX `designs_name_metal_firm_id_unique` ON `designs` (`name`,`metal`,`firm_id`);
 --> statement-breakpoint
+
+CREATE TABLE `design_category_map` (
+	`id` text PRIMARY KEY NOT NULL,
+	`design_id` text NOT NULL,
+	`category_id` text NOT NULL,
+	`firm_id` text NOT NULL,
+	`created_at` text NOT NULL,
+	FOREIGN KEY (`design_id`) REFERENCES `designs`(`id`) ON UPDATE no action ON DELETE cascade,
+	FOREIGN KEY (`category_id`) REFERENCES `categories`(`id`) ON UPDATE no action ON DELETE cascade,
+	FOREIGN KEY (`firm_id`) REFERENCES `firms`(`id`) ON UPDATE no action ON DELETE cascade
+);
+--> statement-breakpoint
+CREATE UNIQUE INDEX `design_category_map_design_id_category_id_firm_id_unique` ON `design_category_map` (`design_id`,`category_id`,`firm_id`);
+--> statement-breakpoint
+
 CREATE TABLE `design_purity_thresholds` (
 	`design_id` text NOT NULL,
 	`purity_percent` real NOT NULL,
@@ -44,6 +79,22 @@ CREATE TABLE `design_purity_thresholds` (
 	FOREIGN KEY (`design_id`) REFERENCES `designs`(`id`) ON UPDATE no action ON DELETE no action
 );
 --> statement-breakpoint
+
+CREATE TABLE `sequence_counters` (
+	`id` text PRIMARY KEY NOT NULL,
+	`firm_id` text NOT NULL,
+	`month` text NOT NULL,
+	`year` text NOT NULL,
+	`current_seq` integer DEFAULT 0 NOT NULL,
+	`last_used_at` text NOT NULL,
+	FOREIGN KEY (`firm_id`) REFERENCES `firms`(`id`) ON UPDATE no action ON DELETE no action
+);
+--> statement-breakpoint
+
+-- =============================================================================
+-- INVENTORY & LOT TABLES
+-- =============================================================================
+
 CREATE TABLE `gemstone_lots` (
 	`id` text PRIMARY KEY NOT NULL,
 	`firm_id` text NOT NULL,
@@ -63,78 +114,7 @@ CREATE TABLE `gemstone_lots` (
 	FOREIGN KEY (`stone_id`) REFERENCES `stones`(`id`) ON UPDATE no action ON DELETE no action
 );
 --> statement-breakpoint
-CREATE TABLE `hsn_codes` (
-	`id` text PRIMARY KEY NOT NULL,
-	`code` text NOT NULL,
-	`description` text NOT NULL,
-	`chapter` text DEFAULT '71' NOT NULL,
-	`is_active` integer DEFAULT 1 NOT NULL,
-	`created_at` text NOT NULL
-);
---> statement-breakpoint
-CREATE UNIQUE INDEX `hsn_codes_code_unique` ON `hsn_codes` (`code`);
---> statement-breakpoint
-CREATE TABLE `item_events` (
-	`id` text PRIMARY KEY NOT NULL,
-	`item_id` text NOT NULL,
-	`firm_id` text NOT NULL,
-	`event_type` text NOT NULL,
-	`severity` text NOT NULL,
-	`performed_by` text NOT NULL,
-	`reason` text,
-	`old_value` text,
-	`new_value` text,
-	`timestamp` text NOT NULL,
-	FOREIGN KEY (`item_id`) REFERENCES `items`(`id`) ON UPDATE no action ON DELETE restrict,
-	FOREIGN KEY (`firm_id`) REFERENCES `firms`(`id`) ON UPDATE no action ON DELETE no action
-);
---> statement-breakpoint
-CREATE TABLE `items` (
-	`id` text PRIMARY KEY NOT NULL,
-	`sku` text NOT NULL,
-	`barcode` text NOT NULL,
-	`barcode_reprint_required` integer DEFAULT 0 NOT NULL,
-	`huid` text,
-	`design_id` text NOT NULL,
-	`category_id` text NOT NULL,
-	`firm_id` text NOT NULL,
-	`primary_stone_id` text,
-	`metal` text NOT NULL,
-	`purity_percent` real NOT NULL,
-	`purity_karat` real NOT NULL,
-	`gross_weight_mg` integer NOT NULL,
-	`stone_weight_mg` integer DEFAULT 0 NOT NULL,
-	`beads_weight_mg` integer DEFAULT 0 NOT NULL,
-	`net_weight_mg` integer NOT NULL,
-	`fine_weight_mg` integer NOT NULL,
-	`purity_rounding_delta_mg` integer DEFAULT 0 NOT NULL,
-	`wastage_percent` real DEFAULT 0 NOT NULL,
-	`fine_gold_charged_mg` integer,
-	`purchase_rate_paise` integer,
-	`making_charge_paise` integer,
-	`stone_cost_paise` integer,
-	`location` text,
-	`invoice_id` text,
-	`phantom_stock_id` text,
-	`hsn_code` text NOT NULL,
-	`size_value` real,
-	`size_unit` text,
-	`metal_source` text DEFAULT 'SUPPLIER_PURCHASE' NOT NULL,
-	`status` text DEFAULT 'DRAFT' NOT NULL,
-	`created_at` text NOT NULL,
-	`updated_at` text NOT NULL,
-	CHECK ((`size_value` IS NULL AND `size_unit` IS NULL) OR (`size_value` IS NOT NULL AND `size_unit` IS NOT NULL)),
-	FOREIGN KEY (`design_id`) REFERENCES `designs`(`id`) ON UPDATE no action ON DELETE no action,
-	FOREIGN KEY (`firm_id`) REFERENCES `firms`(`id`) ON UPDATE no action ON DELETE no action,
-	FOREIGN KEY (`primary_stone_id`) REFERENCES `stones`(`id`) ON UPDATE no action ON DELETE no action
-);
---> statement-breakpoint
-CREATE UNIQUE INDEX `items_sku_unique` ON `items` (`sku`);
---> statement-breakpoint
-CREATE UNIQUE INDEX `items_barcode_unique` ON `items` (`barcode`);
---> statement-breakpoint
-CREATE UNIQUE INDEX `items_huid_unique` ON `items` (`huid`);
---> statement-breakpoint
+
 CREATE TABLE `old_gold_lots` (
 	`id` text PRIMARY KEY NOT NULL,
 	`firm_id` text NOT NULL,
@@ -155,27 +135,7 @@ CREATE TABLE `old_gold_lots` (
 	FOREIGN KEY (`firm_id`) REFERENCES `firms`(`id`) ON UPDATE no action ON DELETE no action
 );
 --> statement-breakpoint
-CREATE TABLE `sequence_counters` (
-	`id` text PRIMARY KEY NOT NULL,
-	`firm_id` text NOT NULL,
-	`month` text NOT NULL,
-	`year` text NOT NULL,
-	`current_seq` integer DEFAULT 0 NOT NULL,
-	`last_used_at` text NOT NULL,
-	FOREIGN KEY (`firm_id`) REFERENCES `firms`(`id`) ON UPDATE no action ON DELETE no action
-);
---> statement-breakpoint
-CREATE TABLE `stones` (
-	`id` text PRIMARY KEY NOT NULL,
-	`name` text NOT NULL,
-	`type` text NOT NULL,
-	`firm_id` text NOT NULL,
-	`is_active` integer DEFAULT 1 NOT NULL,
-	`created_at` text NOT NULL,
-	`updated_at` text NOT NULL,
-	FOREIGN KEY (`firm_id`) REFERENCES `firms`(`id`) ON UPDATE no action ON DELETE no action
-);
---> statement-breakpoint
+
 CREATE TABLE `urd_purchases` (
 	`id` text PRIMARY KEY NOT NULL,
 	`firm_id` text NOT NULL,
@@ -206,19 +166,120 @@ CREATE TABLE `urd_purchases` (
 );
 --> statement-breakpoint
 
+CREATE TABLE `items` (
+	`id` text PRIMARY KEY NOT NULL,
+	`sku` text NOT NULL,
+	`barcode` text NOT NULL,
+	`barcode_reprint_required` integer DEFAULT 0 NOT NULL,
+	`huid` text,
+	`design_id` text NOT NULL,
+	`category_id` text NOT NULL,
+	`firm_id` text NOT NULL,
+	`primary_stone_id` text,
+	`metal` text NOT NULL,
+	`purity_percent` real NOT NULL,
+	`purity_karat` real NOT NULL,
+	`gross_weight_mg` integer NOT NULL,
+	`stone_weight_mg` integer DEFAULT 0 NOT NULL,
+	`beads_weight_mg` integer DEFAULT 0 NOT NULL,
+	`net_weight_mg` integer NOT NULL,
+	`fine_weight_mg` integer NOT NULL,
+	`purity_rounding_delta_mg` integer DEFAULT 0 NOT NULL,
+	`wastage_percent` real DEFAULT 0 NOT NULL,
+	`fine_gold_charged_mg` integer,
+	`purchase_rate_paise` integer,
+	`making_charge_paise` integer,
+	`stone_cost_paise` integer,
+	`location` text,
+	`sale_invoice_id` text,
+	`purchase_invoice_id` text,
+	`phantom_stock_id` text,
+	`hsn_code` text NOT NULL,
+	`size_value` real,
+	`size_unit` text,
+	`metal_source` text DEFAULT 'SUPPLIER_PURCHASE' NOT NULL,
+	`status` text DEFAULT 'DRAFT' NOT NULL,
+	`created_at` text NOT NULL,
+	`updated_at` text NOT NULL,
+	CHECK ((`size_value` IS NULL AND `size_unit` IS NULL) OR (`size_value` IS NOT NULL AND `size_unit` IS NOT NULL)),
+	FOREIGN KEY (`design_id`) REFERENCES `designs`(`id`) ON UPDATE no action ON DELETE no action,
+	FOREIGN KEY (`category_id`) REFERENCES `categories`(`id`) ON UPDATE no action ON DELETE no action,
+	FOREIGN KEY (`firm_id`) REFERENCES `firms`(`id`) ON UPDATE no action ON DELETE no action,
+	FOREIGN KEY (`primary_stone_id`) REFERENCES `stones`(`id`) ON UPDATE no action ON DELETE no action
+);
+--> statement-breakpoint
+CREATE UNIQUE INDEX `items_sku_unique` ON `items` (`sku`);
+--> statement-breakpoint
+CREATE UNIQUE INDEX `items_barcode_unique` ON `items` (`barcode`);
+--> statement-breakpoint
+CREATE UNIQUE INDEX `items_huid_unique` ON `items` (`huid`);
+--> statement-breakpoint
+
+CREATE TABLE `item_events` (
+	`id` text PRIMARY KEY NOT NULL,
+	`item_id` text NOT NULL,
+	`firm_id` text NOT NULL,
+	`karigar_id` text DEFAULT NULL,
+	`event_type` text NOT NULL,
+	`severity` text NOT NULL,
+	`performed_by` text NOT NULL,
+	`reason` text,
+	`old_value` text,
+	`new_value` text,
+	`timestamp` text NOT NULL,
+	FOREIGN KEY (`item_id`) REFERENCES `items`(`id`) ON UPDATE no action ON DELETE restrict,
+	FOREIGN KEY (`firm_id`) REFERENCES `firms`(`id`) ON UPDATE no action ON DELETE no action
+);
+--> statement-breakpoint
+
+CREATE TABLE `loose_stock_lots` (
+	`id` text PRIMARY KEY NOT NULL,
+	`firm_id` text NOT NULL,
+	`design_id` text NOT NULL,
+	`purity_percent` real NOT NULL,
+	`purity_karat` text NOT NULL,
+	`metal` text NOT NULL,
+	`piece_count` integer NOT NULL,
+	`total_weight_mg` integer NOT NULL,
+	`hsn_code` text NOT NULL,
+	`status` text DEFAULT 'ACTIVE' NOT NULL,
+	`created_at` text NOT NULL,
+	`updated_at` text NOT NULL,
+	FOREIGN KEY (`firm_id`) REFERENCES `firms`(`id`) ON UPDATE no action ON DELETE no action,
+	FOREIGN KEY (`design_id`) REFERENCES `designs`(`id`) ON UPDATE no action ON DELETE no action
+);
+--> statement-breakpoint
+CREATE UNIQUE INDEX `loose_stock_lots_active_unique` ON `loose_stock_lots` (`design_id`, `purity_percent`, `firm_id`) WHERE `status` = 'ACTIVE';
+--> statement-breakpoint
+
+CREATE TABLE `loose_stock_events` (
+	`id` text PRIMARY KEY NOT NULL,
+	`lot_id` text NOT NULL,
+	`firm_id` text NOT NULL,
+	`event_type` text NOT NULL,
+	`piece_count_delta` integer NOT NULL,
+	`weight_mg_delta` integer NOT NULL,
+	`purchase_rate_paise` integer,
+	`wastage_percent` real,
+	`sale_invoice_id` text,
+	`performed_by` text NOT NULL,
+	`timestamp` text NOT NULL,
+	FOREIGN KEY (`lot_id`) REFERENCES `loose_stock_lots`(`id`) ON UPDATE no action ON DELETE restrict,
+	FOREIGN KEY (`firm_id`) REFERENCES `firms`(`id`) ON UPDATE no action ON DELETE no action
+);
+--> statement-breakpoint
+
 -- =============================================================================
--- CONSTITUTIONAL TRIGGERS & INDEXES (PHASE 2 INVENTORY)
+-- CONSTITUTIONAL TRIGGERS & INDEXES
 -- =============================================================================
 
--- FIX-AUDIT-TRIGGER-1: spec-exact trigger text (GAP-C4) — was missing
--- IF NOT EXISTS (non-idempotent on re-run) and was scoped to
--- "different value only" instead of true write-once-ever semantics.
 CREATE TRIGGER IF NOT EXISTS prevent_phantom_stock_id_update BEFORE UPDATE OF phantom_stock_id ON items
-WHEN OLD.phantom_stock_id IS NOT NULL
+WHEN OLD.phantom_stock_id IS NOT NULL AND NEW.phantom_stock_id IS NOT OLD.phantom_stock_id
 BEGIN
   SELECT RAISE(ABORT, 'PHANTOM_STOCK_ID_IMMUTABLE: cannot change once set');
 END;
 --> statement-breakpoint
+
 CREATE INDEX IF NOT EXISTS idx_items_firm_status ON items(firm_id, status);
 --> statement-breakpoint
 CREATE INDEX IF NOT EXISTS idx_items_design_id ON items(design_id);
@@ -235,11 +296,11 @@ CREATE INDEX IF NOT EXISTS idx_items_design_status ON items(design_id, status);
 --> statement-breakpoint
 CREATE INDEX IF NOT EXISTS idx_items_sku ON items(sku, firm_id);
 --> statement-breakpoint
-CREATE INDEX IF NOT EXISTS idx_items_huid ON items(huid) WHERE huid IS NOT NULL;
---> statement-breakpoint
 CREATE INDEX IF NOT EXISTS idx_items_category_status ON items(firm_id, category_id, status);
 --> statement-breakpoint
-CREATE INDEX IF NOT EXISTS idx_items_invoice ON items(invoice_id) WHERE invoice_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_items_sale_invoice ON items(sale_invoice_id) WHERE sale_invoice_id IS NOT NULL;
+--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS idx_items_purchase_invoice ON items(purchase_invoice_id) WHERE purchase_invoice_id IS NOT NULL;
 --> statement-breakpoint
 CREATE INDEX IF NOT EXISTS idx_items_phantom_available ON items(firm_id, phantom_stock_id) WHERE status = 'PHANTOM_AVAILABLE';
 --> statement-breakpoint
@@ -248,6 +309,14 @@ CREATE INDEX IF NOT EXISTS idx_items_phantom_sold ON items(firm_id, phantom_stoc
 CREATE INDEX IF NOT EXISTS idx_item_events_item ON item_events(item_id, firm_id, timestamp DESC);
 --> statement-breakpoint
 CREATE INDEX IF NOT EXISTS idx_item_events_firm_type ON item_events(firm_id, event_type);
+--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS idx_loose_stock_lots_firm ON loose_stock_lots(firm_id, status);
+--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS idx_loose_stock_lots_design ON loose_stock_lots(design_id);
+--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS idx_loose_stock_events_lot ON loose_stock_events(lot_id, timestamp DESC);
+--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS idx_loose_stock_events_firm ON loose_stock_events(firm_id, event_type);
 --> statement-breakpoint
 CREATE INDEX IF NOT EXISTS idx_designs_firm_active ON designs(firm_id, is_active);
 --> statement-breakpoint
@@ -259,11 +328,13 @@ CREATE INDEX IF NOT EXISTS idx_sequence_counters_firm_month ON sequence_counters
 --> statement-breakpoint
 CREATE INDEX IF NOT EXISTS idx_urd_purchases_fy ON urd_purchases(firm_id, fy_id);
 --> statement-breakpoint
+CREATE INDEX IF NOT EXISTS idx_urd_purchases_firm ON urd_purchases(firm_id, status, purchase_date);
+--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS idx_urd_purchases_customer ON urd_purchases(firm_id, customer_id) WHERE customer_id IS NOT NULL;
+--> statement-breakpoint
 CREATE INDEX IF NOT EXISTS idx_dcm_design ON design_category_map(design_id);
 --> statement-breakpoint
 CREATE INDEX IF NOT EXISTS idx_dcm_category ON design_category_map(category_id);
---> statement-breakpoint
-CREATE INDEX IF NOT EXISTS idx_hsn_code ON hsn_codes(code);
 --> statement-breakpoint
 CREATE INDEX IF NOT EXISTS idx_hsn_chapter ON hsn_codes(chapter);
 --> statement-breakpoint
@@ -271,8 +342,6 @@ CREATE INDEX IF NOT EXISTS idx_items_size ON items(firm_id, size_unit, size_valu
 --> statement-breakpoint
 CREATE INDEX IF NOT EXISTS idx_old_gold_lots_customer ON old_gold_lots(firm_id, customer_id) WHERE customer_id IS NOT NULL;
 --> statement-breakpoint
-CREATE INDEX IF NOT EXISTS idx_urd_purchases_firm ON urd_purchases(firm_id, status, purchase_date);
+CREATE INDEX IF NOT EXISTS idx_audit_logs_entity_event ON audit_logs(entity_id, event_type, firm_id, created_at DESC);
 --> statement-breakpoint
-CREATE INDEX IF NOT EXISTS idx_urd_purchases_customer ON urd_purchases(firm_id, customer_id) WHERE customer_id IS NOT NULL;
---> statement-breakpoint
-CREATE INDEX IF NOT EXISTS idx_audit_logs_entity_event ON audit_logs(entity_id, event_type, firm_id, timestamp DESC);
+UPDATE `schema_version` SET `current_version` = 2 WHERE `id` = 1;

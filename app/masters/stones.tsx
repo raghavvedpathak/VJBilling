@@ -1,14 +1,41 @@
-// app/masters/stones.tsx — Phase 2 v2.11 Canonical Screen
+// app/masters/stones.tsx — Phase 2 v2.24 Canonical Screen
 
-import React, { useState, useCallback } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Modal, TextInput, Alert, ActivityIndicator, KeyboardAvoidingView, Platform, useWindowDimensions } from 'react-native';
+import React, { useState, useCallback, useEffect, useMemo, useDeferredValue } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  ScrollView,
+  Modal,
+  TextInput,
+  Alert,
+  ActivityIndicator,
+  KeyboardAvoidingView,
+  Platform,
+  useWindowDimensions,
+} from 'react-native';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import { useRouter, useFocusEffect } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { storageInstance } from '@/utils/storage';
 import * as Haptics from 'expo-haptics';
 import { TwoToneWrapper } from '@/components/TwoToneWrapper';
 import { HeaderPill, GlassCard, GlassButton, GlassInput, FixedGlassBar, fixedBarStyles } from '@/components/ui/Glass';
 import { appSettingsStore } from '@/store/phase1/appSettingsStore';
-import { Gem, Plus, X, Trash2, Edit3, LayoutGrid, List as ListIcon, CheckCircle, ShieldCheck } from 'lucide-react-native';
+import {
+  Gem,
+  Plus,
+  X,
+  Trash2,
+  Edit3,
+  LayoutGrid,
+  List as ListIcon,
+  CheckCircle,
+  ShieldCheck,
+  Search,
+  Sparkles,
+} from 'lucide-react-native';
 import { useFirmStore } from '@/store/phase1/useFirmStore';
 import { stoneRepository } from '@/repositories/phase2/stoneRepository';
 import { stoneService } from '@/services/phase2/stoneService';
@@ -20,19 +47,24 @@ const STONE_TYPES: StoneType[] = ['DIAMOND', 'RUBY', 'EMERALD', 'SAPPHIRE'];
 
 export default function StonesScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const { width, height } = useWindowDimensions();
+
+  // Responsive Grid System for Phone vs Tablet
   const isTablet = width >= 768;
-  const containerWidth = isTablet ? Math.min(width - 32, 920) : width - 32;
-  const numColumns = 2;
+  const isLargeTablet = width >= 1024;
+  const numColumns = isLargeTablet ? 4 : isTablet ? 3 : 2;
   const gap = 12;
-  const itemWidth = Math.floor((containerWidth - (gap * (numColumns - 1))) / numColumns);
+  const availableWidth = width - 32; // TwoToneWrapper horizontal padding = 16 each side
+  const gridItemWidth = Math.floor((availableWidth - gap * (numColumns - 1)) / numColumns);
 
   const { activeFirmId } = useFirmStore();
-  
+
   const [stones, setStones] = useState<Stone[]>([]);
   const [loading, setLoading] = useState(true);
-  const [viewMode, setViewMode] = useState<'list' | 'grid'>('list');
-  
+  const [searchQuery, setSearchQuery] = useState('');
+  const [viewMode, setViewModeState] = useState<'list' | 'grid'>('list');
+
   const [showAddModal, setShowAddModal] = useState(false);
   const [newName, setNewName] = useState('');
   const [newType, setNewType] = useState<StoneType>('DIAMOND');
@@ -43,16 +75,35 @@ export default function StonesScreen() {
   const [editType, setEditType] = useState<StoneType>('DIAMOND');
 
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState<Stone | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    Promise.resolve(storageInstance.getItem('stoneViewMode')).then((mode) => {
+      if (mode === 'grid' || mode === 'list') {
+        setViewModeState(mode);
+      }
+    });
+  }, []);
+
+  const setViewMode = (mode: 'list' | 'grid') => {
+    try {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    } catch {}
+    setViewModeState(mode);
+    storageInstance.setItem('stoneViewMode', mode);
+  };
 
   const loadStones = useCallback(async () => {
     if (!activeFirmId) return;
     setLoading(true);
     try {
       const results = await stoneRepository.findByFirmId(activeFirmId);
-      setStones(results);
+      setStones((results || []).filter((s) => s.isActive !== 0));
     } catch (e) {
-      console.error(e);
+      console.error('[StonesScreen] loadStones failed:', e);
     } finally {
       setLoading(false);
     }
@@ -60,39 +111,66 @@ export default function StonesScreen() {
 
   useFocusEffect(
     useCallback(() => {
-      loadStones();
-    }, [loadStones])
+      let active = true;
+      const fetchCurrent = async () => {
+        if (!activeFirmId) return;
+        setLoading(true);
+        try {
+          const results = await stoneRepository.findByFirmId(activeFirmId);
+          if (active) {
+            setStones((results || []).filter((s) => s.isActive !== 0));
+          }
+        } catch (e) {
+          console.error('[StonesScreen] fetchCurrent failed:', e);
+        } finally {
+          if (active) setLoading(false);
+        }
+      };
+
+      fetchCurrent();
+      return () => {
+        active = false;
+      };
+    }, [activeFirmId])
   );
 
   const handleAdd = async () => {
     if (!activeFirmId) return;
-    if (!newName.trim()) {
-      Alert.alert('Validation Error', 'Stone name is required');
+    const trimmedName = newName.trim();
+    if (!trimmedName) {
+      Alert.alert('Validation Error', 'Stone name is required.');
       return;
     }
-    try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); } catch (e) {}
-    
+    try {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    } catch {}
+
     setIsSubmitting(true);
     try {
-      await stoneService.createStone({
-        name: newName.trim(),
-        type: newType,
-      }, activeFirmId);
-      
+      await stoneService.createStone(
+        {
+          name: trimmedName,
+          type: newType,
+        },
+        activeFirmId
+      );
+
       setShowAddModal(false);
       setNewName('');
       setNewType('DIAMOND');
-      loadStones();
-      setSuccessMessage('Stone added to Master successfully');
+      setSuccessMessage(`Stone "${trimmedName}" added to Master successfully.`);
+      await loadStones();
     } catch (e: any) {
-      Alert.alert('Error', e.message);
+      Alert.alert('Error', e.message || 'Failed to create stone.');
     } finally {
       setIsSubmitting(false);
     }
   };
 
   const handleOpenEdit = (s: Stone) => {
-    try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch (e) {}
+    try {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    } catch {}
     setEditingStone(s);
     setEditName(s.name);
     setEditType(s.type as StoneType);
@@ -101,49 +179,73 @@ export default function StonesScreen() {
 
   const handleSaveEdit = async () => {
     if (!activeFirmId || !editingStone) return;
-    if (!editName.trim()) {
-      Alert.alert('Validation Error', 'Stone name is required');
+    const trimmedName = editName.trim();
+    if (!trimmedName) {
+      Alert.alert('Validation Error', 'Stone name is required.');
       return;
     }
-    try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); } catch (e) {}
-    
+    try {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    } catch {}
+
     setIsSubmitting(true);
     try {
-      await stoneService.updateStone(editingStone.id, {
-        name: editName.trim(),
-        type: editType,
-      }, activeFirmId);
-      
+      await stoneService.updateStone(
+        editingStone.id,
+        {
+          name: trimmedName,
+          type: editType,
+        },
+        activeFirmId
+      );
+
       setShowEditModal(false);
       setEditingStone(null);
-      loadStones();
-      setSuccessMessage('Stone updated successfully');
+      setSuccessMessage(`Stone "${trimmedName}" updated successfully.`);
+      await loadStones();
     } catch (e: any) {
-      Alert.alert('Error', e.message);
+      Alert.alert('Error', e.message || 'Failed to update stone.');
     } finally {
       setIsSubmitting(false);
     }
   };
 
   const handleDelete = (s: Stone) => {
-    if (!activeFirmId) return;
-    Alert.alert('Confirm Delete', `Are you sure you want to remove ${s.name}?`, [
-      { text: 'Cancel', style: 'cancel' },
-      { 
-        text: 'Delete', 
-        style: 'destructive',
-        onPress: async () => {
-          try {
-            await stoneService.softDeleteStone(s.id, activeFirmId);
-            setSuccessMessage('Stone removed');
-            loadStones();
-          } catch (e: any) {
-            Alert.alert('Cannot Delete Stone', e.message);
-          }
-        }
-      }
-    ]);
+    try {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    } catch {}
+    setConfirmDelete(s);
   };
+
+  const handleConfirmDelete = async () => {
+    if (!confirmDelete || !activeFirmId) return;
+    const stoneId = confirmDelete.id;
+
+    setIsDeleting(true);
+    try {
+      await stoneService.softDeleteStone(stoneId, activeFirmId);
+      setConfirmDelete(null);
+      setSuccessMessage('Stone removed from Master successfully.');
+      await loadStones();
+    } catch (error: any) {
+      setConfirmDelete(null);
+      setErrorMessage(error.message || 'Failed to remove stone.');
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  const deferredQuery = useDeferredValue(searchQuery);
+
+  const filteredStones = useMemo(() => {
+    const q = deferredQuery.toLowerCase().trim();
+    if (!q) return stones;
+    return stones.filter(
+      (s) =>
+        s.name.toLowerCase().includes(q) ||
+        s.type.toLowerCase().includes(q)
+    );
+  }, [stones, deferredQuery]);
 
   const activeTheme = appSettingsStore((s: any) => s.theme);
   const colors = getThemeColors(activeTheme);
@@ -158,51 +260,199 @@ export default function StonesScreen() {
   return (
     <TwoToneWrapper title="Stone Master" showBack headerContent={stoneHeaderPills}>
       <View style={s.container}>
-        <View style={{ flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center', marginBottom: 12 }}>
-          <View style={s.toggleContainer}>
-            <TouchableOpacity onPress={() => setViewMode('list')} style={[s.toggleIconBtn, viewMode === 'list' && s.toggleIconActive]}>
-              <ListIcon size={20} color={viewMode === 'list' ? '#D4AF37' : COLORS.vjText} style={{ opacity: viewMode === 'list' ? 1 : 0.6 }} />
+        {/* TOP CONTROLS ROW: SEARCH & VIEW SWITCHER */}
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 12 }}>
+          <View style={[s.searchBarContainer, { flex: 1, borderColor: `${colors.vjAccent}35`, marginBottom: 0 }]}>
+            <Search size={16} color={colors.vjAccent} style={{ marginRight: 8, opacity: 0.8 }} />
+            <TextInput
+              testID="stone-search-input"
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+              placeholder="Search stone name or type..."
+              placeholderTextColor="rgba(92, 22, 35, 0.4)"
+              style={[s.searchInput, { color: colors.vjText }]}
+              autoCorrect={false}
+              autoCapitalize="none"
+              spellCheck={false}
+              returnKeyType="search"
+            />
+            {Boolean(searchQuery) && (
+              <TouchableOpacity
+                testID="stone-search-clear-btn"
+                onPress={() => setSearchQuery('')}
+                style={{ padding: 4 }}
+              >
+                <X size={16} color={colors.vjText} style={{ opacity: 0.5 }} />
+              </TouchableOpacity>
+            )}
+          </View>
+
+          {/* VIEW SWITCHER */}
+          <View style={[s.toggleContainer, { backgroundColor: `${colors.vjAccent}14` }]}>
+            <TouchableOpacity
+              testID="view-mode-list-btn"
+              onPress={() => setViewMode('list')}
+              activeOpacity={0.8}
+              style={[s.toggleIconBtn, viewMode === 'list' && s.toggleIconActive]}
+            >
+              <ListIcon
+                size={20}
+                color={viewMode === 'list' ? colors.vjAccent : colors.vjText}
+                style={{ opacity: viewMode === 'list' ? 1 : 0.6 }}
+              />
             </TouchableOpacity>
-            <TouchableOpacity onPress={() => setViewMode('grid')} style={[s.toggleIconBtn, viewMode === 'grid' && s.toggleIconActive]}>
-              <LayoutGrid size={20} color={viewMode === 'grid' ? '#D4AF37' : COLORS.vjText} style={{ opacity: viewMode === 'grid' ? 1 : 0.6 }} />
+            <TouchableOpacity
+              testID="view-mode-grid-btn"
+              onPress={() => setViewMode('grid')}
+              activeOpacity={0.8}
+              style={[s.toggleIconBtn, viewMode === 'grid' && s.toggleIconActive]}
+            >
+              <LayoutGrid
+                size={20}
+                color={viewMode === 'grid' ? colors.vjAccent : colors.vjText}
+                style={{ opacity: viewMode === 'grid' ? 1 : 0.6 }}
+              />
             </TouchableOpacity>
           </View>
         </View>
-        
-        {loading ? (
-          <ActivityIndicator size="large" color={COLORS.vjAccent} style={{ marginTop: 40 }} />
+
+        {loading && stones.length === 0 ? (
+          <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', marginTop: 60 }}>
+            <ActivityIndicator size="large" color={colors.vjAccent} />
+            <Text style={{ marginTop: 12, fontSize: 13, color: colors.vjText, opacity: 0.6, fontWeight: '600' }}>
+              Loading Stone Master...
+            </Text>
+          </View>
+        ) : filteredStones.length === 0 ? (
+          <View style={s.emptyContainer}>
+            <View style={[s.emptyIconCircle, { backgroundColor: `${colors.vjAccent}14`, borderColor: `${colors.vjAccent}35` }]}>
+              <Sparkles size={40} color={colors.vjAccent} />
+            </View>
+            <Text style={[s.emptyTitle, { color: colors.vjText }]}>
+              {searchQuery ? 'No Matching Stones' : 'No Stones Created Yet'}
+            </Text>
+            <Text style={[s.emptySubtitle, { color: colors.vjText }]}>
+              {searchQuery
+                ? `No stones match "${searchQuery}". Clear your search query to view all items.`
+                : 'Configure gemstone and diamond definitions to track studded jewelry accurately.'}
+            </Text>
+            {!searchQuery && (
+              <View style={{ width: 220, marginTop: 16 }}>
+                <GlassButton
+                  title="Add First Stone"
+                  onPress={() => setShowAddModal(true)}
+                  icon={<Plus size={18} color="#fff" />}
+                />
+              </View>
+            )}
+          </View>
         ) : (
-          <ScrollView 
-            style={{ marginTop: 8 }} 
-            showsVerticalScrollIndicator={false} 
+          <ScrollView
+            style={{ flex: 1, marginTop: 8 }}
+            showsVerticalScrollIndicator={false}
             contentContainerStyle={[
-              { paddingBottom: 150 },
-              viewMode === 'grid' && { flexDirection: 'row', flexWrap: 'wrap', gap }
+              { paddingBottom: Math.max(insets.bottom + 120, 140) },
+              viewMode === 'grid' && {
+                flexDirection: 'row',
+                flexWrap: 'wrap',
+                gap,
+              },
             ]}
           >
-            {stones.map((stone) => {
+            {filteredStones.map((stone) => {
               const stoneColors = {
                 DIAMOND: { bg: 'rgba(6,182,212,0.15)', border: 'rgba(6,182,212,0.35)', text: '#0891B2' },
                 RUBY: { bg: 'rgba(225,29,72,0.15)', border: 'rgba(225,29,72,0.35)', text: '#E11D48' },
                 EMERALD: { bg: 'rgba(5,150,105,0.15)', border: 'rgba(5,150,105,0.35)', text: '#059669' },
                 SAPPHIRE: { bg: 'rgba(37,99,235,0.15)', border: 'rgba(37,99,235,0.35)', text: '#2563EB' },
-              }[stone.type as StoneType] || { bg: 'rgba(92,22,35,0.1)', border: 'rgba(92,22,35,0.2)', text: COLORS.vjText };
+              }[stone.type as StoneType] || { bg: `${colors.vjAccent}12`, border: `${colors.vjAccent}25`, text: colors.vjAccent };
 
-              return (
-                <GlassCard key={stone.id} style={[s.card, viewMode === 'grid' ? [s.cardGrid, { width: itemWidth }] : s.cardList]}>
-                  <View style={viewMode === 'grid' ? s.cardTopGrid : s.cardTopList}>
-                    <Text style={s.rowTitle} numberOfLines={1}>{stone.name}</Text>
-                    <View style={[s.stoneTypeBadge, { backgroundColor: stoneColors.bg, borderColor: stoneColors.border }]}>
-                      <Text style={[s.stoneTypeText, { color: stoneColors.text }]}>{stone.type}</Text>
+              if (viewMode === 'grid') {
+                return (
+                  <GlassCard
+                    testID={`stone-card-${stone.id}`}
+                    key={stone.id}
+                    style={{
+                      width: gridItemWidth,
+                      marginBottom: gap,
+                      borderColor: `${colors.vjAccent}25`,
+                    }}
+                  >
+                    <View style={s.gridCardInner}>
+                      <View style={s.gridHeaderRow}>
+                        <View style={[s.stoneIconBadge, { backgroundColor: `${colors.vjAccent}18`, borderColor: `${colors.vjAccent}30` }]}>
+                          <Gem size={16} color={colors.vjAccent} />
+                        </View>
+                        <View style={[s.stoneTypeBadge, { backgroundColor: stoneColors.bg, borderColor: stoneColors.border }]}>
+                          <Text style={[s.stoneTypeText, { color: stoneColors.text }]}>{stone.type}</Text>
+                        </View>
+                      </View>
+
+                      <Text style={[s.gridTitle, { color: colors.vjText }]} numberOfLines={2}>
+                        {stone.name}
+                      </Text>
+
+                      <View style={[s.gridActionRow, { borderTopColor: `${colors.vjAccent}15` }]}>
+                        <TouchableOpacity
+                          testID={`edit-stone-btn-${stone.id}`}
+                          onPress={() => handleOpenEdit(stone)}
+                          style={[s.actionBtnEdit, { backgroundColor: `${colors.vjAccent}14`, borderColor: `${colors.vjAccent}30` }]}
+                          activeOpacity={0.7}
+                        >
+                          <Edit3 size={14} color={colors.vjAccent} />
+                          <Text style={[s.actionBtnEditText, { color: colors.vjAccent }]}>Edit</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          testID={`delete-stone-btn-${stone.id}`}
+                          onPress={() => handleDelete(stone)}
+                          style={s.actionBtnDelete}
+                          activeOpacity={0.7}
+                        >
+                          <Trash2 size={14} color="#DC2626" />
+                        </TouchableOpacity>
+                      </View>
                     </View>
-                  </View>
-                  <View style={viewMode === 'grid' ? s.cardBottomGrid : s.cardBottomList}>
-                    <View style={s.actionRow}>
-                      <TouchableOpacity onPress={() => handleOpenEdit(stone)} style={[s.actionBtn, { marginRight: 8 }]}>
+                  </GlassCard>
+                );
+              }
+
+              // LIST VIEW ITEM
+              return (
+                <GlassCard
+                  testID={`stone-card-${stone.id}`}
+                  key={stone.id}
+                  style={{ marginBottom: 10, width: '100%', borderColor: `${colors.vjAccent}25` }}
+                >
+                  <View style={s.listCardInner}>
+                    <View style={[s.stoneIconBadgeList, { backgroundColor: `${colors.vjAccent}18`, borderColor: `${colors.vjAccent}30` }]}>
+                      <Gem size={18} color={colors.vjAccent} />
+                    </View>
+
+                    <View style={s.listTextContainer}>
+                      <Text style={[s.listTitle, { color: colors.vjText }]} numberOfLines={1}>
+                        {stone.name}
+                      </Text>
+                      <View style={[s.stoneTypeBadge, { backgroundColor: stoneColors.bg, borderColor: stoneColors.border }]}>
+                        <Text style={[s.stoneTypeText, { color: stoneColors.text }]}>{stone.type}</Text>
+                      </View>
+                    </View>
+
+                    <View style={s.listActionRow}>
+                      <TouchableOpacity
+                        testID={`edit-stone-btn-${stone.id}`}
+                        onPress={() => handleOpenEdit(stone)}
+                        style={[s.actionBtnEditCircle, { backgroundColor: `${colors.vjAccent}14`, borderColor: `${colors.vjAccent}30` }]}
+                        activeOpacity={0.7}
+                      >
                         <Edit3 size={16} color={colors.vjAccent} />
                       </TouchableOpacity>
-                      <TouchableOpacity onPress={() => handleDelete(stone)} style={s.actionBtn}>
-                        <Trash2 size={16} color="#ef4444" />
+                      <TouchableOpacity
+                        testID={`delete-stone-btn-${stone.id}`}
+                        onPress={() => handleDelete(stone)}
+                        style={s.actionBtnDeleteCircle}
+                        activeOpacity={0.7}
+                      >
+                        <Trash2 size={16} color="#DC2626" />
                       </TouchableOpacity>
                     </View>
                   </View>
@@ -214,9 +464,12 @@ export default function StonesScreen() {
 
         <FixedGlassBar>
           <TouchableOpacity
-            style={fixedBarStyles.pillPrimaryBtn}
+            testID="add-stone-bottom-btn"
+            style={[fixedBarStyles.pillPrimaryBtn, { backgroundColor: colors.vjAccent }]}
             onPress={() => {
-              try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch (e) {}
+              try {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              } catch {}
               setShowAddModal(true);
             }}
             activeOpacity={0.8}
@@ -229,201 +482,455 @@ export default function StonesScreen() {
 
       {/* ADD STONE MODAL */}
       <Modal visible={showAddModal} transparent animationType="fade" onRequestClose={() => setShowAddModal(false)}>
-        <KeyboardAvoidingView 
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'} 
-          style={{ flex: 1, backgroundColor: 'rgba(0, 0, 0, 0.55)', justifyContent: 'center', alignItems: 'center', padding: 16 }}
+        <TouchableOpacity
+          style={s.modalOverlayCenter}
+          activeOpacity={1}
+          onPress={() => !isSubmitting && setShowAddModal(false)}
         >
-          <View 
-            style={{ 
-              backgroundColor: COLORS.vjBg, 
-              width: '100%', 
-              maxWidth: isTablet ? 540 : 420, 
-              borderRadius: 24, 
-              padding: 20, 
-              maxHeight: height * 0.85, 
-              borderWidth: 1.5, 
-              borderColor: 'rgba(255,255,255,0.6)', 
-              elevation: 10,
-              shadowColor: '#000',
-              shadowOffset: { width: 0, height: 10 },
-              shadowOpacity: 0.25,
-              shadowRadius: 20,
-            }}
+          <KeyboardAvoidingView
+            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+            style={{ width: '100%', maxWidth: isTablet ? 540 : 420 }}
           >
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: 'rgba(0,0,0,0.1)' }}>
-              <Text style={{ fontSize: 20, fontWeight: '800', color: COLORS.vjText }}>New Stone Type</Text>
-              <TouchableOpacity onPress={() => setShowAddModal(false)} style={{ padding: 6, backgroundColor: 'rgba(0,0,0,0.05)', borderRadius: 999 }}>
-                <X size={20} color={COLORS.vjText} />
-              </TouchableOpacity>
-            </View>
-            
-            <KeyboardAwareScrollView 
-              keyboardShouldPersistTaps="handled" 
-              showsVerticalScrollIndicator={false}
-              enableOnAndroid={true}
-              enableAutomaticScroll={true}
-              extraScrollHeight={100}
+            <TouchableOpacity
+              activeOpacity={1}
+              style={[
+                s.formModalContent,
+                {
+                  backgroundColor: colors.vjBg,
+                  borderColor: colors.border,
+                  maxHeight: height * 0.85,
+                },
+              ]}
             >
-              <View style={s.formGroup}>
-                <GlassInput 
-                  label="Stone Name"
-                  value={newName}
-                  onChangeText={setNewName}
-                  placeholder="e.g. VS1 Round Diamond"
-                />
+              <View style={[s.modalHeaderRow, { borderBottomColor: `${colors.vjAccent}18` }]}>
+                <Text style={[s.modalHeaderTitle, { color: colors.vjText }]}>New Stone Type</Text>
+                <TouchableOpacity
+                  onPress={() => setShowAddModal(false)}
+                  style={[s.modalCloseBtn, { backgroundColor: `${colors.vjAccent}10` }]}
+                  disabled={isSubmitting}
+                >
+                  <X size={20} color={colors.vjText} />
+                </TouchableOpacity>
               </View>
 
-              <View style={s.formGroup}>
-                <Text style={s.label}>Base Type</Text>
-                <View style={s.typeGrid}>
-                  {STONE_TYPES.map((type) => (
-                    <TouchableOpacity 
-                      key={type}
-                      style={[s.typeBtn, newType === type && s.typeBtnActive]}
-                      onPress={() => setNewType(type)}
-                    >
-                      <Text style={[s.typeText, newType === type && s.typeTextActive]}>{type}</Text>
-                    </TouchableOpacity>
-                  ))}
+              <KeyboardAwareScrollView
+                keyboardShouldPersistTaps="handled"
+                showsVerticalScrollIndicator={false}
+                enableOnAndroid={true}
+                enableAutomaticScroll={true}
+                extraScrollHeight={100}
+              >
+                <View style={s.formGroup}>
+                  <GlassInput
+                    label="Stone Name *"
+                    value={newName}
+                    onChangeText={setNewName}
+                    placeholder="e.g. VS1 Round Diamond"
+                    autoCapitalize="words"
+                    maxLength={50}
+                  />
                 </View>
-              </View>
 
-              <View style={{ marginTop: 24, marginBottom: 8 }}>
-                <GlassButton 
-                  title={isSubmitting ? 'Saving...' : 'Save Stone'} 
-                  onPress={handleAdd} 
-                  disabled={isSubmitting} 
-                />
-              </View>
-            </KeyboardAwareScrollView>
-          </View>
-        </KeyboardAvoidingView>
+                <View style={s.formGroup}>
+                  <Text style={[s.label, { color: colors.vjText, opacity: 0.7 }]}>Base Type</Text>
+                  <View style={s.typeGrid}>
+                    {STONE_TYPES.map((type) => (
+                      <TouchableOpacity
+                        key={type}
+                        style={[
+                          s.typeBtn,
+                          { borderColor: colors.border },
+                          newType === type && [s.typeBtnActive, { backgroundColor: colors.vjAccent, borderColor: colors.vjAccent }],
+                        ]}
+                        onPress={() => setNewType(type)}
+                      >
+                        <Text style={[s.typeText, { color: colors.vjText }, newType === type && s.typeTextActive]}>
+                          {type}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                </View>
+
+                <View style={{ marginTop: 24, marginBottom: 8 }}>
+                  <GlassButton
+                    title={isSubmitting ? 'Saving...' : 'Save Stone'}
+                    onPress={handleAdd}
+                    disabled={isSubmitting}
+                  />
+                </View>
+              </KeyboardAwareScrollView>
+            </TouchableOpacity>
+          </KeyboardAvoidingView>
+        </TouchableOpacity>
       </Modal>
 
       {/* EDIT STONE MODAL */}
       <Modal visible={showEditModal} transparent animationType="fade" onRequestClose={() => setShowEditModal(false)}>
-        <KeyboardAvoidingView 
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'} 
-          style={{ flex: 1, backgroundColor: 'rgba(0, 0, 0, 0.55)', justifyContent: 'center', alignItems: 'center', padding: 16 }}
+        <TouchableOpacity
+          style={s.modalOverlayCenter}
+          activeOpacity={1}
+          onPress={() => !isSubmitting && setShowEditModal(false)}
         >
-          <View 
-            style={{ 
-              backgroundColor: COLORS.vjBg, 
-              width: '100%', 
-              maxWidth: isTablet ? 540 : 420, 
-              borderRadius: 24, 
-              padding: 20, 
-              maxHeight: height * 0.85, 
-              borderWidth: 1.5, 
-              borderColor: 'rgba(255,255,255,0.6)', 
-              elevation: 10,
-              shadowColor: '#000',
-              shadowOffset: { width: 0, height: 10 },
-              shadowOpacity: 0.25,
-              shadowRadius: 20,
-            }}
+          <KeyboardAvoidingView
+            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+            style={{ width: '100%', maxWidth: isTablet ? 540 : 420 }}
           >
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: 'rgba(0,0,0,0.1)' }}>
-              <Text style={{ fontSize: 20, fontWeight: '800', color: COLORS.vjText }}>Edit Stone Master</Text>
-              <TouchableOpacity onPress={() => setShowEditModal(false)} style={{ padding: 6, backgroundColor: 'rgba(0,0,0,0.05)', borderRadius: 999 }}>
-                <X size={20} color={COLORS.vjText} />
-              </TouchableOpacity>
-            </View>
-            
-            <KeyboardAwareScrollView 
-              keyboardShouldPersistTaps="handled" 
-              showsVerticalScrollIndicator={false}
-              enableOnAndroid={true}
-              enableAutomaticScroll={true}
-              extraScrollHeight={100}
+            <TouchableOpacity
+              activeOpacity={1}
+              style={[
+                s.formModalContent,
+                {
+                  backgroundColor: colors.vjBg,
+                  borderColor: colors.border,
+                  maxHeight: height * 0.85,
+                },
+              ]}
             >
-              <View style={s.formGroup}>
-                <GlassInput 
-                  label="Stone Name"
-                  value={editName}
-                  onChangeText={setEditName}
-                  placeholder="e.g. VS1 Round Diamond"
-                />
+              <View style={[s.modalHeaderRow, { borderBottomColor: `${colors.vjAccent}18` }]}>
+                <Text style={[s.modalHeaderTitle, { color: colors.vjText }]}>Edit Stone Master</Text>
+                <TouchableOpacity
+                  onPress={() => setShowEditModal(false)}
+                  style={[s.modalCloseBtn, { backgroundColor: `${colors.vjAccent}10` }]}
+                  disabled={isSubmitting}
+                >
+                  <X size={20} color={colors.vjText} />
+                </TouchableOpacity>
               </View>
 
-              <View style={s.formGroup}>
-                <Text style={s.label}>Base Type</Text>
-                <View style={s.typeGrid}>
-                  {STONE_TYPES.map((type) => (
-                    <TouchableOpacity 
-                      key={type}
-                      style={[s.typeBtn, editType === type && s.typeBtnActive]}
-                      onPress={() => setEditType(type)}
-                    >
-                      <Text style={[s.typeText, editType === type && s.typeTextActive]}>{type}</Text>
-                    </TouchableOpacity>
-                  ))}
+              <KeyboardAwareScrollView
+                keyboardShouldPersistTaps="handled"
+                showsVerticalScrollIndicator={false}
+                enableOnAndroid={true}
+                enableAutomaticScroll={true}
+                extraScrollHeight={100}
+              >
+                <View style={s.formGroup}>
+                  <GlassInput
+                    label="Stone Name *"
+                    value={editName}
+                    onChangeText={setEditName}
+                    placeholder="e.g. VS1 Round Diamond"
+                    autoCapitalize="words"
+                    maxLength={50}
+                  />
                 </View>
-              </View>
 
-              <View style={{ marginTop: 24, marginBottom: 8 }}>
-                <GlassButton 
-                  title={isSubmitting ? 'Updating...' : 'Update Stone'} 
-                  onPress={handleSaveEdit} 
-                  disabled={isSubmitting} 
-                />
-              </View>
-            </KeyboardAwareScrollView>
-          </View>
-        </KeyboardAvoidingView>
+                <View style={s.formGroup}>
+                  <Text style={[s.label, { color: colors.vjText, opacity: 0.7 }]}>Base Type</Text>
+                  <View style={s.typeGrid}>
+                    {STONE_TYPES.map((type) => (
+                      <TouchableOpacity
+                        key={type}
+                        style={[
+                          s.typeBtn,
+                          { borderColor: colors.border },
+                          editType === type && [s.typeBtnActive, { backgroundColor: colors.vjAccent, borderColor: colors.vjAccent }],
+                        ]}
+                        onPress={() => setEditType(type)}
+                      >
+                        <Text style={[s.typeText, { color: colors.vjText }, editType === type && s.typeTextActive]}>
+                          {type}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                </View>
+
+                <View style={{ marginTop: 24, marginBottom: 8 }}>
+                  <GlassButton
+                    title={isSubmitting ? 'Updating...' : 'Update Stone'}
+                    onPress={handleSaveEdit}
+                    disabled={isSubmitting}
+                  />
+                </View>
+              </KeyboardAwareScrollView>
+            </TouchableOpacity>
+          </KeyboardAvoidingView>
+        </TouchableOpacity>
       </Modal>
 
-      <Modal visible={!!successMessage} transparent animationType="fade">
-        <View style={s.modalOverlayCenter}>
-          <View style={s.successModalContent}>
+      {/* CONFIRM DELETE MODAL */}
+      <Modal visible={!!confirmDelete} transparent animationType="fade" onRequestClose={() => !isDeleting && setConfirmDelete(null)}>
+        <TouchableOpacity
+          style={s.modalOverlayCenter}
+          activeOpacity={1}
+          onPress={() => !isDeleting && setConfirmDelete(null)}
+        >
+          <TouchableOpacity
+            activeOpacity={1}
+            style={[s.successModalContent, { backgroundColor: colors.vjBg, borderColor: colors.border }]}
+          >
+            <View style={[s.successIconContainer, { backgroundColor: 'rgba(239, 68, 68, 0.1)' }]}>
+              <Trash2 size={36} color="#DC2626" />
+            </View>
+            <Text style={[s.successTitle, { color: colors.vjText }]}>Confirm Delete</Text>
+            <Text style={[s.successSubtitle, { color: colors.vjText }]}>
+              Are you sure you want to remove stone "{confirmDelete?.name}"?
+            </Text>
+            <View style={{ width: '100%', marginTop: 16, flexDirection: 'row', gap: 12 }}>
+              <View style={{ flex: 1 }}>
+                <GlassButton
+                  title="Cancel"
+                  onPress={() => setConfirmDelete(null)}
+                  variant="secondary"
+                  disabled={isDeleting}
+                />
+              </View>
+              <View style={{ flex: 1 }}>
+                <GlassButton
+                  title={isDeleting ? 'Removing...' : 'Delete'}
+                  onPress={handleConfirmDelete}
+                  variant="danger"
+                  disabled={isDeleting}
+                />
+              </View>
+            </View>
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
+
+      {/* ERROR MODAL */}
+      <Modal visible={!!errorMessage} transparent animationType="fade" onRequestClose={() => setErrorMessage(null)}>
+        <TouchableOpacity
+          style={s.modalOverlayCenter}
+          activeOpacity={1}
+          onPress={() => setErrorMessage(null)}
+        >
+          <TouchableOpacity
+            activeOpacity={1}
+            style={[s.successModalContent, { backgroundColor: colors.vjBg, borderColor: colors.border }]}
+          >
+            <View style={[s.successIconContainer, { backgroundColor: 'rgba(239, 68, 68, 0.1)' }]}>
+              <Text style={{ fontSize: 40 }}>⚠️</Text>
+            </View>
+            <Text style={[s.successTitle, { color: colors.vjText }]}>Delete Failed</Text>
+            <Text style={[s.successSubtitle, { color: colors.vjText }]}>{errorMessage}</Text>
+            <View style={{ width: '100%', marginTop: 16 }}>
+              <GlassButton title="Dismiss" onPress={() => setErrorMessage(null)} />
+            </View>
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
+
+      {/* SUCCESS MODAL */}
+      <Modal visible={!!successMessage} transparent animationType="fade" onRequestClose={() => setSuccessMessage(null)}>
+        <TouchableOpacity
+          style={s.modalOverlayCenter}
+          activeOpacity={1}
+          onPress={() => setSuccessMessage(null)}
+        >
+          <TouchableOpacity
+            activeOpacity={1}
+            style={[s.successModalContent, { backgroundColor: colors.vjBg, borderColor: colors.border }]}
+          >
             <View style={s.successIconContainer}>
               <CheckCircle size={56} color="#10B981" />
             </View>
-            <Text style={s.successTitle}>Success!</Text>
-            <Text style={s.successSubtitle}>{successMessage}</Text>
-            
+            <Text style={[s.successTitle, { color: colors.vjText }]}>Success!</Text>
+            <Text style={[s.successSubtitle, { color: colors.vjText }]}>{successMessage}</Text>
             <View style={{ width: '100%', marginTop: 16 }}>
-              <GlassButton 
-                title="Done" 
-                onPress={() => setSuccessMessage(null)} 
-              />
+              <GlassButton title="Done" onPress={() => setSuccessMessage(null)} />
             </View>
-          </View>
-        </View>
+          </TouchableOpacity>
+        </TouchableOpacity>
       </Modal>
     </TwoToneWrapper>
   );
 }
 
 const s = StyleSheet.create({
-  container: { flex: 1, paddingTop: 8 },
-  controlsRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 8, marginTop: 4 },
-  toggleContainer: { flexDirection: 'row', backgroundColor: 'rgba(92,22,35,0.05)', borderRadius: 12, padding: 4 },
-  toggleIconBtn: { padding: 8, borderRadius: 8 },
-  toggleIconActive: { backgroundColor: '#fff' },
-  
-  card: { paddingVertical: 16, paddingHorizontal: 16, marginBottom: 10 },
-  cardList: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', width: '100%' },
-  cardGrid: { flexDirection: 'column', alignItems: 'flex-start', width: '48%' },
-  cardTopList: { flex: 1, paddingRight: 8 },
-  cardTopGrid: { marginBottom: 12, width: '100%' },
-  cardBottomList: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  cardBottomGrid: { flexDirection: 'row', width: '100%', justifyContent: 'flex-end', alignItems: 'center' },
-  
-  rowTitle: { color: COLORS.vjText, fontSize: 16, fontWeight: '700', marginBottom: 6 },
-  stoneTypeBadge: { alignSelf: 'flex-start', backgroundColor: 'rgba(184,115,51,0.1)', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, borderWidth: 1, borderColor: 'rgba(184,115,51,0.2)' },
-  stoneTypeText: { color: COLORS.vjAccent, fontSize: 10, fontWeight: '800', letterSpacing: 0.5 },
-  
-  actionRow: { flexDirection: 'row', gap: 8 },
-  actionBtn: { padding: 8, backgroundColor: 'rgba(255,255,255,0.4)', borderRadius: 8 },
-  
+  container: { flex: 1, paddingTop: 6 },
+  toggleContainer: {
+    flexDirection: 'row',
+    borderRadius: 14,
+    padding: 3,
+  },
+  toggleIconBtn: {
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 11,
+  },
+  toggleIconActive: {
+    backgroundColor: '#fff',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  searchBarContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#fff',
+    borderWidth: 1,
+    borderRadius: 14,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 14,
+    fontWeight: '600',
+    paddingVertical: 0,
+  },
+  gridCardInner: {
+    width: '100%',
+  },
+  gridHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  stoneIconBadge: {
+    width: 32,
+    height: 32,
+    borderRadius: 10,
+    borderWidth: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  stoneIconBadgeList: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    borderWidth: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  stoneTypeBadge: {
+    alignSelf: 'flex-start',
+    paddingHorizontal: 8,
+    paddingVertical: 2.5,
+    borderRadius: 6,
+    borderWidth: 1,
+  },
+  stoneTypeText: {
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+  },
+  gridTitle: {
+    fontSize: 15,
+    fontWeight: '800',
+    lineHeight: 20,
+    minHeight: 40,
+    marginBottom: 10,
+  },
+  gridActionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingTop: 8,
+    borderTopWidth: 1,
+    gap: 8,
+  },
+  actionBtnEdit: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
+    borderWidth: 1,
+    paddingVertical: 6,
+    borderRadius: 8,
+  },
+  actionBtnEditText: {
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  actionBtnDelete: {
+    width: 32,
+    height: 32,
+    backgroundColor: 'rgba(239, 68, 68, 0.1)',
+    borderWidth: 1,
+    borderColor: 'rgba(239, 68, 68, 0.2)',
+    borderRadius: 8,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  listCardInner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    width: '100%',
+  },
+  listTextContainer: {
+    flex: 1,
+    paddingRight: 8,
+  },
+  listTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+    marginBottom: 4,
+  },
+  listActionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  actionBtnEditCircle: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    borderWidth: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  actionBtnDeleteCircle: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(239, 68, 68, 0.1)',
+    borderWidth: 1,
+    borderColor: 'rgba(239, 68, 68, 0.2)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  emptyContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 32,
+    marginTop: 40,
+  },
+  emptyIconCircle: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    borderWidth: 1.5,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  emptyTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+    textAlign: 'center',
+    marginBottom: 8,
+  },
+  emptySubtitle: {
+    fontSize: 13,
+    textAlign: 'center',
+    lineHeight: 18,
+    maxWidth: 280,
+    opacity: 0.65,
+  },
   formGroup: { marginBottom: 16 },
-  label: { fontSize: 12, fontWeight: '700', color: COLORS.vjText, opacity: 0.7, textTransform: 'uppercase', marginBottom: 8 },
-  input: { backgroundColor: '#fff', borderRadius: 12, padding: 16, fontSize: 16, color: COLORS.vjText, borderWidth: 1, borderColor: COLORS.border },
+  label: { fontSize: 12, fontWeight: '700', textTransform: 'uppercase', marginBottom: 8 },
   typeGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  typeBtn: { width: '48%', padding: 14, borderRadius: 12, borderWidth: 1, borderColor: COLORS.border, alignItems: 'center', backgroundColor: '#fff' },
-  typeBtnActive: { backgroundColor: COLORS.vjAccent, borderColor: COLORS.vjAccent },
-  typeText: { fontSize: 13, fontWeight: '700', color: COLORS.vjText, opacity: 0.7 },
+  typeBtn: {
+    flex: 1,
+    minWidth: '45%',
+    padding: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    alignItems: 'center',
+    backgroundColor: '#fff',
+  },
+  typeBtnActive: { borderWidth: 1 },
+  typeText: { fontSize: 13, fontWeight: '700' },
   typeTextActive: { color: '#fff' },
 
   modalOverlayCenter: {
@@ -433,15 +940,40 @@ const s = StyleSheet.create({
     alignItems: 'center',
     padding: 24,
   },
+  formModalContent: {
+    width: '100%',
+    borderRadius: 24,
+    padding: 20,
+    borderWidth: 1.5,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.25,
+    shadowRadius: 20,
+    elevation: 10,
+  },
+  modalHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+    paddingBottom: 12,
+    borderBottomWidth: 1,
+  },
+  modalHeaderTitle: {
+    fontSize: 20,
+    fontWeight: '800',
+  },
+  modalCloseBtn: {
+    padding: 6,
+    borderRadius: 999,
+  },
   successModalContent: {
-    backgroundColor: COLORS.vjBg,
     width: '100%',
     maxWidth: 400,
     borderRadius: 24,
     padding: 32,
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.5)',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 10 },
     shadowOpacity: 0.25,
@@ -450,21 +982,19 @@ const s = StyleSheet.create({
   },
   successIconContainer: {
     marginBottom: 16,
-    backgroundColor: 'rgba(16, 185, 129, 0.1)',
     padding: 16,
     borderRadius: 50,
+    backgroundColor: 'rgba(16, 185, 129, 0.1)',
   },
   successTitle: {
     fontSize: 24,
     fontWeight: '800',
-    color: COLORS.vjText,
     marginBottom: 8,
   },
   successSubtitle: {
     fontSize: 14,
-    color: COLORS.vjText,
-    opacity: 0.7,
     textAlign: 'center',
     marginBottom: 24,
+    opacity: 0.7,
   },
 });

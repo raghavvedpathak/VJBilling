@@ -1,4 +1,4 @@
-// app/inventory/edit-urd.tsx — Phase 2 v2.15 Canonical Screen
+// app/inventory/edit-urd.tsx — Phase 2 v2.24 Canonical Screen
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { View, Text, Alert, TouchableOpacity, Modal, ActivityIndicator, StyleSheet } from 'react-native';
@@ -9,15 +9,25 @@ import { TwoToneWrapper } from '@/components/TwoToneWrapper';
 import { GlassCard, GlassInput, GlassButton, FixedGlassBar } from '@/components/ui/Glass';
 import { useFirmStore } from '@/store/phase1/useFirmStore';
 import { urdPurchaseService } from '@/services/phase2/urdPurchaseService';
-import { getCurrencySymbol, formatRupees, computeURDCostBreakdown, parseCleanFloat, percentToKarat, getPurityPresets } from '@/utils/calculations';
-import { User, Scale, Banknote, CheckCircle, Save, X } from 'lucide-react-native';
-import type { URDMetalType, URDPurchase } from '@/types/phase2/phase2.types';
-import { COLORS } from '@/constants/theme';
+import { 
+  getCurrencySymbol, 
+  formatRupees, 
+  computeURDCostBreakdown, 
+  parseCleanFloat, 
+  percentToKarat, 
+  getPurityPresets,
+  rupeesToPaise 
+} from '@/utils/calculations';
+import { User, Scale, Banknote, CheckCircle, Save, X, Building2 } from 'lucide-react-native';
+import type { URDMetalType, URDPurchase, CreateURDPurchaseInput } from '@/types/phase2/phase2.types';
+import { appSettingsStore } from '@/store/phase1/appSettingsStore';
+import { COLORS, getThemeColors } from '@/constants/theme';
 
 export default function EditURDScreen() {
   const router = useRouter();
   const { activeFirmId } = useFirmStore();
-  const { urdId } = useLocalSearchParams<{ urdId: string }>();
+  const params = useLocalSearchParams<{ urdId: string }>();
+  const urdId = Array.isArray(params.urdId) ? params.urdId[0] : params.urdId;
 
   const [initialLoading, setInitialLoading] = useState(true);
   const [urdRecord, setUrdRecord] = useState<URDPurchase | null>(null);
@@ -39,6 +49,9 @@ export default function EditURDScreen() {
 
   const [loading, setLoading] = useState(false);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+
+  const activeTheme = appSettingsStore((s: any) => s.theme);
+  const colors = getThemeColors(activeTheme);
 
   // Load existing URD Purchase data
   useEffect(() => {
@@ -79,10 +92,14 @@ export default function EditURDScreen() {
           setDiscount('');
         }
 
-        setPaymentMode(urd.paymentMode === 'BANK_TRANSFER' || urd.paymentMode === 'NEFT' ? 'BANK' : (urd.paymentMode as any) || 'CASH');
+        setPaymentMode(
+          urd.paymentMode === 'BANK_TRANSFER' || urd.paymentMode === 'NEFT'
+            ? 'BANK'
+            : (urd.paymentMode as any) || 'CASH'
+        );
         setBankAccountId(urd.bankAccountId || '');
       } catch (e: any) {
-        Alert.alert('Error loading draft', e.message);
+        Alert.alert('Error loading draft', e.message || 'Failed to fetch URD draft.');
       } finally {
         if (active) setInitialLoading(false);
       }
@@ -90,16 +107,16 @@ export default function EditURDScreen() {
 
     fetchURD();
     return () => { active = false; };
-  }, [activeFirmId, urdId]);
+  }, [activeFirmId, urdId, router]);
 
   // Live Item Calculation
   const calculation = useMemo(() => {
     const grossMg = Math.round((parseCleanFloat(grossWeight) || 0) * 1000);
     const purity = parseCleanFloat(purityPercent) || 0;
-    const ratePaise = Math.round((parseCleanFloat(ratePerGram) || 0) * 100);
+    const ratePaise = rupeesToPaise(parseCleanFloat(ratePerGram)) || 0;
     const rawAdj = parseCleanFloat(discount);
     const signedAdj = adjustmentType === '-' ? -Math.abs(rawAdj) : Math.abs(rawAdj);
-    const adjustmentPaise = Math.round(signedAdj * 100);
+    const adjustmentPaise = rupeesToPaise(signedAdj) || 0;
 
     const breakdown = computeURDCostBreakdown(grossMg, purity, ratePaise, adjustmentPaise);
     return {
@@ -113,15 +130,45 @@ export default function EditURDScreen() {
   const handleSubmit = async () => {
     try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); } catch {}
     if (!activeFirmId || !urdId) return;
-    if (!customerName.trim()) { Alert.alert('Error', 'Seller/Customer Name is required'); return; }
+    if (!customerName.trim()) { 
+      Alert.alert('Validation Error', 'Seller/Customer Name is required.'); 
+      return; 
+    }
+
+    if (paymentMode !== 'CASH' && !bankAccountId.trim()) {
+      Alert.alert('Validation Error', `Please provide the Bank Account ID or reference for ${paymentMode} payment.`);
+      return;
+    }
+
+    // Optional KYC validation
+    const cleanedAadhaar = customerAadhaar.replace(/[^0-9]/g, '');
+    if (cleanedAadhaar && cleanedAadhaar.length !== 12) {
+      Alert.alert('Invalid Aadhaar', 'Aadhaar Number must be exactly 12 digits.');
+      return;
+    }
+
+    const cleanedPan = customerPAN.trim().toUpperCase();
+    if (cleanedPan && !/^[A-Z]{5}[0-9]{4}[A-Z]{1}$/.test(cleanedPan)) {
+      Alert.alert('Invalid PAN', 'PAN must follow standard format (e.g. ABCDE1234F).');
+      return;
+    }
 
     const grossMg = Math.round((parseCleanFloat(grossWeight) || 0) * 1000);
     const purity = parseCleanFloat(purityPercent) || 0;
-    const ratePaise = Math.round((parseCleanFloat(ratePerGram) || 0) * 100);
+    const ratePaise = rupeesToPaise(parseCleanFloat(ratePerGram));
 
-    if (isNaN(grossMg) || grossMg <= 0) { Alert.alert('Validation Error', 'Invalid Gross Weight'); return; }
-    if (isNaN(purity) || purity <= 0 || purity > 100) { Alert.alert('Validation Error', 'Purity must be between 1 and 100%'); return; }
-    if (isNaN(ratePaise) || ratePaise <= 0) { Alert.alert('Validation Error', 'Invalid Rate Per Gram'); return; }
+    if (isNaN(grossMg) || grossMg <= 0) { 
+      Alert.alert('Validation Error', 'Gross weight must be greater than 0.'); 
+      return; 
+    }
+    if (isNaN(purity) || purity <= 0 || purity > 100) { 
+      Alert.alert('Validation Error', 'Purity must be between 0.01% and 100%.'); 
+      return; 
+    }
+    if (!ratePaise || ratePaise <= 0) { 
+      Alert.alert('Validation Error', 'Please enter a valid Rate Per Gram.'); 
+      return; 
+    }
 
     if (calculation.totalValuePaise > 999999999) {
       Alert.alert('Limit Exceeded', `URD Purchase valuation cannot exceed ${getCurrencySymbol()}99,99,999.99`);
@@ -133,28 +180,33 @@ export default function EditURDScreen() {
       const cName = customerName.trim();
       const cAddr = customerAddress.trim() || null;
       const cMob = customerMobile.trim() || null;
-      const cAadhaar = customerAadhaar.replace(/[^0-9]/g, '') || null;
-      const cPan = customerPAN.trim().toUpperCase() || null;
+      const cAadhaar = cleanedAadhaar || null;
+      const cPan = cleanedPan || null;
+      const resolvedBankId = paymentMode !== 'CASH' ? bankAccountId.trim() : null;
 
-      await urdPurchaseService.updateURDPurchase(urdId, {
-        customerName: cName,
-        customerAddress: cAddr,
-        customerMobile: cMob,
-        customerAadhaar: cAadhaar,
-        customerPAN: cPan,
-        metalType,
-        grossWeightMg: calculation.grossWeightMg,
-        purityPercent: calculation.purityPercent,
-        ratePerGramPaise: calculation.ratePerGramPaise,
-        adjustmentPaise: calculation.adjustmentPaise,
-        totalValuePaise: calculation.totalValuePaise,
-        paymentMode,
-        bankAccountId: paymentMode !== 'CASH' ? bankAccountId || 'UNKNOWN_ACCOUNT' : null,
-      }, activeFirmId);
+      await urdPurchaseService.updateURDPurchase(
+        urdId,
+        {
+          customerName: cName,
+          customerAddress: cAddr,
+          customerMobile: cMob,
+          customerAadhaar: cAadhaar,
+          customerPAN: cPan,
+          metalType,
+          grossWeightMg: calculation.grossWeightMg,
+          purityPercent: calculation.purityPercent,
+          ratePerGramPaise: calculation.ratePerGramPaise,
+          adjustmentPaise: calculation.adjustmentPaise,
+          totalValuePaise: calculation.totalValuePaise,
+          paymentMode,
+          bankAccountId: resolvedBankId,
+        },
+        activeFirmId
+      );
 
       setSuccessMessage('URD Purchase Draft updated successfully.');
     } catch (e: any) {
-      Alert.alert('Error', e.message);
+      Alert.alert('Error', e.message || 'Failed to update URD purchase.');
     } finally {
       setLoading(false);
     }
@@ -164,8 +216,8 @@ export default function EditURDScreen() {
     return (
       <TwoToneWrapper title="Edit URD Draft" showBack>
         <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', marginTop: 80 }}>
-          <ActivityIndicator size="large" color={COLORS.vjAccent} />
-          <Text style={{ color: COLORS.vjText, marginTop: 12, fontWeight: '700' }}>Loading URD Draft Details...</Text>
+          <ActivityIndicator size="large" color={colors.vjAccent} />
+          <Text style={{ color: colors.vjText, marginTop: 12, fontWeight: '700' }}>Loading URD Draft Details...</Text>
         </View>
       </TwoToneWrapper>
     );
@@ -174,9 +226,9 @@ export default function EditURDScreen() {
   return (
     <TwoToneWrapper title="Edit URD Purchase" showBack>
       <View style={{ flex: 1 }}>
-        <KeyboardAwareScrollView 
+        <KeyboardAwareScrollView
           showsVerticalScrollIndicator={false}
-          keyboardShouldPersistTaps="handled" 
+          keyboardShouldPersistTaps="handled"
           keyboardDismissMode="on-drag"
           enableOnAndroid={true}
           enableAutomaticScroll={true}
@@ -188,18 +240,49 @@ export default function EditURDScreen() {
           <GlassCard style={{ marginBottom: 16 }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 16 }}>
               <User size={20} color="#D4AF37" />
-              <Text style={{ fontSize: 18, fontWeight: '700', color: COLORS.vjText }}>Seller Details</Text>
+              <Text style={{ fontSize: 18, fontWeight: '700', color: colors.vjText }}>Seller Details</Text>
             </View>
 
-            <GlassInput label="Full Name *" placeholder="Enter customer name" value={customerName} onChangeText={setCustomerName} />
-            <GlassInput label="Mobile Number" placeholder="10-digit mobile" keyboardType="phone-pad" value={customerMobile} onChangeText={setCustomerMobile} />
-            <GlassInput label="Address" placeholder="City/Area" value={customerAddress} onChangeText={setCustomerAddress} />
+            <GlassInput 
+              label="Full Name *" 
+              placeholder="Enter customer name" 
+              value={customerName} 
+              onChangeText={setCustomerName} 
+            />
+            <GlassInput 
+              label="Mobile Number" 
+              placeholder="10-digit mobile" 
+              keyboardType="phone-pad" 
+              maxLength={10}
+              value={customerMobile} 
+              onChangeText={setCustomerMobile} 
+            />
+            <GlassInput 
+              label="Address" 
+              placeholder="City/Area" 
+              value={customerAddress} 
+              onChangeText={setCustomerAddress} 
+            />
             <View style={{ flexDirection: 'row', gap: 12 }}>
               <View style={{ flex: 1 }}>
-                <GlassInput label="Aadhaar No" placeholder="12-digit number" keyboardType="number-pad" value={customerAadhaar} onChangeText={setCustomerAadhaar} />
+                <GlassInput 
+                  label="Aadhaar No (Optional)" 
+                  placeholder="12-digit number" 
+                  keyboardType="number-pad" 
+                  maxLength={12}
+                  value={customerAadhaar} 
+                  onChangeText={setCustomerAadhaar} 
+                />
               </View>
               <View style={{ flex: 1 }}>
-                <GlassInput label="PAN" placeholder="ABCDE1234F" autoCapitalize="characters" value={customerPAN} onChangeText={setCustomerPAN} />
+                <GlassInput 
+                  label="PAN (Optional)" 
+                  placeholder="ABCDE1234F" 
+                  autoCapitalize="characters" 
+                  maxLength={10}
+                  value={customerPAN} 
+                  onChangeText={setCustomerPAN} 
+                />
               </View>
             </View>
           </GlassCard>
@@ -208,7 +291,7 @@ export default function EditURDScreen() {
           <GlassCard style={{ marginBottom: 16 }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 16 }}>
               <Scale size={20} color="#D4AF37" />
-              <Text style={{ fontSize: 18, fontWeight: '700', color: COLORS.vjText }}>Item Details</Text>
+              <Text style={{ fontSize: 18, fontWeight: '700', color: colors.vjText }}>Item Details</Text>
             </View>
 
             <Text style={{ fontSize: 12, fontWeight: '700', color: 'rgba(92,22,35,0.6)', textTransform: 'uppercase', marginBottom: 6 }}>Metal Type *</Text>
@@ -216,8 +299,16 @@ export default function EditURDScreen() {
               {(['GOLD', 'SILVER'] as URDMetalType[]).map((m) => (
                 <TouchableOpacity
                   key={m}
-                  style={[{ flex: 1, padding: 10, borderRadius: 10, borderWidth: 1, borderColor: 'rgba(92,22,35,0.3)', alignItems: 'center' }, metalType === m && { backgroundColor: m === 'GOLD' ? '#C8860A' : '#6B7280', borderColor: m === 'GOLD' ? '#C8860A' : '#6B7280' }]}
-                  onPress={() => setMetalType(m)}
+                  style={[
+                    { flex: 1, padding: 10, borderRadius: 10, borderWidth: 1, borderColor: 'rgba(92,22,35,0.3)', alignItems: 'center' },
+                    metalType === m && { backgroundColor: m === 'GOLD' ? '#C8860A' : '#6B7280', borderColor: m === 'GOLD' ? '#C8860A' : '#6B7280' },
+                  ]}
+                  onPress={() => {
+                    if (metalType !== m) {
+                      setMetalType(m);
+                      setPurityPercent('');
+                    }
+                  }}
                 >
                   <Text style={[{ fontSize: 13, fontWeight: '700', color: 'rgba(92,22,35,0.6)' }, metalType === m && { color: '#fff' }]}>{m}</Text>
                 </TouchableOpacity>
@@ -227,7 +318,7 @@ export default function EditURDScreen() {
             <GlassInput
               label="Gross Weight (Grams) *"
               placeholder="0.000"
-              keyboardType="numeric"
+              keyboardType="decimal-pad"
               value={grossWeight}
               onChangeText={setGrossWeight}
             />
@@ -244,8 +335,8 @@ export default function EditURDScreen() {
                 ) : null}
               </View>
               <GlassInput
-                placeholder="91.6"
-                keyboardType="numeric"
+                placeholder={metalType === 'SILVER' ? '92.5' : '91.6'}
+                keyboardType="decimal-pad"
                 value={purityPercent}
                 onChangeText={setPurityPercent}
               />
@@ -253,7 +344,7 @@ export default function EditURDScreen() {
 
             {/* Quick Purity Preset Chips */}
             <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 12, marginTop: -4 }}>
-              {getPurityPresets(metalType || 'GOLD').map(preset => (
+              {getPurityPresets(metalType || 'GOLD').map((preset) => (
                 <TouchableOpacity
                   key={preset.id}
                   onPress={() => setPurityPercent(preset.val)}
@@ -261,10 +352,10 @@ export default function EditURDScreen() {
                     backgroundColor: purityPercent === preset.val ? '#D4AF37' : 'rgba(212,175,55,0.12)',
                     paddingHorizontal: 8,
                     paddingVertical: 4,
-                    borderRadius: 6
+                    borderRadius: 6,
                   }}
                 >
-                  <Text style={{ fontSize: 11, fontWeight: '700', color: purityPercent === preset.val ? '#FFF' : COLORS.vjText }}>
+                  <Text style={{ fontSize: 11, fontWeight: '700', color: purityPercent === preset.val ? '#FFF' : colors.vjText }}>
                     {preset.label}
                   </Text>
                 </TouchableOpacity>
@@ -274,25 +365,25 @@ export default function EditURDScreen() {
             <GlassInput
               label={`Rate Per Gram (${getCurrencySymbol()}) *`}
               placeholder="0.00"
-              keyboardType="numeric"
+              keyboardType="decimal-pad"
               value={ratePerGram}
               onChangeText={setRatePerGram}
             />
 
             <View style={{ marginBottom: 12 }}>
-              <Text style={{ fontSize: 12, fontWeight: '600', color: COLORS.vjText, marginBottom: 6 }}>
+              <Text style={{ fontSize: 12, fontWeight: '600', color: colors.vjText, marginBottom: 6 }}>
                 Adjustment Type:
               </Text>
               <View style={{ flexDirection: 'row', gap: 8 }}>
                 <TouchableOpacity 
                   style={{
                     flex: 1, paddingVertical: 8, borderRadius: 8, alignItems: 'center',
-                    backgroundColor: adjustmentType === '+' ? COLORS.vjText : 'rgba(255,255,255,0.4)',
-                    borderWidth: 1, borderColor: adjustmentType === '+' ? COLORS.vjText : 'rgba(0,0,0,0.1)'
+                    backgroundColor: adjustmentType === '+' ? colors.vjText : 'rgba(255,255,255,0.4)',
+                    borderWidth: 1, borderColor: adjustmentType === '+' ? colors.vjText : 'rgba(0,0,0,0.1)'
                   }}
                   onPress={() => setAdjustmentType('+')}
                 >
-                  <Text style={{ fontSize: 12, fontWeight: 'bold', color: adjustmentType === '+' ? '#fff' : COLORS.vjText }}>
+                  <Text style={{ fontSize: 12, fontWeight: 'bold', color: adjustmentType === '+' ? '#fff' : colors.vjText }}>
                     + Addition (Round-Up)
                   </Text>
                 </TouchableOpacity>
@@ -305,7 +396,7 @@ export default function EditURDScreen() {
                   }}
                   onPress={() => setAdjustmentType('-')}
                 >
-                  <Text style={{ fontSize: 12, fontWeight: 'bold', color: adjustmentType === '-' ? '#fff' : COLORS.vjText }}>
+                  <Text style={{ fontSize: 12, fontWeight: 'bold', color: adjustmentType === '-' ? '#fff' : colors.vjText }}>
                     - Deduction (Round-Down)
                   </Text>
                 </TouchableOpacity>
@@ -315,7 +406,7 @@ export default function EditURDScreen() {
             <GlassInput
               label={`Adjustment Amount (${getCurrencySymbol()})`}
               placeholder="0.00"
-              keyboardType="numeric"
+              keyboardType="decimal-pad"
               value={discount}
               onChangeText={setDiscount}
             />
@@ -325,7 +416,7 @@ export default function EditURDScreen() {
           <GlassCard style={{ marginBottom: 24 }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 16 }}>
               <Banknote size={20} color="#D4AF37" />
-              <Text style={{ fontSize: 18, fontWeight: '700', color: COLORS.vjText }}>Payout & Valuation Summary</Text>
+              <Text style={{ fontSize: 18, fontWeight: '700', color: colors.vjText }}>Payout & Valuation Summary</Text>
             </View>
 
             <Text style={{ fontSize: 12, fontWeight: '700', color: 'rgba(92,22,35,0.6)', textTransform: 'uppercase', marginBottom: 8 }}>Payout Mode *</Text>
@@ -333,7 +424,10 @@ export default function EditURDScreen() {
               {(['CASH', 'UPI', 'BANK'] as const).map((mode) => (
                 <TouchableOpacity
                   key={mode}
-                  style={[{ flex: 1, padding: 10, borderRadius: 8, borderWidth: 1, borderColor: 'rgba(92,22,35,0.3)', alignItems: 'center' }, paymentMode === mode && { backgroundColor: '#D4AF37', borderColor: '#D4AF37' }]}
+                  style={[
+                    { flex: 1, padding: 10, borderRadius: 8, borderWidth: 1, borderColor: 'rgba(92,22,35,0.3)', alignItems: 'center' },
+                    paymentMode === mode && { backgroundColor: '#D4AF37', borderColor: '#D4AF37' },
+                  ]}
                   onPress={() => setPaymentMode(mode)}
                 >
                   <Text style={[{ fontSize: 12, fontWeight: '700', color: 'rgba(92,22,35,0.6)' }, paymentMode === mode && { color: '#fff' }]}>{mode}</Text>
@@ -341,8 +435,20 @@ export default function EditURDScreen() {
               ))}
             </View>
 
+            {paymentMode !== 'CASH' && (
+              <View style={{ marginBottom: 12 }}>
+                <GlassInput
+                  label={`${paymentMode} Account / Reference No *`}
+                  placeholder={paymentMode === 'UPI' ? 'UPI ID / Mobile' : 'Bank Account Number'}
+                  value={bankAccountId}
+                  onChangeText={setBankAccountId}
+                  icon={<Building2 size={18} color="#D4AF37" />}
+                />
+              </View>
+            )}
+
             {calculation.isValid && (
-              <View style={{ backgroundColor: COLORS.vjText, padding: 16, borderRadius: 14, marginTop: 4 }}>
+              <View style={{ backgroundColor: colors.vjText, padding: 16, borderRadius: 14, marginTop: 4 }}>
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
                   <Text style={{ fontSize: 12, color: 'rgba(255,255,255,0.7)', fontWeight: '600' }}>Calculated Fine Weight</Text>
                   <Text style={{ fontSize: 12, color: '#F7D273', fontWeight: 'bold', fontFamily: 'monospace' }}>{calculation.formattedFineGrams}</Text>
@@ -355,7 +461,6 @@ export default function EditURDScreen() {
               </View>
             )}
           </GlassCard>
-
         </KeyboardAwareScrollView>
 
         {/* Fixed Action Bar */}
@@ -369,11 +474,12 @@ export default function EditURDScreen() {
             disabled={loading}
             activeOpacity={0.7}
           >
-            <X size={16} color={COLORS.vjText} />
-            <Text style={s.pillSecondaryText}>Cancel</Text>
+            <X size={16} color={colors.vjText} />
+            <Text style={[s.pillSecondaryText, { color: colors.vjText }]}>Cancel</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
+            testID="save-urd-changes-btn"
             style={s.pillPrimaryBtn}
             onPress={handleSubmit}
             disabled={loading}
@@ -393,13 +499,23 @@ export default function EditURDScreen() {
 
       {/* Success Modal */}
       <Modal visible={!!successMessage} transparent animationType="fade">
-        <View style={s.modalOverlayCenter}>
-          <View style={s.successModalContent}>
+        <TouchableOpacity 
+          style={s.modalOverlayCenter}
+          activeOpacity={1}
+          onPress={() => {
+            setSuccessMessage(null);
+            router.back();
+          }}
+        >
+          <TouchableOpacity 
+            activeOpacity={1}
+            style={[s.successModalContent, { backgroundColor: colors.vjBg, borderColor: colors.border }]}
+          >
             <View style={s.successIconContainer}>
               <CheckCircle size={56} color="#10B981" />
             </View>
-            <Text style={s.successTitle}>Draft Updated!</Text>
-            <Text style={s.successSubtitle}>{successMessage}</Text>
+            <Text style={[s.successTitle, { color: colors.vjText }]}>Draft Updated!</Text>
+            <Text style={[s.successSubtitle, { color: colors.vjText }]}>{successMessage}</Text>
 
             <View style={{ width: '100%', marginTop: 16 }}>
               <GlassButton
@@ -410,8 +526,8 @@ export default function EditURDScreen() {
                 }}
               />
             </View>
-          </View>
-        </View>
+          </TouchableOpacity>
+        </TouchableOpacity>
       </Modal>
     </TwoToneWrapper>
   );
@@ -426,14 +542,12 @@ const s = StyleSheet.create({
     padding: 24,
   },
   successModalContent: {
-    backgroundColor: '#FCFBF8',
     width: '100%',
     maxWidth: 400,
     borderRadius: 24,
     padding: 32,
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.5)',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 10 },
     shadowOpacity: 0.25,
@@ -449,14 +563,13 @@ const s = StyleSheet.create({
   successTitle: {
     fontSize: 24,
     fontWeight: '800',
-    color: COLORS.vjText,
     marginBottom: 8,
   },
   successSubtitle: {
     fontSize: 14,
-    color: 'rgba(92,22,35,0.6)',
     textAlign: 'center',
     marginBottom: 24,
+    opacity: 0.7,
   },
   pillSecondaryBtn: {
     flex: 1,
@@ -471,7 +584,6 @@ const s = StyleSheet.create({
     borderRadius: 28,
   },
   pillSecondaryText: {
-    color: COLORS.vjText,
     fontSize: 14,
     fontWeight: '700',
   },

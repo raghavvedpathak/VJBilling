@@ -22,3 +22,5 @@ export * from './phase2/karigarRepository';
 export * from './phase2/oldGoldLotRepository';
 export * from './phase2/stoneRepository';
 export * from './phase2/urdPurchaseRepository';
+export * from './phase2/looseStockLotRepository';
+export * from './phase2/looseStockEventRepository';

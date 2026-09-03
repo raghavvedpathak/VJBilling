@@ -1,8 +1,8 @@
-// repositories/phase2/inventoryDrillDownRepository.ts
-// FEAT-DRILL-DOWN-1 (v1.65) / FIX-LOWSTOCK-PURITYGRAIN-1 (v2.13)
+// repositories/phase2/inventoryDrillDownRepository.ts — Phase 2 v2.24 Canonical Repository
+// FEAT-DRILL-DOWN-1 (v1.65) / FIX-LOWSTOCK-PURITYGRAIN-1 (v2.13) / FEAT-SCREEN-C-SIZE-1 (v2.13)
 // All methods read-only. No DrizzleTransaction param.
 
-import { sql, eq, and, desc, asc } from 'drizzle-orm';
+import { sql, eq, and, or, desc, asc } from 'drizzle-orm';
 import { db } from '@/db/client';
 import { categories, items, designs, designPurityThresholds, itemEvents, auditLogs } from '@/db/schema';
 import type { 
@@ -12,10 +12,12 @@ import type {
   ItemTimelineEvent, 
   MetalSourceStockResult, 
   StockStatus, 
-  LowStockDesignPurityVariant 
+  LowStockDesignPurityVariant,
+  Metal
 } from '@/types/phase2/phase2.types';
 
 export const inventoryDrillDownRepository = {
+  // Screen A (Category Browse — getCategoriesWithStock)
   async getCategoriesWithStock(firmId: string) {
     const results = await db
       .select({
@@ -33,7 +35,7 @@ export const inventoryDrillDownRepository = {
           eq(items.firmId, firmId)
         )
       )
-      .where(eq(categories.firmId, firmId))
+      .where(and(eq(categories.firmId, firmId), eq(categories.isActive, 1)))
       .groupBy(categories.id)
       .orderBy(asc(categories.name));
 
@@ -56,7 +58,14 @@ export const inventoryDrillDownRepository = {
         availableCount: sql<number>`COUNT(${items.id})`,
       })
       .from(designPurityThresholds)
-      .innerJoin(designs, eq(designs.id, designPurityThresholds.designId))
+      .innerJoin(
+        designs,
+        and(
+          eq(designs.id, designPurityThresholds.designId),
+          eq(designs.firmId, firmId),
+          eq(designs.isActive, 1)
+        )
+      )
       .leftJoin(
         items,
         and(
@@ -85,6 +94,7 @@ export const inventoryDrillDownRepository = {
     return this.getLowStockDesignPurityVariants(firmId);
   },
 
+  // FEAT-GAP4-METALSOURCE-1 (v1.66)
   async getStockByMetalSource(firmId: string): Promise<MetalSourceStockResult[]> {
     const results = await db
       .select({
@@ -111,7 +121,9 @@ export const inventoryDrillDownRepository = {
     }));
   },
 
-  async getDesignsByCategory(firmId: string, categoryId: string): Promise<DesignCategoryStockResult[]> {
+  // Screen B (Design List Under Category — getDesignsByCategory)
+  // Supports both (firmId, categoryId) and (categoryId, firmId) parameter ordering
+  async getDesignsByCategory(first: string, second: string): Promise<DesignCategoryStockResult[]> {
     const results = await db
       .select({
         designId: designs.id,
@@ -128,11 +140,18 @@ export const inventoryDrillDownRepository = {
         and(
           eq(items.designId, designs.id),
           eq(items.status, 'AVAILABLE'),
-          eq(items.firmId, firmId),
-          eq(items.categoryId, categoryId)
+          or(
+            and(eq(items.firmId, first), eq(items.categoryId, second)),
+            and(eq(items.firmId, second), eq(items.categoryId, first))
+          )
         )
       )
-      .where(eq(designs.firmId, firmId))
+      .where(
+        and(
+          or(eq(designs.firmId, first), eq(designs.firmId, second)),
+          eq(designs.isActive, 1)
+        )
+      )
       .groupBy(designs.id, items.purityPercent)
       .orderBy(asc(designs.name), desc(items.purityPercent));
 
@@ -147,11 +166,14 @@ export const inventoryDrillDownRepository = {
     }));
   },
 
-  // FEAT-SCREEN-C-SIZE-1 (v2.13): Sort order extended to purityPercent DESC, sizeValue ASC, created_at DESC
-  async getItemsByDesign(firmId: string, designId: string, purityPercent?: number): Promise<ItemSearchResult[]> {
+  // Screen C (Individual Items Under Design — getItemsByDesign)
+  // FEAT-SCREEN-C-SIZE-1 (v2.13): Sort order purityPercent DESC, sizeValue ASC, created_at DESC
+  async getItemsByDesign(first: string, second: string, purityPercent?: number): Promise<ItemSearchResult[]> {
     const conditions = [
-      eq(items.designId, designId),
-      eq(items.firmId, firmId),
+      or(
+        and(eq(items.firmId, first), eq(items.designId, second)),
+        and(eq(items.firmId, second), eq(items.designId, first))
+      ),
       eq(items.status, 'AVAILABLE')
     ];
 
@@ -178,8 +200,14 @@ export const inventoryDrillDownRepository = {
         sizeUnit: items.sizeUnit,
       })
       .from(items)
-      .innerJoin(designs, eq(designs.id, items.designId))
-      .innerJoin(categories, eq(categories.id, items.categoryId))
+      .innerJoin(
+        designs,
+        and(eq(designs.id, items.designId), eq(designs.firmId, items.firmId))
+      )
+      .innerJoin(
+        categories,
+        and(eq(categories.id, items.categoryId), eq(categories.firmId, items.firmId))
+      )
       .where(and(...conditions))
       .orderBy(desc(items.purityPercent), asc(items.sizeValue), desc(items.createdAt));
 
@@ -211,8 +239,8 @@ export const inventoryDrillDownRepository = {
         sizeUnit: items.sizeUnit,
       })
       .from(items)
-      .leftJoin(designs, eq(designs.id, items.designId))
-      .leftJoin(categories, eq(categories.id, items.categoryId))
+      .leftJoin(designs, and(eq(designs.id, items.designId), eq(designs.firmId, items.firmId)))
+      .leftJoin(categories, and(eq(categories.id, items.categoryId), eq(categories.firmId, items.firmId)))
       .where(
         and(
           eq(items.firmId, firmId),
@@ -239,8 +267,14 @@ export const inventoryDrillDownRepository = {
         categoryName: categories.name,
       })
       .from(items)
-      .innerJoin(designs, eq(designs.id, items.designId))
-      .innerJoin(categories, eq(categories.id, items.categoryId))
+      .innerJoin(
+        designs,
+        and(eq(designs.id, items.designId), eq(designs.firmId, items.firmId))
+      )
+      .innerJoin(
+        categories,
+        and(eq(categories.id, items.categoryId), eq(categories.firmId, items.firmId))
+      )
       .where(
         and(
           eq(items.id, itemId),
@@ -253,10 +287,13 @@ export const inventoryDrillDownRepository = {
 
     return {
       ...result.item,
-      metal: result.item.metal as 'GOLD' | 'SILVER',
+      metal: result.item.metal as Metal,
       status: result.item.status as StockStatus,
       designName: result.designName,
       categoryName: result.categoryName,
+      saleInvoiceId: result.item.saleInvoiceId ?? null,
+      purchaseInvoiceId: result.item.purchaseInvoiceId ?? null,
+      barcodeReprintRequired: Boolean(result.item.barcodeReprintRequired),
     };
   },
 
@@ -271,6 +308,7 @@ export const inventoryDrillDownRepository = {
         newValue: itemEvents.newValue,
         reason: itemEvents.reason,
         performedBy: itemEvents.performedBy,
+        karigarId: itemEvents.karigarId,
         payload: auditLogs.payload,
       })
       .from(itemEvents)
@@ -290,7 +328,14 @@ export const inventoryDrillDownRepository = {
       )
       .orderBy(asc(itemEvents.timestamp));
 
-    return results.map(r => {
+    // Deduplicate in case multiple audit log rows match an event type
+    const seenEventIds = new Set<string>();
+    const timeline: ItemTimelineEvent[] = [];
+
+    for (const r of results) {
+      if (seenEventIds.has(r.id)) continue;
+      seenEventIds.add(r.id);
+
       let karigarName: string | undefined = undefined;
       let outcome: string | undefined = undefined;
       let changes: Record<string, { old: unknown; new: unknown }> | undefined = undefined;
@@ -298,20 +343,18 @@ export const inventoryDrillDownRepository = {
       if (r.payload) {
         try {
           const parsed = JSON.parse(r.payload as string);
-          if (r.eventType === 'ITEM_SENT_TO_KARIGAR') {
-            karigarName = parsed.karigarName;
-          } else if (r.eventType === 'ITEM_RETURNED_FROM_KARIGAR') {
+          if (r.eventType === 'ITEM_SENT_TO_KARIGAR' || r.eventType === 'ITEM_RETURNED_FROM_KARIGAR') {
             karigarName = parsed.karigarName;
             outcome = parsed.outcome;
           } else if (r.eventType === 'ITEM_EDITED') {
             changes = parsed.changes;
           }
         } catch {
-          // ignore parse errors
+          // ignore JSON parse errors on payloads
         }
       }
 
-      return {
+      timeline.push({
         id: r.id,
         eventType: r.eventType as any,
         severity: r.severity as 'INFO' | 'WARNING' | 'ERROR',
@@ -320,10 +363,21 @@ export const inventoryDrillDownRepository = {
         newValue: r.newValue,
         reason: r.reason,
         performedBy: r.performedBy,
+        karigarId: r.karigarId ?? null,
         ...(karigarName !== undefined ? { karigarName } : {}),
         ...(outcome !== undefined ? { outcome } : {}),
         ...(changes !== undefined ? { changes } : {}),
-      };
-    });
+      });
+    }
+
+    return timeline;
+  },
+
+  // Screen D (Item Detail + Timeline — getItemDetail)
+  async getItemDetail(firmId: string, itemId: string): Promise<ItemDetail | null> {
+    const item = await this.getItemWithNames(firmId, itemId);
+    if (!item) return null;
+    const timeline = await this.getItemTimeline(firmId, itemId);
+    return { ...item, timeline };
   }
 };

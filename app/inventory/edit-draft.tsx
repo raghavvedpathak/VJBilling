@@ -1,4 +1,4 @@
-// app/inventory/edit-draft.tsx — Phase 2 v2.15 Canonical Screen
+// app/inventory/edit-draft.tsx — Phase 2 v2.24 Canonical Screen
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator, Modal } from 'react-native';
@@ -21,16 +21,19 @@ import {
   rupeesToPaise,
   getCurrencySymbol,
   getPurityPresets,
+  parseCleanFloat,
 } from '@/utils/calculations';
 import { Edit3, Save, Calculator, CheckCircle, Package } from 'lucide-react-native';
 import { GlassButton, GlassPickerInput, FixedGlassBar, fixedBarStyles, HeaderPill, GlassCard } from '@/components/ui/Glass';
 import { GlassPickerModal, GlassPickerOption } from '@/components/ui/GlassPickerModal';
-import { COLORS } from '@/constants/theme';
+import { appSettingsStore } from '@/store/phase1/appSettingsStore';
+import { COLORS, getThemeColors } from '@/constants/theme';
 
 export default function EditDraftScreen() {
   const router = useRouter();
   const { activeFirmId } = useFirmStore();
-  const { itemId } = useLocalSearchParams<{ itemId: string }>();
+  const params = useLocalSearchParams<{ itemId: string }>();
+  const itemId = Array.isArray(params.itemId) ? params.itemId[0] : params.itemId;
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -52,17 +55,20 @@ export default function EditDraftScreen() {
   const [stoneCost, setStoneCost] = useState('');
 
   const [sizeValue, setSizeValue] = useState('');
-  const [sizeUnit, setSizeUnit] = useState('');
+  const [sizeUnit, setSizeUnit] = useState<'INCH' | 'MM' | 'CM' | 'RING_SIZE' | ''>('');
 
   const [location, setLocation] = useState('');
   const [huid, setHuid] = useState('');
   const [metal, setMetal] = useState<'GOLD' | 'SILVER'>('GOLD');
   const [reason, setReason] = useState('Typo correction before activation');
 
+  const activeTheme = appSettingsStore((s: any) => s.theme);
+  const colors = getThemeColors(activeTheme);
+
   const [pickerModal, setPickerModal] = useState<{
     visible: boolean;
     title: string;
-    placeholder?: string | undefined;
+    placeholder?: string;
     options: GlassPickerOption[];
     selectedId: string | null;
     onSelect: (option: GlassPickerOption | null) => void;
@@ -97,7 +103,7 @@ export default function EditDraftScreen() {
           setMakingCharge(item.makingChargePaise ? (item.makingChargePaise / 100).toString() : '');
           setStoneCost(item.stoneCostPaise ? (item.stoneCostPaise / 100).toString() : '');
           setSizeValue(item.sizeValue !== null && item.sizeValue !== undefined ? item.sizeValue.toString() : '');
-          setSizeUnit(item.sizeUnit || '');
+          setSizeUnit((item.sizeUnit as 'INCH' | 'MM' | 'CM' | 'RING_SIZE') || '');
           setLocation(item.location || '');
           setHuid(item.huid || '');
           setMetal(item.metal);
@@ -116,14 +122,14 @@ export default function EditDraftScreen() {
   }, [itemId, activeFirmId]);
 
   const liveWastageSeparation = useMemo(() => {
-    const gross = parseFloat(grossG) || 0;
-    const stone = parseFloat(stoneG) || 0;
-    const beads = parseFloat(beadsG) || 0;
-    const purity = parseFloat(purityPercent) || 0;
-    const wastage = parseFloat(wastagePercent) || 0;
-    const rate = parseFloat(purchaseRate) || 0;
-    const making = parseFloat(makingCharge) || 0;
-    const stoneC = parseFloat(stoneCost) || 0;
+    const gross = parseCleanFloat(grossG);
+    const stone = parseCleanFloat(stoneG);
+    const beads = parseCleanFloat(beadsG);
+    const purity = parseCleanFloat(purityPercent);
+    const wastage = parseCleanFloat(wastagePercent);
+    const rate = parseCleanFloat(purchaseRate);
+    const making = parseCleanFloat(makingCharge);
+    const stoneC = parseCleanFloat(stoneCost);
 
     const netWeightG = Math.max(0, gross - stone - beads);
     const netWeightMg = Math.round(netWeightG * 1000);
@@ -133,7 +139,6 @@ export default function EditDraftScreen() {
     const fineGoldChargedMg = computeFineGoldChargedMg(netWeightMg, purity, wastage);
     const costTruth = computeCostTruthGrams(fineGoldChargedMg, fineWeightMg);
     
-    // FIX-EFFPRICE-PURITYROUND-1 (v2.14): pass metal to apply 100% rounding
     const effectivePricePerGram = computeEffectivePricePerGram(rate, purity, wastage, metal);
     const absoluteTotalCost = computeAbsoluteTotalCostRupees(netWeightG, effectivePricePerGram, making, stoneC);
     const metalCostRupees = netWeightG * effectivePricePerGram;
@@ -170,9 +175,9 @@ export default function EditDraftScreen() {
   }, [grossG, stoneG, beadsG, purityPercent, wastagePercent, purchaseRate, makingCharge, stoneCost, metal]);
 
   const computedKarat = useMemo(() => {
-    const p = parseFloat(purityPercent);
+    const p = parseCleanFloat(purityPercent);
     if (isNaN(p) || p <= 0) return '';
-    if (metal === 'SILVER') return 'SILVER';
+    if (metal === 'SILVER') return `${p.toFixed(1)}%`;
     const k = percentToKarat(p) || 0;
     return k > 0 ? `${k}K` : '';
   }, [purityPercent, metal]);
@@ -180,28 +185,28 @@ export default function EditDraftScreen() {
   const handleSave = async () => {
     if (!activeFirmId || !itemId) return;
 
-    const parsedGross = parseFloat(grossG) || 0;
-    const parsedStone = parseFloat(stoneG) || 0;
-    const parsedBeads = parseFloat(beadsG) || 0;
-    const parsedPurity = parseFloat(purityPercent) || 0;
-    const parsedWastage = parseFloat(wastagePercent) || 0;
+    const parsedGross = parseCleanFloat(grossG);
+    const parsedStone = parseCleanFloat(stoneG);
+    const parsedBeads = parseCleanFloat(beadsG);
+    const parsedPurity = parseCleanFloat(purityPercent);
+    const parsedWastage = parseCleanFloat(wastagePercent);
 
     if (parsedGross <= 0) {
       setErrorMessage('Gross weight must be greater than 0.');
       return;
     }
-    if (parsedGross - parsedStone - parsedBeads <= 0) {
+    if (parsedStone + parsedBeads >= parsedGross) {
       setErrorMessage('Net weight (Gross - Stone - Beads) must be greater than 0.');
       return;
     }
     if (parsedPurity <= 0 || parsedPurity > 100) {
-      setErrorMessage('Purity must be between 1 and 100.');
+      setErrorMessage('Purity must be between 0.01% and 100%.');
       return;
     }
 
-    // GAP-P2-SIZE-EDIT-1: Client-side pairing validation
-    const hasSizeVal = sizeValue && sizeValue.trim() !== '';
-    const hasSizeUnit = sizeUnit && sizeUnit.trim() !== '';
+    // GAP-P2-SIZE-EDIT-1: Client-side size pairing validation
+    const hasSizeVal = sizeValue.trim() !== '';
+    const hasSizeUnit = sizeUnit.trim() !== '';
     if ((hasSizeVal && !hasSizeUnit) || (!hasSizeVal && hasSizeUnit)) {
       setErrorMessage('Size Value and Size Unit must both be specified together, or both left blank.');
       return;
@@ -223,23 +228,16 @@ export default function EditDraftScreen() {
       const newStoneMg = Math.round(parsedStone * 1000);
       const newBeadsMg = Math.round(parsedBeads * 1000);
       
-      const newPurityKarat = percentToKarat(parsedPurity) || 0;
-      const newRatePaise = rupeesToPaise(purchaseRate);
-      const newMakingPaise = rupeesToPaise(makingCharge);
-      const newStoneCostPaise = rupeesToPaise(stoneCost);
+      const newPurityKarat = metal === 'GOLD' ? (percentToKarat(parsedPurity) || 0) : 0;
+      const newRatePaise = purchaseRate.trim() ? rupeesToPaise(parseCleanFloat(purchaseRate)) : null;
+      const newMakingPaise = makingCharge.trim() ? rupeesToPaise(parseCleanFloat(makingCharge)) : null;
+      const newStoneCostPaise = stoneCost.trim() ? rupeesToPaise(parseCleanFloat(stoneCost)) : null;
 
-      // 1. adjustWeight with wastagePercent (Step 6.7.4)
-      await itemService.adjustWeight(
-        itemId,
-        activeFirmId,
-        newGrossMg,
-        newStoneMg,
-        newBeadsMg,
-        reason,
-        parsedWastage
-      );
+      const parsedSizeVal = hasSizeVal ? parseCleanFloat(sizeValue) : null;
+      const parsedSizeUnit: 'INCH' | 'MM' | 'CM' | 'RING_SIZE' | null = 
+        hasSizeUnit && sizeUnit !== '' ? (sizeUnit as 'INCH' | 'MM' | 'CM' | 'RING_SIZE') : null;
 
-      // 2. updateItem for non-weight fields
+      // 1. Update non-weight attributes (purity, financials, location, sizes) first
       await itemService.updateItem(
         itemId, 
         activeFirmId, 
@@ -250,10 +248,21 @@ export default function EditDraftScreen() {
           makingChargePaise: newMakingPaise,
           stoneCostPaise: newStoneCostPaise,
           location: location.trim() || null,
-          sizeValue: hasSizeVal ? parseFloat(sizeValue) : null,
-          sizeUnit: hasSizeUnit ? (sizeUnit as any) : null,
+          sizeValue: parsedSizeVal,
+          sizeUnit: parsedSizeUnit,
         },
         reason
+      );
+
+      // 2. Adjust physical weight so fineWeightMg is computed against the freshly updated purity
+      await itemService.adjustWeight(
+        itemId,
+        activeFirmId,
+        newGrossMg,
+        newStoneMg,
+        newBeadsMg,
+        reason,
+        parsedWastage
       );
 
       // 3. HUID assignment / correction branch (FEAT-ITEM-CORRECTION-1 v1.88)
@@ -275,7 +284,7 @@ export default function EditDraftScreen() {
 
   const draftHeaderPills = (
     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginTop: 4 }}>
-      <HeaderPill icon={<Edit3 size={12} color={COLORS.vjBg} />} label={sku || 'Draft Item'} />
+      <HeaderPill icon={<Edit3 size={12} color={colors.vjBg} />} label={sku || 'Draft Item'} />
       <HeaderPill icon={<Package size={12} color="#D97706" />} label="DRAFT CORRECTION" variant="warning" />
     </View>
   );
@@ -285,7 +294,7 @@ export default function EditDraftScreen() {
       <View style={{ flex: 1 }}>
         {loading ? (
           <View style={s.center}>
-            <ActivityIndicator size="large" color={COLORS.vjAccent} />
+            <ActivityIndicator size="large" color={colors.vjAccent} />
           </View>
         ) : (
           <KeyboardAwareScrollView 
@@ -299,43 +308,69 @@ export default function EditDraftScreen() {
             contentContainerStyle={{ paddingBottom: 220, paddingTop: 6 }}
           >
             
-            <View style={[s.card, { zIndex: 50 }]}>
-              <Text style={s.sectionTitle}>Weights (Grams)</Text>
+            <View style={[s.card, { borderColor: `${colors.vjAccent}25`, zIndex: 50 }]}>
+              <Text style={[s.sectionTitle, { color: colors.vjText }]}>Weights (Grams)</Text>
               <View style={s.row}>
                 <View style={[s.inputGroup, { flex: 1, paddingRight: 6 }]}>
                   <Text style={s.label}>Gross Wt *</Text>
-                  <TextInput style={s.input} value={grossG} onChangeText={setGrossG} keyboardType="numeric" />
+                  <TextInput 
+                    style={[s.input, { color: colors.vjText, borderColor: colors.border }]} 
+                    value={grossG} 
+                    onChangeText={setGrossG} 
+                    keyboardType="decimal-pad" 
+                  />
                 </View>
                 <View style={[s.inputGroup, { flex: 1, paddingHorizontal: 6 }]}>
                   <Text style={s.label}>Stone Wt</Text>
-                  <TextInput style={s.input} value={stoneG} onChangeText={setStoneG} keyboardType="numeric" />
+                  <TextInput 
+                    style={[s.input, { color: colors.vjText, borderColor: colors.border }]} 
+                    value={stoneG} 
+                    onChangeText={setStoneG} 
+                    keyboardType="decimal-pad" 
+                  />
                 </View>
                 <View style={[s.inputGroup, { flex: 1, paddingLeft: 6 }]}>
                   <Text style={s.label}>Beads Wt</Text>
-                  <TextInput style={s.input} value={beadsG} onChangeText={setBeadsG} keyboardType="numeric" />
+                  <TextInput 
+                    style={[s.input, { color: colors.vjText, borderColor: colors.border }]} 
+                    value={beadsG} 
+                    onChangeText={setBeadsG} 
+                    keyboardType="decimal-pad" 
+                  />
                 </View>
               </View>
             </View>
 
-            <View style={[s.card, { zIndex: 40 }]}>
-              <Text style={s.sectionTitle}>Purity & Financials</Text>
+            <View style={[s.card, { borderColor: `${colors.vjAccent}25`, zIndex: 40 }]}>
+              <Text style={[s.sectionTitle, { color: colors.vjText }]}>Purity & Financials</Text>
               <View style={s.row}>
                 <View style={[s.inputGroup, { flex: 1, paddingRight: 6 }]}>
                   <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
                     <Text style={[s.label, { marginBottom: 0 }]}>Purity % *</Text>
-                    {computedKarat && computedKarat !== 'SILVER' ? (
+                    {computedKarat ? (
                       <View style={{ backgroundColor: 'rgba(212,175,55,0.2)', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 }}>
                         <Text style={{ fontSize: 11, fontWeight: '800', color: '#D4AF37' }}>{computedKarat}</Text>
                       </View>
                     ) : null}
                   </View>
-                  <TextInput style={s.input} value={purityPercent} onChangeText={setPurityPercent} keyboardType="numeric" />
+                  <TextInput 
+                    style={[s.input, { color: colors.vjText, borderColor: colors.border }]} 
+                    value={purityPercent} 
+                    onChangeText={setPurityPercent} 
+                    keyboardType="decimal-pad" 
+                  />
                 </View>
                 <View style={[s.inputGroup, { flex: 1, paddingLeft: 6 }]}>
                   <Text style={s.label}>Wastage %</Text>
-                  <TextInput style={s.input} value={wastagePercent} onChangeText={setWastagePercent} keyboardType="numeric" />
+                  <TextInput 
+                    style={[s.input, { color: colors.vjText, borderColor: colors.border }]} 
+                    value={wastagePercent} 
+                    onChangeText={setWastagePercent} 
+                    keyboardType="decimal-pad" 
+                  />
                 </View>
               </View>
+
               <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 4, marginBottom: 12 }}>
                 {getPurityPresets(metal || 'GOLD').map(preset => (
                   <TouchableOpacity
@@ -345,7 +380,7 @@ export default function EditDraftScreen() {
                       setPurityPercent(preset.val);
                     }}
                     style={{
-                      backgroundColor: purityPercent === preset.val || purityPercent === preset.label.split('K')[0] ? '#D4AF37' : 'rgba(212,175,55,0.12)',
+                      backgroundColor: purityPercent === preset.val ? '#D4AF37' : 'rgba(212,175,55,0.12)',
                       paddingHorizontal: 8,
                       paddingVertical: 4,
                       borderRadius: 6
@@ -354,45 +389,78 @@ export default function EditDraftScreen() {
                     <Text style={{
                       fontSize: 11,
                       fontWeight: '700',
-                      color: purityPercent === preset.val || purityPercent === preset.label.split('K')[0] ? '#FFF' : COLORS.vjText
+                      color: purityPercent === preset.val ? '#FFF' : colors.vjText
                     }}>
                       {preset.label}
                     </Text>
                   </TouchableOpacity>
                 ))}
               </View>
+
               <View style={s.row}>
                 <View style={[s.inputGroup, { flex: 1, paddingRight: 6 }]}>
                   <Text style={s.label}>Rate ({getCurrencySymbol()})</Text>
-                  <TextInput style={s.input} value={purchaseRate} onChangeText={setPurchaseRate} keyboardType="numeric" />
+                  <TextInput 
+                    style={[s.input, { color: colors.vjText, borderColor: colors.border }]} 
+                    value={purchaseRate} 
+                    onChangeText={setPurchaseRate} 
+                    keyboardType="decimal-pad" 
+                  />
                 </View>
                 <View style={[s.inputGroup, { flex: 1, paddingHorizontal: 6 }]}>
                   <Text style={s.label}>Making ({getCurrencySymbol()})</Text>
-                  <TextInput style={s.input} value={makingCharge} onChangeText={setMakingCharge} keyboardType="numeric" />
+                  <TextInput 
+                    style={[s.input, { color: colors.vjText, borderColor: colors.border }]} 
+                    value={makingCharge} 
+                    onChangeText={setMakingCharge} 
+                    keyboardType="decimal-pad" 
+                  />
                 </View>
                 <View style={[s.inputGroup, { flex: 1, paddingLeft: 6 }]}>
                   <Text style={s.label}>Stn Cost ({getCurrencySymbol()})</Text>
-                  <TextInput style={s.input} value={stoneCost} onChangeText={setStoneCost} keyboardType="numeric" />
+                  <TextInput 
+                    style={[s.input, { color: colors.vjText, borderColor: colors.border }]} 
+                    value={stoneCost} 
+                    onChangeText={setStoneCost} 
+                    keyboardType="decimal-pad" 
+                  />
                 </View>
               </View>
             </View>
 
-            <View style={[s.card, { zIndex: 30 }]}>
-              <Text style={s.sectionTitle}>Tracking</Text>
+            <View style={[s.card, { borderColor: `${colors.vjAccent}25`, zIndex: 30 }]}>
+              <Text style={[s.sectionTitle, { color: colors.vjText }]}>Tracking & Sizing</Text>
               <View style={s.row}>
                 <View style={[s.inputGroup, { flex: 1, paddingRight: 6 }]}>
                   <Text style={s.label}>Location</Text>
-                  <TextInput style={s.input} value={location} onChangeText={setLocation} autoCapitalize="characters" />
+                  <TextInput 
+                    style={[s.input, { color: colors.vjText, borderColor: colors.border }]} 
+                    value={location} 
+                    onChangeText={setLocation} 
+                    autoCapitalize="characters" 
+                  />
                 </View>
                 <View style={[s.inputGroup, { flex: 1, paddingLeft: 6 }]}>
                   <Text style={s.label}>BIS HUID</Text>
-                  <TextInput style={s.input} value={huid} onChangeText={setHuid} autoCapitalize="characters" maxLength={6} />
+                  <TextInput 
+                    style={[s.input, { color: colors.vjText, borderColor: colors.border }]} 
+                    value={huid} 
+                    onChangeText={setHuid} 
+                    autoCapitalize="characters" 
+                    maxLength={6} 
+                  />
                 </View>
               </View>
-              <View style={[s.row, { marginTop: 12, zIndex: 10 }]}>
+              <View style={[s.row, { marginTop: 4, zIndex: 10 }]}>
                 <View style={[s.inputGroup, { flex: 1, paddingRight: 6 }]}>
                   <Text style={s.label}>Size Value</Text>
-                  <TextInput style={s.input} value={sizeValue} onChangeText={setSizeValue} keyboardType="numeric" placeholder="Size" />
+                  <TextInput 
+                    style={[s.input, { color: colors.vjText, borderColor: colors.border }]} 
+                    value={sizeValue} 
+                    onChangeText={setSizeValue} 
+                    keyboardType="decimal-pad" 
+                    placeholder="Size" 
+                  />
                 </View>
                 <View style={[s.inputGroup, { flex: 1, paddingLeft: 6 }]}>
                   <GlassPickerInput
@@ -417,7 +485,7 @@ export default function EditDraftScreen() {
                         ],
                         onSelect: (opt) => {
                           if (!opt) return setSizeUnit('');
-                          setSizeUnit(opt.id);
+                          setSizeUnit(opt.id as 'INCH' | 'MM' | 'CM' | 'RING_SIZE');
                         },
                       });
                     }}
@@ -538,6 +606,7 @@ export default function EditDraftScreen() {
               <Text style={fixedBarStyles.pillSecondaryText}>Cancel</Text>
             </TouchableOpacity>
             <TouchableOpacity 
+              testID="save-correction-btn"
               style={fixedBarStyles.pillPrimaryBtn} 
               onPress={handleSave}
               disabled={saving}
@@ -555,14 +624,25 @@ export default function EditDraftScreen() {
         )}
       </View>
 
+      {/* SUCCESS MODAL */}
       <Modal visible={!!successMessage} transparent animationType="fade">
-        <View style={s.modalOverlayCenter}>
-          <View style={s.successModalContent}>
+        <TouchableOpacity 
+          style={s.modalOverlayCenter}
+          activeOpacity={1}
+          onPress={() => {
+            setSuccessMessage(null);
+            router.back();
+          }}
+        >
+          <TouchableOpacity 
+            activeOpacity={1}
+            style={[s.successModalContent, { backgroundColor: colors.vjBg, borderColor: colors.border }]}
+          >
             <View style={s.successIconContainer}>
               <CheckCircle size={56} color="#10B981" />
             </View>
-            <Text style={s.successTitle}>Success!</Text>
-            <Text style={s.successSubtitle}>{successMessage}</Text>
+            <Text style={[s.successTitle, { color: colors.vjText }]}>Success!</Text>
+            <Text style={[s.successSubtitle, { color: colors.vjText }]}>{successMessage}</Text>
             
             <View style={{ width: '100%', marginTop: 16 }}>
               <GlassButton 
@@ -573,18 +653,31 @@ export default function EditDraftScreen() {
                 }} 
               />
             </View>
-          </View>
-        </View>
+          </TouchableOpacity>
+        </TouchableOpacity>
       </Modal>
 
+      {/* ERROR MODAL */}
       <Modal visible={!!errorMessage} transparent animationType="fade">
-        <View style={s.modalOverlayCenter}>
-          <View style={s.successModalContent}>
+        <TouchableOpacity 
+          style={s.modalOverlayCenter}
+          activeOpacity={1}
+          onPress={() => {
+            setErrorMessage(null);
+            if (errorMessage === 'Only DRAFT items can be edited here.' || errorMessage === 'Failed to load item details.') {
+              router.back();
+            }
+          }}
+        >
+          <TouchableOpacity 
+            activeOpacity={1}
+            style={[s.successModalContent, { backgroundColor: colors.vjBg, borderColor: colors.border }]}
+          >
             <View style={[s.successIconContainer, { backgroundColor: 'rgba(239, 68, 68, 0.1)' }]}>
               <Text style={{ fontSize: 40 }}>⚠️</Text>
             </View>
-            <Text style={s.successTitle}>Error</Text>
-            <Text style={s.successSubtitle}>{errorMessage}</Text>
+            <Text style={[s.successTitle, { color: colors.vjText }]}>Error</Text>
+            <Text style={[s.successSubtitle, { color: colors.vjText }]}>{errorMessage}</Text>
             
             <View style={{ width: '100%', marginTop: 16 }}>
               <GlassButton 
@@ -597,8 +690,8 @@ export default function EditDraftScreen() {
                 }} 
               />
             </View>
-          </View>
-        </View>
+          </TouchableOpacity>
+        </TouchableOpacity>
       </Modal>
 
       <GlassPickerModal
@@ -621,11 +714,9 @@ const s = StyleSheet.create({
     borderRadius: 16,
     padding: 16,
     borderWidth: 1,
-    borderColor: 'rgba(92,22,35,0.08)',
     marginBottom: 16,
   },
   sectionTitle: {
-    color: COLORS.vjText,
     fontSize: 16,
     fontWeight: '700',
     marginBottom: 16,
@@ -642,12 +733,10 @@ const s = StyleSheet.create({
   input: {
     backgroundColor: COLORS.inputBg,
     borderWidth: 1,
-    borderColor: COLORS.inputBorder,
     borderRadius: 10,
     paddingHorizontal: 10,
     paddingVertical: 12,
     fontSize: 14,
-    color: COLORS.vjText,
     fontWeight: '600',
   },
   modalOverlayCenter: {
@@ -658,14 +747,12 @@ const s = StyleSheet.create({
     padding: 24,
   },
   successModalContent: {
-    backgroundColor: COLORS.vjBg,
     width: '100%',
     maxWidth: 400,
     borderRadius: 24,
     padding: 32,
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.5)',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 10 },
     shadowOpacity: 0.25,
@@ -681,13 +768,12 @@ const s = StyleSheet.create({
   successTitle: {
     fontSize: 24,
     fontWeight: '800',
-    color: COLORS.vjText,
     marginBottom: 8,
   },
   successSubtitle: {
     fontSize: 14,
-    color: 'rgba(92,22,35,0.6)',
     textAlign: 'center',
     marginBottom: 24,
+    opacity: 0.7,
   },
 });

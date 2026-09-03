@@ -1,7 +1,7 @@
-// app/inventory/add-gemstone.tsx — Phase 2 v2.11 Canonical Screen
+// app/inventory/add-gemstone.tsx — Phase 2 v2.24 Canonical Screen
 
-import React, { useState, useMemo } from 'react';
-import { View, Text, ScrollView, Alert, Modal, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
+import React, { useState, useMemo, useCallback } from 'react';
+import { View, Text, Alert, Modal, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import { useRouter, useFocusEffect } from 'expo-router';
 import * as Haptics from 'expo-haptics';
@@ -13,7 +13,8 @@ import { gemstoneLotService } from '@/services/phase2/gemstoneLotService';
 import { stoneRepository } from '@/repositories/phase2/stoneRepository';
 import { 
   caratsToCaratX100, 
-  computeGemstoneTotalPaise 
+  computeGemstoneTotalPaise,
+  parseCleanFloat 
 } from '@/utils/purity.constants';
 import { getCurrencySymbol, rupeesToPaise } from '@/utils/currency';
 import { Gem, Diamond, Banknote, CheckCircle, Plus } from 'lucide-react-native';
@@ -33,14 +34,14 @@ export default function AddGemstoneScreen() {
   const [ratePerCarat, setRatePerCarat] = useState('');
   const [supplierName, setSupplierName] = useState('');
   const [certRef, setCertRef] = useState('');
-  
+
   const [loading, setLoading] = useState(false);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   const [pickerModal, setPickerModal] = useState<{
     visible: boolean;
     title: string;
-    placeholder?: string | undefined;
+    placeholder?: string;
     options: GlassPickerOption[];
     selectedId: string | null;
     onSelect: (option: GlassPickerOption | null) => void;
@@ -53,59 +54,98 @@ export default function AddGemstoneScreen() {
   });
 
   useFocusEffect(
-    React.useCallback(() => {
+    useCallback(() => {
       if (!activeFirmId) return;
+      let isMounted = true;
+
       const fetchStones = async () => {
         try {
           const results = await stoneRepository.findByFirmId(activeFirmId);
-          setStones(results);
+          if (isMounted) {
+            // Filter only active stone definitions for intake
+            setStones(results.filter((s) => s.isActive === 1));
+          }
         } catch (e) {
           console.error('[AddGemstoneScreen] Failed to fetch stones:', e);
         }
       };
+
       fetchStones();
+      return () => {
+        isMounted = false;
+      };
     }, [activeFirmId])
   );
 
   const previewData = useMemo(() => {
-    const c = parseFloat(carats) || 0;
-    const r = parseFloat(ratePerCarat) || 0;
-    const totalRupees = c * r; 
+    const c = parseCleanFloat(carats);
+    const r = parseCleanFloat(ratePerCarat);
+    const totalRupees = c * r;
     return { total: Math.round(totalRupees) };
   }, [carats, ratePerCarat]);
 
   const handleSubmit = async () => {
-    try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); } catch (e) {}
-    if (!activeFirmId) return;
-    if (!selectedStone) { Alert.alert('Error', 'Please select a Stone Type'); return; }
-    if (!lotName.trim()) { Alert.alert('Error', 'Lot Name is required'); return; }
-    
-    const caratVal = parseFloat(carats);
-    const qtyVal = parseInt(quantity, 10);
+    try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); } catch {}
+    if (!activeFirmId) {
+      Alert.alert('Error', 'No active firm selected.');
+      return;
+    }
+    if (!selectedStone) { 
+      Alert.alert('Validation Error', 'Please select a Stone Type.'); 
+      return; 
+    }
+    if (!lotName.trim()) { 
+      Alert.alert('Validation Error', 'Lot Description Name is required.'); 
+      return; 
+    }
 
-    if (isNaN(caratVal) || caratVal <= 0) { Alert.alert('Error', 'Invalid Carat Weight'); return; }
-    if (isNaN(qtyVal) || qtyVal <= 0) { Alert.alert('Error', 'Invalid Quantity'); return; }
+    const caratVal = parseCleanFloat(carats);
+    const qtyVal = parseInt(quantity.trim(), 10);
+
+    if (isNaN(caratVal) || caratVal <= 0) { 
+      Alert.alert('Validation Error', 'Please enter a valid Carat Weight greater than 0.'); 
+      return; 
+    }
+    if (isNaN(qtyVal) || qtyVal <= 0) { 
+      Alert.alert('Validation Error', 'Quantity must be at least 1.'); 
+      return; 
+    }
 
     const weightCaratX100 = caratsToCaratX100(caratVal);
-    const ratePaise = rupeesToPaise(ratePerCarat);
-    const totalPaise = computeGemstoneTotalPaise(weightCaratX100, ratePaise);
+
+    // Parse optional purchase rate; retain null if omitted
+    let ratePaise: number | null = null;
+    let totalPaise: number | null = null;
+
+    if (ratePerCarat.trim()) {
+      const parsedRate = parseCleanFloat(ratePerCarat);
+      if (isNaN(parsedRate) || parsedRate < 0) {
+        Alert.alert('Validation Error', 'Invalid Rate Per Carat.');
+        return;
+      }
+      ratePaise = rupeesToPaise(parsedRate);
+      totalPaise = computeGemstoneTotalPaise(weightCaratX100, ratePaise);
+    }
 
     setLoading(true);
     try {
-      await gemstoneLotService.createGemstoneLot({
-        stoneId: selectedStone.id,
-        name: lotName.trim(),
-        weightCaratX100,
-        quantity: qtyVal,
-        purchaseRatePaisePerCarat: ratePaise,
-        totalPurchaseAmountPaise: totalPaise,
-        supplierName: supplierName.trim() || null,
-        certificationRef: certRef.trim() || null,
-      }, activeFirmId);
+      await gemstoneLotService.createGemstoneLot(
+        {
+          stoneId: selectedStone.id,
+          name: lotName.trim(),
+          weightCaratX100,
+          quantity: qtyVal,
+          purchaseRatePaisePerCarat: ratePaise,
+          totalPurchaseAmountPaise: totalPaise,
+          supplierName: supplierName.trim() || null,
+          certificationRef: certRef.trim() || null,
+        },
+        activeFirmId
+      );
 
-      setSuccessMessage('Gemstone lot added to inventory.');
+      setSuccessMessage('Gemstone lot added to inventory successfully.');
     } catch (e: any) {
-      Alert.alert('Error', e.message);
+      Alert.alert('Error', e.message || 'Failed to create gemstone lot.');
     } finally {
       setLoading(false);
     }
@@ -113,8 +153,8 @@ export default function AddGemstoneScreen() {
 
   return (
     <TwoToneWrapper title="New Gemstone Lot" showBack>
-      <KeyboardAwareScrollView 
-        contentContainerStyle={{ paddingTop: 32, paddingBottom: 190 }} 
+      <KeyboardAwareScrollView
+        contentContainerStyle={{ paddingTop: 32, paddingBottom: 190 }}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="on-drag"
@@ -123,13 +163,12 @@ export default function AddGemstoneScreen() {
         extraScrollHeight={120}
         extraHeight={140}
       >
-        
         <GlassCard style={{ marginBottom: 16 }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 16 }}>
             <Gem size={20} color="#D4AF37" />
             <Text style={{ fontSize: 18, fontWeight: '700', color: COLORS.vjText }}>Stone Definition</Text>
           </View>
-          
+
           <GlassPickerInput
             label="Stone Master Type *"
             placeholder="Search stone type..."
@@ -141,23 +180,39 @@ export default function AddGemstoneScreen() {
                 title: 'Select Stone Master Type',
                 placeholder: 'Search stone type...',
                 selectedId: selectedStone?.id || null,
-                options: stones.map(s => ({
+                options: stones.map((s) => ({
                   id: s.id,
                   label: s.name || 'Unnamed',
                   sublabel: s.type || '',
                 })),
                 onSelect: (opt) => {
                   if (!opt) return setSelectedStone(null);
-                  const sel = stones.find(s => s.id === opt.id)!;
-                  setSelectedStone(sel);
+                  const sel = stones.find((s) => s.id === opt.id);
+                  if (sel) setSelectedStone(sel);
                 },
               });
             }}
           />
 
-          <GlassInput label="Lot Description Name *" placeholder="e.g. Round Brilliant 0.50ct" value={lotName} onChangeText={setLotName} />
-          <GlassInput label="Supplier Name" placeholder="Optional vendor name" value={supplierName} onChangeText={setSupplierName} />
-          <GlassInput label="Certification Ref" placeholder="GIA / IGI Report Number" autoCapitalize="characters" value={certRef} onChangeText={setCertRef} />
+          <GlassInput
+            label="Lot Description Name *"
+            placeholder="e.g. Round Brilliant 0.50ct"
+            value={lotName}
+            onChangeText={setLotName}
+          />
+          <GlassInput
+            label="Supplier Name"
+            placeholder="Optional vendor name"
+            value={supplierName}
+            onChangeText={setSupplierName}
+          />
+          <GlassInput
+            label="Certification Ref"
+            placeholder="GIA / IGI Report Number"
+            autoCapitalize="characters"
+            value={certRef}
+            onChangeText={setCertRef}
+          />
         </GlassCard>
 
         <GlassCard style={{ marginBottom: 16 }}>
@@ -168,10 +223,22 @@ export default function AddGemstoneScreen() {
 
           <View style={{ flexDirection: 'row', gap: 12 }}>
             <View style={{ flex: 1 }}>
-              <GlassInput label="Total Carats *" placeholder="0.00" keyboardType="numeric" value={carats} onChangeText={setCarats} />
+              <GlassInput
+                label="Total Carats *"
+                placeholder="0.00"
+                keyboardType="decimal-pad"
+                value={carats}
+                onChangeText={setCarats}
+              />
             </View>
             <View style={{ flex: 1 }}>
-              <GlassInput label="Quantity / Pcs *" placeholder="1" keyboardType="numeric" value={quantity} onChangeText={setQuantity} />
+              <GlassInput
+                label="Quantity / Pcs *"
+                placeholder="1"
+                keyboardType="number-pad"
+                value={quantity}
+                onChangeText={setQuantity}
+              />
             </View>
           </View>
         </GlassCard>
@@ -182,10 +249,18 @@ export default function AddGemstoneScreen() {
             <Text style={{ fontSize: 18, fontWeight: '700', color: COLORS.vjText }}>Purchase Value (Optional)</Text>
           </View>
 
-          <GlassInput label={`Rate Per Carat (${getCurrencySymbol()})`} placeholder="e.g. 50000" keyboardType="numeric" value={ratePerCarat} onChangeText={setRatePerCarat} />
-          
+          <GlassInput
+            label={`Rate Per Carat (${getCurrencySymbol()})`}
+            placeholder="e.g. 50000"
+            keyboardType="decimal-pad"
+            value={ratePerCarat}
+            onChangeText={setRatePerCarat}
+          />
+
           <View style={{ backgroundColor: COLORS.vjText, padding: 16, borderRadius: 12, marginTop: 8 }}>
-            <Text style={{ fontSize: 12, color: 'rgba(255,255,255,0.7)', textTransform: 'uppercase', fontWeight: '700', marginBottom: 4 }}>Total Lot Value</Text>
+            <Text style={{ fontSize: 12, color: 'rgba(255,255,255,0.7)', textTransform: 'uppercase', fontWeight: '700', marginBottom: 4 }}>
+              Estimated Lot Value
+            </Text>
             <Text style={{ fontSize: 28, fontWeight: '800', color: '#FCFBF8', fontFamily: 'monospace' }}>
               {getCurrencySymbol()}{previewData.total.toLocaleString('en-IN')}
             </Text>
@@ -227,14 +302,14 @@ export default function AddGemstoneScreen() {
             </View>
             <Text style={s.successTitle}>Success!</Text>
             <Text style={s.successSubtitle}>{successMessage}</Text>
-            
+
             <View style={{ width: '100%', marginTop: 16 }}>
-              <GlassButton 
-                title="Done" 
+              <GlassButton
+                title="Done"
                 onPress={() => {
                   setSuccessMessage(null);
                   router.back();
-                }} 
+                }}
               />
             </View>
           </View>

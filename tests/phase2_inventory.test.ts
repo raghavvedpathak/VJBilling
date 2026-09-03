@@ -1,13 +1,13 @@
-// tests/phase2_inventory.test.ts — Phase 2 v2.15 Full Verification Test Suite
+// tests/phase2_inventory.test.ts — Phase 2 v2.24 Full Verification Test Suite
 
 // ─── MOCK db/client FIRST ──────────────────────────
-jest.mock('../db/client', () => {
+jest.mock('@/db/client', () => {
   const Database = require('better-sqlite3');
   const { drizzle } = require('drizzle-orm/better-sqlite3');
   const sqlite = new Database(':memory:');
-  const schema = require('../db/schema');
+  const schema = require('@/db/schema');
   const dbInstance = drizzle(sqlite, { schema });
-  
+
   // Patch transaction to prevent better-sqlite3 from swallowing Promise rejections
   dbInstance.transaction = (cb: any) => {
     return cb(dbInstance);
@@ -20,7 +20,13 @@ jest.mock('../db/client', () => {
   };
   return {
     db: dbInstance,
-    expoDb: { execSync: () => {}, runSync: () => {}, getFirstSync: () => ({ count: 0 }), getAllSync: () => [] },
+    default: dbInstance,
+    expoDb: {
+      execSync: (query: string) => sqlite.exec(query),
+      runSync: (query: string) => sqlite.prepare(query).run(),
+      getFirstSync: (query: string) => sqlite.prepare(query).get(),
+      getAllSync: (query: string) => sqlite.prepare(query).all(),
+    },
     useDatabase: () => ({ isLoaded: true, error: null }),
   };
 });
@@ -28,32 +34,29 @@ jest.mock('../db/client', () => {
 jest.mock('@/services/phase1/safeModeService', () => ({
   safeModeService: {
     assertNotInSafeMode: jest.fn(),
-    clear: jest.fn()
+    clear: jest.fn(),
+    activate: jest.fn().mockResolvedValue(undefined),
   }
 }));
 
 // ─── IMPORTS ───────────────────────────────────────
-import { db } from '../db/client';
+import { db } from '@/db/client';
 import { eq, and } from 'drizzle-orm';
 import { 
   categories, designs, items, itemEvents, sequenceCounters, oldGoldLots,
   gemstoneLots, stones, hsnCodes, auditLogs, auditArchiveIndex, designCategoryMap,
-  financialYears, firms, appSettings, safeModeState, bisLogos, auditDeleteGate, designPurityThresholds
+  financialYears, firms, appSettings, safeModeState, bisLogos, auditDeleteGate,
+  designPurityThresholds, looseStockLots, looseStockEvents, urdPurchases, schemaVersion, writerLeases
 } from '@/db/schema';
-import { generateDesignPrefix } from '@/services/phase2/skuEngine';
-import { ERR } from '@/constants';
+import { generateDesignPrefix, formatSKUDisplay } from '@/services/phase2/skuEngine';
+import { ERR } from '@/constants/errorCodes';
 import { 
-  formatSKUDisplay, 
-  isStandardPurityGrade, 
-  resolveFineWeightMg, 
-  resolveEffectivePurityPercent,
   computeEffectivePricePaisePerGram, 
   computeEstTotalCostPaise 
 } from '@/utils/calculations';
+import { resolveFineWeightMg } from '@/utils/purity.constants';
 import { gemstoneLotService } from '@/services/phase2/gemstoneLotService';
 import { oldGoldLotService } from '@/services/phase2/oldGoldLotService';
-import { backupService } from '@/services/phase1/backupService';
-import { restoreService } from '@/services/phase1/restoreService';
 import { inventorySearchService } from '@/services/phase2/inventorySearchService';
 import { inventoryDrillDownService } from '@/services/phase2/inventoryDrillDownService';
 import { itemService } from '@/services/phase2/itemService';
@@ -69,8 +72,8 @@ import { urdPurchaseRepository } from '@/repositories/phase2/urdPurchaseReposito
 // ─── SETUP & TEARDOWN ──────────────────────────────────────────────────
 beforeAll(async () => {
   const _rawClient = (db as any).__rawClient;
-  
-  // Phase 1 minimal tables
+
+  // Phase 1 tables
   await _rawClient.execute(`CREATE TABLE IF NOT EXISTS audit_logs (
     id TEXT PRIMARY KEY, event_type TEXT NOT NULL, firm_id TEXT, entity_id TEXT, device_id TEXT NOT NULL, payload TEXT, created_at TEXT NOT NULL
   )`);
@@ -92,13 +95,16 @@ beforeAll(async () => {
   await _rawClient.execute(`CREATE TABLE IF NOT EXISTS audit_delete_gate (
     id INTEGER PRIMARY KEY DEFAULT 1, gate_open INTEGER NOT NULL DEFAULT 0
   )`);
-  
-  // Phase 2 tables
+  await _rawClient.execute(`CREATE TABLE IF NOT EXISTS schema_version (
+    id INTEGER PRIMARY KEY DEFAULT 1, current_version INTEGER NOT NULL DEFAULT 2
+  )`);
+
+  // Phase 2 tables (v2.24 canonical schema)
   await _rawClient.execute(`CREATE TABLE IF NOT EXISTS categories (
     id TEXT PRIMARY KEY, firm_id TEXT NOT NULL, name TEXT NOT NULL, code TEXT NOT NULL DEFAULT '', description TEXT, is_active INTEGER NOT NULL DEFAULT 1, created_at TEXT NOT NULL, updated_at TEXT NOT NULL
   )`);
   await _rawClient.execute(`CREATE TABLE IF NOT EXISTS designs (
-    id TEXT PRIMARY KEY, firm_id TEXT NOT NULL, name TEXT NOT NULL, code TEXT NOT NULL DEFAULT '', description TEXT, default_hsn TEXT, metal TEXT NOT NULL, is_active INTEGER NOT NULL DEFAULT 1, created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+    id TEXT PRIMARY KEY, firm_id TEXT NOT NULL, name TEXT NOT NULL, code TEXT NOT NULL DEFAULT '', description TEXT, default_hsn TEXT, metal TEXT NOT NULL, stock_type TEXT NOT NULL DEFAULT 'SERIALIZED', is_active INTEGER NOT NULL DEFAULT 1, created_at TEXT NOT NULL, updated_at TEXT NOT NULL
   )`);
   await _rawClient.execute(`CREATE TABLE IF NOT EXISTS design_purity_thresholds (
     design_id TEXT NOT NULL, purity_percent REAL NOT NULL, low_stock_threshold INTEGER NOT NULL, PRIMARY KEY (design_id, purity_percent)
@@ -108,12 +114,12 @@ beforeAll(async () => {
     metal TEXT NOT NULL, purity_percent REAL NOT NULL, purity_karat INTEGER NOT NULL,
     gross_weight_mg INTEGER NOT NULL, stone_weight_mg INTEGER NOT NULL DEFAULT 0, beads_weight_mg INTEGER NOT NULL DEFAULT 0, net_weight_mg INTEGER NOT NULL,
     fine_weight_mg INTEGER NOT NULL, wastage_percent REAL NOT NULL DEFAULT 0, fine_gold_charged_mg INTEGER, purchase_rate_paise INTEGER, making_charge_paise INTEGER, stone_cost_paise INTEGER, purity_rounding_delta_mg INTEGER NOT NULL DEFAULT 0,
-    status TEXT NOT NULL, metal_source TEXT NOT NULL, primary_stone_id TEXT, location TEXT, invoice_id TEXT, phantom_stock_id TEXT DEFAULT NULL, barcode_reprint_required INTEGER NOT NULL DEFAULT 0,
+    status TEXT NOT NULL, metal_source TEXT NOT NULL, primary_stone_id TEXT, location TEXT, sale_invoice_id TEXT, purchase_invoice_id TEXT, phantom_stock_id TEXT DEFAULT NULL, barcode_reprint_required INTEGER NOT NULL DEFAULT 0,
     size_value REAL, size_unit TEXT,
     created_at TEXT NOT NULL, updated_at TEXT NOT NULL
   )`);
   await _rawClient.execute(`CREATE TABLE IF NOT EXISTS item_events (
-    id TEXT PRIMARY KEY, item_id TEXT NOT NULL, firm_id TEXT NOT NULL, event_type TEXT NOT NULL, severity TEXT NOT NULL, performed_by TEXT NOT NULL, reason TEXT, old_value TEXT, new_value TEXT, timestamp TEXT NOT NULL
+    id TEXT PRIMARY KEY, item_id TEXT NOT NULL, firm_id TEXT NOT NULL, karigar_id TEXT, event_type TEXT NOT NULL, severity TEXT NOT NULL, performed_by TEXT NOT NULL, reason TEXT, old_value TEXT, new_value TEXT, timestamp TEXT NOT NULL
   )`);
   await _rawClient.execute(`CREATE TABLE IF NOT EXISTS sequence_counters (
     id TEXT PRIMARY KEY, firm_id TEXT NOT NULL, month TEXT NOT NULL, year TEXT NOT NULL, current_seq INTEGER NOT NULL, last_used_at TEXT NOT NULL
@@ -133,6 +139,12 @@ beforeAll(async () => {
     metal_type TEXT NOT NULL, gross_weight_mg INTEGER NOT NULL, purity_percent REAL NOT NULL, fine_weight_mg INTEGER NOT NULL,
     rate_per_gram_paise INTEGER NOT NULL, total_value_paise INTEGER NOT NULL, payment_mode TEXT NOT NULL, bank_account_id TEXT,
     old_gold_lot_id TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'DRAFT', notes TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+  )`);
+  await _rawClient.execute(`CREATE TABLE IF NOT EXISTS loose_stock_lots (
+    id TEXT PRIMARY KEY, firm_id TEXT NOT NULL, design_id TEXT NOT NULL, purity_percent REAL NOT NULL, purity_karat INTEGER, metal TEXT NOT NULL, piece_count INTEGER NOT NULL DEFAULT 0, total_weight_mg INTEGER NOT NULL DEFAULT 0, hsn_code TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'ACTIVE', created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+  )`);
+  await _rawClient.execute(`CREATE TABLE IF NOT EXISTS loose_stock_events (
+    id TEXT PRIMARY KEY, lot_id TEXT NOT NULL, firm_id TEXT NOT NULL, event_type TEXT NOT NULL, piece_count_delta INTEGER NOT NULL, weight_mg_delta INTEGER NOT NULL, purchase_rate_paise INTEGER, wastage_percent REAL, sale_invoice_id TEXT, performed_by TEXT NOT NULL, timestamp TEXT NOT NULL
   )`);
   await _rawClient.execute(`CREATE TABLE IF NOT EXISTS hsn_codes (
     id TEXT PRIMARY KEY, code TEXT NOT NULL UNIQUE, description TEXT NOT NULL, chapter TEXT NOT NULL DEFAULT '71', is_active INTEGER NOT NULL DEFAULT 1, created_at TEXT NOT NULL
@@ -162,6 +174,9 @@ beforeEach(async () => {
   await db.delete(stones);
   await db.delete(gemstoneLots);
   await db.delete(oldGoldLots);
+  await db.delete(urdPurchases);
+  await db.delete(looseStockLots);
+  await db.delete(looseStockEvents);
   await db.delete(auditLogs);
   await db.delete(auditArchiveIndex);
   await db.delete(hsnCodes);
@@ -171,6 +186,9 @@ beforeEach(async () => {
   await db.delete(safeModeState);
   await db.delete(bisLogos);
   await db.delete(auditDeleteGate);
+  await db.delete(schemaVersion);
+  await db.delete(writerLeases);
+  await db.delete(firms);
 
   // Seed default settings and safe mode states
   await db.insert(appSettings).values({
@@ -181,6 +199,27 @@ beforeEach(async () => {
   });
   await db.insert(auditDeleteGate).values({
     id: 1, gateOpen: 0
+  });
+  await db.insert(schemaVersion).values({
+    id: 1, currentVersion: 2
+  });
+
+  // Seed default firm
+  await db.insert(firms).values({
+    id: FIRM_ID,
+    name: 'Test Firm',
+    firmCode: 'TST',
+    proprietor: 'Tester',
+    addressLine1: 'Road 1',
+    city: 'Mumbai',
+    stateCode: '27',
+    stateName: 'Maharashtra',
+    pincode: '400001',
+    phone1: '9999999999',
+    isArchived: 0,
+    isActive: 1,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
   });
 
   // Insert mock category and HSN
@@ -202,11 +241,22 @@ beforeEach(async () => {
 // ─── FIXTURES ──────────────────────────────────────
 const FIRM_ID = 'TEST_FIRM_1';
 let designCounter = 1;
-async function createTestDesign(metal: 'GOLD'|'SILVER' = 'GOLD') {
+async function createTestDesign(metal: 'GOLD' | 'SILVER' = 'GOLD') {
   const designId = 'mock_design_' + designCounter++;
   const name = metal === 'GOLD' ? 'Test Ring' : 'Silver Anklet';
   const code = metal === 'GOLD' ? 'RNG' : 'ANK';
-  await db.insert(designs).values({ id: designId, firmId: FIRM_ID, name, code, metal, defaultHsn: '7113', isActive: 1, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() });
+  await db.insert(designs).values({
+    id: designId,
+    firmId: FIRM_ID,
+    name,
+    code,
+    metal,
+    stockType: 'SERIALIZED',
+    defaultHsn: '7113',
+    isActive: 1,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  });
   return { id: designId, name, code, metal };
 }
 
@@ -228,15 +278,12 @@ describe('SKU Engine & Price Preview Calculations', () => {
   });
 
   it('computes effective price per gram and est total cost (FEAT-EFFECTIVE-PRICE-1 / FIX-EFFPRICE-PURITYROUND-1 v2.14)', () => {
-    // 600000 paise/g (₹6000/g), 91.6% purity, 5% wastage (Gold)
     const effPrice22K = computeEffectivePricePaisePerGram(600000, 91.6, 5, 'GOLD');
-    expect(effPrice22K).toBe(579600); // Math.round(600000 * ((91.6 + 5) / 100)) = 579600 paise/g = ₹5796.00/g
+    expect(effPrice22K).toBe(579600);
 
-    // 12000 mg (12.000 g)
     const estTotalCost = computeEstTotalCostPaise(effPrice22K, 12000);
-    expect(estTotalCost).toBe(6955200); // Math.round(579600 * 12) = 6955200 paise = ₹69552.00
+    expect(estTotalCost).toBe(6955200);
 
-    // v2.14 100%-purity rounding check: 99.9% gold at ₹7000/g rate and 0% wastage must price at ₹7000.00/g
     const effPrice24K = computeEffectivePricePaisePerGram(700000, 99.9, 0, 'GOLD');
     expect(effPrice24K).toBe(700000);
   });
@@ -267,17 +314,14 @@ describe('createItem Validation & Weight Calculations', () => {
 
   it('calculates netWeightMg, fineWeightMg, and fineGoldChargedMg correctly', async () => {
     const d = await createTestDesign();
-    // Gross: 10g, Stone: 1g, Net: 9g
-    // Purity: 91.6% -> Fine: 8.244g (8244mg)
-    // Wastage: 10% -> Fine Charged: 9000 * (91.6 + 10)/100 = 9144mg
     const item = await itemService.createItem({
       designId: d.id, categoryId: 'CAT_1', hsnCode: '7113', purityPercent: 91.6, purityKarat: 22,
       grossWeightMg: 10000, stoneWeightMg: 1000, wastagePercent: 10,
     }, FIRM_ID);
 
-    expect(item.netWeightMg).toBe(9000); // 10000 - 1000
-    expect(item.fineWeightMg).toBe(8244); // 9000 * 0.916 = 8244
-    expect(item.fineGoldChargedMg).toBe(9144); // 9000 * (0.916 + 0.10) = 9144
+    expect(item.netWeightMg).toBe(9000);
+    expect(item.fineWeightMg).toBe(8244);
+    expect(item.fineGoldChargedMg).toBe(9144);
   });
 
   it('leaves fineGoldChargedMg as null when wastage is 0', async () => {
@@ -299,15 +343,13 @@ describe('adjustWeight Guard', () => {
       designId: d.id, categoryId: 'CAT_1', hsnCode: '7113', purityPercent: 91.6, purityKarat: 22,
       grossWeightMg: 10000, wastagePercent: 10 }, FIRM_ID);
 
-    // Update weight to 12g
     await itemService.adjustWeight(item.id, FIRM_ID, 12000, item.stoneWeightMg || 0, item.beadsWeightMg || 0, 'Typo');
     
     const [updated] = await db.select().from(items).where(eq(items.id, item.id));
     expect(updated?.netWeightMg).toBe(12000);
-    expect(updated?.fineWeightMg).toBe(Math.round(12000 * 0.916)); // 10992
-    expect(updated?.fineGoldChargedMg).toBe(12192); // 12000 * (0.916 + 0.10) = 12192
+    expect(updated?.fineWeightMg).toBe(Math.round(12000 * 0.916));
+    expect(updated?.fineGoldChargedMg).toBe(12192);
 
-    // Check Audit Log
     const events = await db.select().from(itemEvents).where(eq(itemEvents.itemId, item.id));
     expect(events.map((e: any) => e.eventType)).toContain('WEIGHT_ADJUSTED');
   });
@@ -319,7 +361,6 @@ describe('adjustWeight Guard', () => {
       stoneWeightMg: 0, beadsWeightMg: 0, purityPercent: 91.6, purityKarat: 22,
     }, FIRM_ID);
 
-    // Manually force to SOLD for testing terminal status guard
     await db.update(items).set({ status: 'SOLD' }).where(eq(items.id, item.id));
 
     await expect(itemService.adjustWeight(item.id, FIRM_ID, 12000, item.stoneWeightMg || 0, item.beadsWeightMg || 0, 'Typo'))
@@ -377,6 +418,7 @@ describe('FY Close', () => {
     const item = await itemService.createItem({
       designId: d.id, categoryId: 'CAT_1', hsnCode: '7113', purityPercent: 91.6, purityKarat: 22, grossWeightMg: 1000 }, FIRM_ID);
 
+    await db.delete(financialYears).where(eq(financialYears.firmId, FIRM_ID));
     await db.insert(financialYears).values({
       id: 'FY1', firmId: FIRM_ID, label: '2026-27', startDate: '2026-04-01', endDate: '2027-03-31', status: 'ACTIVE', createdAt: new Date().toISOString()
     });
@@ -384,7 +426,6 @@ describe('FY Close', () => {
     const preClose = await fyService.preCloseChecks('FY1', FIRM_ID);
     expect(preClose.issues.some(i => i.code === 'FY_CLOSE_BLOCKED_DRAFT_ITEMS')).toBe(true);
 
-    // Hard delete DRAFT item using deleteItem
     await itemService.deleteItem(item.id, FIRM_ID, 'Draft block resolution');
 
     const preCloseAfter = await fyService.preCloseChecks('FY1', FIRM_ID);
@@ -392,6 +433,7 @@ describe('FY Close', () => {
   });
 
   it('successfully closes the financial year and records audit retention archive', async () => {
+    await db.delete(financialYears).where(eq(financialYears.firmId, FIRM_ID));
     await db.insert(financialYears).values({
       id: 'FY1', firmId: FIRM_ID, label: '2026-27', startDate: '2026-04-01', endDate: '2027-03-31', status: 'ACTIVE', createdAt: new Date().toISOString()
     });
@@ -434,7 +476,6 @@ describe('updateItem Guard', () => {
     expect(payload.changes.location).toBeDefined();
     expect(payload.changes.location.new).toBe('LOCKER');
 
-    // Terminal status guard
     await db.update(items).set({ status: 'SOLD' }).where(eq(items.id, item.id));
     await expect(itemService.updateItem(item.id, FIRM_ID, { location: 'SHOP' }))
       .rejects.toThrow('ITEM_EDIT_LOCKED_TERMINAL_STATUS');
@@ -445,19 +486,16 @@ describe('updateItem Guard', () => {
     const item = await itemService.createItem({
       designId: d.id, categoryId: 'CAT_1', hsnCode: '7113', purityPercent: 91.6, purityKarat: 22, grossWeightMg: 1000 }, FIRM_ID);
 
-    // Reject partial size update
     await expect(itemService.updateItem(item.id, FIRM_ID, { sizeValue: 10 }))
       .rejects.toThrow('ITEM_SIZE_PAIRING_INVALID');
     await expect(itemService.updateItem(item.id, FIRM_ID, { sizeUnit: 'INCH' }))
       .rejects.toThrow('ITEM_SIZE_PAIRING_INVALID');
 
-    // Accept valid paired size update
     await itemService.updateItem(item.id, FIRM_ID, { sizeValue: 10, sizeUnit: 'INCH' });
     const detail = await inventoryDrillDownService.getItemDetail(FIRM_ID, item.id);
     expect(detail.sizeValue).toBe(10);
     expect(detail.sizeUnit).toBe('INCH');
 
-    // Accept clearing size together
     await itemService.updateItem(item.id, FIRM_ID, { sizeValue: null, sizeUnit: null });
     const detailCleared = await inventoryDrillDownService.getItemDetail(FIRM_ID, item.id);
     expect(detailCleared.sizeValue).toBeNull();
@@ -476,7 +514,6 @@ describe('Phantom Inventory', () => {
     
     expect(phantom.status).toBe('PHANTOM_AVAILABLE');
 
-    // Real item enters stock
     const realItem = await itemService.createItem({
       designId: d.id, categoryId: 'CAT_1', hsnCode: '7113', purityPercent: 91.6, purityKarat: 22, grossWeightMg: 5000 }, FIRM_ID);
     
@@ -529,26 +566,6 @@ describe('URD Purchases', () => {
 // ============================================================================
 describe('Barcode Label and HUID Services', () => {
   it('generates barcode label data and logs barcode reprint events correctly', async () => {
-    const firm = await db.select().from(firms).where(eq(firms.id, FIRM_ID)).limit(1).get() as any;
-    if (!firm) {
-      await db.insert(firms).values({
-        id: FIRM_ID,
-        name: 'Test Firm',
-        firmCode: 'TST',
-        proprietor: 'Tester',
-        addressLine1: 'Road 1',
-        city: 'Mumbai',
-        stateCode: '27',
-        stateName: 'Maharashtra',
-        pincode: '400001',
-        phone1: '9999999999',
-        isArchived: 0,
-        isActive: 1,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
-      }).run();
-    }
-
     const d = await createTestDesign();
     const item = await itemService.createItem({
       designId: d.id,
@@ -570,17 +587,14 @@ describe('Barcode Label and HUID Services', () => {
     expect(label.backSide.barcodeValue).toBe(item.sku);
     expect(label.backSide.skuDisplay).toBe(formatSKUDisplay(item.sku));
 
-    // Assign HUID
     const updatedItem = await itemService.addHUID(item.id, FIRM_ID, 'HU1234');
     expect(updatedItem.huid).toBe('HU1234');
     expect(updatedItem.barcodeReprintRequired).toBe(1);
 
-    // Assigning again throws HUID_ALREADY_SET
     await expect(
       itemService.addHUID(item.id, FIRM_ID, 'HU5678')
     ).rejects.toThrow('HUID_ALREADY_SET');
 
-    // Log reprint flag clearance
     await barcodeLabelService.logBarcodeReprint(item.id, FIRM_ID);
     const itemInDb = await db.select().from(items).where(eq(items.id, item.id)).limit(1).get() as any;
     expect(itemInDb.barcodeReprintRequired).toBe(0);
@@ -594,7 +608,6 @@ describe('Low Stock Threshold (v2.13 FIX-LOWSTOCK-PURITYGRAIN-1)', () => {
   it('enforces low stock threshold configurations and alerts on variant grain', async () => {
     const d = await createTestDesign();
     
-    // 1. Update threshold for Design + Purity variant (22K = 91.6)
     await designService.updateDesignPurityLowStockThreshold(d.id, FIRM_ID, 91.6, 2);
     
     const [thresh] = await db.select().from(designPurityThresholds)
@@ -604,7 +617,6 @@ describe('Low Stock Threshold (v2.13 FIX-LOWSTOCK-PURITYGRAIN-1)', () => {
     let lowStock = await inventoryDrillDownService.getLowStockDesignPurityVariants(FIRM_ID);
     expect(lowStock.some(c => c.designId === d.id && c.purityPercent === 91.6)).toBe(true);
 
-    // Add stock to exceed threshold
     for (let i = 0; i < 3; i++) {
       const item = await itemService.createItem({
         designId: d.id, categoryId: 'CAT_1', hsnCode: '7113', purityPercent: 91.6, purityKarat: 22, grossWeightMg: 5000

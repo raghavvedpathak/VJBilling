@@ -1,14 +1,16 @@
-// repositories/phase2/oldGoldLotRepository.ts — Phase 2 v2.11 Canonical Repository
+// repositories/phase2/oldGoldLotRepository.ts — Phase 2 v2.24 Canonical Repository
 
-import { eq, and, inArray, desc } from 'drizzle-orm';
+import { eq, and, or, inArray, desc } from 'drizzle-orm';
+import * as Crypto from 'expo-crypto';
 import { db } from '@/db/client';
 import { oldGoldLots } from '@/db/schema';
 import type { DrizzleTransaction, OldGoldLot, OldGoldLotStatus, NewOldGoldLot } from '@/types/phase2/phase2.types';
 import { now } from '@/utils/now';
 
 export interface OldGoldLotRepository {
-  // --- getById (Overloaded for (id), (tx, id), and (tx, firmId, id)) ---
+  // --- getById (Overloaded for (id), (id, firmId), (tx, id), and (tx, firmId, id)) ---
   getById(id: string): Promise<OldGoldLot | null>;
+  getById(id: string, firmId: string): Promise<OldGoldLot | null>;
   getById(tx: DrizzleTransaction, id: string): OldGoldLot | null;
   getById(tx: DrizzleTransaction, firmId: string, id: string): OldGoldLot | null;
 
@@ -31,11 +33,13 @@ export interface OldGoldLotRepository {
   delete(tx: DrizzleTransaction, id: string): void;
   delete(tx: DrizzleTransaction, firmId: string, id: string): void;
 
-  // --- findAvailableForIssuance (DOMAIN-FIX-1 v1.22 + FIX-IDX-3 v1.25) ---
+  // --- findAvailableForIssuance (DOMAIN-FIX-1 v1.22 + FIX-IDX-3 v1.25 + FIX-P2-SYNC-CONTRACT-1) ---
   findAvailableForIssuance(firmId: string): Promise<OldGoldLot[]>;
+  findAvailableForIssuance(tx: DrizzleTransaction, firmId: string): OldGoldLot[];
 
   // --- getPendingRefineryLots (FEAT-GAP5-REFINERYPENDING-1 v1.66) ---
   getPendingRefineryLots(firmId: string): Promise<OldGoldLot[]>;
+  getPendingRefineryLots(tx: DrizzleTransaction, firmId: string): OldGoldLot[];
 }
 
 export const oldGoldLotRepository: OldGoldLotRepository = {
@@ -45,12 +49,35 @@ export const oldGoldLotRepository: OldGoldLotRepository = {
     third?: string
   ): any {
     if (typeof first === 'string') {
-      return db.select().from(oldGoldLots).where(eq(oldGoldLots.id, first)).limit(1).then(r => r[0] || null);
+      if (second !== undefined) {
+        // 2-arg async call: supports both (id, firmId) and (firmId, id)
+        return db
+          .select()
+          .from(oldGoldLots)
+          .where(
+            or(
+              and(eq(oldGoldLots.id, first), eq(oldGoldLots.firmId, second)),
+              and(eq(oldGoldLots.id, second), eq(oldGoldLots.firmId, first))
+            )
+          )
+          .limit(1)
+          .then((r) => r[0] || null);
+      }
+      return db
+        .select()
+        .from(oldGoldLots)
+        .where(eq(oldGoldLots.id, first))
+        .limit(1)
+        .then((r) => r[0] || null);
     }
     const tx = first as DrizzleTransaction;
     if (third !== undefined) {
       // 3-arg call: getById(tx, firmId, id)
-      const res = tx.select().from(oldGoldLots).where(and(eq(oldGoldLots.id, third), eq(oldGoldLots.firmId, second!))).get();
+      const res = tx
+        .select()
+        .from(oldGoldLots)
+        .where(and(eq(oldGoldLots.id, third), eq(oldGoldLots.firmId, second!)))
+        .get();
       return (res as OldGoldLot) || null;
     }
     // 2-arg call: getById(tx, id)
@@ -59,8 +86,10 @@ export const oldGoldLotRepository: OldGoldLotRepository = {
   },
 
   insert(tx: DrizzleTransaction, data: NewOldGoldLot): OldGoldLot {
-    tx.insert(oldGoldLots).values(data).run();
-    const result = tx.select().from(oldGoldLots).where(eq(oldGoldLots.id, data.id!)).get();
+    const id = data.id ?? Crypto.randomUUID();
+    const row = { ...data, id };
+    tx.insert(oldGoldLots).values(row).run();
+    const result = tx.select().from(oldGoldLots).where(eq(oldGoldLots.id, id)).get();
     return result as OldGoldLot;
   },
 
@@ -72,12 +101,13 @@ export const oldGoldLotRepository: OldGoldLotRepository = {
   ): void {
     if (fourth !== undefined) {
       tx.update(oldGoldLots)
-        .set({ ...fourth, updatedAt: now() })
+        .set({ ...fourth, updatedAt: fourth.updatedAt ?? now() })
         .where(and(eq(oldGoldLots.id, third as string), eq(oldGoldLots.firmId, second)))
         .run();
     } else {
+      const data = third as Partial<NewOldGoldLot>;
       tx.update(oldGoldLots)
-        .set({ ...(third as Partial<NewOldGoldLot>), updatedAt: now() })
+        .set({ ...data, updatedAt: data.updatedAt ?? now() })
         .where(eq(oldGoldLots.id, second))
         .run();
     }
@@ -85,11 +115,20 @@ export const oldGoldLotRepository: OldGoldLotRepository = {
 
   findByFirmId(first: DrizzleTransaction | string, second?: string): any {
     if (typeof first === 'string') {
-      return db.select().from(oldGoldLots).where(eq(oldGoldLots.firmId, first));
+      return db
+        .select()
+        .from(oldGoldLots)
+        .where(eq(oldGoldLots.firmId, first))
+        .orderBy(desc(oldGoldLots.receivedDate), desc(oldGoldLots.createdAt));
     }
     const tx = first as DrizzleTransaction;
     const firmId = second!;
-    return tx.select().from(oldGoldLots).where(eq(oldGoldLots.firmId, firmId)).all() as OldGoldLot[];
+    return tx
+      .select()
+      .from(oldGoldLots)
+      .where(eq(oldGoldLots.firmId, firmId))
+      .orderBy(desc(oldGoldLots.receivedDate), desc(oldGoldLots.createdAt))
+      .all() as OldGoldLot[];
   },
 
   updateStatus(
@@ -121,8 +160,24 @@ export const oldGoldLotRepository: OldGoldLotRepository = {
     }
   },
 
-  async findAvailableForIssuance(firmId: string): Promise<OldGoldLot[]> {
-    return db
+  // DOMAIN-FIX-1 (v1.22) + FIX-IDX-3 (v1.25): only MELT_OUTPUT lots with RECEIVED status are issuable
+  findAvailableForIssuance(first: DrizzleTransaction | string, second?: string): any {
+    if (typeof first === 'string') {
+      return db
+        .select()
+        .from(oldGoldLots)
+        .where(
+          and(
+            eq(oldGoldLots.firmId, first),
+            eq(oldGoldLots.status, 'RECEIVED'),
+            eq(oldGoldLots.metalSource, 'MELT_OUTPUT')
+          )
+        )
+        .orderBy(desc(oldGoldLots.receivedDate));
+    }
+    const tx = first as DrizzleTransaction;
+    const firmId = second!;
+    return tx
       .select()
       .from(oldGoldLots)
       .where(
@@ -131,11 +186,28 @@ export const oldGoldLotRepository: OldGoldLotRepository = {
           eq(oldGoldLots.status, 'RECEIVED'),
           eq(oldGoldLots.metalSource, 'MELT_OUTPUT')
         )
-      );
+      )
+      .orderBy(desc(oldGoldLots.receivedDate))
+      .all() as OldGoldLot[];
   },
 
-  async getPendingRefineryLots(firmId: string): Promise<OldGoldLot[]> {
-    return db
+  // FEAT-GAP5-REFINERYPENDING-1 (v1.66)
+  getPendingRefineryLots(first: DrizzleTransaction | string, second?: string): any {
+    if (typeof first === 'string') {
+      return db
+        .select()
+        .from(oldGoldLots)
+        .where(
+          and(
+            eq(oldGoldLots.firmId, first),
+            inArray(oldGoldLots.status, ['RECEIVED', 'PENDING', 'SENT_TO_REFINERY'])
+          )
+        )
+        .orderBy(desc(oldGoldLots.createdAt));
+    }
+    const tx = first as DrizzleTransaction;
+    const firmId = second!;
+    return tx
       .select()
       .from(oldGoldLots)
       .where(
@@ -144,6 +216,7 @@ export const oldGoldLotRepository: OldGoldLotRepository = {
           inArray(oldGoldLots.status, ['RECEIVED', 'PENDING', 'SENT_TO_REFINERY'])
         )
       )
-      .orderBy(desc(oldGoldLots.createdAt));
-  }
+      .orderBy(desc(oldGoldLots.createdAt))
+      .all() as OldGoldLot[];
+  },
 };

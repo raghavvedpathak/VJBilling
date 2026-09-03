@@ -1,9 +1,10 @@
-// app/masters/create-category.tsx — Phase 2 v2.15 Canonical Screen
+// app/masters/create-category.tsx — Phase 2 v2.24 Canonical Screen
 
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, Alert, Modal, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import { useRouter } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import { TwoToneWrapper } from '@/components/TwoToneWrapper';
 import { HeaderPill, GlassButton, GlassInput, FixedGlassBar, fixedBarStyles } from '@/components/ui/Glass';
@@ -15,32 +16,38 @@ import { COLORS, getThemeColors } from '@/constants/theme';
 
 export default function CreateCategoryScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const { activeFirmId } = useFirmStore();
   
   const [newName, setNewName] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
+  const activeTheme = appSettingsStore((s: any) => s.theme);
+  const colors = getThemeColors(activeTheme);
+
   const handleAdd = async () => {
     try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); } catch {}
     if (!activeFirmId) return;
-    if (!newName.trim()) {
-      Alert.alert('Validation Error', 'Category name is required');
+
+    const trimmedName = newName.trim();
+    if (!trimmedName) {
+      Alert.alert('Validation Error', 'Category name is required.');
       return;
     }
 
     setIsSubmitting(true);
     try {
       await categoryService.createCategory({
-        name: newName.trim(),
+        name: trimmedName,
       }, activeFirmId);
       
-      setSuccessMessage('Category added successfully');
+      setSuccessMessage(`Category "${trimmedName}" created successfully.`);
     } catch (e: any) {
       if (e.message?.includes('CATEGORY_NAME_DUPLICATE') || e.message?.includes('UNIQUE')) {
-        Alert.alert('Duplicate', 'A category with this name already exists.');
+        Alert.alert('Duplicate Category', 'A category with this name already exists in your firm.');
       } else {
-        Alert.alert('Error', e.message);
+        Alert.alert('Error', e.message || 'Failed to create category.');
       }
     } finally {
       setIsSubmitting(false);
@@ -48,12 +55,10 @@ export default function CreateCategoryScreen() {
   };
 
   const handleSuccessDone = () => {
+    try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
     setSuccessMessage(null);
     router.back();
   };
-
-  const activeTheme = appSettingsStore((s: any) => s.theme);
-  const colors = getThemeColors(activeTheme);
 
   const createCategoryHeaderPills = (
     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginTop: 4 }}>
@@ -68,7 +73,10 @@ export default function CreateCategoryScreen() {
         <KeyboardAwareScrollView 
           style={s.container} 
           showsVerticalScrollIndicator={false} 
-          contentContainerStyle={{ paddingTop: 32, paddingBottom: 190 }} 
+          contentContainerStyle={{ 
+            paddingTop: 32, 
+            paddingBottom: Math.max(insets.bottom + 120, 160) 
+          }} 
           keyboardShouldPersistTaps="handled"
           keyboardDismissMode="on-drag"
           enableOnAndroid={true}
@@ -76,13 +84,15 @@ export default function CreateCategoryScreen() {
           extraScrollHeight={120}
           extraHeight={140}
         >
-          <View style={s.card}>
+          <View style={[s.card, { borderColor: `${colors.vjAccent}25` }]}>
             <View style={s.formGroup}>
               <GlassInput 
                 label="Category Name *"
                 value={newName}
                 onChangeText={setNewName}
                 placeholder="e.g. Rings, Chains, Necklaces"
+                autoCapitalize="words"
+                maxLength={50}
               />
             </View>
           </View>
@@ -90,14 +100,19 @@ export default function CreateCategoryScreen() {
 
         <FixedGlassBar>
           <TouchableOpacity
+            testID="cancel-category-btn"
             style={fixedBarStyles.pillSecondaryBtn}
-            onPress={() => router.back()}
+            onPress={() => {
+              try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
+              router.back();
+            }}
             disabled={isSubmitting}
           >
-            <Text style={fixedBarStyles.pillSecondaryText}>Cancel</Text>
+            <Text style={[fixedBarStyles.pillSecondaryText, { color: colors.vjText }]}>Cancel</Text>
           </TouchableOpacity>
           <TouchableOpacity
-            style={fixedBarStyles.pillPrimaryBtn}
+            testID="save-category-btn"
+            style={[fixedBarStyles.pillPrimaryBtn, { backgroundColor: colors.vjAccent }]}
             onPress={handleAdd}
             disabled={isSubmitting}
           >
@@ -113,14 +128,22 @@ export default function CreateCategoryScreen() {
         </FixedGlassBar>
       </View>
 
-      <Modal visible={!!successMessage} transparent animationType="fade">
-        <View style={s.modalOverlayCenter}>
-          <View style={s.successModalContent}>
+      {/* SUCCESS MODAL */}
+      <Modal visible={!!successMessage} transparent animationType="fade" onRequestClose={handleSuccessDone}>
+        <TouchableOpacity 
+          style={s.modalOverlayCenter}
+          activeOpacity={1}
+          onPress={handleSuccessDone}
+        >
+          <TouchableOpacity 
+            activeOpacity={1}
+            style={[s.successModalContent, { backgroundColor: colors.vjBg, borderColor: colors.border }]}
+          >
             <View style={s.successIconContainer}>
               <CheckCircle size={56} color="#10B981" />
             </View>
-            <Text style={s.successTitle}>Success!</Text>
-            <Text style={s.successSubtitle}>{successMessage}</Text>
+            <Text style={[s.successTitle, { color: colors.vjText }]}>Success!</Text>
+            <Text style={[s.successSubtitle, { color: colors.vjText }]}>{successMessage}</Text>
             
             <View style={{ width: '100%', marginTop: 16 }}>
               <GlassButton 
@@ -128,8 +151,8 @@ export default function CreateCategoryScreen() {
                 onPress={handleSuccessDone} 
               />
             </View>
-          </View>
-        </View>
+          </TouchableOpacity>
+        </TouchableOpacity>
       </Modal>
     </TwoToneWrapper>
   );
@@ -142,7 +165,6 @@ const s = StyleSheet.create({
     borderRadius: 24,
     padding: 24,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.5)',
   },
   formGroup: { marginBottom: 12 },
   modalOverlayCenter: {
@@ -153,14 +175,12 @@ const s = StyleSheet.create({
     padding: 24,
   },
   successModalContent: {
-    backgroundColor: COLORS.vjBg,
     width: '100%',
     maxWidth: 400,
     borderRadius: 24,
     padding: 32,
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.5)',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 10 },
     shadowOpacity: 0.25,
@@ -176,13 +196,12 @@ const s = StyleSheet.create({
   successTitle: {
     fontSize: 24,
     fontWeight: '800',
-    color: COLORS.vjText,
     marginBottom: 8,
   },
   successSubtitle: {
     fontSize: 14,
-    color: 'rgba(92,22,35,0.6)',
     textAlign: 'center',
     marginBottom: 24,
+    opacity: 0.7,
   },
 });

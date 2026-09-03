@@ -1,4 +1,6 @@
-import React, { useState, useCallback, useEffect, useMemo, useDeferredValue, memo } from 'react';
+// app/masters/designs.tsx — Phase 2 v2.24 Canonical Screen
+
+import React, { useState, useCallback, useEffect, useMemo, useDeferredValue } from 'react';
 import {
   View,
   Text,
@@ -11,6 +13,7 @@ import {
   TextInput,
 } from 'react-native';
 import { useRouter, useFocusEffect } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { storageInstance } from '@/utils/storage';
 import * as Haptics from 'expo-haptics';
 import { TwoToneWrapper } from '@/components/TwoToneWrapper';
@@ -41,6 +44,7 @@ type DesignWithCategory = Design & { categoryName: string | null };
 
 export default function DesignsScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
 
   // Responsive Grid System for Phone vs Tablet
@@ -56,6 +60,7 @@ export default function DesignsScreen() {
   const [designs, setDesigns] = useState<DesignWithCategory[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [viewMode, setViewModeState] = useState<'list' | 'grid'>('list');
 
@@ -70,7 +75,7 @@ export default function DesignsScreen() {
   const setViewMode = (mode: 'list' | 'grid') => {
     try {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    } catch (e) {}
+    } catch {}
     setViewModeState(mode);
     storageInstance.setItem('designViewMode', mode);
   };
@@ -88,13 +93,16 @@ export default function DesignsScreen() {
         categoryRepository.findByFirmId(activeFirmId),
       ]);
 
+      const activeCategories = (cRes || []).filter((c) => c.isActive === 1);
+      const activeDesigns = (rawDesigns || []).filter((d) => d.isActive === 1);
+
       const formattedDesigns: DesignWithCategory[] = await Promise.all(
-        rawDesigns.map(async (d: Design) => {
+        activeDesigns.map(async (d: Design) => {
           let categoryName: string | null = null;
           try {
             const maps = await designCategoryMapRepository.findByDesignId(d.id, activeFirmId);
             if (maps.length > 0) {
-              const cat = cRes.find((c: Category) => c.id === maps[0].categoryId);
+              const cat = activeCategories.find((c: Category) => c.id === maps[0].categoryId);
               if (cat) categoryName = cat.name;
             }
           } catch {}
@@ -103,7 +111,7 @@ export default function DesignsScreen() {
       );
 
       setDesigns(formattedDesigns);
-      setCategories(cRes);
+      setCategories(activeCategories);
     } catch (e) {
       console.error('[DesignsScreen] loadData failed:', e);
     } finally {
@@ -113,21 +121,86 @@ export default function DesignsScreen() {
 
   useFocusEffect(
     useCallback(() => {
-      loadData();
-    }, [loadData])
+      let active = true;
+      const fetchCurrent = async () => {
+        if (!activeFirmId) return;
+        setLoading(true);
+        try {
+          const [rawDesigns, cRes] = await Promise.all([
+            designRepository.findByFirmId(activeFirmId),
+            categoryRepository.findByFirmId(activeFirmId),
+          ]);
+
+          if (!active) return;
+
+          const activeCategories = (cRes || []).filter((c) => c.isActive === 1);
+          const activeDesigns = (rawDesigns || []).filter((d) => d.isActive === 1);
+
+          const formattedDesigns: DesignWithCategory[] = await Promise.all(
+            activeDesigns.map(async (d: Design) => {
+              let categoryName: string | null = null;
+              try {
+                const maps = await designCategoryMapRepository.findByDesignId(d.id, activeFirmId);
+                if (maps.length > 0) {
+                  const cat = activeCategories.find((c: Category) => c.id === maps[0].categoryId);
+                  if (cat) categoryName = cat.name;
+                }
+              } catch {}
+              return { ...d, categoryName };
+            })
+          );
+
+          if (active) {
+            setDesigns(formattedDesigns);
+            setCategories(activeCategories);
+          }
+        } catch (e) {
+          console.error('[DesignsScreen] fetchCurrent failed:', e);
+        } finally {
+          if (active) setLoading(false);
+        }
+      };
+
+      fetchCurrent();
+      return () => {
+        active = false;
+      };
+    }, [activeFirmId])
   );
 
   const handleDelete = (d: Design) => {
     try {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    } catch (e) {}
+    } catch {}
     setConfirmDelete(d);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!confirmDelete || !activeFirmId) return;
+    const designId = confirmDelete.id;
+
+    setIsDeleting(true);
+    try {
+      await designService.softDeleteDesign(designId, activeFirmId);
+      setConfirmDelete(null);
+      setSuccessMessage('Design pattern deleted successfully.');
+      await loadData();
+    } catch (error: any) {
+      setConfirmDelete(null);
+      setErrorMessage(
+        error.message === 'DESIGN_HAS_ACTIVE_ITEMS'
+          ? 'Cannot delete: Design pattern has active inventory items linked.'
+          : error.message || 'Failed to delete design pattern.'
+      );
+    } finally {
+      setIsDeleting(false);
+    }
   };
 
   const openEdit = (d: Design) => {
     try {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    } catch (e) {}
+    } catch {}
     router.push({
       pathname: '/masters/edit-design',
       params: {
@@ -171,69 +244,76 @@ export default function DesignsScreen() {
       <View style={s.container}>
         {/* TOP CONTROLS ROW: SEARCH & VIEW SWITCHER */}
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 12 }}>
-          <View style={[s.searchBarContainer, { flex: 1, marginBottom: 0 }]}>
-            <Search size={16} color="#D4AF37" style={{ marginRight: 8, opacity: 0.8 }} />
+          <View style={[s.searchBarContainer, { flex: 1, borderColor: `${colors.vjAccent}35`, marginBottom: 0 }]}>
+            <Search size={16} color={colors.vjAccent} style={{ marginRight: 8, opacity: 0.8 }} />
             <TextInput
+              testID="design-search-input"
               value={searchQuery}
               onChangeText={setSearchQuery}
               placeholder="Search design, code, metal, or category..."
-              placeholderTextColor="#9CA3AF"
-              style={s.searchInput}
+              placeholderTextColor="rgba(92, 22, 35, 0.4)"
+              style={[s.searchInput, { color: colors.vjText }]}
               autoCorrect={false}
               autoCapitalize="none"
               spellCheck={false}
               returnKeyType="search"
             />
             {Boolean(searchQuery) && (
-              <TouchableOpacity onPress={() => setSearchQuery('')} style={{ padding: 4 }}>
-                <X size={16} color="#6B7280" />
+              <TouchableOpacity 
+                testID="design-search-clear-btn"
+                onPress={() => setSearchQuery('')} 
+                style={{ padding: 4 }}
+              >
+                <X size={16} color={colors.vjText} style={{ opacity: 0.5 }} />
               </TouchableOpacity>
             )}
           </View>
 
           {/* VIEW SWITCHER */}
-          <View style={s.toggleContainer}>
+          <View style={[s.toggleContainer, { backgroundColor: `${colors.vjAccent}14` }]}>
             <TouchableOpacity
+              testID="view-mode-list-btn"
               onPress={() => setViewMode('list')}
               activeOpacity={0.8}
               style={[s.toggleIconBtn, viewMode === 'list' && s.toggleIconActive]}
             >
               <ListIcon
                 size={20}
-                color={viewMode === 'list' ? '#D4AF37' : COLORS.vjText}
+                color={viewMode === 'list' ? colors.vjAccent : colors.vjText}
                 style={{ opacity: viewMode === 'list' ? 1 : 0.6 }}
               />
             </TouchableOpacity>
             <TouchableOpacity
+              testID="view-mode-grid-btn"
               onPress={() => setViewMode('grid')}
               activeOpacity={0.8}
               style={[s.toggleIconBtn, viewMode === 'grid' && s.toggleIconActive]}
             >
               <LayoutGrid
                 size={20}
-                color={viewMode === 'grid' ? '#D4AF37' : COLORS.vjText}
+                color={viewMode === 'grid' ? colors.vjAccent : colors.vjText}
                 style={{ opacity: viewMode === 'grid' ? 1 : 0.6 }}
               />
             </TouchableOpacity>
           </View>
         </View>
 
-        {loading ? (
+        {loading && designs.length === 0 ? (
           <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', marginTop: 60 }}>
-            <ActivityIndicator size="large" color={COLORS.vjAccent} />
-            <Text style={{ marginTop: 12, fontSize: 13, color: 'rgba(92,22,35,0.6)', fontWeight: '600' }}>
+            <ActivityIndicator size="large" color={colors.vjAccent} />
+            <Text style={{ marginTop: 12, fontSize: 13, color: colors.vjText, opacity: 0.6, fontWeight: '600' }}>
               Loading Product Designs...
             </Text>
           </View>
         ) : filteredDesigns.length === 0 ? (
           <View style={s.emptyContainer}>
-            <View style={s.emptyIconCircle}>
-              <Sparkles size={40} color="#D4AF37" />
+            <View style={[s.emptyIconCircle, { backgroundColor: `${colors.vjAccent}14`, borderColor: `${colors.vjAccent}35` }]}>
+              <Sparkles size={40} color={colors.vjAccent} />
             </View>
-            <Text style={s.emptyTitle}>
+            <Text style={[s.emptyTitle, { color: colors.vjText }]}>
               {searchQuery ? 'No Matching Designs' : 'No Designs Created Yet'}
             </Text>
-            <Text style={s.emptySubtitle}>
+            <Text style={[s.emptySubtitle, { color: colors.vjText }]}>
               {searchQuery
                 ? `No design patterns match "${searchQuery}". Clear your search query to see all items.`
                 : 'Create your gold and silver jewelry patterns to organize items with low-stock alerts.'}
@@ -253,7 +333,7 @@ export default function DesignsScreen() {
             style={{ flex: 1, marginTop: 8 }}
             showsVerticalScrollIndicator={false}
             contentContainerStyle={[
-              { paddingBottom: 150 },
+              { paddingBottom: Math.max(insets.bottom + 120, 140) },
               viewMode === 'grid' && {
                 flexDirection: 'row',
                 flexWrap: 'wrap',
@@ -265,46 +345,50 @@ export default function DesignsScreen() {
               if (viewMode === 'grid') {
                 return (
                   <GlassCard
+                    testID={`design-card-${d.id}`}
                     key={d.id}
                     style={{
                       width: gridItemWidth,
                       marginBottom: gap,
+                      borderColor: `${colors.vjAccent}25`,
                     }}
                   >
                     <View style={s.gridCardInner}>
                       {/* TOP BADGE ROW */}
                       <View style={s.gridHeaderRow}>
                         <GlassMetalBadge metal={d.metal} />
-                        <View style={s.codeBadge}>
-                          <Text style={s.codeBadgeText} numberOfLines={1}>
+                        <View style={[s.codeBadge, { backgroundColor: `${colors.vjAccent}10`, borderColor: `${colors.vjAccent}20` }]}>
+                          <Text style={[s.codeBadgeText, { color: colors.vjText }]} numberOfLines={1}>
                             {d.code}
                           </Text>
                         </View>
                       </View>
 
                       {/* DESIGN NAME */}
-                      <Text style={s.gridTitle} numberOfLines={2}>
+                      <Text style={[s.gridTitle, { color: colors.vjText }]} numberOfLines={2}>
                         {d.name}
                       </Text>
 
                       {/* CATEGORY SCOPE */}
-                      <View style={s.categoryScopeBadge}>
-                        <Text style={s.categoryScopeText} numberOfLines={1}>
+                      <View style={[s.categoryScopeBadge, { backgroundColor: `${colors.vjAccent}14`, borderColor: `${colors.vjAccent}30` }]}>
+                        <Text style={[s.categoryScopeText, { color: colors.vjAccent }]} numberOfLines={1}>
                           {d.categoryName ? `Cat: ${d.categoryName}` : 'Unassigned Category'}
                         </Text>
                       </View>
 
                       {/* ACTION BUTTONS */}
-                      <View style={s.gridActionRow}>
+                      <View style={[s.gridActionRow, { borderTopColor: `${colors.vjAccent}15` }]}>
                         <TouchableOpacity
+                          testID={`edit-design-btn-${d.id}`}
                           onPress={() => openEdit(d)}
-                          style={s.actionBtnEdit}
+                          style={[s.actionBtnEdit, { backgroundColor: `${colors.vjAccent}14`, borderColor: `${colors.vjAccent}30` }]}
                           activeOpacity={0.7}
                         >
-                          <Edit2 size={14} color="#B45309" />
-                          <Text style={s.actionBtnEditText}>Edit</Text>
+                          <Edit2 size={14} color={colors.vjAccent} />
+                          <Text style={[s.actionBtnEditText, { color: colors.vjAccent }]}>Edit</Text>
                         </TouchableOpacity>
                         <TouchableOpacity
+                          testID={`delete-design-btn-${d.id}`}
                           onPress={() => handleDelete(d)}
                           style={s.actionBtnDelete}
                           activeOpacity={0.7}
@@ -319,7 +403,11 @@ export default function DesignsScreen() {
 
               // LIST VIEW ITEM
               return (
-                <GlassCard key={d.id} style={{ marginBottom: 10, width: '100%' }}>
+                <GlassCard 
+                  testID={`design-card-${d.id}`}
+                  key={d.id} 
+                  style={{ marginBottom: 10, width: '100%', borderColor: `${colors.vjAccent}25` }}
+                >
                   <View style={s.listCardInner}>
                     {/* LEFT BADGE */}
                     <View style={{ marginRight: 12 }}>
@@ -328,14 +416,14 @@ export default function DesignsScreen() {
 
                     {/* CENTER DETAILS */}
                     <View style={s.listTextContainer}>
-                      <Text style={s.listTitle} numberOfLines={1}>
+                      <Text style={[s.listTitle, { color: colors.vjText }]} numberOfLines={1}>
                         {d.name}
                       </Text>
                       <View style={s.listSubRow}>
-                        <View style={s.codeBadge}>
-                          <Text style={s.codeBadgeText}>{d.code}</Text>
+                        <View style={[s.codeBadge, { backgroundColor: `${colors.vjAccent}10`, borderColor: `${colors.vjAccent}20` }]}>
+                          <Text style={[s.codeBadgeText, { color: colors.vjText }]}>{d.code}</Text>
                         </View>
-                        <Text style={s.listCategoryText} numberOfLines={1}>
+                        <Text style={[s.listCategoryText, { color: colors.vjText }]} numberOfLines={1}>
                           {d.categoryName || 'Unlinked'}
                         </Text>
                       </View>
@@ -344,13 +432,15 @@ export default function DesignsScreen() {
                     {/* RIGHT ACTIONS */}
                     <View style={s.listActionRow}>
                       <TouchableOpacity
+                        testID={`edit-design-btn-${d.id}`}
                         onPress={() => openEdit(d)}
-                        style={s.actionBtnEditCircle}
+                        style={[s.actionBtnEditCircle, { backgroundColor: `${colors.vjAccent}14`, borderColor: `${colors.vjAccent}30` }]}
                         activeOpacity={0.7}
                       >
-                        <Edit2 size={16} color="#B45309" />
+                        <Edit2 size={16} color={colors.vjAccent} />
                       </TouchableOpacity>
                       <TouchableOpacity
+                        testID={`delete-design-btn-${d.id}`}
                         onPress={() => handleDelete(d)}
                         style={s.actionBtnDeleteCircle}
                         activeOpacity={0.7}
@@ -367,9 +457,10 @@ export default function DesignsScreen() {
 
         <FixedGlassBar>
           <TouchableOpacity
-            style={fixedBarStyles.pillPrimaryBtn}
+            testID="create-design-bottom-btn"
+            style={[fixedBarStyles.pillPrimaryBtn, { backgroundColor: colors.vjAccent }]}
             onPress={() => {
-              try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch (e) {}
+              try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
               router.push('/masters/create-design');
             }}
             activeOpacity={0.8}
@@ -381,80 +472,89 @@ export default function DesignsScreen() {
       </View>
 
       {/* SUCCESS MODAL */}
-      <Modal visible={!!successMessage} transparent animationType="fade">
-        <View style={s.modalOverlayCenter}>
-          <View style={s.successModalContent}>
+      <Modal visible={!!successMessage} transparent animationType="fade" onRequestClose={() => setSuccessMessage(null)}>
+        <TouchableOpacity 
+          style={s.modalOverlayCenter}
+          activeOpacity={1}
+          onPress={() => setSuccessMessage(null)}
+        >
+          <TouchableOpacity 
+            activeOpacity={1}
+            style={[s.successModalContent, { backgroundColor: colors.vjBg, borderColor: colors.border }]}
+          >
             <View style={s.successIconContainer}>
               <CheckCircle size={56} color="#10B981" />
             </View>
-            <Text style={s.successTitle}>Success!</Text>
-            <Text style={s.successSubtitle}>{successMessage}</Text>
+            <Text style={[s.successTitle, { color: colors.vjText }]}>Success!</Text>
+            <Text style={[s.successSubtitle, { color: colors.vjText }]}>{successMessage}</Text>
             <View style={{ width: '100%', marginTop: 16 }}>
               <GlassButton title="Done" onPress={() => setSuccessMessage(null)} />
             </View>
-          </View>
-        </View>
+          </TouchableOpacity>
+        </TouchableOpacity>
       </Modal>
 
       {/* CONFIRM DELETE MODAL */}
-      <Modal visible={!!confirmDelete} transparent animationType="fade">
-        <View style={s.modalOverlayCenter}>
-          <View style={s.successModalContent}>
+      <Modal visible={!!confirmDelete} transparent animationType="fade" onRequestClose={() => !isDeleting && setConfirmDelete(null)}>
+        <TouchableOpacity 
+          style={s.modalOverlayCenter}
+          activeOpacity={1}
+          onPress={() => !isDeleting && setConfirmDelete(null)}
+        >
+          <TouchableOpacity 
+            activeOpacity={1}
+            style={[s.successModalContent, { backgroundColor: colors.vjBg, borderColor: colors.border }]}
+          >
             <View style={[s.successIconContainer, { backgroundColor: 'rgba(239, 68, 68, 0.1)' }]}>
-              <Text style={{ fontSize: 40 }}>❓</Text>
+              <Trash2 size={36} color="#DC2626" />
             </View>
-            <Text style={s.successTitle}>Confirm Delete</Text>
-            <Text style={s.successSubtitle}>
+            <Text style={[s.successTitle, { color: colors.vjText }]}>Confirm Delete</Text>
+            <Text style={[s.successSubtitle, { color: colors.vjText }]}>
               Are you sure you want to delete design pattern "{confirmDelete?.name}"?
             </Text>
             <View style={{ width: '100%', marginTop: 16, flexDirection: 'row', gap: 12 }}>
               <View style={{ flex: 1 }}>
-                <GlassButton title="Cancel" onPress={() => setConfirmDelete(null)} variant="secondary" />
+                <GlassButton 
+                  title="Cancel" 
+                  onPress={() => setConfirmDelete(null)} 
+                  variant="secondary" 
+                  disabled={isDeleting}
+                />
               </View>
               <View style={{ flex: 1 }}>
                 <GlassButton
-                  title="Delete"
-                  onPress={async () => {
-                    const d = confirmDelete;
-                    setConfirmDelete(null);
-                    if (!d || !activeFirmId) return;
-                    try {
-                      setLoading(true);
-                      await designService.softDeleteDesign(d.id, activeFirmId);
-                      setSuccessMessage('Design deleted');
-                      loadData();
-                    } catch (error: any) {
-                      setErrorMessage(
-                        error.message === 'DESIGN_HAS_ACTIVE_ITEMS'
-                          ? 'Cannot delete: Design has active inventory items.'
-                          : error.message
-                      );
-                    } finally {
-                      setLoading(false);
-                    }
-                  }}
+                  title={isDeleting ? 'Deleting...' : 'Delete'}
+                  onPress={handleConfirmDelete}
                   variant="danger"
+                  disabled={isDeleting}
                 />
               </View>
             </View>
-          </View>
-        </View>
+          </TouchableOpacity>
+        </TouchableOpacity>
       </Modal>
 
       {/* ERROR MODAL */}
-      <Modal visible={!!errorMessage} transparent animationType="fade">
-        <View style={s.modalOverlayCenter}>
-          <View style={s.successModalContent}>
+      <Modal visible={!!errorMessage} transparent animationType="fade" onRequestClose={() => setErrorMessage(null)}>
+        <TouchableOpacity 
+          style={s.modalOverlayCenter}
+          activeOpacity={1}
+          onPress={() => setErrorMessage(null)}
+        >
+          <TouchableOpacity 
+            activeOpacity={1}
+            style={[s.successModalContent, { backgroundColor: colors.vjBg, borderColor: colors.border }]}
+          >
             <View style={[s.successIconContainer, { backgroundColor: 'rgba(239, 68, 68, 0.1)' }]}>
               <Text style={{ fontSize: 40 }}>⚠️</Text>
             </View>
-            <Text style={s.successTitle}>Delete Failed</Text>
-            <Text style={s.successSubtitle}>{errorMessage}</Text>
+            <Text style={[s.successTitle, { color: colors.vjText }]}>Delete Failed</Text>
+            <Text style={[s.successSubtitle, { color: colors.vjText }]}>{errorMessage}</Text>
             <View style={{ width: '100%', marginTop: 16 }}>
               <GlassButton title="Dismiss" onPress={() => setErrorMessage(null)} />
             </View>
-          </View>
-        </View>
+          </TouchableOpacity>
+        </TouchableOpacity>
       </Modal>
     </TwoToneWrapper>
   );
@@ -462,16 +562,8 @@ export default function DesignsScreen() {
 
 const s = StyleSheet.create({
   container: { flex: 1, paddingTop: 6 },
-  controlsRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 8,
-    marginTop: 4,
-    gap: 12,
-  },
   toggleContainer: {
     flexDirection: 'row',
-    backgroundColor: 'rgba(92,22,35,0.08)',
     borderRadius: 14,
     padding: 3,
   },
@@ -493,16 +585,13 @@ const s = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: '#fff',
     borderWidth: 1,
-    borderColor: 'rgba(92,22,35,0.15)',
     borderRadius: 14,
     paddingHorizontal: 12,
     paddingVertical: 8,
-    marginBottom: 10,
   },
   searchInput: {
     flex: 1,
     fontSize: 14,
-    color: COLORS.vjText,
     fontWeight: '600',
     paddingVertical: 0,
   },
@@ -516,21 +605,17 @@ const s = StyleSheet.create({
     marginBottom: 8,
   },
   codeBadge: {
-    backgroundColor: 'rgba(92,22,35,0.06)',
     paddingHorizontal: 8,
     paddingVertical: 2,
     borderRadius: 6,
     borderWidth: 1,
-    borderColor: 'rgba(92,22,35,0.1)',
   },
   codeBadgeText: {
     fontSize: 11,
     fontWeight: '800',
-    color: COLORS.vjText,
     letterSpacing: 0.5,
   },
   gridTitle: {
-    color: COLORS.vjText,
     fontSize: 15,
     fontWeight: '800',
     lineHeight: 20,
@@ -538,19 +623,16 @@ const s = StyleSheet.create({
     marginBottom: 6,
   },
   categoryScopeBadge: {
-    backgroundColor: 'rgba(212, 175, 55, 0.1)',
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: 6,
     borderWidth: 1,
-    borderColor: 'rgba(212, 175, 55, 0.2)',
     alignSelf: 'flex-start',
     marginBottom: 10,
   },
   categoryScopeText: {
     fontSize: 11,
     fontWeight: '700',
-    color: '#92400E',
   },
   gridActionRow: {
     flexDirection: 'row',
@@ -558,7 +640,6 @@ const s = StyleSheet.create({
     justifyContent: 'space-between',
     paddingTop: 8,
     borderTopWidth: 1,
-    borderTopColor: 'rgba(92,22,35,0.08)',
     gap: 8,
   },
   actionBtnEdit: {
@@ -567,16 +648,13 @@ const s = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 4,
-    backgroundColor: 'rgba(212, 175, 55, 0.12)',
     borderWidth: 1,
-    borderColor: 'rgba(212, 175, 55, 0.25)',
     paddingVertical: 6,
     borderRadius: 8,
   },
   actionBtnEditText: {
     fontSize: 12,
     fontWeight: '700',
-    color: '#92400E',
   },
   actionBtnDelete: {
     width: 32,
@@ -598,7 +676,6 @@ const s = StyleSheet.create({
     paddingRight: 8,
   },
   listTitle: {
-    color: COLORS.vjText,
     fontSize: 16,
     fontWeight: '800',
     marginBottom: 4,
@@ -610,8 +687,8 @@ const s = StyleSheet.create({
   },
   listCategoryText: {
     fontSize: 12,
-    color: 'rgba(92,22,35,0.6)',
     fontWeight: '600',
+    opacity: 0.65,
     flex: 1,
   },
   listActionRow: {
@@ -623,9 +700,7 @@ const s = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: 'rgba(212, 175, 55, 0.15)',
     borderWidth: 1,
-    borderColor: 'rgba(212, 175, 55, 0.3)',
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -650,9 +725,7 @@ const s = StyleSheet.create({
     width: 80,
     height: 80,
     borderRadius: 40,
-    backgroundColor: 'rgba(212, 175, 55, 0.15)',
     borderWidth: 1.5,
-    borderColor: 'rgba(212, 175, 55, 0.35)',
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 16,
@@ -660,16 +733,15 @@ const s = StyleSheet.create({
   emptyTitle: {
     fontSize: 18,
     fontWeight: '800',
-    color: COLORS.vjText,
     textAlign: 'center',
     marginBottom: 8,
   },
   emptySubtitle: {
     fontSize: 13,
-    color: 'rgba(92,22,35,0.6)',
     textAlign: 'center',
     lineHeight: 18,
     maxWidth: 280,
+    opacity: 0.65,
   },
   modalOverlayCenter: {
     flex: 1,
@@ -679,14 +751,12 @@ const s = StyleSheet.create({
     padding: 24,
   },
   successModalContent: {
-    backgroundColor: COLORS.vjBg,
     width: '100%',
     maxWidth: 400,
     borderRadius: 24,
     padding: 32,
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.5)',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 10 },
     shadowOpacity: 0.25,
@@ -702,13 +772,12 @@ const s = StyleSheet.create({
   successTitle: {
     fontSize: 24,
     fontWeight: '800',
-    color: COLORS.vjText,
     marginBottom: 8,
   },
   successSubtitle: {
     fontSize: 14,
-    color: 'rgba(92,22,35,0.6)',
     textAlign: 'center',
     marginBottom: 24,
+    opacity: 0.7,
   },
 });

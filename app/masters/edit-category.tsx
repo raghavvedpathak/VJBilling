@@ -1,7 +1,10 @@
+// app/masters/edit-category.tsx — Phase 2 v2.24 Canonical Screen
+
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, Alert, Modal, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, Alert, Modal, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import { useRouter, useLocalSearchParams } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import { TwoToneWrapper } from '@/components/TwoToneWrapper';
 import { HeaderPill, GlassButton, GlassInput, FixedGlassBar, fixedBarStyles } from '@/components/ui/Glass';
@@ -14,13 +17,18 @@ import { COLORS, getThemeColors } from '@/constants/theme';
 
 export default function EditCategoryScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const { activeFirmId } = useFirmStore();
   
-  const { id, initialName, initialCode } = useLocalSearchParams<{ 
+  const params = useLocalSearchParams<{ 
     id: string; 
     initialName?: string; 
     initialCode?: string;
   }>();
+
+  const id = Array.isArray(params.id) ? params.id[0] : params.id;
+  const initialName = Array.isArray(params.initialName) ? params.initialName[0] : params.initialName;
+  const initialCode = Array.isArray(params.initialCode) ? params.initialCode[0] : params.initialCode;
   
   const [newName, setNewName] = useState(initialName || '');
   const [categoryCode, setCategoryCode] = useState(initialCode || '');
@@ -47,25 +55,32 @@ export default function EditCategoryScreen() {
   }, [id]);
 
   const handleEditSubmit = async () => {
-    try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); } catch (e) {}
+    try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); } catch {}
     if (!activeFirmId || !id) return;
-    if (!newName.trim()) {
-      Alert.alert('Validation Error', 'Category name is required');
+
+    const trimmedName = newName.trim();
+    if (!trimmedName) {
+      Alert.alert('Validation Error', 'Category name is required.');
       return;
     }
 
     setIsSubmitting(true);
     try {
-      await categoryService.updateCategory(id, activeFirmId, newName.trim());
-      setSuccessMessage('Category updated successfully');
+      await categoryService.updateCategory(id, activeFirmId, trimmedName);
+      setSuccessMessage(`Category "${trimmedName}" updated successfully.`);
     } catch (e: any) {
-      Alert.alert('Error', e.message);
+      if (e.message?.includes('CATEGORY_NAME_DUPLICATE') || e.message?.includes('UNIQUE')) {
+        Alert.alert('Duplicate Category', 'A category with this name already exists in your firm.');
+      } else {
+        Alert.alert('Error', e.message || 'Failed to update category.');
+      }
     } finally {
       setIsSubmitting(false);
     }
   };
 
   const handleSuccessDone = () => {
+    try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
     setSuccessMessage(null);
     router.back();
   };
@@ -89,7 +104,10 @@ export default function EditCategoryScreen() {
         <KeyboardAwareScrollView 
           style={s.container} 
           showsVerticalScrollIndicator={false} 
-          contentContainerStyle={{ paddingTop: 32, paddingBottom: 190 }} 
+          contentContainerStyle={{ 
+            paddingTop: 32, 
+            paddingBottom: Math.max(insets.bottom + 120, 160) 
+          }} 
           keyboardShouldPersistTaps="handled"
           keyboardDismissMode="on-drag"
           enableOnAndroid={true}
@@ -97,23 +115,25 @@ export default function EditCategoryScreen() {
           extraScrollHeight={120}
           extraHeight={140}
         >
-          <View style={s.card}>
+          <View style={[s.card, { borderColor: `${colors.vjAccent}25` }]}>
             {categoryCode ? (
               <View style={s.formGroup}>
-                <Text style={s.label}>Category Code (System ID)</Text>
-                <View style={s.codeBox}>
-                  <Tag size={14} color="#5C1623" style={{ marginRight: 6 }} />
-                  <Text style={s.codeText}>{categoryCode}</Text>
+                <Text style={[s.label, { color: colors.vjText, opacity: 0.6 }]}>Category Code (System ID)</Text>
+                <View style={[s.codeBox, { backgroundColor: `${colors.vjAccent}12`, borderColor: `${colors.vjAccent}30` }]}>
+                  <Tag size={14} color={colors.vjAccent} style={{ marginRight: 6 }} />
+                  <Text style={[s.codeText, { color: colors.vjText }]}>{categoryCode}</Text>
                 </View>
               </View>
             ) : null}
 
             <View style={s.formGroup}>
               <GlassInput 
-                label="Category Name"
+                label="Category Name *"
                 value={newName}
                 onChangeText={setNewName}
                 placeholder="e.g. Gold Rings"
+                autoCapitalize="words"
+                maxLength={50}
               />
             </View>
           </View>
@@ -121,14 +141,19 @@ export default function EditCategoryScreen() {
 
         <FixedGlassBar>
           <TouchableOpacity
+            testID="cancel-edit-category-btn"
             style={fixedBarStyles.pillSecondaryBtn}
-            onPress={() => router.back()}
+            onPress={() => {
+              try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
+              router.back();
+            }}
             disabled={isSubmitting}
           >
-            <Text style={fixedBarStyles.pillSecondaryText}>Cancel</Text>
+            <Text style={[fixedBarStyles.pillSecondaryText, { color: colors.vjText }]}>Cancel</Text>
           </TouchableOpacity>
           <TouchableOpacity
-            style={fixedBarStyles.pillPrimaryBtn}
+            testID="save-edit-category-btn"
+            style={[fixedBarStyles.pillPrimaryBtn, { backgroundColor: colors.vjAccent }]}
             onPress={handleEditSubmit}
             disabled={isSubmitting}
           >
@@ -144,14 +169,22 @@ export default function EditCategoryScreen() {
         </FixedGlassBar>
       </View>
 
-      <Modal visible={!!successMessage} transparent animationType="fade">
-        <View style={s.modalOverlayCenter}>
-          <View style={s.successModalContent}>
+      {/* SUCCESS MODAL */}
+      <Modal visible={!!successMessage} transparent animationType="fade" onRequestClose={handleSuccessDone}>
+        <TouchableOpacity 
+          style={s.modalOverlayCenter}
+          activeOpacity={1}
+          onPress={handleSuccessDone}
+        >
+          <TouchableOpacity 
+            activeOpacity={1}
+            style={[s.successModalContent, { backgroundColor: colors.vjBg, borderColor: colors.border }]}
+          >
             <View style={s.successIconContainer}>
               <CheckCircle size={56} color="#10B981" />
             </View>
-            <Text style={s.successTitle}>Success!</Text>
-            <Text style={s.successSubtitle}>{successMessage}</Text>
+            <Text style={[s.successTitle, { color: colors.vjText }]}>Success!</Text>
+            <Text style={[s.successSubtitle, { color: colors.vjText }]}>{successMessage}</Text>
             
             <View style={{ width: '100%', marginTop: 16 }}>
               <GlassButton 
@@ -159,8 +192,8 @@ export default function EditCategoryScreen() {
                 onPress={handleSuccessDone} 
               />
             </View>
-          </View>
-        </View>
+          </TouchableOpacity>
+        </TouchableOpacity>
       </Modal>
     </TwoToneWrapper>
   );
@@ -173,10 +206,9 @@ const s = StyleSheet.create({
     borderRadius: 24,
     padding: 24,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.5)',
   },
   formGroup: { marginBottom: 24 },
-  label: { fontSize: 12, fontWeight: '700', color: 'rgba(92,22,35,0.6)', textTransform: 'uppercase', marginBottom: 8 },
+  label: { fontSize: 12, fontWeight: '700', textTransform: 'uppercase', marginBottom: 8 },
   modalOverlayCenter: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.6)',
@@ -185,14 +217,12 @@ const s = StyleSheet.create({
     padding: 24,
   },
   successModalContent: {
-    backgroundColor: COLORS.vjBg,
     width: '100%',
     maxWidth: 400,
     borderRadius: 24,
     padding: 32,
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.5)',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 10 },
     shadowOpacity: 0.25,
@@ -208,30 +238,27 @@ const s = StyleSheet.create({
   successTitle: {
     fontSize: 24,
     fontWeight: '800',
-    color: COLORS.vjText,
     marginBottom: 8,
   },
   successSubtitle: {
     fontSize: 14,
-    color: 'rgba(92,22,35,0.6)',
     textAlign: 'center',
     marginBottom: 24,
+    opacity: 0.7,
   },
   codeBox: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(212, 175, 55, 0.12)',
     paddingHorizontal: 14,
     paddingVertical: 10,
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: 'rgba(212, 175, 55, 0.3)',
     alignSelf: 'flex-start',
   },
   codeText: {
     fontSize: 13,
     fontWeight: '800',
-    color: '#5C1623',
     letterSpacing: 0.5,
+    fontFamily: 'monospace',
   },
 });

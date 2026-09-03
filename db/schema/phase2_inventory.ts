@@ -1,8 +1,10 @@
 import { sqliteTable, text, integer, real, index, foreignKey, unique, primaryKey, uniqueIndex, check } from 'drizzle-orm/sqlite-core';
 import { isNotNull, sql } from 'drizzle-orm';
 import { firms } from './phase1_core';
+import { ERR } from '../../constants/errorCodes';
 
-// PHASE 2 — INVENTORY TRUTH LAYER (v2.15 SPECIFICATION)
+// =============================================================================
+// PHASE 2 — INVENTORY TRUTH LAYER (v2.24 SPECIFICATION · FEAT-LOOSE-STOCK-1)
 // =============================================================================
 
 // PURITY HELPERS (Step 6.1 — in-memory constants, no DB table)
@@ -25,7 +27,9 @@ export const PURITY_PERCENT_EXTENDED: Record<number, number> = {
 };
 
 export function karatToPercent(karat: number): number {
-  return PURITY_MAP[karat] ?? 0;
+  const pct = PURITY_MAP[karat];
+  if (pct === undefined) throw new Error(`${ERR.INVALID_KARAT}: ${karat}`);
+  return pct;
 }
 
 export function percentToKarat(percent: number): number | null {
@@ -52,9 +56,9 @@ export const categories = sqliteTable('categories', {
   firmFk: foreignKey({ columns: [table.firmId], foreignColumns: [firms.id] }),
   uqCategoryFirmName: uniqueIndex('uq_category_firm_name').on(table.firmId, sql`lower(${table.name})`),
   idxCategoriesFirmActive: index('idx_categories_firm_active').on(table.firmId, table.isActive),
-})); 
+}));
 
-// Designs (Step 3)
+// Designs (Step 3 — FIX-LOOSESTOCK-STOCKTYPE-1 v2.24)
 export const designs = sqliteTable('designs', {
   id: text('id').primaryKey(),
   name: text('name').notNull(),
@@ -62,10 +66,10 @@ export const designs = sqliteTable('designs', {
   metal: text('metal', { enum: ['GOLD', 'SILVER'] }).notNull(),
   defaultHsn: text('default_hsn'),
   firmId: text('firm_id').notNull(),
+  stockType: text('stock_type', { enum: ['SERIALIZED', 'LOOSE'] }).default('SERIALIZED').notNull(), // FEAT-LOOSE-STOCK-1 (v2.23) / FIX-LOOSESTOCK-STOCKTYPE-1 (v2.24)
   isActive: integer('is_active').notNull().default(1),
   createdAt: text('created_at').notNull(),
   updatedAt: text('updated_at').notNull(),
-  // lowStockThreshold REMOVED (v2.13, FIX-LOWSTOCK-PURITYGRAIN-1) — moved to design_purity_thresholds below
 }, (table) => ({
   firmFk: foreignKey({ columns: [table.firmId], foreignColumns: [firms.id] }),
   uniqueDesign: unique().on(table.name, table.metal, table.firmId), // FIX-CAT-ITEM-FK (v1.42)
@@ -105,28 +109,36 @@ export const items = sqliteTable('items', {
   fineWeightMg: integer('fine_weight_mg').notNull(), // PHYSICAL: round(net x purity / 100)
   purityRoundingDeltaMg: integer('purity_rounding_delta_mg').notNull().default(0), // FEAT-PURITY-ROUND-1 (v1.90)
   wastagePercent: real('wastage_percent').notNull().default(0), // FIX-WAST-1 (v1.26)
-  fineGoldChargedMg: integer('fine_gold_charged_mg'), // nullable (FIX-WAST-2 v1.26)
+  fineGoldChargedMg: integer('fine_gold_charged_mg'), // nullable (FIX-WAST-2 v1.26 / FIX-WAST-NETBASIS-1 v2.04)
   purchaseRatePaise: integer('purchase_rate_paise'), // nullable (FIX-WAST-3 v1.26)
   makingChargePaise: integer('making_charge_paise'), // nullable (FIX-COST-1 v1.40)
   stoneCostPaise: integer('stone_cost_paise'), // nullable (FIX-COST-2 v1.40)
   location: text('location'), // nullable (FIX-LOC-1 v1.40)
-  invoiceId: text('invoice_id'), // nullable DORMANT (FIX-INV-1 v1.40)
+  saleInvoiceId: text('sale_invoice_id'), // nullable DORMANT (FIX-INV-1 v1.40 / FIX-ITEM-SALELINK-RENAME-1 v2.17)
+  purchaseInvoiceId: text('purchase_invoice_id'), // nullable DORMANT (FIX-ITEM-PURCHASELINK-1 v2.16)
   phantomStockId: text('phantom_stock_id'), // nullable (FEAT-PHANTOM-INVENTORY-1 v1.67)
   hsnCode: text('hsn_code').notNull(), // GST HSN code (FIX-HSN-ITEM-1 v1.44)
   sizeValue: real('size_value'), // FIX-GAP-P2-SIZE-2 (v1.76)
-  sizeUnit: text('size_unit', { enum: ['INCH','MM','CM','RING_SIZE'] }), // FIX-GAP-P2-SIZE-2 (v1.76)
+  sizeUnit: text('size_unit', { enum: ['INCH', 'MM', 'CM', 'RING_SIZE'] }), // FIX-GAP-P2-SIZE-2 (v1.76)
   metalSource: text('metal_source', {
-    enum: ['CUSTOMER','KARIGAR','EXCHANGE','PURCHASE','MELT_OUTPUT',
-           'CUSTOMER_OLD_GOLD','SUPPLIER_PURCHASE','REFINERY_OUTPUT',
-           'JOB_WORK_RETURN','OPENING_BALANCE']
+    enum: [
+      'CUSTOMER', 'KARIGAR', 'EXCHANGE', 'PURCHASE', 'MELT_OUTPUT',
+      'CUSTOMER_OLD_GOLD', 'SUPPLIER_PURCHASE', 'REFINERY_OUTPUT',
+      'JOB_WORK_RETURN', 'OPENING_BALANCE',
+    ],
   }).notNull().default('SUPPLIER_PURCHASE'),
   status: text('status', {
-    enum: ['DRAFT','AVAILABLE','SOLD','SENT_TO_REFINERY','MELTED','DAMAGED','RETURNED','SENT_TO_MELT','SENT_TO_KARIGAR','PHANTOM_AVAILABLE','PHANTOM_SOLD']
+    enum: [
+      'DRAFT', 'AVAILABLE', 'SOLD', 'SENT_TO_REFINERY', 'MELTED',
+      'DAMAGED', 'RETURNED', 'SENT_TO_MELT', 'SENT_TO_KARIGAR',
+      'PHANTOM_AVAILABLE', 'PHANTOM_SOLD',
+    ],
   }).notNull().default('DRAFT'),
   createdAt: text('created_at').notNull(),
   updatedAt: text('updated_at').notNull(),
 }, (table) => ({
   designFk: foreignKey({ columns: [table.designId], foreignColumns: [designs.id] }),
+  categoryFk: foreignKey({ columns: [table.categoryId], foreignColumns: [categories.id] }), // FIX-CAT-ITEM-FK (v1.42)
   firmFk: foreignKey({ columns: [table.firmId], foreignColumns: [firms.id] }),
   stoneFk: foreignKey({ columns: [table.primaryStoneId], foreignColumns: [stones.id] }),
   sizePairingCheck: check('chk_items_size_pairing', sql`(${table.sizeValue} IS NULL AND ${table.sizeUnit} IS NULL) OR (${table.sizeValue} IS NOT NULL AND ${table.sizeUnit} IS NOT NULL)`),
@@ -136,24 +148,29 @@ export const items = sqliteTable('items', {
   idxItemsSku: index('idx_items_sku').on(table.sku, table.firmId),
   idxItemsHuid: index('idx_items_huid').on(table.huid).where(isNotNull(table.huid)),
   idxItemsCategoryStatus: index('idx_items_category_status').on(table.firmId, table.categoryId, table.status),
-  idxItemsInvoice: index('idx_items_invoice').on(table.invoiceId).where(isNotNull(table.invoiceId)),
+  idxItemsSaleInvoice: index('idx_items_sale_invoice').on(table.saleInvoiceId).where(isNotNull(table.saleInvoiceId)), // FIX-ITEM-SALELINK-RENAME-1 (v2.17)
+  idxItemsPurchaseInvoice: index('idx_items_purchase_invoice').on(table.purchaseInvoiceId).where(isNotNull(table.purchaseInvoiceId)), // FIX-ITEM-PURCHASELINK-1 (v2.16)
   idxItemsPhantomAvailable: index('idx_items_phantom_available').on(table.firmId, table.phantomStockId).where(sql`status = 'PHANTOM_AVAILABLE'`),
   idxItemsPhantomSold: index('idx_items_phantom_sold').on(table.firmId, table.phantomStockId).where(sql`status = 'PHANTOM_SOLD'`),
   idxItemsSize: index('idx_items_size').on(table.firmId, table.sizeUnit, table.sizeValue).where(isNotNull(table.sizeValue)), // FIX-GAP-P2-SIZE-3 (v1.76)
 }));
 
-// Item Events (append-only audit trail per item - Step 1.6 & 6.7)
+// Item Events (append-only audit trail per item - Step 1.6, 6.7, v2.18, v2.20)
 export const itemEvents = sqliteTable('item_events', {
   id: text('id').primaryKey(),
   itemId: text('item_id').notNull(),
   firmId: text('firm_id').notNull(),
+  karigarId: text('karigar_id'), // FIX-KARIGAR-FWDCOMPAT-1 (v2.18) / FIX-KARIGAR-COMMENT-1 (v2.20): forward-declared FK to karigar.id (Phase 3)
   eventType: text('event_type', {
-    enum: ['CREATED','ITEM_STATUS_CHANGED','WEIGHT_ADJUSTED', 
-    'HUID_ADDED','BARCODE_REPRINTED','ITEM_RETURNED',
-    'ITEM_SENT_TO_KARIGAR','ITEM_RETURNED_FROM_KARIGAR','ITEM_EDITED','PHANTOM_CREATED','PHANTOM_RECONCILED',
-    'SKU_CHANGED','ITEM_ENTRY_DATE_CORRECTED','HUID_CORRECTED','METAL_SOURCE_CORRECTED']
+    enum: [
+      'CREATED', 'ITEM_STATUS_CHANGED', 'WEIGHT_ADJUSTED',
+      'HUID_ADDED', 'BARCODE_REPRINTED', 'ITEM_RETURNED',
+      'ITEM_SENT_TO_KARIGAR', 'ITEM_RETURNED_FROM_KARIGAR', 'ITEM_EDITED',
+      'PHANTOM_CREATED', 'PHANTOM_RECONCILED',
+      'SKU_CHANGED', 'ITEM_ENTRY_DATE_CORRECTED', 'HUID_CORRECTED', 'METAL_SOURCE_CORRECTED',
+    ],
   }).notNull(),
-  severity: text('severity', { enum: ['INFO','WARNING','ERROR'] }).notNull(),
+  severity: text('severity', { enum: ['INFO', 'WARNING', 'ERROR'] }).notNull(),
   performedBy: text('performed_by').notNull(), // deviceId
   reason: text('reason'),
   oldValue: text('old_value'),
@@ -166,6 +183,48 @@ export const itemEvents = sqliteTable('item_events', {
   idxItemEventsFirmType: index('idx_item_events_firm_type').on(table.firmId, table.eventType),
 }));
 
+// Loose Stock Lots (STEP 6.9 — FEAT-LOOSE-STOCK-1 v2.23 / v2.24)
+export const looseStockLots = sqliteTable('loose_stock_lots', {
+  id: text('id').primaryKey(),
+  firmId: text('firm_id').notNull(),
+  designId: text('design_id').notNull(),
+  purityPercent: real('purity_percent').notNull(),
+  purityKarat: text('purity_karat').notNull(),
+  metal: text('metal', { enum: ['GOLD', 'SILVER'] }).notNull(), // denormalized from design
+  pieceCount: integer('piece_count').notNull(),
+  totalWeightMg: integer('total_weight_mg').notNull(),
+  hsnCode: text('hsn_code').notNull(),
+  status: text('status', { enum: ['ACTIVE', 'DEPLETED'] }).notNull().default('ACTIVE'),
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull(),
+}, (table) => ({
+  firmFk: foreignKey({ columns: [table.firmId], foreignColumns: [firms.id] }),
+  designFk: foreignKey({ columns: [table.designId], foreignColumns: [designs.id] }),
+  uniqueLot: unique().on(table.designId, table.purityPercent, table.firmId), // merge-on-add policy
+  idxLooseStockLotsFirm: index('idx_loose_stock_lots_firm').on(table.firmId, table.status),
+  idxLooseStockLotsDesign: index('idx_loose_stock_lots_design').on(table.designId),
+}));
+
+// Loose Stock Events (STEP 6.9 — FEAT-LOOSE-STOCK-1 v2.23 / v2.24)
+export const looseStockEvents = sqliteTable('loose_stock_events', {
+  id: text('id').primaryKey(),
+  lotId: text('lot_id').notNull(),
+  firmId: text('firm_id').notNull(),
+  eventType: text('event_type', { enum: ['STOCK_ADDED', 'STOCK_SOLD', 'LOT_DEPLETED'] }).notNull(),
+  pieceCountDelta: integer('piece_count_delta').notNull(),
+  weightMgDelta: integer('weight_mg_delta').notNull(),
+  purchaseRatePaise: integer('purchase_rate_paise'), // nullable — set on STOCK_ADDED only
+  wastagePercent: real('wastage_percent'), // nullable — set on STOCK_ADDED only
+  saleInvoiceId: text('sale_invoice_id'), // nullable — set on STOCK_SOLD only (DORMANT until Phase 3)
+  performedBy: text('performed_by').notNull(), // deviceId
+  timestamp: text('timestamp').notNull(),
+}, (table) => ({
+  lotFk: foreignKey({ columns: [table.lotId], foreignColumns: [looseStockLots.id] }).onDelete('restrict'),
+  firmFk: foreignKey({ columns: [table.firmId], foreignColumns: [firms.id] }),
+  idxLooseStockEventsLot: index('idx_loose_stock_events_lot').on(table.lotId, table.timestamp),
+  idxLooseStockEventsFirm: index('idx_loose_stock_events_firm').on(table.firmId, table.eventType),
+}));
+
 // Sequence Counters (SCHEMA-1 FIX v1.8 / Step 5)
 export const sequenceCounters = sqliteTable('sequence_counters', {
   id: text('id').primaryKey(), // format: '{firmId}_{MMYY}' or '{firmId}_{type}_{fyLabel}'
@@ -173,11 +232,11 @@ export const sequenceCounters = sqliteTable('sequence_counters', {
   month: text('month').notNull(), // MMYY format e.g. '0226'
   year: text('year').notNull(), // 4-digit year e.g. '2026'
   currentSeq: integer('current_seq').notNull().default(0),
-  lastUsedAt: text('last_used_at').notNull(), 
+  lastUsedAt: text('last_used_at').notNull(),
 }, (table) => ({
   firmFk: foreignKey({ columns: [table.firmId], foreignColumns: [firms.id] }),
   idxSequenceCountersFirmMonth: index('idx_sequence_counters_firm_month').on(table.firmId, table.month),
-})); 
+}));
 
 // Old Gold Lots (BLOCK-4 v1.15 / Step 12)
 export const oldGoldLots = sqliteTable('old_gold_lots', {
@@ -190,7 +249,7 @@ export const oldGoldLots = sqliteTable('old_gold_lots', {
   metalSource: text('metal_source').notNull().default('CUSTOMER'),
   notes: text('notes'),
   status: text('status', {
-    enum: ['RECEIVED','PENDING','SENT_TO_REFINERY','SETTLED','SENT_TO_MELT','ISSUED_TO_KARIGAR']
+    enum: ['RECEIVED', 'PENDING', 'SENT_TO_REFINERY', 'SETTLED', 'SENT_TO_MELT', 'ISSUED_TO_KARIGAR'],
   }).notNull().default('RECEIVED'),
   createdAt: text('created_at').notNull(),
   updatedAt: text('updated_at').notNull(),
@@ -227,7 +286,7 @@ export const urdPurchases = sqliteTable('urd_purchases', {
   bankAccountId: text('bank_account_id'),
   oldGoldLotId: text('old_gold_lot_id').notNull(), // FK -> old_gold_lots.id
   status: text('status', {
-    enum: ['DRAFT', 'CONFIRMED']
+    enum: ['DRAFT', 'CONFIRMED'],
   }).notNull().default('DRAFT'),
   notes: text('notes'),
   createdAt: text('created_at').notNull(),
@@ -278,7 +337,7 @@ export const gemstoneLots = sqliteTable('gemstone_lots', {
   totalPurchaseAmountPaise: integer('total_purchase_amount_paise'),
   supplierName: text('supplier_name'),
   certificationRef: text('certification_ref'), // Phase 3 reads for invoice
-  status: text('status', { enum: ['AVAILABLE','SOLD','DAMAGED'] }).notNull().default('AVAILABLE'),
+  status: text('status', { enum: ['AVAILABLE', 'SOLD', 'DAMAGED'] }).notNull().default('AVAILABLE'),
   notes: text('notes'),
   createdAt: text('created_at').notNull(),
   updatedAt: text('updated_at').notNull(),
@@ -297,4 +356,52 @@ export const hsnCodes = sqliteTable('hsn_codes', {
   chapter: text('chapter').notNull().default('71'), // '71' for jewellery
   isActive: integer('is_active').notNull().default(1), // 1=active 0=deactivated
   createdAt: text('created_at').notNull(), // ISO timestamp
-});
+}, (table) => ({
+  idxHsnCode: index('idx_hsn_code').on(table.code),
+  idxHsnChapter: index('idx_hsn_chapter').on(table.chapter),
+}));
+
+// =============================================================================
+// ENTITY & INSERT TYPES (STEP 1.6 / FIX-NEWTYPE-1 v1.95 / FEAT-LOOSE-STOCK-1 v2.23)
+// =============================================================================
+export type Category = typeof categories.$inferSelect;
+export type NewCategory = typeof categories.$inferInsert;
+
+export type Design = typeof designs.$inferSelect;
+export type NewDesign = typeof designs.$inferInsert;
+
+export type DesignPurityThreshold = typeof designPurityThresholds.$inferSelect;
+export type NewDesignPurityThreshold = typeof designPurityThresholds.$inferInsert;
+
+export type Item = typeof items.$inferSelect;
+export type NewItem = typeof items.$inferInsert;
+
+export type ItemEvent = typeof itemEvents.$inferSelect;
+export type NewItemEvent = typeof itemEvents.$inferInsert;
+
+export type LooseStockLot = typeof looseStockLots.$inferSelect;
+export type NewLooseStockLot = typeof looseStockLots.$inferInsert;
+
+export type LooseStockEvent = typeof looseStockEvents.$inferSelect;
+export type NewLooseStockEvent = typeof looseStockEvents.$inferInsert;
+
+export type SequenceCounter = typeof sequenceCounters.$inferSelect;
+export type NewSequenceCounter = typeof sequenceCounters.$inferInsert;
+
+export type OldGoldLot = typeof oldGoldLots.$inferSelect;
+export type NewOldGoldLot = typeof oldGoldLots.$inferInsert;
+
+export type URDPurchase = typeof urdPurchases.$inferSelect;
+export type NewURDPurchase = typeof urdPurchases.$inferInsert;
+
+export type DesignCategoryMap = typeof designCategoryMap.$inferSelect;
+export type NewDesignCategoryMap = typeof designCategoryMap.$inferInsert;
+
+export type Stone = typeof stones.$inferSelect;
+export type NewStone = typeof stones.$inferInsert;
+
+export type GemstoneLot = typeof gemstoneLots.$inferSelect;
+export type NewGemstoneLot = typeof gemstoneLots.$inferInsert;
+
+export type HsnCode = typeof hsnCodes.$inferSelect;
+export type NewHsnCode = typeof hsnCodes.$inferInsert;

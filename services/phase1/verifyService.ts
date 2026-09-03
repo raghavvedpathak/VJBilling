@@ -218,7 +218,9 @@ export const verifyService = {
     else if (findings.some(f => f.severity === 'WARNING')) status = 'WARNING';
 
     if (status === 'CRITICAL') {
+      const criticalFindings = findings.filter(f => f.severity === 'CRITICAL');
       console.error('[Verify] Critical Integrity Failure Detected. Activating Safe Mode.');
+      console.error('[Verify] Critical Findings Breakdown:', JSON.stringify(criticalFindings, null, 2));
       await safeModeService.activate('VERIFY_CRITICAL_ISSUE');
     } else if (status === 'HEALTHY') {
       console.log('[Verify] Clearing Safe Mode (HEALTHY)...');

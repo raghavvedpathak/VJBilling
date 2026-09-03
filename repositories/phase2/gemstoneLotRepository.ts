@@ -1,6 +1,7 @@
-// repositories/phase2/gemstoneLotRepository.ts — Phase 2 v2.11 Canonical Repository
+// repositories/phase2/gemstoneLotRepository.ts — Phase 2 v2.24 Canonical Repository
 
 import { eq, and, or, like, desc } from 'drizzle-orm';
+import * as Crypto from 'expo-crypto';
 import { db } from '@/db/client';
 import { gemstoneLots } from '@/db/schema';
 import type { DrizzleTransaction, GemstoneLot, GemstoneStatus, NewGemstoneLot } from '@/types/phase2/phase2.types';
@@ -10,29 +11,35 @@ export interface GemstoneLotRepository {
   // --- insert (Step 4.5 / createGemstoneLot) ---
   insert(tx: DrizzleTransaction, data: NewGemstoneLot): GemstoneLot;
 
-  // --- getById (Overloaded for (id), (tx, id), and (tx, id, firmId) / (tx, firmId, id)) ---
+  // --- getById (Overloaded for (id), (id, firmId), (tx, id), and (tx, id, firmId) / (tx, firmId, id)) ---
   getById(id: string): Promise<GemstoneLot | null>;
+  getById(id: string, firmId: string): Promise<GemstoneLot | null>;
   getById(tx: DrizzleTransaction, id: string): GemstoneLot | null;
   getById(tx: DrizzleTransaction, id: string, firmId: string): GemstoneLot | null;
+  getById(tx: DrizzleTransaction, firmId: string, id: string): GemstoneLot | null;
 
-  // --- findByFirmId ---
+  // --- findByFirmId (Sync tx overload and async standalone) ---
   findByFirmId(firmId: string): Promise<GemstoneLot[]>;
+  findByFirmId(tx: DrizzleTransaction, firmId: string): GemstoneLot[];
 
-  // --- findByStatus ---
+  // --- findByStatus (Sync tx overload and async standalone) ---
   findByStatus(firmId: string, status: GemstoneStatus): Promise<GemstoneLot[]>;
+  findByStatus(tx: DrizzleTransaction, firmId: string, status: GemstoneStatus): GemstoneLot[];
 
   // --- updateStatus (Overloaded for 3-arg (tx, id, status) and 4-arg (tx, firmId, id, status)) ---
   updateStatus(tx: DrizzleTransaction, id: string, status: GemstoneStatus): void;
   updateStatus(tx: DrizzleTransaction, firmId: string, id: string, status: GemstoneStatus): void;
 
-  // --- search (GEMSTONE-1 v1.21 & RED-7) ---
+  // --- search (GEMSTONE-1 v1.21 & RED-7 LIMIT 20) ---
   search(firmId: string, query: string): Promise<GemstoneLot[]>;
 }
 
 export const gemstoneLotRepository: GemstoneLotRepository = {
   insert(tx: DrizzleTransaction, data: NewGemstoneLot): GemstoneLot {
-    tx.insert(gemstoneLots).values(data).run();
-    const result = tx.select().from(gemstoneLots).where(eq(gemstoneLots.id, data.id!)).get();
+    const id = data.id ?? Crypto.randomUUID();
+    const row = { ...data, id };
+    tx.insert(gemstoneLots).values(row).run();
+    const result = tx.select().from(gemstoneLots).where(eq(gemstoneLots.id, id)).get();
     return result as GemstoneLot;
   },
 
@@ -42,7 +49,27 @@ export const gemstoneLotRepository: GemstoneLotRepository = {
     third?: string
   ): any {
     if (typeof first === 'string') {
-      return db.select().from(gemstoneLots).where(eq(gemstoneLots.id, first)).limit(1).then(r => r[0] || null);
+      if (second !== undefined) {
+        // 2-arg async call: supports both (id, firmId) and (firmId, id)
+        return db
+          .select()
+          .from(gemstoneLots)
+          .where(
+            or(
+              and(eq(gemstoneLots.id, first), eq(gemstoneLots.firmId, second)),
+              and(eq(gemstoneLots.id, second), eq(gemstoneLots.firmId, first))
+            )
+          )
+          .limit(1)
+          .then((r) => r[0] || null);
+      }
+      // 1-arg async call: getById(id)
+      return db
+        .select()
+        .from(gemstoneLots)
+        .where(eq(gemstoneLots.id, first))
+        .limit(1)
+        .then((r) => r[0] || null);
     }
     const tx = first as DrizzleTransaction;
     if (third !== undefined) {
@@ -51,41 +78,56 @@ export const gemstoneLotRepository: GemstoneLotRepository = {
         .select()
         .from(gemstoneLots)
         .where(
-          and(
-            eq(gemstoneLots.id, second!),
-            eq(gemstoneLots.firmId, third)
+          or(
+            and(eq(gemstoneLots.id, second!), eq(gemstoneLots.firmId, third)),
+            and(eq(gemstoneLots.id, third), eq(gemstoneLots.firmId, second!))
           )
         )
         .get();
-      if (res) return res as GemstoneLot;
-
-      // Fallback check swapping order (tx, firmId, id)
-      const resSwapped = tx
-        .select()
-        .from(gemstoneLots)
-        .where(
-          and(
-            eq(gemstoneLots.id, third),
-            eq(gemstoneLots.firmId, second!)
-          )
-        )
-        .get();
-      return (resSwapped as GemstoneLot) || null;
+      return (res as GemstoneLot) || null;
     }
-    // 2-arg call: getById(tx, id)
+    // 2-arg sync call: getById(tx, id)
     const res = tx.select().from(gemstoneLots).where(eq(gemstoneLots.id, second!)).get();
     return (res as GemstoneLot) || null;
   },
 
-  async findByFirmId(firmId: string): Promise<GemstoneLot[]> {
-    return db
+  findByFirmId(first: DrizzleTransaction | string, second?: string): any {
+    if (typeof first === 'string') {
+      return db
+        .select()
+        .from(gemstoneLots)
+        .where(eq(gemstoneLots.firmId, first))
+        .orderBy(desc(gemstoneLots.createdAt));
+    }
+    const tx = first as DrizzleTransaction;
+    const firmId = second!;
+    return tx
       .select()
       .from(gemstoneLots)
-      .where(eq(gemstoneLots.firmId, firmId));
+      .where(eq(gemstoneLots.firmId, firmId))
+      .orderBy(desc(gemstoneLots.createdAt))
+      .all() as GemstoneLot[];
   },
 
-  async findByStatus(firmId: string, status: GemstoneStatus): Promise<GemstoneLot[]> {
-    return db
+  findByStatus(first: DrizzleTransaction | string, second: string, third?: GemstoneStatus): any {
+    if (typeof first === 'string') {
+      const firmId = first;
+      const status = second as GemstoneStatus;
+      return db
+        .select()
+        .from(gemstoneLots)
+        .where(
+          and(
+            eq(gemstoneLots.firmId, firmId),
+            eq(gemstoneLots.status, status)
+          )
+        )
+        .orderBy(desc(gemstoneLots.createdAt));
+    }
+    const tx = first as DrizzleTransaction;
+    const firmId = second;
+    const status = third!;
+    return tx
       .select()
       .from(gemstoneLots)
       .where(
@@ -93,7 +135,9 @@ export const gemstoneLotRepository: GemstoneLotRepository = {
           eq(gemstoneLots.firmId, firmId),
           eq(gemstoneLots.status, status)
         )
-      );
+      )
+      .orderBy(desc(gemstoneLots.createdAt))
+      .all() as GemstoneLot[];
   },
 
   updateStatus(
@@ -118,7 +162,8 @@ export const gemstoneLotRepository: GemstoneLotRepository = {
   },
 
   async search(firmId: string, query: string): Promise<GemstoneLot[]> {
-    const likeQuery = `%${query}%`;
+    const cleanQuery = query.trim();
+    const likeQuery = `%${cleanQuery}%`;
     return db
       .select()
       .from(gemstoneLots)

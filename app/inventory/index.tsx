@@ -1,8 +1,9 @@
-// app/inventory/index.tsx — Phase 2 v2.15 Canonical Screen
+// app/inventory/index.tsx — Phase 2 v2.24 Canonical Screen
 
 import React, { useState, useCallback } from 'react';
-import { View, Text, ScrollView, TouchableOpacity } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, StyleSheet } from 'react-native';
 import { useRouter, useFocusEffect } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import { TwoToneWrapper } from '@/components/TwoToneWrapper';
 import { GlassCard, HeaderPill, MenuTile } from '@/components/ui/Glass';
@@ -21,12 +22,14 @@ import {
   ChevronRight,
   Search,
   Package,
-  TrendingUp
+  TrendingUp,
+  Boxes
 } from 'lucide-react-native';
 import { COLORS, getThemeColors } from '@/constants/theme';
 
 export default function InventoryHubScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const { activeFirmId } = useFirmStore();
   const activeTheme = appSettingsStore((s: any) => s.theme);
   const colors = getThemeColors(activeTheme);
@@ -36,10 +39,15 @@ export default function InventoryHubScreen() {
 
   useFocusEffect(
     useCallback(() => {
-      setRefreshTrigger(prev => prev + 1);
+      setRefreshTrigger((prev) => prev + 1);
       if (activeFirmId) {
-        const count = inventoryDrillDownService.getDraftCountSync(activeFirmId);
-        setDraftCount(count);
+        try {
+          const count = inventoryDrillDownService.getDraftCountSync(activeFirmId);
+          setDraftCount(count || 0);
+        } catch (e) {
+          console.error('[InventoryHub] Failed to get draft count:', e);
+          setDraftCount(0);
+        }
       }
     }, [activeFirmId])
   );
@@ -53,7 +61,13 @@ export default function InventoryHubScreen() {
 
   return (
     <TwoToneWrapper title="Inventory Hub" showBack headerContent={inventoryHeaderPills}>
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingTop: 20, paddingBottom: 100 }}>
+      <ScrollView 
+        showsVerticalScrollIndicator={false} 
+        contentContainerStyle={{ 
+          paddingTop: 20, 
+          paddingBottom: Math.max(insets.bottom + 32, 80) 
+        }}
+      >
         
         {/* The Live Jewelry Stock Display lives here natively */}
         {activeFirmId && (
@@ -64,6 +78,7 @@ export default function InventoryHubScreen() {
 
         {/* Global Glass Smart Search */}
         <TouchableOpacity
+          testID="inventory-hub-search-btn"
           activeOpacity={0.8}
           onPress={() => {
             try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
@@ -72,17 +87,17 @@ export default function InventoryHubScreen() {
           style={{ marginBottom: 16 }}
         >
           <GlassCard style={{ padding: 0 }}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', padding: 16, backgroundColor: 'rgba(255,255,255,0.4)', justifyContent: 'space-between' }}>
+            <View style={[s.searchInner, { backgroundColor: 'rgba(255,255,255,0.45)' }]}>
               <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1, marginRight: 8 }}>
-                <View style={{ backgroundColor: 'rgba(245,158,11,0.15)', padding: 8, borderRadius: 12, borderWidth: 1, borderColor: 'rgba(245,158,11,0.25)', marginRight: 12 }}>
-                  <Search size={18} color="#D4AF37" />
+                <View style={[s.searchIconContainer, { backgroundColor: `${colors.vjAccent}18`, borderColor: `${colors.vjAccent}30` }]}>
+                  <Search size={18} color={colors.vjAccent} />
                 </View>
-                <Text style={{ color: 'rgba(92,22,35,0.6)', fontWeight: '600', fontSize: 14, flex: 1 }} numberOfLines={1}>
+                <Text style={[s.searchPlaceholderText, { color: colors.vjText, opacity: 0.6 }]} numberOfLines={1}>
                   Search SKU, HUID, or Design...
                 </Text>
               </View>
-              <View style={{ backgroundColor: COLORS.vjText, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 999, borderWidth: 1, borderColor: 'rgba(92,22,35,0.2)' }}>
-                <Text style={{ color: '#ffffff', fontSize: 10, fontWeight: '900', textAlign: 'center', textTransform: 'uppercase', letterSpacing: 1.5 }}>
+              <View style={[s.searchBadge, { backgroundColor: colors.vjText, borderColor: `${colors.vjAccent}35` }]}>
+                <Text style={s.searchBadgeText}>
                   SEARCH
                 </Text>
               </View>
@@ -91,11 +106,12 @@ export default function InventoryHubScreen() {
         </TouchableOpacity>
 
         {/* SECTION: CATALOG DEFINITIONS */}
-        <Text style={{ color: 'rgba(92,22,35,0.6)', fontSize: 12, fontWeight: '900', textTransform: 'uppercase', letterSpacing: 1.5, marginBottom: 12, marginLeft: 4 }}>
+        <Text style={[s.sectionHeader, { color: colors.vjText, opacity: 0.6 }]}>
           Catalog Definitions
         </Text>
 
         <TouchableOpacity 
+          testID="metal-master-tile"
           activeOpacity={0.8} 
           onPress={() => {
             try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
@@ -103,35 +119,35 @@ export default function InventoryHubScreen() {
           }} 
           style={{ marginBottom: 24 }}
         >
-          <GlassCard style={{ padding: 0, borderColor: 'rgba(180, 83, 9, 0.25)' }}>
+          <GlassCard style={{ padding: 0, borderColor: `${colors.vjAccent}35` }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 16, padding: 16 }}>
-              <View style={{ padding: 12, borderRadius: 16, borderWidth: 1, borderColor: 'rgba(0,0,0,0.05)', alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(180, 83, 9, 0.12)' }}>
-                <Database size={24} color="#B45309" />
+              <View style={[s.masterIconContainer, { backgroundColor: `${colors.vjAccent}15` }]}>
+                <Database size={24} color={colors.vjAccent} />
               </View>
               <View style={{ flex: 1 }}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 2 }}>
-                  <Text style={{ color: COLORS.vjText, fontWeight: '900', fontSize: 18 }}>Metal Master</Text>
-                  <View style={{ paddingHorizontal: 8, paddingVertical: 2, borderRadius: 999, backgroundColor: 'rgba(245,158,11,0.1)', borderWidth: 1, borderColor: 'rgba(245,158,11,0.2)' }}>
-                    <Text style={{ fontSize: 8, fontWeight: '900', color: '#92400E', textTransform: 'uppercase', letterSpacing: 1 }}>MASTERS</Text>
+                  <Text style={{ color: colors.vjText, fontWeight: '900', fontSize: 18 }}>Metal Master</Text>
+                  <View style={[s.masterBadge, { backgroundColor: `${colors.vjAccent}18`, borderColor: `${colors.vjAccent}30` }]}>
+                    <Text style={[s.masterBadgeText, { color: colors.vjAccent }]}>MASTERS</Text>
                   </View>
                 </View>
-                <Text style={{ color: 'rgba(92,22,35,0.6)', fontSize: 12, fontWeight: '600' }}>
+                <Text style={{ color: colors.vjText, opacity: 0.65, fontSize: 12, fontWeight: '600' }}>
                   Categories, Designs, Stones & HSN Codes
                 </Text>
               </View>
-              <View style={{ padding: 8, backgroundColor: 'rgba(92,22,35,0.05)', borderRadius: 999, borderWidth: 1, borderColor: 'rgba(92,22,35,0.1)' }}>
-                <ChevronRight size={18} color={COLORS.vjText} />
+              <View style={[s.chevronContainer, { backgroundColor: `${colors.vjAccent}10`, borderColor: `${colors.vjAccent}25` }]}>
+                <ChevronRight size={18} color={colors.vjText} />
               </View>
             </View>
           </GlassCard>
         </TouchableOpacity>
 
         {/* SECTION 1: STOCK OPERATIONS */}
-        <Text style={{ color: 'rgba(92,22,35,0.6)', fontSize: 12, fontWeight: '900', textTransform: 'uppercase', letterSpacing: 1.5, marginBottom: 16, marginLeft: 4 }}>
+        <Text style={[s.sectionHeader, { color: colors.vjText, opacity: 0.6 }]}>
           Stock Operations
         </Text>
 
-        <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', rowGap: 16 }}>
+        <View style={s.menuGrid}>
           <MenuTile 
             title="Stock Ledger" 
             subtitle="Drill-Down View" 
@@ -155,11 +171,11 @@ export default function InventoryHubScreen() {
         </View>
 
         {/* SECTION 2: STOCK INWARD ENTRY */}
-        <Text style={{ color: 'rgba(92,22,35,0.6)', fontSize: 12, fontWeight: '900', textTransform: 'uppercase', letterSpacing: 1.5, marginBottom: 16, marginTop: 32, marginLeft: 4 }}>
+        <Text style={[s.sectionHeader, { color: colors.vjText, opacity: 0.6, marginTop: 32 }]}>
           Stock Inward Entry
         </Text>
 
-        <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', rowGap: 16 }}>
+        <View style={s.menuGrid}>
           <MenuTile 
             title="Single Item Add" 
             subtitle="Detailed Entry" 
@@ -179,14 +195,24 @@ export default function InventoryHubScreen() {
             badgeText="BATCH"
             onPress={() => router.push('/inventory/bulk-add')} 
           />
+
+          <MenuTile 
+            title="Loose Stock Add" 
+            subtitle="Pooled Weight Lot" 
+            icon={<Boxes size={22} color="#D97706" />} 
+            iconBg="rgba(217, 119, 6, 0.12)"
+            borderColor="rgba(217, 119, 6, 0.25)"
+            badgeText="POOLED"
+            onPress={() => router.push('/inventory/add-loose-stock')} 
+          />
         </View>
 
         {/* SECTION 3: UNREGISTERED & STONES */}
-        <Text style={{ color: 'rgba(92,22,35,0.6)', fontSize: 12, fontWeight: '900', textTransform: 'uppercase', letterSpacing: 1.5, marginBottom: 16, marginTop: 32, marginLeft: 4 }}>
+        <Text style={[s.sectionHeader, { color: colors.vjText, opacity: 0.6, marginTop: 32 }]}>
           Unregistered & Stones
         </Text>
 
-        <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', rowGap: 16, marginBottom: 32 }}>
+        <View style={[s.menuGrid, { marginBottom: 32 }]}>
           <MenuTile 
             title="URD Purchases" 
             subtitle="Scrap & Old Gold" 
@@ -211,3 +237,76 @@ export default function InventoryHubScreen() {
     </TwoToneWrapper>
   );
 }
+
+const s = StyleSheet.create({
+  sectionHeader: {
+    fontSize: 12,
+    fontWeight: '900',
+    textTransform: 'uppercase',
+    letterSpacing: 1.5,
+    marginBottom: 14,
+    marginLeft: 4,
+  },
+  searchInner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 16,
+    justifyContent: 'space-between',
+  },
+  searchIconContainer: {
+    padding: 8,
+    borderRadius: 12,
+    borderWidth: 1,
+    marginRight: 12,
+  },
+  searchPlaceholderText: {
+    fontWeight: '600',
+    fontSize: 14,
+    flex: 1,
+  },
+  searchBadge: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 999,
+    borderWidth: 1,
+  },
+  searchBadgeText: {
+    color: '#ffffff',
+    fontSize: 10,
+    fontWeight: '900',
+    textAlign: 'center',
+    textTransform: 'uppercase',
+    letterSpacing: 1.5,
+  },
+  masterIconContainer: {
+    padding: 12,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(0,0,0,0.05)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  masterBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 999,
+    borderWidth: 1,
+  },
+  masterBadgeText: {
+    fontSize: 8,
+    fontWeight: '900',
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+  },
+  chevronContainer: {
+    padding: 8,
+    borderRadius: 999,
+    borderWidth: 1,
+  },
+  menuGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    rowGap: 16,
+  },
+});

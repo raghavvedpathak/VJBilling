@@ -1,7 +1,7 @@
 /* eslint-disable no-restricted-imports */
-// app/inventory/add-stock.tsx — Phase 2 v2.15 Canonical Screen
+// app/inventory/add-stock.tsx — Phase 2 v2.24 Canonical Screen
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { View, Text, Alert, Modal, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import { useRouter, useFocusEffect } from 'expo-router';
@@ -18,7 +18,7 @@ import { hsnMasterRepository } from '@/repositories/phase2/hsnMasterRepository';
 import { stoneRepository } from '@/repositories/phase2/stoneRepository';
 import { designCategoryMapRepository } from '@/repositories/phase2/designCategoryMapRepository';
 import { itemRepository } from '@/repositories/phase2/itemRepository';
-import type { Design, Category, HsnCode, Stone } from '@/types/phase2/phase2.types';
+import type { Design, Category, HsnCode, Stone, CreateItemInput } from '@/types/phase2/phase2.types';
 import { Package, Scale, Percent, MapPin, Calculator, Wallet, CheckCircle, RotateCcw, Calendar as CalendarIcon } from 'lucide-react-native';
 import { seedHsnCodes } from '@/db/seed';
 import { formatDate } from '@/utils/formatDate';
@@ -34,6 +34,7 @@ import {
   formatSKUDisplay,
   getCurrencySymbol,
   getPurityPresets,
+  parseCleanFloat,
 } from '@/utils/calculations';
 import { COLORS } from '@/constants/theme';
 
@@ -65,7 +66,7 @@ export default function AddStockScreen() {
   const [location, setLocation] = useState('');
   const [huid, setHuid] = useState('');
   const [sizeValue, setSizeValue] = useState('');
-  const [sizeUnit, setSizeUnit] = useState('');
+  const [sizeUnit, setSizeUnit] = useState<'INCH' | 'MM' | 'CM' | 'RING_SIZE' | ''>('');
 
   const todayIso = useMemo(() => {
     const t = new Date();
@@ -80,7 +81,7 @@ export default function AddStockScreen() {
 
   const [loading, setLoading] = useState(false);
   const [successSku, setSuccessSku] = useState<string | null>(null); 
-  const [designStock, setDesignStock] = useState<{ totalNetWeightMg: number, count: number } | null>(null);
+  const [designStock, setDesignStock] = useState<{ totalNetWeightMg: number; count: number } | null>(null);
 
   const [pickerModal, setPickerModal] = useState<{
     visible: boolean;
@@ -114,44 +115,57 @@ export default function AddStockScreen() {
   }, [selectedDesign, activeFirmId]);
 
   useFocusEffect(
-    React.useCallback(() => {
+    useCallback(() => {
       if (!activeFirmId) return;
+      let isMounted = true;
+
       const loadData = async () => {
-        let h = await hsnMasterRepository.findByChapter('71');
-        if (h.length === 0) {
-          await seedHsnCodes();
-          h = await hsnMasterRepository.findByChapter('71');
+        try {
+          let h = await hsnMasterRepository.findByChapter('71');
+          if (h.length === 0) {
+            await seedHsnCodes();
+            h = await hsnMasterRepository.findByChapter('71');
+          }
+          const d = await designRepository.findByFirmId(activeFirmId);
+          const c = await categoryRepository.findByFirmId(activeFirmId);
+          const s = await stoneRepository.findByFirmId(activeFirmId);
+          
+          if (isMounted) {
+            // Filter strictly for SERIALIZED stock (exclude LOOSE designs)
+            setDesigns((d || []).filter((item) => item.isActive === 1 && item.stockType !== 'LOOSE'));
+            setCategories((c || []).filter((item) => item.isActive === 1));
+            setHsnCodes((h || []).filter((item) => item.isActive === 1));
+            setStones((s || []).filter((item) => item.isActive === 1));
+          }
+        } catch (err) {
+          console.error('[AddStockScreen] Failed to load initial data:', err);
         }
-        const d = await designRepository.findByFirmId(activeFirmId);
-        const c = await categoryRepository.findByFirmId(activeFirmId);
-        const s = await stoneRepository.findByFirmId(activeFirmId);
-        
-        setDesigns(d || []);
-        setCategories(c || []);
-        setHsnCodes(h || []);
-        setStones(s || []);
       };
+
       loadData();
+      return () => {
+        isMounted = false;
+      };
     }, [activeFirmId])
   );
 
   const computedKarat = useMemo(() => {
-    const p = parseFloat(purityPercent);
+    const p = parseCleanFloat(purityPercent);
     if (isNaN(p) || p <= 0) return '';
     const k = percentToKarat(p) || 0; 
     return k > 0 ? `${k}K` : '';
   }, [purityPercent]);
 
   const liveWastageSeparation = useMemo(() => {
-    const g = parseFloat(grossWeight) || 0;
-    const s = parseFloat(stoneWeight) || 0;
-    const b = parseFloat(beadsWeight) || 0;
-    const p = parseFloat(purityPercent) || 0;
-    const w = parseFloat(wastagePercent) || 0;
+    const g = parseCleanFloat(grossWeight);
+    const s = parseCleanFloat(stoneWeight);
+    const b = parseCleanFloat(beadsWeight);
+    const p = parseCleanFloat(purityPercent);
+    const w = parseCleanFloat(wastagePercent);
     
-    const rate = parseFloat(purchaseRate) || 0;
-    const making = parseFloat(makingCharge) || 0;
-    const stoneC = parseFloat(stoneCost) || 0;
+    const rate = parseCleanFloat(purchaseRate);
+    const making = parseCleanFloat(makingCharge);
+    const stoneC = parseCleanFloat(stoneCost);
 
     const netWeightG = Math.max(0, g - s - b);
     const netWeightMg = Math.round(netWeightG * 1000);
@@ -162,7 +176,6 @@ export default function AddStockScreen() {
     const fineGoldChargedMg = computeFineGoldChargedMg(netWeightMg, p, w);
     const costTruth = computeCostTruthGrams(fineGoldChargedMg, fineWeightMg);
     
-    // FIX-EFFPRICE-PURITYROUND-1 (v2.14): pass metal parameter to enable 100% trade rounding
     const effectivePricePerGram = computeEffectivePricePerGram(rate, p, w, metal);
     const absoluteTotalCost = computeAbsoluteTotalCostRupees(netWeightG, effectivePricePerGram, making, stoneC);
     const metalCostRupees = netWeightG * effectivePricePerGram;
@@ -199,22 +212,38 @@ export default function AddStockScreen() {
   }, [grossWeight, stoneWeight, beadsWeight, purityPercent, wastagePercent, purchaseRate, makingCharge, stoneCost, selectedDesign]);
 
   const handleSubmit = async () => {
+    if (!activeFirmId) {
+      Alert.alert('Error', 'No active firm selected.');
+      return;
+    }
     if (!selectedDesign || !selectedCategory || !selectedHsn) {
       Alert.alert('Missing Fields', 'Please select Design, Category, and HSN Code.');
       return;
     }
     
-    const gross = parseFloat(grossWeight);
-    const stone = parseFloat(stoneWeight) || 0;
-    const beads = parseFloat(beadsWeight) || 0;
-    const purity = parseFloat(purityPercent);
+    const gross = parseCleanFloat(grossWeight);
+    const stone = parseCleanFloat(stoneWeight);
+    const beads = parseCleanFloat(beadsWeight);
+    const purity = parseCleanFloat(purityPercent);
 
     if (isNaN(gross) || gross <= 0) {
       Alert.alert('Invalid Weight', 'Gross weight must be greater than 0.');
       return;
     }
+    if (stone + beads >= gross) {
+      Alert.alert('Invalid Weight', 'Stone + Beads weight cannot be greater than or equal to Gross weight.');
+      return;
+    }
     if (isNaN(purity) || purity <= 0 || purity > 100) {
-      Alert.alert('Invalid Purity', 'Purity must be between 1 and 100.');
+      Alert.alert('Invalid Purity', 'Purity must be between 0.01% and 100%.');
+      return;
+    }
+
+    // Strict Size Pairing Check (GAP-P2-SIZE-EDIT-1 / SQLite CHECK constraint)
+    const parsedSizeValue = sizeValue.trim() ? parseCleanFloat(sizeValue) : null;
+    const parsedSizeUnit = sizeUnit ? sizeUnit : null;
+    if ((parsedSizeValue !== null && !parsedSizeUnit) || (parsedSizeValue === null && parsedSizeUnit)) {
+      Alert.alert('Invalid Size', 'Both Size Value and Size Unit must be provided together, or both left blank.');
       return;
     }
 
@@ -227,41 +256,41 @@ export default function AddStockScreen() {
       }
     }
 
-    const wPercent = parseFloat(wastagePercent) || 0;
-    const pRatePaise = rupeesToPaise(purchaseRate);
-    const mChargePaise = rupeesToPaise(makingCharge);
-    const sCostPaise = rupeesToPaise(stoneCost);
+    const wPercent = parseCleanFloat(wastagePercent);
+    const pRatePaise = purchaseRate.trim() ? rupeesToPaise(parseCleanFloat(purchaseRate)) : null;
+    const mChargePaise = makingCharge.trim() ? rupeesToPaise(parseCleanFloat(makingCharge)) : null;
+    const sCostPaise = stoneCost.trim() ? rupeesToPaise(parseCleanFloat(stoneCost)) : null;
     const kVal = percentToKarat(purity) || 0; 
+
+    const itemPayload: CreateItemInput = {
+      designId: selectedDesign.id,
+      categoryId: selectedCategory.id,
+      hsnCode: selectedHsn.code,
+      grossWeightMg: Math.round(gross * 1000),
+      stoneWeightMg: Math.round(stone * 1000),
+      beadsWeightMg: Math.round(beads * 1000),
+      purityPercent: purity,
+      purityKarat: kVal,
+      wastagePercent: wPercent,
+      purchaseRatePaise: pRatePaise,
+      makingChargePaise: mChargePaise,
+      stoneCostPaise: sCostPaise,
+      primaryStoneId: selectedStone?.id || null,
+      location: location.trim() || null,
+      huid: huidUpper,
+      sizeValue: parsedSizeValue,
+      sizeUnit: parsedSizeUnit,
+      metalSource: 'SUPPLIER_PURCHASE',
+      entryDate,
+    };
 
     try {
       try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); } catch {}
       setLoading(true);
-      const item = await itemService.createItem({
-        designId: selectedDesign.id,
-        categoryId: selectedCategory.id,
-        hsnCode: selectedHsn.code,
-        primaryStoneId: selectedStone?.id || null,
-        grossWeightMg: Math.round(gross * 1000),
-        stoneWeightMg: Math.round(stone * 1000),
-        beadsWeightMg: Math.round(beads * 1000),
-        purityPercent: purity,
-        purityKarat: kVal,
-        wastagePercent: wPercent,
-        purchaseRatePaise: pRatePaise,
-        makingChargePaise: mChargePaise,
-        stoneCostPaise: sCostPaise,
-        location: location.trim() || null,
-        huid: huidUpper,
-        sizeValue: sizeValue ? parseFloat(sizeValue) : null,
-        sizeUnit: (sizeUnit as any) || null,
-        metalSource: 'SUPPLIER_PURCHASE',
-        entryDate,
-      }, activeFirmId!);
-      
+      const item = await itemService.createItem(itemPayload, activeFirmId);
       setSuccessSku(item.sku);
-      
     } catch (e: any) {
-      Alert.alert('Error', e.message);
+      Alert.alert('Error', e.message || 'Failed to create item.');
     } finally {
       setLoading(false);
     }
@@ -302,7 +331,7 @@ export default function AddStockScreen() {
             
             {designs.length === 0 && (
               <View className="mb-4 bg-white/40 p-3 rounded-xl border border-white/20">
-                <Text className="text-xs text-vj-text/60 font-bold text-center">No Designs Found. Please add a Design in Master Catalogs first.</Text>
+                <Text className="text-xs text-vj-text/60 font-bold text-center">No Serialized Designs Found. Please add a serialized design first.</Text>
               </View>
             )}
 
@@ -325,7 +354,7 @@ export default function AddStockScreen() {
                   let dList = designs;
                   if (activeFirmId) {
                     const fetched = await designRepository.findByFirmId(activeFirmId);
-                    dList = fetched || [];
+                    dList = (fetched || []).filter((item) => item.isActive === 1 && item.stockType !== 'LOOSE');
                     setDesigns(dList);
                   }
                   setPickerModal({
@@ -346,13 +375,20 @@ export default function AddStockScreen() {
                       const selDesign = dList.find(d => d.id === opt.id)!;
                       setSelectedDesign(selDesign);
 
+                      // Auto-select Default HSN if configured on design
+                      if (selDesign.defaultHsn) {
+                        const matchedHsn = hsnCodes.find((h) => h.code === selDesign.defaultHsn);
+                        if (matchedHsn) setSelectedHsn(matchedHsn);
+                      }
+
+                      // Auto-select primary linked category
                       if (activeFirmId) {
                         try {
                           const mappings = await designCategoryMapRepository.findByDesignId(selDesign.id, activeFirmId);
                           let catList = categories;
                           if (catList.length === 0) {
-                            catList = await categoryRepository.findByFirmId(activeFirmId);
-                            setCategories(catList || []);
+                            catList = (await categoryRepository.findByFirmId(activeFirmId)) || [];
+                            setCategories(catList);
                           }
 
                           if (mappings.length > 0) {
@@ -360,7 +396,6 @@ export default function AddStockScreen() {
                             const linkedCat = catList.find(c => c.id === mappings[0].categoryId);
                             if (linkedCat) {
                               setSelectedCategory(linkedCat);
-                              return;
                             }
                           }
                         } catch (err) {
@@ -381,7 +416,7 @@ export default function AddStockScreen() {
                 let cList = categories;
                 if (activeFirmId) {
                   const fetched = await categoryRepository.findByFirmId(activeFirmId);
-                  cList = fetched || [];
+                  cList = (fetched || []).filter((item) => item.isActive === 1);
                   setCategories(cList);
                 }
                 setPickerModal({
@@ -398,8 +433,8 @@ export default function AddStockScreen() {
                       setSelectedCategory(null);
                       return;
                     }
-                    const selCat = cList.find(c => c.id === opt.id)!;
-                    setSelectedCategory(selCat);
+                    const selCat = cList.find(c => c.id === opt.id);
+                    if (selCat) setSelectedCategory(selCat);
                   },
                 });
               }}
@@ -425,8 +460,8 @@ export default function AddStockScreen() {
                       setSelectedHsn(null);
                       return;
                     }
-                    const selHsn = hsnCodes.find(h => h.id === opt.id)!;
-                    setSelectedHsn(selHsn);
+                    const selHsn = hsnCodes.find(h => h.id === opt.id);
+                    if (selHsn) setSelectedHsn(selHsn);
                   },
                 });
               }}
@@ -440,10 +475,32 @@ export default function AddStockScreen() {
               <Text className="text-lg font-bold text-vj-text">Weights (Grams)</Text>
             </View>
 
-            <GlassInput label="Gross Weight (g) *" placeholder="0.000" keyboardType="numeric" value={grossWeight} onChangeText={setGrossWeight} />
+            <GlassInput 
+              label="Gross Weight (g) *" 
+              placeholder="0.000" 
+              keyboardType="decimal-pad" 
+              value={grossWeight} 
+              onChangeText={setGrossWeight} 
+            />
             <View style={{ flexDirection: 'row', gap: 12 }}>
-              <View style={{ flex: 1 }}><GlassInput label="Stone Weight (g)" placeholder="0.000" keyboardType="numeric" value={stoneWeight} onChangeText={setStoneWeight} /></View>
-              <View style={{ flex: 1 }}><GlassInput label="Beads Weight (g)" placeholder="0.000" keyboardType="numeric" value={beadsWeight} onChangeText={setBeadsWeight} /></View>
+              <View style={{ flex: 1 }}>
+                <GlassInput 
+                  label="Stone Weight (g)" 
+                  placeholder="0.000" 
+                  keyboardType="decimal-pad" 
+                  value={stoneWeight} 
+                  onChangeText={setStoneWeight} 
+                />
+              </View>
+              <View style={{ flex: 1 }}>
+                <GlassInput 
+                  label="Beads Weight (g)" 
+                  placeholder="0.000" 
+                  keyboardType="decimal-pad" 
+                  value={beadsWeight} 
+                  onChangeText={setBeadsWeight} 
+                />
+              </View>
             </View>
           </GlassCard>
 
@@ -464,10 +521,21 @@ export default function AddStockScreen() {
                     </View>
                   ) : null}
                 </View>
-                <GlassInput placeholder={(selectedDesign?.metal || 'GOLD') === 'SILVER' ? '92.5' : '91.6'} keyboardType="numeric" value={purityPercent} onChangeText={setPurityPercent} />
+                <GlassInput 
+                  placeholder={(selectedDesign?.metal || 'GOLD') === 'SILVER' ? '92.5' : '91.6'} 
+                  keyboardType="decimal-pad" 
+                  value={purityPercent} 
+                  onChangeText={setPurityPercent} 
+                />
               </View>
               <View style={{ flex: 1 }}>
-                <GlassInput label="Wastage %" placeholder="0.00" keyboardType="numeric" value={wastagePercent} onChangeText={setWastagePercent} />
+                <GlassInput 
+                  label="Wastage %" 
+                  placeholder="0.00" 
+                  keyboardType="decimal-pad" 
+                  value={wastagePercent} 
+                  onChangeText={setWastagePercent} 
+                />
               </View>
             </View>
 
@@ -481,7 +549,7 @@ export default function AddStockScreen() {
                     setPurityPercent(preset.val);
                   }}
                   style={{
-                    backgroundColor: purityPercent === preset.val || purityPercent === preset.label.split('K')[0] ? '#D4AF37' : 'rgba(212,175,55,0.12)',
+                    backgroundColor: purityPercent === preset.val ? '#D4AF37' : 'rgba(212,175,55,0.12)',
                     paddingHorizontal: 8,
                     paddingVertical: 4,
                     borderRadius: 6
@@ -490,7 +558,7 @@ export default function AddStockScreen() {
                   <Text style={{
                     fontSize: 11,
                     fontWeight: '700',
-                    color: purityPercent === preset.val || purityPercent === preset.label.split('K')[0] ? '#FFF' : COLORS.vjText
+                    color: purityPercent === preset.val ? '#FFF' : COLORS.vjText
                   }}>
                     {preset.label}
                   </Text>
@@ -524,8 +592,8 @@ export default function AddStockScreen() {
                   })),
                   onSelect: (opt) => {
                     if (!opt) return setSelectedStone(null);
-                    const selStone = stones.find(s => s.id === opt.id)!;
-                    setSelectedStone(selStone);
+                    const selStone = stones.find(s => s.id === opt.id);
+                    if (selStone) setSelectedStone(selStone);
                   },
                 });
               }}
@@ -542,7 +610,13 @@ export default function AddStockScreen() {
             
             <View style={{ flexDirection: 'row', gap: 12, marginTop: 12 }}>
               <View style={{ flex: 1 }}>
-                <GlassInput label="Size Value" placeholder="Size" keyboardType="numeric" value={sizeValue} onChangeText={setSizeValue} />
+                <GlassInput 
+                  label="Size Value" 
+                  placeholder="Size" 
+                  keyboardType="decimal-pad" 
+                  value={sizeValue} 
+                  onChangeText={setSizeValue} 
+                />
               </View>
               <View style={{ flex: 1 }}>
                 <GlassPickerInput
@@ -567,7 +641,7 @@ export default function AddStockScreen() {
                       ],
                       onSelect: (opt) => {
                         if (!opt) return setSizeUnit('');
-                        setSizeUnit(opt.id);
+                        setSizeUnit(opt.id as 'INCH' | 'MM' | 'CM' | 'RING_SIZE');
                       },
                     });
                   }}
@@ -583,18 +657,39 @@ export default function AddStockScreen() {
               <Text className="text-lg font-bold text-vj-text">Purchase Costs ({getCurrencySymbol()})</Text>
             </View>
 
-            <GlassInput label={`Purchase Rate (${getCurrencySymbol()})`} placeholder="0.00" keyboardType="numeric" value={purchaseRate} onChangeText={setPurchaseRate} />
+            <GlassInput 
+              label={`Purchase Rate (${getCurrencySymbol()})`} 
+              placeholder="0.00" 
+              keyboardType="decimal-pad" 
+              value={purchaseRate} 
+              onChangeText={setPurchaseRate} 
+            />
             <View style={{ flexDirection: 'row', gap: 12 }}>
-              <View style={{ flex: 1 }}><GlassInput label={`Making Charge (${getCurrencySymbol()})`} placeholder="0.00" keyboardType="numeric" value={makingCharge} onChangeText={setMakingCharge} /></View>
-              <View style={{ flex: 1 }}><GlassInput label={`Stone Cost (${getCurrencySymbol()})`} placeholder="0.00" keyboardType="numeric" value={stoneCost} onChangeText={setStoneCost} /></View>
+              <View style={{ flex: 1 }}>
+                <GlassInput 
+                  label={`Making Charge (${getCurrencySymbol()})`} 
+                  placeholder="0.00" 
+                  keyboardType="decimal-pad" 
+                  value={makingCharge} 
+                  onChangeText={setMakingCharge} 
+                />
+              </View>
+              <View style={{ flex: 1 }}>
+                <GlassInput 
+                  label={`Stone Cost (${getCurrencySymbol()})`} 
+                  placeholder="0.00" 
+                  keyboardType="decimal-pad" 
+                  value={stoneCost} 
+                  onChangeText={setStoneCost} 
+                />
+              </View>
             </View>
           </GlassCard>
 
-          {/* Mandated UI Display — Live Cost Preview (FEAT-EFFECTIVE-PRICE-1 / FIX-EFFPRICE-PURITYROUND-1 v2.14) */}
+          {/* Mandated UI Display — Live Cost Preview */}
           {liveWastageSeparation.isValid && (
             <View className="px-1 mb-4 mt-2" style={{ zIndex: 10 }}>
               <GlassCard style={{ backgroundColor: 'rgba(252,251,248, 0.98)', borderColor: '#D4AF37', borderWidth: 1.5, padding: 16 }}>
-                {/* Top Header Row with Live Audit Badge */}
                 <View className="flex-row items-center justify-between mb-3 pb-2.5 border-b border-black/5">
                   <View className="flex-row items-center gap-2">
                     <View className="w-7 h-7 rounded-lg items-center justify-center bg-amber-500/15 border border-amber-500/30">
@@ -611,9 +706,7 @@ export default function AddStockScreen() {
                   </View>
                 </View>
 
-                {/* Dual Stat Tiles: Net Weight & Total Touch */}
                 <View className="flex-row gap-2.5 mb-3">
-                  {/* Tile 1: Net Weight */}
                   <View className="flex-1 p-2.5 rounded-xl bg-black/[0.02] border border-black/5">
                     <Text className="text-[10px] font-bold text-vj-text/50 uppercase tracking-wider">Net Weight</Text>
                     <Text className="text-base font-black text-vj-text font-mono mt-0.5">{liveWastageSeparation.netWeight}</Text>
@@ -622,7 +715,6 @@ export default function AddStockScreen() {
                     </Text>
                   </View>
 
-                  {/* Tile 2: Total Touch */}
                   <View className="flex-1 p-2.5 rounded-xl bg-black/[0.02] border border-black/5">
                     <View className="flex-row items-center justify-between">
                       <Text className="text-[10px] font-bold text-vj-text/50 uppercase tracking-wider">Total Touch</Text>
@@ -636,14 +728,12 @@ export default function AddStockScreen() {
                   </View>
                 </View>
 
-                {/* 3-Way Fine Metal Flow Bar (Vault Truth + Wastage = Cost Truth) */}
                 <View className="mb-3 p-3 rounded-2xl bg-black/[0.02] border border-black/5">
                   <Text className="text-[10px] font-black uppercase tracking-widest text-vj-text/60 mb-2">
                     Fine Metal Accounting ({selectedDesign?.metal || 'GOLD'})
                   </Text>
                   
                   <View className="flex-row items-center justify-between gap-1">
-                    {/* Vault Fine */}
                     <View className="flex-1 p-2 rounded-xl bg-emerald-500/10 border border-emerald-500/20 items-center">
                       <Text className="text-[9px] font-black text-emerald-800 uppercase tracking-tight">Vault Fine</Text>
                       <Text className="text-xs font-black text-emerald-700 font-mono mt-0.5">{liveWastageSeparation.vaultTruth}</Text>
@@ -652,7 +742,6 @@ export default function AddStockScreen() {
 
                     <Text className="text-xs font-black text-vj-text/40">+</Text>
 
-                    {/* Wastage Fine */}
                     <View className="flex-1 p-2 rounded-xl bg-rose-500/10 border border-rose-500/20 items-center">
                       <Text className="text-[9px] font-black text-rose-800 uppercase tracking-tight">
                         Wastage
@@ -663,7 +752,6 @@ export default function AddStockScreen() {
 
                     <Text className="text-xs font-black text-vj-text/40">=</Text>
 
-                    {/* Cost Truth (Billed) */}
                     <View className="flex-1 p-2 rounded-xl bg-amber-500/15 border border-amber-500/30 items-center">
                       <Text className="text-[9px] font-black text-amber-900 uppercase tracking-tight">Billed Fine</Text>
                       <Text className="text-xs font-black text-amber-800 font-mono mt-0.5">{liveWastageSeparation.costTruth}</Text>
@@ -672,7 +760,6 @@ export default function AddStockScreen() {
                   </View>
                 </View>
 
-                {/* Financials Hero Banner (When Rate/Making entered) */}
                 {liveWastageSeparation.hasCostData && (
                   <View className="p-3 rounded-2xl bg-amber-500/10 border border-amber-500/30">
                     <View className="flex-row justify-between items-center pb-1.5 border-b border-amber-500/15">
@@ -708,6 +795,7 @@ export default function AddStockScreen() {
               try { Haptics.selectionAsync(); } catch {}
               setSelectedDesign(null);
               setSelectedCategory(null);
+              setSelectedHsn(null);
               setSelectedStone(null);
               setGrossWeight('');
               setStoneWeight('');
