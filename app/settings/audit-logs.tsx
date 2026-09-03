@@ -1,7 +1,8 @@
-// app/settings/audit-logs.tsx — Phase 2 v2.11 Canonical Screen
+// app/settings/audit-logs.tsx — Phase 2 v2.24 Canonical Screen
 
 import React, { useState, useEffect, useMemo, memo, useRef } from 'react';
-import { View, Text, FlatList, TouchableOpacity, Share, ScrollView } from 'react-native';
+import { View, Text, FlatList, TouchableOpacity, Share, ScrollView, StyleSheet } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Device from 'expo-device';
 import * as Haptics from 'expo-haptics';
 import { TwoToneWrapper } from '@/components/TwoToneWrapper';
@@ -16,12 +17,12 @@ import {
   Package, KeyRound, HardDriveUpload
 } from 'lucide-react-native';
 import { format, parseISO } from 'date-fns';
-import { COLORS } from '@/constants/theme';
+import { COLORS, getThemeColors } from '@/constants/theme';
 import { HeaderPill, GlassCard } from '@/components/ui/Glass';
 
 const ToggleHandlerRef = React.createContext<React.MutableRefObject<(id: string) => void> | null>(null);
 
-// Canonical Plain English Event Title Mapping
+// Canonical Plain English Event Title Mapping (Phase 1 + Phase 2)
 const EVENT_MAPPING: Record<string, string> = {
   'FIRM_CREATED': 'New Firm Profile Created',
   'FIRM_UPDATED': 'Firm Profile Details Updated',
@@ -97,7 +98,7 @@ const formatWeightMg = (mg?: number): string => {
 
 const formatCurrencyPaise = (paise?: number): string => {
   if (paise === undefined || paise === null || isNaN(paise)) return formatRupees(0);
-  return formatRupees(paise / 100);
+  return formatRupees(paise);
 };
 
 const formatIsoDateTime = (isoStr?: string): string => {
@@ -111,14 +112,15 @@ const formatIsoDateTime = (isoStr?: string): string => {
 };
 
 // Event Visual Metadata & Category Classifier
-function getEventMeta(type: string) {
+function getEventMeta(type: string, colors: ReturnType<typeof getThemeColors>) {
   if (type.includes('BACKUP') || type.includes('RESTORE')) {
     return {
       category: 'Backup & Recovery',
       icon: <HardDriveUpload size={18} color="#B45309" />,
       iconBg: 'rgba(245, 158, 11, 0.15)',
-      badgeBg: 'bg-amber-500/10 border-amber-500/20',
-      badgeText: 'text-amber-800'
+      badgeBg: 'rgba(245, 158, 11, 0.12)',
+      badgeBorder: 'rgba(245, 158, 11, 0.25)',
+      badgeTextColor: '#B45309'
     };
   }
   if (type.includes('PIN') || type.includes('SECURITY')) {
@@ -126,8 +128,9 @@ function getEventMeta(type: string) {
       category: 'Store Security',
       icon: <KeyRound size={18} color="#2563EB" />,
       iconBg: 'rgba(37, 99, 235, 0.15)',
-      badgeBg: 'bg-blue-500/10 border-blue-500/20',
-      badgeText: 'text-blue-800'
+      badgeBg: 'rgba(37, 99, 235, 0.12)',
+      badgeBorder: 'rgba(37, 99, 235, 0.25)',
+      badgeTextColor: '#2563EB'
     };
   }
   if (type.includes('SAFE_MODE') || type.includes('FAILED') || type.includes('RESET')) {
@@ -135,17 +138,19 @@ function getEventMeta(type: string) {
       category: 'System Alert',
       icon: <ShieldAlert size={18} color="#DC2626" />,
       iconBg: 'rgba(220, 38, 38, 0.15)',
-      badgeBg: 'bg-red-500/10 border-red-500/20',
-      badgeText: 'text-red-800'
+      badgeBg: 'rgba(220, 38, 38, 0.12)',
+      badgeBorder: 'rgba(220, 38, 38, 0.25)',
+      badgeTextColor: '#DC2626'
     };
   }
   if (type.includes('FIRM')) {
     return {
       category: 'Firm Profile',
-      icon: <Building2 size={18} color="#5C1623" />,
-      iconBg: 'rgba(92, 22, 35, 0.12)',
-      badgeBg: 'bg-rose-950/10 border-rose-950/20',
-      badgeText: 'text-rose-950'
+      icon: <Building2 size={18} color={colors.vjAccent} />,
+      iconBg: `${colors.vjAccent}18`,
+      badgeBg: `${colors.vjAccent}12`,
+      badgeBorder: `${colors.vjAccent}25`,
+      badgeTextColor: colors.vjAccent
     };
   }
   if (type.includes('FY')) {
@@ -153,8 +158,9 @@ function getEventMeta(type: string) {
       category: 'Financial Year',
       icon: <CalendarClock size={18} color="#059669" />,
       iconBg: 'rgba(5, 150, 105, 0.15)',
-      badgeBg: 'bg-emerald-500/10 border-emerald-500/20',
-      badgeText: 'text-emerald-800'
+      badgeBg: 'rgba(5, 150, 105, 0.12)',
+      badgeBorder: 'rgba(5, 150, 105, 0.25)',
+      badgeTextColor: '#059669'
     };
   }
   if (type.includes('ITEM') || type.includes('URD') || type.includes('CATEGORY') || type.includes('DESIGN') || type.includes('KARIGAR') || type.includes('GOLD') || type.includes('GEMSTONE') || type.includes('WEIGHT') || type.includes('HUID')) {
@@ -162,16 +168,18 @@ function getEventMeta(type: string) {
       category: 'Stock & Inventory',
       icon: <Package size={18} color="#7C3AED" />,
       iconBg: 'rgba(124, 58, 237, 0.15)',
-      badgeBg: 'bg-purple-500/10 border-purple-500/20',
-      badgeText: 'text-purple-800'
+      badgeBg: 'rgba(124, 58, 237, 0.12)',
+      badgeBorder: 'rgba(124, 58, 237, 0.25)',
+      badgeTextColor: '#7C3AED'
     };
   }
   return {
     category: 'System Event',
-    icon: <FileText size={18} color="#4B5563" />,
-    iconBg: 'rgba(75, 85, 99, 0.12)',
-    badgeBg: 'bg-gray-500/10 border-gray-500/20',
-    badgeText: 'text-gray-800'
+    icon: <FileText size={18} color={colors.vjText} />,
+    iconBg: `${colors.vjAccent}12`,
+    badgeBg: `${colors.vjAccent}10`,
+    badgeBorder: `${colors.vjAccent}20`,
+    badgeTextColor: colors.vjText
   };
 }
 
@@ -284,7 +292,7 @@ const KEY_LABEL_MAPPING: Record<string, string> = {
   os: 'Operating System'
 };
 
-// Internal keys to filter out from user view
+// Internal keys to filter out from end-user display
 const INTERNAL_KEYS_TO_HIDE = new Set([
   'id', 'firmId', 'fyId', 'entityId', 'oldGoldLotId', 'designId', 'categoryId', 'stoneId',
   'createdAt', 'updatedAt', 'isArchived', 'isActive', 'phantomStockId'
@@ -299,6 +307,7 @@ type AuditLogItemProps = {
   isExpanded: boolean;
   currentDeviceId: string;
   dateFormatToken: string;
+  colors: ReturnType<typeof getThemeColors>;
 };
 
 const AuditLogItem = memo(({
@@ -310,6 +319,7 @@ const AuditLogItem = memo(({
   isExpanded,
   currentDeviceId,
   dateFormatToken,
+  colors,
 }: AuditLogItemProps) => {
   const toggleRef = React.useContext(ToggleHandlerRef);
 
@@ -332,7 +342,7 @@ const AuditLogItem = memo(({
     }
   }
 
-  const meta = getEventMeta(itemEventType);
+  const meta = getEventMeta(itemEventType, colors);
   const humanTitle = EVENT_MAPPING[itemEventType] || itemEventType.replace(/_/g, ' ');
   const humanSummary = getHumanSummary(itemEventType, parsedPayload);
 
@@ -366,86 +376,96 @@ const AuditLogItem = memo(({
   }, [parsedPayload]);
 
   return (
-    <GlassCard style={isExpanded ? { borderColor: 'rgba(92, 22, 35, 0.25)', marginBottom: 12 } : { marginBottom: 12 }}>
+    <GlassCard 
+      style={[
+        s.cardContainer, 
+        { borderColor: isExpanded ? `${colors.vjAccent}40` : `${colors.vjAccent}20` }
+      ]}
+    >
       <TouchableOpacity
+        testID={`audit-log-item-${itemId}`}
         onPress={() => {
-          try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch (e) {}
+          try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
           toggleRef?.current?.(itemId);
         }}
         activeOpacity={0.7}
       >
-        {/* === CARD HEADER === */}
-        <View className="flex-row items-center justify-between">
-          <View className="flex-row items-center flex-1 mr-2">
+        {/* CARD HEADER */}
+        <View style={s.cardHeaderRow}>
+          <View style={s.cardHeaderLeft}>
             {/* Category Icon Badge */}
             <View 
-              className="p-3 rounded-2xl mr-3 border border-black/5 items-center justify-center"
-              style={{ backgroundColor: meta.iconBg }}
+              style={[s.eventIconBox, { backgroundColor: meta.iconBg }]}
             >
               {meta.icon}
             </View>
 
-            <View className="flex-1">
+            <View style={{ flex: 1 }}>
               {/* Category Pill */}
-              <View className="flex-row items-center mb-1">
-                <View className={`px-2 py-0.5 rounded-full border ${meta.badgeBg}`}>
-                  <Text className={`font-bold text-[9px] uppercase tracking-wider ${meta.badgeText}`}>
+              <View style={s.categoryPillRow}>
+                <View 
+                  style={[
+                    s.categoryPill, 
+                    { backgroundColor: meta.badgeBg, borderColor: meta.badgeBorder }
+                  ]}
+                >
+                  <Text style={[s.categoryPillText, { color: meta.badgeTextColor }]}>
                     {meta.category}
                   </Text>
                 </View>
               </View>
 
               {/* Event Title */}
-              <Text className="text-vj-text font-extrabold text-base tracking-tight" numberOfLines={1}>
+              <Text style={[s.eventTitle, { color: colors.vjText }]} numberOfLines={1}>
                 {humanTitle}
               </Text>
 
               {/* Date & Time */}
-              <View className="flex-row items-center gap-1.5 mt-1">
-                <Calendar size={12} color="rgba(42, 18, 8, 0.4)" />
-                <Text className="text-vj-text/50 text-xs font-semibold">
+              <View style={s.timestampRow}>
+                <Calendar size={12} color={colors.vjText} style={{ opacity: 0.5 }} />
+                <Text style={[s.timestampText, { color: colors.vjText }]}>
                   {dateStr} • {timeStr}
                 </Text>
               </View>
             </View>
           </View>
 
-          <View className="p-2 bg-black/5 rounded-full">
+          <View style={[s.chevronBox, { backgroundColor: `${colors.vjAccent}12` }]}>
             {isExpanded
-              ? <ChevronUp size={18} color={COLORS.vjText} />
-              : <ChevronDown size={18} color="rgba(42, 18, 8, 0.5)" />
+              ? <ChevronUp size={18} color={colors.vjText} />
+              : <ChevronDown size={18} color={colors.vjText} style={{ opacity: 0.6 }} />
             }
           </View>
         </View>
 
-        {/* === EXPANDED DETAILS DRAWER === */}
+        {/* EXPANDED DETAILS DRAWER */}
         {isExpanded && (
-          <View className="mt-4 pt-4 border-t border-vj-text/10">
+          <View style={[s.drawerContainer, { borderTopColor: `${colors.vjAccent}18` }]}>
             
-            {/* Plain English Narrative Summary Box */}
-            <View className="bg-white/80 p-3.5 rounded-2xl border border-vj-text/10 mb-3">
-              <Text className="text-vj-text/40 font-bold text-[10px] uppercase tracking-widest mb-1">
+            {/* Narrative Summary Box */}
+            <View style={[s.summaryBox, { borderColor: `${colors.vjAccent}15` }]}>
+              <Text style={[s.summaryLabel, { color: colors.vjText }]}>
                 Summary Description
               </Text>
-              <Text className="text-vj-text font-semibold text-sm leading-relaxed">
+              <Text style={[s.summaryText, { color: colors.vjText }]}>
                 {humanSummary}
               </Text>
             </View>
 
             {detailEntries.length > 0 && (
-              <View className="bg-white/60 p-3 rounded-2xl border border-white/80 mb-3">
-                <Text className="text-vj-text/40 font-bold text-[10px] uppercase tracking-widest mb-2 px-1">
+              <View style={[s.particularsBox, { borderColor: `${colors.vjAccent}15` }]}>
+                <Text style={[s.particularsLabel, { color: colors.vjText }]}>
                   Recorded Particulars
                 </Text>
                 {detailEntries.map((entry, idx) => (
                   <View 
-                    key={idx} 
-                    className="flex-row items-center justify-between py-2 border-b border-black/5 last:border-b-0 px-1"
+                    key={`${entry.key}-${idx}`} 
+                    style={[s.particularRow, { borderBottomColor: `${colors.vjAccent}10` }]}
                   >
-                    <Text className="text-vj-text/60 font-semibold text-xs flex-1 mr-2">
+                    <Text style={[s.particularKey, { color: colors.vjText }]}>
                       {entry.key}
                     </Text>
-                    <Text className="text-vj-text font-bold text-xs text-right flex-1">
+                    <Text style={[s.particularVal, { color: colors.vjText }]}>
                       {entry.val}
                     </Text>
                   </View>
@@ -454,14 +474,14 @@ const AuditLogItem = memo(({
             )}
 
             {/* Device Identity Badge */}
-            <View className="flex-row items-center justify-between bg-white/40 px-3 py-2 rounded-xl border border-white/60">
-              <View className="flex-row items-center gap-1.5">
-                <Smartphone size={13} color="rgba(42, 18, 8, 0.6)" />
-                <Text className="text-vj-text/70 font-semibold text-xs">
+            <View style={[s.deviceBadgeBox, { borderColor: `${colors.vjAccent}20` }]}>
+              <View style={s.deviceBadgeLeft}>
+                <Smartphone size={13} color={colors.vjText} style={{ opacity: 0.6 }} />
+                <Text style={[s.deviceText, { color: colors.vjText }]}>
                   {displayDeviceName}
                 </Text>
               </View>
-              <Text className="text-vj-text/30 font-bold text-[10px] tracking-widest uppercase">
+              <Text style={[s.refNumber, { color: colors.vjText }]}>
                 REF #{itemId.slice(0, 8)}
               </Text>
             </View>
@@ -474,6 +494,7 @@ const AuditLogItem = memo(({
 });
 
 export default function AuditLogScreen() {
+  const insets = useSafeAreaInsets();
   const [logs, setLogs] = useState<any[]>([]);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [currentDeviceId, setCurrentDeviceId] = useState<string>('');
@@ -482,6 +503,8 @@ export default function AuditLogScreen() {
 
   const { activeFirmId } = useFirmStore();
   const dateFormatToken = appSettingsStore((s: any) => s.dateFormatToken);
+  const activeTheme = appSettingsStore((s: any) => s.theme);
+  const colors = getThemeColors(activeTheme);
 
   const toggleHandlerRef = useRef<(id: string) => void>(() => {});
   useEffect(() => {
@@ -498,8 +521,8 @@ export default function AuditLogScreen() {
     const id = await getDeviceId();
     setCurrentDeviceId(id);
     if (!activeFirmId) return;
-    const firmLogs = auditRepository.getByFirmId(activeFirmId);
-    const systemLogs = auditRepository.getSystemLogs();
+    const firmLogs = auditRepository.getByFirmId(activeFirmId) || [];
+    const systemLogs = auditRepository.getSystemLogs() || [];
     const combined = [...firmLogs, ...systemLogs].sort((a, b) =>
       new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
     );
@@ -510,7 +533,7 @@ export default function AuditLogScreen() {
     const now = new Date();
     return logs.filter(log => {
       if (categoryFilter !== 'ALL') {
-        const meta = getEventMeta(log.eventType);
+        const meta = getEventMeta(log.eventType, colors);
         if (meta.category !== categoryFilter) return false;
       }
       const logDate = new Date(log.createdAt);
@@ -519,18 +542,18 @@ export default function AuditLogScreen() {
       if (dateFilter === 'LAST_30') return logDate >= new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
       return true;
     });
-  }, [logs, dateFilter, categoryFilter]);
+  }, [logs, dateFilter, categoryFilter, colors]);
 
   const uniqueCategories = useMemo(() => {
     const categoriesSet = new Set<string>();
     logs.forEach(l => {
-      categoriesSet.add(getEventMeta(l.eventType).category);
+      categoriesSet.add(getEventMeta(l.eventType, colors).category);
     });
     return Array.from(categoriesSet);
-  }, [logs]);
+  }, [logs, colors]);
 
   const handleExport = async () => {
-    try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch (e) {}
+    try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
     try {
       const csvContent = filteredLogs.map(l => {
         const payloadStr = typeof l.payload === 'string' ? l.payload : JSON.stringify(l.payload || {});
@@ -542,13 +565,13 @@ export default function AuditLogScreen() {
         title: 'VJBilling_Audit_Log.csv'
       });
     } catch (e) {
-      console.error(e);
+      console.error('[AuditLogScreen] Export failed:', e);
     }
   };
 
   const auditHeaderPills = (
-    <View className="flex-row items-center gap-2 flex-wrap mt-1">
-      <HeaderPill icon={<FileText size={12} color={COLORS.vjBg} />} label={`${filteredLogs.length} Records`} />
+    <View style={s.headerPillRow}>
+      <HeaderPill icon={<FileText size={12} color={colors.vjBg} />} label={`${filteredLogs.length} Records`} />
       <HeaderPill icon={<CalendarClock size={12} color="#4ADE80" />} label="30-Day Retention" variant="success" />
     </View>
   );
@@ -558,40 +581,44 @@ export default function AuditLogScreen() {
       <TwoToneWrapper 
         title="Audit Trail" 
         showBack 
-        actionIcon={<Share2 size={20} color={COLORS.vjBg} />} 
+        actionIcon={<Share2 size={20} color={colors.vjBg} />} 
         onAction={handleExport} 
         headerContent={auditHeaderPills}
       >
-        <View className="flex-1 mt-2">
+        <View style={s.container}>
           
-          {/* === FILTER BAR === */}
-          <View className="px-2 py-2 mb-2">
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} className="mb-2">
-              <View className="flex-row items-center gap-2 mr-4">
-                <View className="mr-1"><Filter size={15} color="rgba(42, 18, 8, 0.4)" /></View>
-                <FilterChip label="All Time" active={dateFilter === 'ALL'} onPress={() => setDateFilter('ALL')} />
-                <FilterChip label="Today" active={dateFilter === 'TODAY'} onPress={() => setDateFilter('TODAY')} />
-                <FilterChip label="Last 7 Days" active={dateFilter === 'LAST_7'} onPress={() => setDateFilter('LAST_7')} />
-                <FilterChip label="Last 30 Days" active={dateFilter === 'LAST_30'} onPress={() => setDateFilter('LAST_30')} />
+          {/* FILTER BAR */}
+          <View style={s.filterSection}>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 8 }}>
+              <View style={s.filterRow}>
+                <View style={{ marginRight: 4 }}>
+                  <Filter size={15} color={colors.vjText} style={{ opacity: 0.5 }} />
+                </View>
+                <FilterChip testID="audit-filter-date-all" label="All Time" active={dateFilter === 'ALL'} onPress={() => setDateFilter('ALL')} colors={colors} />
+                <FilterChip testID="audit-filter-date-today" label="Today" active={dateFilter === 'TODAY'} onPress={() => setDateFilter('TODAY')} colors={colors} />
+                <FilterChip testID="audit-filter-date-7d" label="Last 7 Days" active={dateFilter === 'LAST_7'} onPress={() => setDateFilter('LAST_7')} colors={colors} />
+                <FilterChip testID="audit-filter-date-30d" label="Last 30 Days" active={dateFilter === 'LAST_30'} onPress={() => setDateFilter('LAST_30')} colors={colors} />
               </View>
             </ScrollView>
 
             <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-              <View className="flex-row items-center gap-2">
-                <FilterChip label="All Categories" active={categoryFilter === 'ALL'} onPress={() => setCategoryFilter('ALL')} />
+              <View style={s.filterRow}>
+                <FilterChip testID="audit-filter-cat-all" label="All Categories" active={categoryFilter === 'ALL'} onPress={() => setCategoryFilter('ALL')} colors={colors} />
                 {uniqueCategories.map(cat => (
                   <FilterChip
+                    testID={`audit-filter-cat-${cat.toLowerCase().replace(/\s+/g, '-')}`}
                     key={cat}
                     label={cat}
                     active={categoryFilter === cat}
                     onPress={() => setCategoryFilter(cat)}
+                    colors={colors}
                   />
                 ))}
               </View>
             </ScrollView>
           </View>
 
-          {/* === AUDIT LOG LIST === */}
+          {/* AUDIT LOG LIST */}
           <FlatList
             data={filteredLogs}
             keyExtractor={item => String(item.id)}
@@ -609,15 +636,24 @@ export default function AuditLogScreen() {
                 isExpanded={expandedId === item.id}
                 currentDeviceId={currentDeviceId}
                 dateFormatToken={dateFormatToken}
+                colors={colors}
               />
             )}
-            contentContainerStyle={{ paddingHorizontal: 4, paddingBottom: 100, paddingTop: 4 }}
+            contentContainerStyle={{ 
+              paddingHorizontal: 16, 
+              paddingTop: 6,
+              paddingBottom: Math.max(insets.bottom + 40, 80) 
+            }}
             showsVerticalScrollIndicator={false}
             ListEmptyComponent={
-              <View className="items-center mt-12 bg-white/40 p-8 rounded-3xl border border-white/50">
-                <View className="mb-4 opacity-50"><FileText size={48} color="rgba(42, 18, 8, 0.4)" /></View>
-                <Text className="text-center text-vj-text/60 font-extrabold text-lg">No audit records found</Text>
-                <Text className="text-center text-vj-text/40 text-sm mt-1">Try adjusting your filters or date range.</Text>
+              <View style={[s.emptyBox, { borderColor: `${colors.vjAccent}25` }]}>
+                <View style={s.emptyIconCircle}>
+                  <FileText size={44} color={colors.vjText} style={{ opacity: 0.35 }} />
+                </View>
+                <Text style={[s.emptyTitle, { color: colors.vjText }]}>No audit records found</Text>
+                <Text style={[s.emptySubtitle, { color: colors.vjText }]}>
+                  Try adjusting your time range or category filter criteria.
+                </Text>
               </View>
             }
           />
@@ -627,24 +663,246 @@ export default function AuditLogScreen() {
   );
 }
 
-function FilterChip({ label, active, onPress }: { label: string; active: boolean; onPress: () => void }) {
+function FilterChip({ 
+  label, 
+  active, 
+  onPress,
+  colors,
+  testID,
+}: { 
+  label: string; 
+  active: boolean; 
+  onPress: () => void; 
+  colors: ReturnType<typeof getThemeColors>;
+  testID?: string;
+}) {
   return (
     <TouchableOpacity
+      testID={testID}
       onPress={onPress}
       activeOpacity={0.8}
       style={[
-        { paddingHorizontal: 14, paddingVertical: 6, borderRadius: 999, borderWidth: 1 },
+        s.chipContainer,
         active 
-          ? { backgroundColor: COLORS.vjText, borderColor: COLORS.vjText } 
-          : { backgroundColor: 'rgba(255, 255, 255, 0.8)', borderColor: 'rgba(42, 18, 8, 0.15)' }
+          ? { backgroundColor: colors.vjText, borderColor: colors.vjText } 
+          : { backgroundColor: 'rgba(255, 255, 255, 0.75)', borderColor: `${colors.vjAccent}30` }
       ]}
     >
-      <Text style={[
-        { fontSize: 12, fontWeight: '700' },
-        active ? { color: COLORS.vjBg } : { color: COLORS.vjText }
-      ]}>
+      <Text 
+        style={[
+          s.chipText,
+          active ? { color: colors.vjBg } : { color: colors.vjText }
+        ]}
+      >
         {label}
       </Text>
     </TouchableOpacity>
   );
 }
+
+const s = StyleSheet.create({
+  container: {
+    flex: 1,
+    marginTop: 4,
+  },
+  headerPillRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    flexWrap: 'wrap',
+    marginTop: 4,
+  },
+  filterSection: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    marginBottom: 4,
+  },
+  filterRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  chipContainer: {
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    borderRadius: 999,
+    borderWidth: 1,
+  },
+  chipText: {
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  cardContainer: {
+    marginBottom: 12,
+    borderRadius: 18,
+    borderWidth: 1,
+  },
+  cardHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  cardHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+    marginRight: 8,
+  },
+  eventIconBox: {
+    padding: 12,
+    borderRadius: 16,
+    marginRight: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(0,0,0,0.05)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  categoryPillRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 3,
+  },
+  categoryPill: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 999,
+    borderWidth: 1,
+  },
+  categoryPillText: {
+    fontWeight: '800',
+    fontSize: 9,
+    textTransform: 'uppercase',
+    letterSpacing: 0.6,
+  },
+  eventTitle: {
+    fontWeight: '800',
+    fontSize: 15.5,
+    letterSpacing: -0.2,
+  },
+  timestampRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 4,
+  },
+  timestampText: {
+    fontSize: 11.5,
+    fontWeight: '600',
+    opacity: 0.55,
+  },
+  chevronBox: {
+    padding: 8,
+    borderRadius: 999,
+  },
+  drawerContainer: {
+    marginTop: 14,
+    paddingTop: 14,
+    borderTopWidth: 1,
+  },
+  summaryBox: {
+    backgroundColor: 'rgba(255, 255, 255, 0.8)',
+    padding: 14,
+    borderRadius: 14,
+    borderWidth: 1,
+    marginBottom: 10,
+  },
+  summaryLabel: {
+    fontWeight: '800',
+    fontSize: 10,
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+    marginBottom: 4,
+    opacity: 0.5,
+  },
+  summaryText: {
+    fontWeight: '600',
+    fontSize: 13,
+    lineHeight: 19,
+  },
+  particularsBox: {
+    backgroundColor: 'rgba(255, 255, 255, 0.6)',
+    padding: 12,
+    borderRadius: 14,
+    borderWidth: 1,
+    marginBottom: 10,
+  },
+  particularsLabel: {
+    fontWeight: '800',
+    fontSize: 10,
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+    marginBottom: 6,
+    paddingHorizontal: 4,
+    opacity: 0.5,
+  },
+  particularRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 7,
+    borderBottomWidth: 1,
+    paddingHorizontal: 4,
+  },
+  particularKey: {
+    fontWeight: '600',
+    fontSize: 12,
+    flex: 1,
+    marginRight: 8,
+    opacity: 0.65,
+  },
+  particularVal: {
+    fontWeight: '800',
+    fontSize: 12,
+    textAlign: 'right',
+    flex: 1,
+  },
+  deviceBadgeBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: 'rgba(255, 255, 255, 0.4)',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  deviceBadgeLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  deviceText: {
+    fontWeight: '600',
+    fontSize: 11.5,
+    opacity: 0.7,
+  },
+  refNumber: {
+    fontWeight: '800',
+    fontSize: 10,
+    letterSpacing: 1,
+    textTransform: 'uppercase',
+    opacity: 0.4,
+  },
+  emptyBox: {
+    alignItems: 'center',
+    marginTop: 40,
+    backgroundColor: 'rgba(255, 255, 255, 0.4)',
+    padding: 32,
+    borderRadius: 24,
+    borderWidth: 1,
+  },
+  emptyIconCircle: {
+    marginBottom: 12,
+  },
+  emptyTitle: {
+    textAlign: 'center',
+    fontWeight: '800',
+    fontSize: 17,
+  },
+  emptySubtitle: {
+    textAlign: 'center',
+    fontSize: 13,
+    marginTop: 4,
+    opacity: 0.6,
+  },
+});

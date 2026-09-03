@@ -1,3 +1,7 @@
+// components/ui/GlassPickerModal.tsx — Centralized Glassmorphic Modal Picker for VJ Billing
+// Purpose: High-performance searchable bottom-sheet picker with translucent frosted glass styling.
+// Visual Architecture: Frosted Glass Sheet, Etched Search Bar, Golden Selection Highlights, and Dynamic Theme Tokens.
+
 import React, { useState, useMemo, useEffect, useCallback, useDeferredValue } from 'react';
 import { 
   View, 
@@ -8,14 +12,15 @@ import {
   FlatList, 
   StyleSheet, 
   KeyboardAvoidingView, 
-  Platform,
-  Keyboard,
-  useWindowDimensions
+  Platform, 
+  Keyboard, 
+  useWindowDimensions 
 } from 'react-native';
 import { BlurView } from 'expo-blur';
 import * as Haptics from 'expo-haptics';
 import { X, Search, Check } from 'lucide-react-native';
-import { COLORS } from '../../constants/theme';
+import { COLORS, getThemeColors } from '../../constants/theme';
+import { appSettingsStore } from '../../store/phase1/appSettingsStore';
 
 export interface GlassPickerOption {
   id: string;
@@ -39,22 +44,48 @@ interface OptionRowProps {
   item: GlassPickerOption;
   isSelected: boolean;
   onSelect: (item: GlassPickerOption) => void;
+  colors: ReturnType<typeof getThemeColors>;
+  isDark: boolean;
 }
 
 const OptionRow = React.memo(
-  ({ item, isSelected, onSelect }: OptionRowProps) => {
+  ({ item, isSelected, onSelect, colors, isDark }: OptionRowProps) => {
     return (
       <TouchableOpacity
-        style={[styles.optionRow, isSelected && styles.optionRowSelected]}
+        style={[
+          styles.optionRow,
+          {
+            backgroundColor: isSelected
+              ? (isDark ? 'rgba(212, 175, 55, 0.22)' : '#FEF3C7')
+              : (isDark ? 'rgba(255, 255, 255, 0.06)' : 'rgba(255, 255, 255, 0.75)'),
+            borderColor: isSelected
+              ? '#D4AF37'
+              : (isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(212, 175, 55, 0.20)'),
+            borderWidth: isSelected ? 1.5 : 1,
+          },
+        ]}
         onPress={() => onSelect(item)}
         activeOpacity={0.7}
       >
         <View style={styles.optionTextContainer}>
-          <Text style={[styles.optionLabel, isSelected && styles.optionLabelSelected]}>
+          <Text
+            style={[
+              styles.optionLabel,
+              { color: isSelected ? (isDark ? '#FDE68A' : '#92400E') : colors.vjText },
+              isSelected && styles.optionLabelSelected,
+            ]}
+          >
             {item.label}
           </Text>
           {item.sublabel ? (
-            <Text style={styles.optionSublabel}>{item.sublabel}</Text>
+            <Text
+              style={[
+                styles.optionSublabel,
+                { color: isDark ? 'rgba(255, 255, 255, 0.55)' : `${colors.vjText}99` },
+              ]}
+            >
+              {item.sublabel}
+            </Text>
           ) : null}
         </View>
 
@@ -72,7 +103,10 @@ const OptionRow = React.memo(
       </TouchableOpacity>
     );
   },
-  (prev, next) => prev.isSelected === next.isSelected && prev.item === next.item
+  (prev, next) =>
+    prev.isSelected === next.isSelected &&
+    prev.item === next.item &&
+    prev.isDark === next.isDark
 );
 
 export function GlassPickerModal({
@@ -88,6 +122,10 @@ export function GlassPickerModal({
   const [searchQuery, setSearchQuery] = useState('');
   const { width: windowWidth } = useWindowDimensions();
   const isTablet = windowWidth >= 768;
+
+  const activeTheme = appSettingsStore((s: any) => s.theme);
+  const colors = getThemeColors(activeTheme);
+  const isDark = activeTheme === 'dark';
 
   useEffect(() => {
     if (visible) {
@@ -131,9 +169,11 @@ export function GlassPickerModal({
         item={item}
         isSelected={item.id === selectedId}
         onSelect={handleSelect}
+        colors={colors}
+        isDark={isDark}
       />
     ),
-    [selectedId, handleSelect]
+    [selectedId, handleSelect, colors, isDark]
   );
 
   if (!visible) return null;
@@ -154,107 +194,150 @@ export function GlassPickerModal({
       >
         <TouchableOpacity style={styles.backdrop} activeOpacity={1} onPress={onClose} />
         
-        <View style={[styles.sheetContainer, isTablet && styles.sheetContainerTablet]}>
-          {/* Modern Top Sheet Drag Handle */}
-          <View style={styles.handleWrap}>
-            <View style={styles.handleBar} />
-          </View>
-
-          <View style={styles.sheetContent}>
-            {/* Header Bar */}
-            <View style={styles.headerBar}>
-              <View style={styles.headerTitleRow}>
-                <Text style={styles.headerTitle}>{title}</Text>
-                <View style={styles.countBadge}>
-                  <Text style={styles.countText}>
-                    {isQueryEmpty
-                      ? `${options.length} options`
-                      : `${filteredOptions.length} of ${options.length} found`}
-                  </Text>
-                </View>
-              </View>
-              <TouchableOpacity onPress={onClose} style={styles.closeBtn} activeOpacity={0.7}>
-                <X size={20} color={COLORS.vjText} />
-              </TouchableOpacity>
-            </View>
-
-            {/* Search Input Bar */}
-            <View style={styles.searchBar}>
-              <Search size={18} color="#D4AF37" style={{ marginRight: 8, opacity: 0.9 }} />
-              <TextInput
-                style={styles.searchInput}
-                placeholder={placeholder}
-                placeholderTextColor="rgba(92,22,35,0.4)"
-                value={searchQuery}
-                onChangeText={setSearchQuery}
-                autoFocus={false}
-                autoCorrect={false}
-                autoCapitalize="none"
-                spellCheck={false}
-                returnKeyType="search"
-                clearButtonMode="while-editing"
+        <View 
+          style={[
+            styles.sheetContainer, 
+            isTablet && styles.sheetContainerTablet,
+            { borderColor: isDark ? 'rgba(212, 175, 55, 0.35)' : 'rgba(212, 175, 55, 0.35)' }
+          ]}
+        >
+          <BlurView
+            intensity={Platform.OS === 'ios' ? 70 : 0}
+            tint={isDark ? 'dark' : 'light'}
+            {...(Platform.OS === 'android' ? { blurMethod: 'none' as const } : {})}
+            style={[
+              styles.sheetBlurContent,
+              {
+                backgroundColor: isDark ? 'rgba(28, 20, 24, 0.92)' : 'rgba(255, 253, 249, 0.92)',
+              },
+            ]}
+          >
+            {/* Modern Top Sheet Drag Handle */}
+            <View style={styles.handleWrap}>
+              <View 
+                style={[
+                  styles.handleBar, 
+                  { backgroundColor: isDark ? 'rgba(255, 255, 255, 0.25)' : 'rgba(92, 22, 35, 0.20)' }
+                ]} 
               />
-              {searchQuery.length > 0 && (
-                <TouchableOpacity onPress={() => setSearchQuery('')} style={{ padding: 4 }}>
-                  <X size={16} color="rgba(92,22,35,0.5)" />
-                </TouchableOpacity>
-              )}
             </View>
 
-            {/* Options List */}
-            <FlatList
-              data={filteredOptions}
-              keyExtractor={(item) => item.id}
-              renderItem={renderOptionItem}
-              initialNumToRender={10}
-              maxToRenderPerBatch={10}
-              updateCellsBatchingPeriod={30}
-              windowSize={7}
-              removeClippedSubviews={Platform.OS === 'android'}
-              keyboardShouldPersistTaps="handled"
-              keyboardDismissMode="on-drag"
-              showsVerticalScrollIndicator={true}
-              contentContainerStyle={{ paddingBottom: 32 }}
-              ListHeaderComponent={
-                allowClear && selectedId !== null && isQueryEmpty ? (
-                  <View style={{ marginBottom: 12 }}>
-                    {selectedOption && (
-                      <View style={[styles.optionRow, styles.optionRowSelected, { marginBottom: 8 }]}>
-                        <View style={styles.optionTextContainer}>
-                          <Text style={{ fontSize: 11, fontWeight: '800', color: 'rgba(146, 64, 14, 0.7)', textTransform: 'uppercase', marginBottom: 2 }}>
-                            Current Selection
-                          </Text>
-                          <Text style={styles.optionLabelSelected}>{selectedOption.label}</Text>
+            <View style={styles.sheetContent}>
+              {/* Header Bar */}
+              <View style={styles.headerBar}>
+                <View style={styles.headerTitleRow}>
+                  <Text style={[styles.headerTitle, { color: colors.vjText }]}>{title}</Text>
+                  <View style={styles.countBadge}>
+                    <Text style={styles.countText}>
+                      {isQueryEmpty
+                        ? `${options.length} options`
+                        : `${filteredOptions.length} of ${options.length} found`}
+                    </Text>
+                  </View>
+                </View>
+                <TouchableOpacity onPress={onClose} style={styles.closeBtn} activeOpacity={0.7}>
+                  <X size={20} color={colors.vjText} />
+                </TouchableOpacity>
+              </View>
+
+              {/* Etched Frosted Glass Search Input Bar */}
+              <View 
+                style={[
+                  styles.searchBar,
+                  {
+                    backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(255, 255, 255, 0.82)',
+                    borderColor: isDark ? 'rgba(212, 175, 55, 0.30)' : 'rgba(212, 175, 55, 0.30)',
+                  },
+                ]}
+              >
+                <Search size={18} color="#D4AF37" style={{ marginRight: 8, opacity: 0.9 }} />
+                <TextInput
+                  style={[styles.searchInput, { color: colors.vjText }]}
+                  placeholder={placeholder}
+                  placeholderTextColor={isDark ? 'rgba(255, 255, 255, 0.38)' : 'rgba(92, 22, 35, 0.38)'}
+                  value={searchQuery}
+                  onChangeText={setSearchQuery}
+                  autoFocus={false}
+                  autoCorrect={false}
+                  autoCapitalize="none"
+                  spellCheck={false}
+                  returnKeyType="search"
+                  clearButtonMode="while-editing"
+                />
+                {searchQuery.length > 0 && (
+                  <TouchableOpacity onPress={() => setSearchQuery('')} style={{ padding: 4 }}>
+                    <X size={16} color={isDark ? 'rgba(255, 255, 255, 0.5)' : 'rgba(92, 22, 35, 0.5)'} />
+                  </TouchableOpacity>
+                )}
+              </View>
+
+              {/* Options List */}
+              <FlatList
+                data={filteredOptions}
+                keyExtractor={(item) => item.id}
+                renderItem={renderOptionItem}
+                initialNumToRender={10}
+                maxToRenderPerBatch={10}
+                updateCellsBatchingPeriod={30}
+                windowSize={7}
+                removeClippedSubviews={Platform.OS === 'android'}
+                keyboardShouldPersistTaps="handled"
+                keyboardDismissMode="on-drag"
+                showsVerticalScrollIndicator={true}
+                contentContainerStyle={{ paddingBottom: 32 }}
+                ListHeaderComponent={
+                  allowClear && selectedId !== null && isQueryEmpty ? (
+                    <View style={{ marginBottom: 12 }}>
+                      {selectedOption && (
+                        <View 
+                          style={[
+                            styles.optionRow, 
+                            { 
+                              backgroundColor: isDark ? 'rgba(212, 175, 55, 0.22)' : '#FEF3C7',
+                              borderColor: '#D4AF37',
+                              borderWidth: 1.5,
+                              marginBottom: 8,
+                            }
+                          ]}
+                        >
+                          <View style={styles.optionTextContainer}>
+                            <Text style={{ fontSize: 11, fontWeight: '800', color: isDark ? '#FDE68A' : 'rgba(146, 64, 14, 0.8)', textTransform: 'uppercase', marginBottom: 2 }}>
+                              Current Selection
+                            </Text>
+                            <Text style={[styles.optionLabelSelected, { color: isDark ? '#FDE68A' : '#92400E' }]}>
+                              {selectedOption.label}
+                            </Text>
+                          </View>
+                          <Check size={18} color="#D4AF37" />
                         </View>
-                        <Check size={18} color="#D4AF37" />
-                      </View>
-                    )}
-                    <TouchableOpacity
-                      style={styles.clearOptionRow}
-                      onPress={() => handleSelect(null)}
-                      activeOpacity={0.7}
-                    >
-                      <Text style={styles.clearOptionText}>Clear Selection</Text>
-                    </TouchableOpacity>
-                  </View>
-                ) : null
-              }
-              ListEmptyComponent={
-                options.length === 0 ? (
-                  <View style={styles.emptyState}>
-                    <Search size={32} color="rgba(92,22,35,0.25)" style={{ marginBottom: 8 }} />
-                    <Text style={styles.emptyTitle}>No options available</Text>
-                    <Text style={styles.emptySubtitle}>No {title.toLowerCase()} configured in system</Text>
-                  </View>
-                ) : (
-                  <View style={styles.emptyState}>
-                    <Text style={styles.emptyTitle}>No matching options</Text>
-                    <Text style={styles.emptySubtitle}>No {title.toLowerCase()} match "{searchQuery}"</Text>
-                  </View>
-                )
-              }
-            />
-          </View>
+                      )}
+                      <TouchableOpacity
+                        style={styles.clearOptionRow}
+                        onPress={() => handleSelect(null)}
+                        activeOpacity={0.7}
+                      >
+                        <Text style={styles.clearOptionText}>Clear Selection</Text>
+                      </TouchableOpacity>
+                    </View>
+                  ) : null
+                }
+                ListEmptyComponent={
+                  options.length === 0 ? (
+                    <View style={styles.emptyState}>
+                      <Search size={32} color={isDark ? 'rgba(255, 255, 255, 0.25)' : 'rgba(92, 22, 35, 0.25)'} style={{ marginBottom: 8 }} />
+                      <Text style={[styles.emptyTitle, { color: colors.vjText }]}>No options available</Text>
+                      <Text style={[styles.emptySubtitle, { color: `${colors.vjText}80` }]}>No {title.toLowerCase()} configured in system</Text>
+                    </View>
+                  ) : (
+                    <View style={styles.emptyState}>
+                      <Text style={[styles.emptyTitle, { color: colors.vjText }]}>No matching options</Text>
+                      <Text style={[styles.emptySubtitle, { color: `${colors.vjText}80` }]}>No {title.toLowerCase()} match "{searchQuery}"</Text>
+                    </View>
+                  )
+                }
+              />
+            </View>
+          </BlurView>
         </View>
       </KeyboardAvoidingView>
     </Modal>
@@ -287,8 +370,7 @@ const styles = StyleSheet.create({
     borderTopRightRadius: 32,
     overflow: 'hidden',
     borderWidth: 1.5,
-    borderColor: 'rgba(212, 175, 55, 0.25)',
-    backgroundColor: '#FFFDF9',
+    backgroundColor: 'transparent',
   },
   sheetContainerTablet: {
     maxWidth: 580,
@@ -297,7 +379,10 @@ const styles = StyleSheet.create({
     borderBottomRightRadius: 32,
     maxHeight: '75%',
     borderWidth: 1.5,
-    borderColor: 'rgba(212, 175, 55, 0.25)',
+  },
+  sheetBlurContent: {
+    flex: 1,
+    width: '100%',
   },
   handleWrap: {
     alignItems: 'center',
@@ -308,7 +393,6 @@ const styles = StyleSheet.create({
     width: 44,
     height: 4.5,
     borderRadius: 3,
-    backgroundColor: 'rgba(92, 22, 35, 0.18)',
   },
   sheetContent: {
     flex: 1,
@@ -329,7 +413,6 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 18,
     fontWeight: '800',
-    color: COLORS.vjText,
   },
   countBadge: {
     backgroundColor: 'rgba(212, 175, 55, 0.15)',
@@ -348,26 +431,23 @@ const styles = StyleSheet.create({
     width: 34,
     height: 34,
     borderRadius: 17,
-    backgroundColor: 'rgba(92, 22, 35, 0.06)',
+    backgroundColor: 'rgba(212, 175, 55, 0.10)',
     justifyContent: 'center',
     alignItems: 'center',
   },
   searchBar: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FFFFFF',
     borderRadius: 16,
     paddingHorizontal: 14,
     paddingVertical: 12,
-    borderWidth: 1,
-    borderColor: 'rgba(92, 22, 35, 0.15)',
+    borderWidth: 1.2,
     marginBottom: 16,
   },
   searchInput: {
     flex: 1,
     fontSize: 15,
     fontWeight: '600',
-    color: COLORS.vjText,
     padding: 0,
   },
   clearOptionRow: {
@@ -390,10 +470,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     borderRadius: 16,
     marginBottom: 6,
-    backgroundColor: 'rgba(255, 255, 255, 0.85)',
-  },
-  optionRowSelected: {
-    backgroundColor: '#FEF3C7',
   },
   optionTextContainer: {
     flex: 1,
@@ -401,15 +477,12 @@ const styles = StyleSheet.create({
   optionLabel: {
     fontSize: 15,
     fontWeight: '700',
-    color: COLORS.vjText,
   },
   optionLabelSelected: {
-    color: '#92400E',
     fontWeight: '800',
   },
   optionSublabel: {
     fontSize: 12,
-    color: 'rgba(92, 22, 35, 0.6)',
     marginTop: 2,
   },
   badgeContainer: {
@@ -434,12 +507,10 @@ const styles = StyleSheet.create({
   emptyTitle: {
     fontSize: 16,
     fontWeight: '800',
-    color: COLORS.vjText,
     marginBottom: 4,
   },
   emptySubtitle: {
     fontSize: 13,
     fontWeight: '600',
-    color: 'rgba(92, 22, 35, 0.4)',
   },
 });

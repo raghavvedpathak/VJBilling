@@ -1,4 +1,4 @@
-// components/InventoryStockSummary.tsx — Phase 2 v2.15 Canonical Implementation
+// components/InventoryStockSummary.tsx — Phase 2 v2.24 Canonical Implementation
 // Enforces Phantom Debt visibility, Phase 3 Rate Engine boundary, and Net Weight display rules.
 
 import React, { useState, useEffect } from 'react';
@@ -6,9 +6,10 @@ import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { GlassCard } from '@/components/ui/Glass';
 import { itemRepository } from '@/repositories/phase2/itemRepository';
+import { appSettingsStore } from '@/store/phase1/appSettingsStore';
 import { getCurrencySymbol, formatWeightMg } from '@/utils/calculations';
 import { Scale, AlertCircle, Wallet, TrendingUp, ShieldCheck } from 'lucide-react-native';
-import { COLORS } from '@/constants/theme';
+import { COLORS, getThemeColors } from '@/constants/theme';
 
 interface StockWeightSummary {
   goldNetWeightMg: number;
@@ -21,17 +22,28 @@ interface StockWeightSummary {
 
 export interface InventoryStockSummaryProps {
   firmId: string;
-  goldRatePerGramPaise?: number; // Injected by Phase 3 Rate Engine
-  silverRatePerGramPaise?: number; // Injected by Phase 3 Rate Engine
-  refreshTrigger?: number;
+  goldRatePerGramPaise?: number | undefined; // Injected by Phase 3 Rate Engine
+  silverRatePerGramPaise?: number | undefined; // Injected by Phase 3 Rate Engine
+  refreshTrigger?: number | undefined;
+}
+
+interface SummaryCardProps {
+  metal: 'GOLD' | 'SILVER';
+  totalMg: number;
+  debtMg: number;
+  balanceMg: number;
+  ratePaise?: number | undefined;
+  accentColor: string;
+  colors: ReturnType<typeof getThemeColors>;
+  testID?: string | undefined;
 }
 
 // RULE-1A-WEIGHT-DISPLAY (v1.54): (mg / 1000).toFixed(3) + ' g'
 const formatWeight = (mg: number) => formatWeightMg(mg);
 
 // CURRENCY-DISPLAY-RULE (v1.54): getCurrencySymbol() + (paise / 100).toFixed(2)
-const formatLiveValue = (mg: number, ratePerGramPaise?: number) => {
-  if (!ratePerGramPaise) return null; // Awaiting Phase 3 Rate Engine
+const formatLiveValue = (mg: number, ratePerGramPaise?: number | undefined) => {
+  if (!ratePerGramPaise || isNaN(ratePerGramPaise)) return null; // Awaiting Phase 3 Rate Engine
   const totalValuePaise = Math.round((mg / 1000) * ratePerGramPaise);
   return `${getCurrencySymbol()}${(totalValuePaise / 100).toFixed(2)}`;
 };
@@ -59,7 +71,7 @@ const BullionBar3D = ({ isGold }: { isGold: boolean }) => {
         shadowRadius: 3,
         elevation: 4,
         overflow: 'hidden',
-        position: 'relative'
+        position: 'relative',
       }}
     >
       {/* Glossy Metallic Light Reflective Highlight */}
@@ -102,7 +114,7 @@ const BullionBar3D = ({ isGold }: { isGold: boolean }) => {
   );
 };
 
-const SummaryCard = ({ metal, totalMg, debtMg, balanceMg, ratePaise, accentColor }: any) => {
+const SummaryCard = ({ metal, totalMg, debtMg, balanceMg, ratePaise, accentColor, colors, testID }: SummaryCardProps) => {
   const isGold = metal === 'GOLD';
   const hasDebt = debtMg > 0;
   const estimatedValue = formatLiveValue(totalMg, ratePaise);
@@ -112,31 +124,34 @@ const SummaryCard = ({ metal, totalMg, debtMg, balanceMg, ratePaise, accentColor
   };
   
   return (
-    <TouchableOpacity activeOpacity={0.9} onPress={handleCardPress}>
+    <TouchableOpacity testID={testID} activeOpacity={0.9} onPress={handleCardPress}>
       <GlassCard 
         style={{
-          backgroundColor: isGold ? 'rgba(253, 248, 238, 0.75)' : 'rgba(244, 245, 247, 0.75)',
+          backgroundColor: isGold ? 'rgba(253, 248, 238, 0.82)' : 'rgba(244, 245, 247, 0.82)',
           borderColor: isGold ? 'rgba(212, 175, 55, 0.35)' : 'rgba(156, 163, 175, 0.35)',
           padding: 0,
+          borderRadius: 20,
         }}
       >
         {/* Header Section */}
         <View style={s.header}>
           <View style={s.titleRow}>
             <BullionBar3D isGold={isGold} />
-            <Text style={s.metalTitle}>{isGold ? 'Gold Stock' : 'Silver Stock'}</Text>
+            <Text style={[s.metalTitle, { color: colors.vjText }]}>
+              {isGold ? 'Gold Stock' : 'Silver Stock'}
+            </Text>
           </View>
 
           <View style={s.valueContainer}>
-            <Text style={s.valueLabel}>Live Valuation</Text>
+            <Text style={[s.valueLabel, { color: colors.vjText }]}>Live Valuation</Text>
             {estimatedValue ? (
               <View style={s.valueRow}>
                 <TrendingUp size={14} color={accentColor} />
                 <Text style={[s.valueText, { color: accentColor }]}>{estimatedValue}</Text>
               </View>
             ) : (
-              <View style={s.noRateBadge}>
-                <Text style={s.noRateText}>{getCurrencySymbol()} —</Text>
+              <View style={[s.noRateBadge, { backgroundColor: `${colors.vjAccent}10` }]}>
+                <Text style={[s.noRateText, { color: colors.vjText }]}>{getCurrencySymbol()} —</Text>
               </View>
             )}
           </View>
@@ -147,14 +162,19 @@ const SummaryCard = ({ metal, totalMg, debtMg, balanceMg, ratePaise, accentColor
           {/* Physical Net Weight Box */}
           <View style={s.gridBox}>
             <View style={s.gridLabelRow}>
-              <Scale size={12} color="rgba(46,29,0,0.5)" />
-              <Text style={s.gridLabel}>Available Net Wt</Text>
+              <Scale size={12} color={colors.vjText} style={{ opacity: 0.5 }} />
+              <Text style={[s.gridLabel, { color: colors.vjText }]}>Available Net Wt</Text>
             </View>
-            <Text style={s.gridValue}>{formatWeight(totalMg)}</Text>
+            <Text 
+              testID={`${metal.toLowerCase()}-net-weight-value`}
+              style={[s.gridValue, { color: colors.vjText }]}
+            >
+              {formatWeight(totalMg)}
+            </Text>
           </View>
 
           {/* Divider */}
-          <View style={s.gridDivider} />
+          <View style={[s.gridDivider, { backgroundColor: `${colors.vjAccent}18` }]} />
 
           {/* Phantom Debt Box */}
           <View style={s.gridBox}>
@@ -170,7 +190,12 @@ const SummaryCard = ({ metal, totalMg, debtMg, balanceMg, ratePaise, accentColor
             </View>
             {hasDebt ? (
               <View style={s.phantomAlertPill}>
-                <Text style={s.phantomAlertText}>-{formatWeight(debtMg)}</Text>
+                <Text 
+                  testID={`${metal.toLowerCase()}-phantom-debt-value`}
+                  style={s.phantomAlertText}
+                >
+                  -{formatWeight(debtMg)}
+                </Text>
               </View>
             ) : (
               <Text style={s.cleanPhantomText}>Clean (0.000 g)</Text>
@@ -179,12 +204,27 @@ const SummaryCard = ({ metal, totalMg, debtMg, balanceMg, ratePaise, accentColor
         </View>
 
         {/* Bottom Hero Balance */}
-        <View style={[s.balanceRow, { backgroundColor: isGold ? 'rgba(212, 175, 55, 0.08)' : 'rgba(156, 163, 175, 0.08)' }]}>
+        <View 
+          style={[
+            s.balanceRow, 
+            { 
+              backgroundColor: isGold ? 'rgba(212, 175, 55, 0.08)' : 'rgba(156, 163, 175, 0.08)',
+              borderTopColor: `${colors.vjAccent}18`,
+            }
+          ]}
+        >
           <View style={s.balanceLabelRow}>
             <Wallet size={16} color={accentColor} />
             <Text style={[s.balanceLabel, { color: accentColor }]}>True Ledger Balance</Text>
           </View>
-          <Text style={[s.balanceValue, balanceMg < 0 && { color: COLORS.danger }]}>
+          <Text 
+            testID={`${metal.toLowerCase()}-ledger-balance-value`}
+            style={[
+              s.balanceValue, 
+              { color: colors.vjText },
+              balanceMg < 0 && { color: COLORS.danger }
+            ]}
+          >
             {formatWeight(balanceMg)}
           </Text>
         </View>
@@ -203,9 +243,13 @@ export function InventoryStockSummary({ firmId, goldRatePerGramPaise, silverRate
     silverBalanceMg: 0,
   });
 
+  const activeTheme = appSettingsStore((s: any) => s.theme);
+  const colors = getThemeColors(activeTheme);
+
   useEffect(() => {
     let isActive = true;
     const fetchSummary = async () => {
+      if (!firmId) return;
       try {
         const data = await itemRepository.getStockWeightSummary(firmId);
         if (isActive && data) setSummary(data);
@@ -220,20 +264,24 @@ export function InventoryStockSummary({ firmId, goldRatePerGramPaise, silverRate
   return (
     <View style={s.container}>
       <SummaryCard 
+        testID="gold-stock-summary-card"
         metal="GOLD" 
         totalMg={summary.goldNetWeightMg} 
         debtMg={summary.goldPhantomDebtMg} 
         balanceMg={summary.goldBalanceMg} 
         ratePaise={goldRatePerGramPaise}
         accentColor={COLORS.goldAccent}
+        colors={colors}
       />
       <SummaryCard 
+        testID="silver-stock-summary-card"
         metal="SILVER" 
         totalMg={summary.silverNetWeightMg} 
         debtMg={summary.silverPhantomDebtMg} 
         balanceMg={summary.silverBalanceMg} 
         ratePaise={silverRatePerGramPaise}
         accentColor={COLORS.silverAccent}
+        colors={colors}
       />
     </View>
   );
@@ -241,11 +289,9 @@ export function InventoryStockSummary({ firmId, goldRatePerGramPaise, silverRate
 
 const s = StyleSheet.create({
   container: {
-    flex: 1,
     width: '100%',
     gap: 16,
   },
-
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -261,7 +307,6 @@ const s = StyleSheet.create({
   metalTitle: {
     fontSize: 16,
     fontWeight: '900',
-    color: COLORS.vjText,
     letterSpacing: -0.2,
   },
   valueContainer: {
@@ -270,10 +315,10 @@ const s = StyleSheet.create({
   valueLabel: {
     fontSize: 10,
     fontWeight: '800',
-    color: 'rgba(46,29,0,0.5)',
     textTransform: 'uppercase',
     letterSpacing: 0.5,
     marginBottom: 2,
+    opacity: 0.55,
   },
   valueRow: {
     flexDirection: 'row',
@@ -287,7 +332,6 @@ const s = StyleSheet.create({
     letterSpacing: -0.5,
   },
   noRateBadge: {
-    backgroundColor: 'rgba(46,29,0,0.05)',
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: 6,
@@ -295,7 +339,7 @@ const s = StyleSheet.create({
   noRateText: {
     fontSize: 11,
     fontWeight: '700',
-    color: 'rgba(46,29,0,0.5)',
+    opacity: 0.55,
   },
   grid: {
     flexDirection: 'row',
@@ -314,14 +358,13 @@ const s = StyleSheet.create({
   gridLabel: {
     fontSize: 10,
     fontWeight: '800',
-    color: 'rgba(46,29,0,0.5)',
     textTransform: 'uppercase',
     letterSpacing: 0.5,
+    opacity: 0.6,
   },
   gridValue: {
     fontSize: 15,
     fontWeight: '800',
-    color: COLORS.vjText,
     fontFamily: 'monospace',
   },
   cleanPhantomText: {
@@ -347,7 +390,6 @@ const s = StyleSheet.create({
   },
   gridDivider: {
     width: 1,
-    backgroundColor: 'rgba(92,22,35,0.12)',
     marginHorizontal: 16,
   },
   balanceRow: {
@@ -357,7 +399,6 @@ const s = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderTopWidth: 1,
-    borderTopColor: 'rgba(92,22,35,0.12)',
   },
   balanceLabelRow: {
     flexDirection: 'row',
@@ -373,7 +414,6 @@ const s = StyleSheet.create({
   balanceValue: {
     fontSize: 18,
     fontWeight: '900',
-    color: COLORS.vjText,
     fontFamily: 'monospace',
     letterSpacing: -0.5,
   },

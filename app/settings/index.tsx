@@ -1,9 +1,11 @@
 // app/settings/index.tsx — Phase 1 & Phase 2 Canonical Settings Hub
 
-import React, { useState, useEffect } from 'react';
-import { View, Text, ScrollView, Alert, Switch } from 'react-native';
-import { useRouter } from 'expo-router';
+import React, { useState, useEffect, useCallback } from 'react';
+import { View, Text, ScrollView, Alert, Switch, StyleSheet } from 'react-native';
+import { useRouter, useFocusEffect } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Device from 'expo-device';
+import * as Haptics from 'expo-haptics';
 import { TwoToneWrapper } from '@/components/TwoToneWrapper';
 import { useSession } from '@/hooks/useSession';
 import { storage } from '@/utils/storage';
@@ -11,7 +13,6 @@ import { settingsService } from '@/services/phase1/settingsService';
 import { GlassCard, HeaderPill, GlassSettingsTile, RupeeCoin3D, BhartiyaFlagEmblem } from '@/components/ui/Glass';
 import { isPinSet, isPinSkipped } from '@/services/phase1/pinService'; 
 import { appSettingsStore } from '@/store/phase1/appSettingsStore';
-import { getCurrencySymbol } from '@/utils/currency';
 import { ThemeSelectorModal } from '@/components/ThemeSelectorModal';
 import { DateFormatModal } from '@/components/DateFormatModal';
 import {
@@ -29,12 +30,13 @@ import {
   MonitorSmartphone,
   FileBox,
   KeyRound,
-  ShieldCheck
+  ShieldCheck,
 } from 'lucide-react-native';
 import { COLORS, getThemeColors } from '@/constants/theme';
 
 export default function SettingsScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const { firm } = useSession();
 
   // Settings State
@@ -48,6 +50,10 @@ export default function SettingsScreen() {
   const [showDateModal, setShowDateModal] = useState(false);
   const [showThemeModal, setShowThemeModal] = useState(false);
 
+  const activeStoreTheme = appSettingsStore((s: any) => s.theme);
+  const colors = getThemeColors(activeStoreTheme);
+
+  // Sync Preferences from Database & Storage on Mount
   useEffect(() => {
     const loadPreferences = async () => {
       try {
@@ -58,22 +64,26 @@ export default function SettingsScreen() {
           if (settings.theme) setTheme(settings.theme);
         }
       } catch (e) {
-        console.error("Failed to load DB settings", e);
+        console.error('[Settings] Failed to load DB settings:', e);
       }
 
       const storedWarning = storage.getString('vjb_unsaved_warning');
       if (storedWarning) {
         setUnsavedWarning(storedWarning !== 'false'); 
       }
-
-      // Check PIN State
-      setHasPin(isPinSet());
-      setSkippedPin(isPinSkipped());
     };
     loadPreferences();
   }, []);
 
-  const getTodayPreview = (format: string) => {
+  // Sync PIN Status on Screen Focus
+  useFocusEffect(
+    useCallback(() => {
+      setHasPin(isPinSet());
+      setSkippedPin(isPinSkipped());
+    }, [])
+  );
+
+  const getTodayPreview = (formatStr: string) => {
     const today = new Date();
     const d = String(today.getDate()).padStart(2, '0');
     const m = String(today.getMonth() + 1).padStart(2, '0');
@@ -84,7 +94,7 @@ export default function SettingsScreen() {
     ];
     const monthName = monthNames[today.getMonth()];
 
-    switch(format) {
+    switch (formatStr) {
       case 'dd/MM/yyyy': return `${d}/${m}/${y}`;
       case 'd MMMM yyyy': return `${Number(d)} ${monthName} ${y}`;
       case 'dd-MM-yyyy': return `${d}-${m}-${y}`;
@@ -93,11 +103,9 @@ export default function SettingsScreen() {
     }
   };
 
-  const activeStoreTheme = appSettingsStore((s) => s.theme);
-
   const getThemeLabel = (t: string) => {
     const currentTheme = t && t !== 'system' ? t : activeStoreTheme;
-    switch(currentTheme) {
+    switch (currentTheme) {
       case 'saffron': return 'Royal Kesari Gold (Default)';
       case 'platinum_sapphire': return 'Platinum & Star Sapphire';
       case 'sandstone_ochre': return 'Reth Sandstone Silk & Ochre';
@@ -107,13 +115,14 @@ export default function SettingsScreen() {
   };
 
   const toggleUnsavedWarning = async (value: boolean) => {
+    try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
     setUnsavedWarning(value);
     storage.set('vjb_unsaved_warning', value ? 'true' : 'false');
     
     try {
       await settingsService.updateSettings({ warnUnsavedChanges: value ? 1 : 0 });
-    } catch(e: any) {
-      console.error('Failed to update unsaved warning setting:', e?.message ?? e);
+    } catch (e: any) {
+      console.error('[Settings] Failed to update unsaved warning setting:', e?.message ?? e);
     }
   };
 
@@ -123,7 +132,7 @@ export default function SettingsScreen() {
       setDateFormat(newFormat);
       setShowDateModal(false);
     } catch (e: any) {
-      Alert.alert("Cannot Update Settings", e.message);
+      Alert.alert('Cannot Update Settings', e.message || 'Failed to update date format.');
     }
   };
 
@@ -133,30 +142,32 @@ export default function SettingsScreen() {
       setTheme(newTheme);
       setShowThemeModal(false);
     } catch (e: any) {
-      Alert.alert("Cannot Update Settings", e.message);
+      Alert.alert('Cannot Update Settings', e.message || 'Failed to update theme.');
     }
   };
 
-  const colors = getThemeColors(theme);
-
   const settingsHeader = (
-    <View className="mt-1">
-      <View className="flex-row items-center gap-3 mb-2">
-        <View className="h-10 w-10 rounded-full bg-white/10 justify-center items-center border border-white/20">
+    <View style={s.headerContainer}>
+      <View style={s.headerTitleRow}>
+        <View style={[s.headerIconCircle, { borderColor: `${colors.vjBg}35` }]}>
           <Building2 size={20} color={colors.vjBg} />
         </View>
-        <View className="flex-1">
-          <Text className="text-vj-bg text-xl font-bold tracking-tight" numberOfLines={2}>
+        <View style={{ flex: 1 }}>
+          <Text style={[s.firmName, { color: colors.vjBg }]} numberOfLines={2}>
             {firm?.name || 'ACTIVE FIRM'}
           </Text>
           {firm?.proprietor ? (
-            <Text className="text-vj-bg/60 text-xs font-medium">{firm.proprietor}</Text>
+            <Text style={[s.firmProprietor, { color: `${colors.vjBg}99` }]}>{firm.proprietor}</Text>
           ) : null}
         </View>
       </View>
 
-      <View className="flex-row items-center gap-2 flex-wrap">
-        <HeaderPill icon={<ShieldCheck size={12} color={hasPin ? "#4ADE80" : "#FDBA74"} />} label={hasPin ? 'PIN PROTECTED' : 'PIN NOT SET'} variant={hasPin ? 'success' : 'warning'} />
+      <View style={s.headerPillRow}>
+        <HeaderPill 
+          icon={<ShieldCheck size={12} color={hasPin ? '#4ADE80' : '#FDBA74'} />} 
+          label={hasPin ? 'PIN PROTECTED' : 'PIN NOT SET'} 
+          variant={hasPin ? 'success' : 'warning'} 
+        />
         <HeaderPill icon={<Database size={12} color={colors.vjBg} />} label="SQLITE v7" />
       </View>
     </View>
@@ -166,29 +177,41 @@ export default function SettingsScreen() {
     <TwoToneWrapper title="Settings" showBack headerContent={settingsHeader}>
       <ScrollView 
         showsVerticalScrollIndicator={false} 
-        contentContainerStyle={{paddingBottom: 120, paddingTop: 20}}
+        contentContainerStyle={{
+          paddingHorizontal: 16,
+          paddingTop: 20,
+          paddingBottom: Math.max(insets.bottom + 40, 100),
+        }}
         keyboardShouldPersistTaps="handled"
         scrollEventThrottle={16}
         overScrollMode="never"
         removeClippedSubviews={false} 
         bounces={false}
       >
+        <SectionHeader title="General" colors={colors} />
         
-        <SectionHeader title="General" />
-        
-        <View className="px-1 mb-2" pointerEvents="none">
-          <GlassCard style={{ padding: 14, borderWidth: 1, borderColor: 'rgba(212, 175, 55, 0.35)', backgroundColor: 'rgba(255, 255, 255, 0.95)' }}>
-            <View className="flex-row items-center justify-between" accessibilityRole="text" accessibilityLabel="Currency: Bhartiya Rupee, fixed">
-              <View className="flex-row items-center gap-3.5 flex-1 mr-2">
+        {/* Fixed Currency Card (Constitutional Requirement) */}
+        <View style={{ marginBottom: 10 }} pointerEvents="none">
+          <GlassCard style={[s.currencyCard, { borderColor: `${colors.vjAccent}35` }]}>
+            <View 
+              style={s.currencyRow} 
+              accessibilityRole="text" 
+              accessibilityLabel="Currency: Bhartiya Rupee, fixed"
+            >
+              <View style={s.currencyLeft}>
                 <RupeeCoin3D size={40} />
-                <View className="flex-1">
-                  <Text className="text-vj-text font-bold text-base">{`Bhartiya Rupee (${['I','N','R'].join('')})`}</Text>
-                  <Text className="text-vj-text/60 text-xs mt-0.5">Fixed For Bhartiya Jewellers</Text>
+                <View style={{ flex: 1 }}>
+                  <Text style={[s.currencyTitle, { color: colors.vjText }]}>
+                    {`Bhartiya Rupee (${['I', 'N', 'R'].join('')})`}
+                  </Text>
+                  <Text style={[s.currencySubtitle, { color: colors.vjText, opacity: 0.6 }]}>
+                    Fixed For Bhartiya Jewellers
+                  </Text>
                 </View>
               </View>
-              <View className="flex-row items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-500/15 border border-amber-500/30">
+              <View style={s.regionBadge}>
                 <BhartiyaFlagEmblem width={18} height={12} />
-                <Text className="text-[9px] font-black text-amber-950 tracking-wider uppercase">
+                <Text style={s.regionBadgeText}>
                   BHARTIYA REGION
                 </Text>
                 <Lock size={10} color="#B8860B" />
@@ -198,15 +221,15 @@ export default function SettingsScreen() {
         </View>
 
         <GlassSettingsTile
-          title={hasPin ? "Change PIN" : "Set Up PIN"}
-          subtitle={hasPin ? "PIN is set" : "Not set — tap to secure your app"}
+          title={hasPin ? 'Change PIN' : 'Set Up PIN'}
+          subtitle={hasPin ? 'PIN is set' : 'Not set — tap to secure your app'}
           iconBg="rgba(217, 119, 6, 0.12)"
           borderColor="rgba(217, 119, 6, 0.25)"
           icon={
-            <View className="relative">
+            <View style={{ position: 'relative' }}>
               <KeyRound size={22} color="#D97706" />
               {(!hasPin && skippedPin) && (
-                <View className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-vj-danger rounded-full border border-white" />
+                <View style={s.pinAlertDot} />
               )}
             </View>
           }
@@ -222,23 +245,26 @@ export default function SettingsScreen() {
           onPress={() => setShowDateModal(true)}
         />
 
-        <View className="px-1 mb-2">
-          <GlassCard style={{ padding: 14, borderWidth: 1, borderColor: 'rgba(212, 175, 55, 0.25)', backgroundColor: 'rgba(255, 255, 255, 0.92)' }}>
-            <View className="flex-row items-center justify-between">
-              <View className="flex-row items-center gap-3.5 flex-1 mr-2">
-                <View style={{ backgroundColor: 'rgba(212, 175, 55, 0.12)', padding: 10, borderRadius: 16, borderWidth: 1, borderColor: 'rgba(0,0,0,0.05)', alignItems: 'center', justifyContent: 'center' }}>
-                  <AlertCircle size={22} color="#D4AF37" />
+        {/* Unsaved Changes Form Safeguard */}
+        <View style={{ marginBottom: 10 }}>
+          <GlassCard style={[s.switchCard, { borderColor: `${colors.vjAccent}25` }]}>
+            <View style={s.switchCardRow}>
+              <View style={s.switchCardLeft}>
+                <View style={[s.switchIconBox, { backgroundColor: `${colors.vjAccent}15` }]}>
+                  <AlertCircle size={22} color={colors.vjAccent} />
                 </View>
-                <View className="flex-1">
-                  <Text className="text-vj-text font-bold text-base">Unsaved Changes</Text>
-                  <Text className="text-vj-text/60 text-xs mt-0.5">Warn before exiting forms</Text>
+                <View style={{ flex: 1 }}>
+                  <Text style={[s.switchCardTitle, { color: colors.vjText }]}>Unsaved Changes</Text>
+                  <Text style={[s.switchCardSubtitle, { color: colors.vjText, opacity: 0.6 }]}>
+                    Warn before exiting forms
+                  </Text>
                 </View>
               </View>
               <Switch
                 value={unsavedWarning}
                 onValueChange={toggleUnsavedWarning}
-                trackColor={{ false: "#D1D1D1", true: "#D4AF37" }}
-                thumbColor={"#FCFBF8"}
+                trackColor={{ false: '#D1D1D1', true: colors.vjAccent }}
+                thumbColor="#FCFBF8"
               />
             </View>
           </GlassCard>
@@ -259,10 +285,10 @@ export default function SettingsScreen() {
           iconBg="rgba(8, 145, 178, 0.12)"
           borderColor="rgba(8, 145, 178, 0.25)"
           icon={<FileBox size={22} color="#0891B2" />}
-          onPress={() => Alert.alert("Coming Soon", "Invoice customization unlocks in Phase 4.")}
+          onPress={() => Alert.alert('Coming Soon', 'Invoice customization unlocks in Phase 4.')}
         />
 
-        <SectionHeader title="Identity & Structure" />
+        <SectionHeader title="Identity & Structure" colors={colors} />
         <GlassSettingsTile
           title="Firm Identity"
           subtitle="Manage Firms, Addresses & Logos"
@@ -281,14 +307,14 @@ export default function SettingsScreen() {
           onPress={() => router.push('/settings/close-fy')}
         />
 
-        <SectionHeader title="Tax & Devices" />
+        <SectionHeader title="Tax & Devices" colors={colors} />
         <GlassSettingsTile
           title="GST Tax Rates"
           subtitle="Manage CGST/SGST groups"
           iconBg="rgba(124, 58, 237, 0.12)"
           borderColor="rgba(124, 58, 237, 0.25)"
           icon={<Percent size={22} color="#7C3AED" />}
-          onPress={() => Alert.alert("Phase 3 Feature", "GST settings are configured in the full setup. Available after Phase 3.")}
+          onPress={() => Alert.alert('Phase 3 Feature', 'GST settings are configured in the full setup. Available after Phase 3.')}
         />
         <GlassSettingsTile
           title="Paired Devices"
@@ -296,11 +322,10 @@ export default function SettingsScreen() {
           iconBg="rgba(2, 132, 199, 0.12)"
           borderColor="rgba(2, 132, 199, 0.25)"
           icon={<MonitorSmartphone size={22} color="#0284C7" />}
-          onPress={() => Alert.alert("Future Feature", "Device sync is available in a future update.")}
+          onPress={() => Alert.alert('Future Feature', 'Device sync is available in a future update.')}
         />
 
-        <SectionHeader title="Utilities & Safety" />
-        
+        <SectionHeader title="Utilities & Safety" colors={colors} />
         <GlassSettingsTile
           title="Backup & Restore"
           subtitle="Encrypted .vjb Exports, Public Mirroring & Restore"
@@ -334,22 +359,22 @@ export default function SettingsScreen() {
           iconBg="rgba(180, 83, 9, 0.12)"
           borderColor="rgba(180, 83, 9, 0.25)"
           icon={<Wrench size={22} color="#B45309" />}
-          onPress={() => Alert.alert("Phase 6 Feature", "Data Utilities unlock in Phase 6.")}
+          onPress={() => Alert.alert('Phase 6 Feature', 'Data Utilities unlock in Phase 6.')}
         />
 
-        <View className="mt-8 items-center opacity-40 mb-10">
-          <Database size={20} color={COLORS.vjText} />
-          <Text className="text-[10px] font-bold text-vj-text mt-2">
+        {/* Database & Environment Metadata */}
+        <View style={s.footerInfo}>
+          <Database size={20} color={colors.vjText} style={{ opacity: 0.45 }} />
+          <Text style={[s.footerTextBold, { color: colors.vjText }]}>
             VJ BILLING • PHASE 2 • INVENTORY
           </Text>
-          <Text className="text-[10px] text-vj-text">
+          <Text style={[s.footerText, { color: colors.vjText }]}>
             Firm Code: {firm?.firmCode || 'N/A'}
           </Text>
-          <Text className="text-[10px] text-vj-text mt-1">
+          <Text style={[s.footerText, { color: colors.vjText, marginTop: 2 }]}>
             Device: {Device.modelName || Device.deviceName || 'Unknown'}
           </Text>
         </View>
-
       </ScrollView>
 
       {/* Modular Date Format Modal */}
@@ -367,15 +392,168 @@ export default function SettingsScreen() {
         onSelectTheme={updateTheme}
         onClose={() => setShowThemeModal(false)}
       />
-
     </TwoToneWrapper>
   );
 }
 
-function SectionHeader({ title }: { title: string }) {
+function SectionHeader({ title, colors }: { title: string; colors: ReturnType<typeof getThemeColors> }) {
   return (
-    <Text className="text-vj-text/60 text-xs font-bold uppercase tracking-widest mb-3 mt-4 ml-1">
+    <Text style={[s.sectionHeaderTitle, { color: colors.vjText }]}>
       {title}
     </Text>
   );
 }
+
+const s = StyleSheet.create({
+  headerContainer: {
+    marginTop: 4,
+  },
+  headerTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginBottom: 8,
+  },
+  headerIconCircle: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.12)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+  },
+  firmName: {
+    fontSize: 20,
+    fontWeight: '800',
+    letterSpacing: -0.3,
+  },
+  firmProprietor: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  headerPillRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    flexWrap: 'wrap',
+  },
+  sectionHeaderTitle: {
+    fontSize: 11.5,
+    fontWeight: '800',
+    textTransform: 'uppercase',
+    letterSpacing: 1.2,
+    marginBottom: 10,
+    marginTop: 14,
+    marginLeft: 4,
+    opacity: 0.6,
+  },
+  currencyCard: {
+    padding: 14,
+    borderWidth: 1,
+    backgroundColor: 'rgba(255, 255, 255, 0.95)',
+    borderRadius: 20,
+  },
+  currencyRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  currencyLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+    flex: 1,
+    marginRight: 8,
+  },
+  currencyTitle: {
+    fontWeight: '800',
+    fontSize: 15.5,
+  },
+  currencySubtitle: {
+    fontSize: 11.5,
+    fontWeight: '600',
+    marginTop: 2,
+  },
+  regionBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 999,
+    backgroundColor: 'rgba(245, 158, 11, 0.14)',
+    borderWidth: 1,
+    borderColor: 'rgba(245, 158, 11, 0.3)',
+  },
+  regionBadgeText: {
+    fontSize: 9,
+    fontWeight: '900',
+    color: '#78350F',
+    letterSpacing: 0.8,
+    textTransform: 'uppercase',
+  },
+  pinAlertDot: {
+    position: 'absolute',
+    top: -2,
+    right: -2,
+    width: 10,
+    height: 10,
+    backgroundColor: '#DC2626',
+    borderRadius: 5,
+    borderWidth: 1.5,
+    borderColor: '#ffffff',
+  },
+  switchCard: {
+    padding: 14,
+    borderWidth: 1,
+    backgroundColor: 'rgba(255, 255, 255, 0.92)',
+    borderRadius: 20,
+  },
+  switchCardRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  switchCardLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+    flex: 1,
+    marginRight: 8,
+  },
+  switchIconBox: {
+    padding: 10,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: 'rgba(0,0,0,0.05)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  switchCardTitle: {
+    fontWeight: '800',
+    fontSize: 15.5,
+  },
+  switchCardSubtitle: {
+    fontSize: 11.5,
+    fontWeight: '600',
+    marginTop: 2,
+  },
+  footerInfo: {
+    marginTop: 32,
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  footerTextBold: {
+    fontSize: 10,
+    fontWeight: '800',
+    marginTop: 8,
+    letterSpacing: 0.8,
+    opacity: 0.45,
+  },
+  footerText: {
+    fontSize: 10,
+    fontWeight: '600',
+    opacity: 0.4,
+  },
+});

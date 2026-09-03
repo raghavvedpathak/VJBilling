@@ -1,3 +1,7 @@
+// components/ui/GlassDatePickerModal.tsx — Centralized Glassmorphic Date Picker for VJ Billing
+// Purpose: High-performance date stepper picker modal with translucent frosted glass styling.
+// Visual Architecture: Frosted Glass Sheet, Etched Stepper Tiles, Golden Accents, and Dynamic Theme Tokens.
+
 import React, { useState, useEffect, useMemo } from 'react';
 import {
   View,
@@ -12,7 +16,8 @@ import {
 import { BlurView } from 'expo-blur';
 import * as Haptics from 'expo-haptics';
 import { ChevronUp, ChevronDown, Calendar as CalendarIcon, X, Check } from 'lucide-react-native';
-import { COLORS } from '@/constants/theme';
+import { COLORS, getThemeColors } from '@/constants/theme';
+import { appSettingsStore } from '@/store/phase1/appSettingsStore';
 import { formatDate } from '@/utils/formatDate';
 
 const MONTH_NAMES = [
@@ -50,6 +55,10 @@ export function GlassDatePickerModal({
     const d = String(today.getDate()).padStart(2, '0');
     return `${y}-${m}-${d}`;
   }, [maxDate, today]);
+
+  const activeTheme = appSettingsStore((s: any) => s.theme);
+  const colors = getThemeColors(activeTheme);
+  const isDark = activeTheme === 'dark';
 
   const [date, setDate] = useState<Date>(() => {
     if (value) {
@@ -145,17 +154,32 @@ export function GlassDatePickerModal({
           activeOpacity={1} 
           onPress={() => { Keyboard.dismiss(); onClose(); }} 
         />
-        <View style={s.modalContainer}>
-          <BlurView intensity={40} tint="light" style={s.blurContent}>
+        <View 
+          style={[
+            s.modalContainer,
+            { borderColor: isDark ? 'rgba(212, 175, 55, 0.35)' : 'rgba(212, 175, 55, 0.35)' }
+          ]}
+        >
+          <BlurView 
+            intensity={Platform.OS === 'ios' ? 70 : 0} 
+            tint={isDark ? 'dark' : 'light'} 
+            {...(Platform.OS === 'android' ? { blurMethod: 'none' as const } : {})}
+            style={[
+              s.blurContent,
+              {
+                backgroundColor: isDark ? 'rgba(28, 20, 24, 0.92)' : 'rgba(255, 253, 249, 0.92)',
+              }
+            ]}
+          >
             
             {/* Header */}
             <View style={s.headerRow}>
               <View style={s.headerTitleWrap}>
-                <CalendarIcon size={18} color={COLORS.vjAccent} />
-                <Text style={s.headerTitle}>{title}</Text>
+                <CalendarIcon size={18} color={colors.vjAccent} />
+                <Text style={[s.headerTitle, { color: colors.vjText }]}>{title}</Text>
               </View>
               <TouchableOpacity onPress={onClose} style={s.closeBtn} activeOpacity={0.7}>
-                <X size={18} color={COLORS.vjText} />
+                <X size={18} color={colors.vjText} />
               </TouchableOpacity>
             </View>
 
@@ -164,6 +188,10 @@ export function GlassDatePickerModal({
               <TouchableOpacity
                 style={[
                   s.presetChip,
+                  {
+                    backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(212, 175, 55, 0.08)',
+                    borderColor: isDark ? 'rgba(255, 255, 255, 0.15)' : 'rgba(212, 175, 55, 0.20)',
+                  },
                   selectedIso === maxDateIso && s.presetChipActive,
                 ]}
                 onPress={() => handleQuickPreset('today')}
@@ -171,6 +199,7 @@ export function GlassDatePickerModal({
                 <Text
                   style={[
                     s.presetChipText,
+                    { color: colors.vjText },
                     selectedIso === maxDateIso && s.presetChipTextActive,
                   ]}
                 >
@@ -179,10 +208,16 @@ export function GlassDatePickerModal({
               </TouchableOpacity>
 
               <TouchableOpacity
-                style={s.presetChip}
+                style={[
+                  s.presetChip,
+                  {
+                    backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(212, 175, 55, 0.08)',
+                    borderColor: isDark ? 'rgba(255, 255, 255, 0.15)' : 'rgba(212, 175, 55, 0.20)',
+                  },
+                ]}
                 onPress={() => handleQuickPreset('yesterday')}
               >
-                <Text style={s.presetChipText}>
+                <Text style={[s.presetChipText, { color: colors.vjText }]}>
                   Yesterday
                 </Text>
               </TouchableOpacity>
@@ -191,95 +226,139 @@ export function GlassDatePickerModal({
             {/* Stepper Cards */}
             <View style={s.stepperGrid}>
               {/* Day Col */}
-              <View style={s.stepperCol}>
-                <Text style={s.stepperColLabel}>DAY</Text>
+              <View 
+                style={[
+                  s.stepperCol,
+                  {
+                    backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(255, 255, 255, 0.85)',
+                    borderColor: isDark ? 'rgba(212, 175, 55, 0.25)' : 'rgba(212, 175, 55, 0.25)',
+                  }
+                ]}
+              >
+                <Text style={[s.stepperColLabel, { color: `${colors.vjText}80` }]}>DAY</Text>
                 <TouchableOpacity
                   onPress={() => handleDayStep(1)}
                   style={s.stepBtn}
                   activeOpacity={0.7}
                 >
-                  <ChevronUp size={18} color={COLORS.vjAccent} />
+                  <ChevronUp size={18} color={colors.vjAccent} />
                 </TouchableOpacity>
-                <Text style={s.stepValText}>{String(date.getDate()).padStart(2, '0')}</Text>
+                <Text style={[s.stepValText, { color: colors.vjText }]}>
+                  {String(date.getDate()).padStart(2, '0')}
+                </Text>
                 <TouchableOpacity
                   onPress={() => handleDayStep(-1)}
                   style={s.stepBtn}
                   activeOpacity={0.7}
                 >
-                  <ChevronDown size={18} color={COLORS.vjAccent} />
+                  <ChevronDown size={18} color={colors.vjAccent} />
                 </TouchableOpacity>
               </View>
 
               {/* Month Col */}
-              <View style={s.stepperCol}>
-                <Text style={s.stepperColLabel}>MONTH</Text>
+              <View 
+                style={[
+                  s.stepperCol,
+                  {
+                    backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(255, 255, 255, 0.85)',
+                    borderColor: isDark ? 'rgba(212, 175, 55, 0.25)' : 'rgba(212, 175, 55, 0.25)',
+                  }
+                ]}
+              >
+                <Text style={[s.stepperColLabel, { color: `${colors.vjText}80` }]}>MONTH</Text>
                 <TouchableOpacity
                   onPress={() => handleMonthStep(1)}
                   style={s.stepBtn}
                   activeOpacity={0.7}
                 >
-                  <ChevronUp size={18} color={COLORS.vjAccent} />
+                  <ChevronUp size={18} color={colors.vjAccent} />
                 </TouchableOpacity>
-                <Text style={s.stepValText}>{MONTH_NAMES[date.getMonth()]}</Text>
+                <Text style={[s.stepValText, { color: colors.vjText }]}>
+                  {MONTH_NAMES[date.getMonth()]}
+                </Text>
                 <TouchableOpacity
                   onPress={() => handleMonthStep(-1)}
                   style={s.stepBtn}
                   activeOpacity={0.7}
                 >
-                  <ChevronDown size={18} color={COLORS.vjAccent} />
+                  <ChevronDown size={18} color={colors.vjAccent} />
                 </TouchableOpacity>
               </View>
 
               {/* Year Col */}
-              <View style={s.stepperCol}>
-                <Text style={s.stepperColLabel}>YEAR</Text>
+              <View 
+                style={[
+                  s.stepperCol,
+                  {
+                    backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(255, 255, 255, 0.85)',
+                    borderColor: isDark ? 'rgba(212, 175, 55, 0.25)' : 'rgba(212, 175, 55, 0.25)',
+                  }
+                ]}
+              >
+                <Text style={[s.stepperColLabel, { color: `${colors.vjText}80` }]}>YEAR</Text>
                 <TouchableOpacity
                   onPress={() => handleYearStep(1)}
                   style={s.stepBtn}
                   activeOpacity={0.7}
                 >
-                  <ChevronUp size={18} color={COLORS.vjAccent} />
+                  <ChevronUp size={18} color={colors.vjAccent} />
                 </TouchableOpacity>
-                <Text style={s.stepValText}>{date.getFullYear()}</Text>
+                <Text style={[s.stepValText, { color: colors.vjText }]}>
+                  {date.getFullYear()}
+                </Text>
                 <TouchableOpacity
                   onPress={() => handleYearStep(-1)}
                   style={s.stepBtn}
                   activeOpacity={0.7}
                 >
-                  <ChevronDown size={18} color={COLORS.vjAccent} />
+                  <ChevronDown size={18} color={colors.vjAccent} />
                 </TouchableOpacity>
               </View>
             </View>
 
             {/* Live Preview Card */}
-            <View style={s.previewCard}>
-              <Text style={s.previewLabel}>Selected Date</Text>
-              <Text style={s.previewVal}>
-                {date.getDate()} {MONTH_FULL_NAMES[date.getMonth()]} {date.getFullYear()}
-              </Text>
-              <Text style={s.previewFormatted}>
-                Format: {formatDate(selectedIso)}
-              </Text>
+            <View 
+              style={[
+                s.previewCard,
+                {
+                  backgroundColor: isDark ? 'rgba(212, 175, 55, 0.08)' : 'rgba(212, 175, 55, 0.08)',
+                  borderColor: isDark ? 'rgba(212, 175, 55, 0.25)' : 'rgba(212, 175, 55, 0.20)',
+                }
+              ]}
+            >
+              <Text style={[s.previewLabel, { color: `${colors.vjText}80` }]}>SELECTED DATE</Text>
+              <Text style={[s.previewVal, { color: colors.vjText }]}>{selectedIso}</Text>
+              <Text style={[s.previewFormatted, { color: colors.vjAccent }]}>{formatDate(selectedIso)}</Text>
             </View>
 
             {/* Actions */}
             <View style={s.actionRow}>
               <TouchableOpacity
-                style={s.cancelBtn}
                 onPress={onClose}
-                activeOpacity={0.8}
+                style={[
+                  s.cancelBtn,
+                  {
+                    backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(212, 175, 55, 0.10)',
+                    borderColor: isDark ? 'rgba(212, 175, 55, 0.25)' : 'rgba(212, 175, 55, 0.25)',
+                  }
+                ]}
+                activeOpacity={0.7}
               >
-                <Text style={s.cancelBtnText}>Cancel</Text>
+                <Text style={[s.cancelBtnText, { color: colors.vjText }]}>Cancel</Text>
               </TouchableOpacity>
 
               <TouchableOpacity
-                style={[s.confirmBtn, isFuture && s.confirmBtnDisabled]}
                 onPress={handleConfirm}
                 disabled={isFuture}
+                style={[
+                  s.confirmBtn,
+                  { backgroundColor: colors.vjAccent },
+                  isFuture && s.confirmBtnDisabled
+                ]}
                 activeOpacity={0.8}
               >
                 <Check size={16} color="#fff" />
-                <Text style={s.confirmBtnText}>Set Date</Text>
+                <Text style={s.confirmBtnText}>Confirm Date</Text>
               </TouchableOpacity>
             </View>
 
@@ -293,31 +372,28 @@ export function GlassDatePickerModal({
 const s = StyleSheet.create({
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.55)',
+    backgroundColor: 'rgba(0,0,0,0.5)',
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 16,
+    padding: 20,
   },
   modalContainer: {
-    width: '92%',
-    maxWidth: 400,
+    width: '100%',
+    maxWidth: 380,
     borderRadius: 28,
     overflow: 'hidden',
     borderWidth: 1.5,
-    borderColor: 'rgba(212, 175, 55, 0.35)',
-    backgroundColor: 'rgba(255, 253, 249, 0.98)',
-    zIndex: 10,
+    backgroundColor: 'transparent',
   },
   blurContent: {
-    padding: 20,
+    padding: 22,
     borderRadius: 28,
   },
   headerRow: {
     flexDirection: 'row',
-    alignItems: 'center',
     justifyContent: 'space-between',
+    alignItems: 'center',
     marginBottom: 16,
-    paddingBottom: 4,
   },
   headerTitleWrap: {
     flexDirection: 'row',
@@ -325,14 +401,13 @@ const s = StyleSheet.create({
     gap: 8,
   },
   headerTitle: {
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: '800',
-    color: COLORS.vjText,
   },
   closeBtn: {
     padding: 6,
     borderRadius: 20,
-    backgroundColor: 'rgba(92, 22, 35, 0.06)',
+    backgroundColor: 'rgba(212, 175, 55, 0.10)',
   },
   presetRow: {
     flexDirection: 'row',
@@ -343,9 +418,7 @@ const s = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 14,
-    backgroundColor: 'rgba(92, 22, 35, 0.06)',
     borderWidth: 1,
-    borderColor: 'rgba(92, 22, 35, 0.1)',
   },
   presetChipActive: {
     backgroundColor: '#FEF3C7',
@@ -354,7 +427,6 @@ const s = StyleSheet.create({
   presetChipText: {
     fontSize: 12,
     fontWeight: '700',
-    color: COLORS.vjText,
   },
   presetChipTextActive: {
     color: '#92400E',
@@ -368,45 +440,38 @@ const s = StyleSheet.create({
   stepperCol: {
     flex: 1,
     alignItems: 'center',
-    backgroundColor: '#fff',
     borderRadius: 18,
     paddingVertical: 10,
-    borderWidth: 1,
-    borderColor: 'rgba(92, 22, 35, 0.12)',
+    borderWidth: 1.2,
   },
   stepperColLabel: {
     fontSize: 9,
     fontWeight: '800',
-    color: 'rgba(92, 22, 35, 0.5)',
     letterSpacing: 1,
     marginBottom: 4,
   },
   stepBtn: {
     padding: 6,
     borderRadius: 12,
-    backgroundColor: 'rgba(212, 175, 55, 0.1)',
+    backgroundColor: 'rgba(212, 175, 55, 0.12)',
     marginVertical: 2,
   },
   stepValText: {
     fontSize: 18,
     fontWeight: '800',
-    color: COLORS.vjText,
     fontFamily: 'monospace',
     marginVertical: 4,
   },
   previewCard: {
-    backgroundColor: 'rgba(92, 22, 35, 0.04)',
     borderRadius: 16,
     padding: 12,
     alignItems: 'center',
     marginBottom: 18,
     borderWidth: 1,
-    borderColor: 'rgba(92, 22, 35, 0.08)',
   },
   previewLabel: {
     fontSize: 10,
     fontWeight: '700',
-    color: 'rgba(92, 22, 35, 0.5)',
     textTransform: 'uppercase',
     letterSpacing: 0.5,
     marginBottom: 2,
@@ -414,12 +479,10 @@ const s = StyleSheet.create({
   previewVal: {
     fontSize: 15,
     fontWeight: '800',
-    color: COLORS.vjText,
   },
   previewFormatted: {
     fontSize: 11,
     fontWeight: '600',
-    color: COLORS.vjAccent,
     marginTop: 2,
   },
   actionRow: {
@@ -432,14 +495,11 @@ const s = StyleSheet.create({
     borderRadius: 16,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'rgba(92, 22, 35, 0.06)',
     borderWidth: 1,
-    borderColor: 'rgba(92, 22, 35, 0.15)',
   },
   cancelBtnText: {
     fontSize: 14,
     fontWeight: '700',
-    color: COLORS.vjText,
   },
   confirmBtn: {
     flex: 1.5,
@@ -449,7 +509,6 @@ const s = StyleSheet.create({
     gap: 6,
     paddingVertical: 12,
     borderRadius: 16,
-    backgroundColor: COLORS.vjAccent,
   },
   confirmBtnDisabled: {
     opacity: 0.5,

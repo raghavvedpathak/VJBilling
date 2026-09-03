@@ -1,9 +1,24 @@
+// components/ui/Glass.tsx — Centralized Glassmorphic Design System for VJ Billing
+// Purpose: Unified luxury glassmorphism components (Inputs, Buttons, Pickers, Badges, 3D Bullion, Flags)
+// Visual Architecture: Translucent Frosted Glass, Crisp Jewel Gold Rim Borders, and Dynamic Theme Reactivity.
+
 import React from 'react';
-import { View, Text, TextInput, TouchableOpacity, ActivityIndicator, ViewProps, ScrollView } from 'react-native';
+import {
+  View,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  ActivityIndicator,
+  ViewProps,
+  ScrollView,
+  StyleSheet,
+  Platform,
+} from 'react-native';
 import { BlurView } from 'expo-blur';
 import * as Haptics from 'expo-haptics';
 import { ChevronDown, ChevronRight } from 'lucide-react-native';
-import { COLORS } from '../../constants/theme';
+import { COLORS, getThemeColors } from '../../constants/theme';
+import { appSettingsStore } from '../../store/phase1/appSettingsStore';
 import { getCurrencySymbol } from '../../utils/currency';
 
 // ============================================================================
@@ -13,11 +28,11 @@ import { getCurrencySymbol } from '../../utils/currency';
 export * from './CardContainer';
 
 // ============================================================================
-// 2. GLASS INPUT
+// 2. GLASS INPUT (Frosted Translucent Etched Slot)
 // Added secureTextEntry prop — required for any password/PIN fields.
 // readOnly visual styling: slightly dimmed label to communicate non-editable state.
 // ============================================================================
-interface GlassInputProps {
+export interface GlassInputProps {
   label?: string | undefined;
   icon?: React.ReactNode | undefined;
   value: string;
@@ -35,6 +50,7 @@ interface GlassInputProps {
   onBlur?: (() => void) | undefined;
   onSubmitEditing?: (() => void) | undefined;
 }
+
 export function GlassInput({
   label,
   icon,
@@ -54,6 +70,11 @@ export function GlassInput({
   onSubmitEditing,
 }: GlassInputProps) {
   const inputRef = React.useRef<TextInput>(null);
+  const activeTheme = appSettingsStore((s: any) => s.theme);
+  const colors = getThemeColors(activeTheme);
+  const isDark = activeTheme === 'dark';
+
+  const [isFocused, setIsFocused] = React.useState(false);
 
   const handleContainerPress = () => {
     if (!readOnly) {
@@ -61,8 +82,29 @@ export function GlassInput({
     }
   };
 
+  const handleFocus = () => {
+    setIsFocused(true);
+    if (onFocus) onFocus();
+  };
+
+  const handleBlur = () => {
+    setIsFocused(false);
+    if (onBlur) onBlur();
+  };
+
+  // Frosted translucent input styling
+  const containerBg = readOnly
+    ? (isDark ? 'rgba(255, 255, 255, 0.04)' : 'rgba(200, 200, 200, 0.22)')
+    : (isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(255, 255, 255, 0.82)');
+
+  const containerBorder = readOnly
+    ? (isDark ? 'rgba(255, 255, 255, 0.12)' : 'rgba(200, 200, 200, 0.40)')
+    : isFocused
+    ? colors.vjAccent
+    : (isDark ? 'rgba(212, 175, 55, 0.30)' : 'rgba(212, 175, 55, 0.35)');
+
   return (
-    <View className="mb-4">
+    <View style={glassStyles.inputWrapper}>
       {label && (
         <TouchableOpacity
           activeOpacity={readOnly ? 1 : 0.7}
@@ -70,9 +112,13 @@ export function GlassInput({
           disabled={readOnly}
         >
           <Text
-            className={`font-bold text-xs uppercase tracking-wider mb-2 ml-1 ${
-              readOnly ? 'text-vj-text/40' : 'text-vj-text/70'
-            }`}
+            style={[
+              glassStyles.inputLabel,
+              {
+                color: colors.vjText,
+                opacity: readOnly ? 0.4 : 0.75,
+              },
+            ]}
           >
             {label}
           </Text>
@@ -82,26 +128,36 @@ export function GlassInput({
         activeOpacity={1}
         onPress={handleContainerPress}
         disabled={readOnly}
-        className={`flex-row items-center rounded-2xl px-4 py-3.5 border ${
-          readOnly ? 'bg-gray-100/50 border-gray-300' : 'bg-white border-vj-text/30'
-        }`}
+        style={[
+          glassStyles.inputContainer,
+          {
+            backgroundColor: containerBg,
+            borderColor: containerBorder,
+            borderWidth: isFocused ? 1.5 : 1.2,
+          },
+        ]}
       >
         {icon && (
           <TouchableOpacity
             activeOpacity={1}
             onPress={handleContainerPress}
             disabled={readOnly}
-            className="mr-3 opacity-60 text-vj-text"
+            style={glassStyles.inputIconBox}
           >
             {icon}
           </TouchableOpacity>
         )}
         <TextInput
           ref={inputRef}
-          className="flex-1 text-vj-text font-semibold text-base py-0"
-          style={{ textAlignVertical: 'center', includeFontPadding: false }}
+          style={[
+            glassStyles.inputText,
+            {
+              color: colors.vjText,
+              opacity: readOnly ? 0.6 : 1,
+            },
+          ]}
           placeholder={placeholder}
-          placeholderTextColor="#A0A0A0"
+          placeholderTextColor={isDark ? 'rgba(255, 255, 255, 0.35)' : 'rgba(92, 22, 35, 0.38)'}
           value={value}
           onChangeText={onChangeText}
           keyboardType={keyboardType}
@@ -112,8 +168,8 @@ export function GlassInput({
           autoComplete={autoComplete}
           editable={!readOnly}
           secureTextEntry={secureTextEntry}
-          onFocus={onFocus}
-          onBlur={onBlur}
+          onFocus={handleFocus}
+          onBlur={handleBlur}
           onSubmitEditing={onSubmitEditing}
         />
       </TouchableOpacity>
@@ -122,9 +178,9 @@ export function GlassInput({
 }
 
 // ============================================================================
-// 3. GLASS BUTTON
+// 3. GLASS BUTTON (Jeweled Primary, Frosted Secondary, & Alert Danger)
 // ============================================================================
-interface GlassButtonProps {
+export interface GlassButtonProps {
   title: string;
   onPress: () => void;
   icon?: React.ReactNode | undefined;
@@ -133,6 +189,7 @@ interface GlassButtonProps {
   disabled?: boolean | undefined;
   style?: any | undefined;
 }
+
 export function GlassButton({
   title,
   onPress,
@@ -142,33 +199,40 @@ export function GlassButton({
   disabled,
   style,
 }: GlassButtonProps) {
-  const baseStyle = 'flex-row justify-center items-center py-4 rounded-2xl';
-
-  const variants = {
-    primary: 'bg-vj-text border border-amber-500/30',
-    secondary: 'bg-white/80 border border-vj-text/25',
-    danger: 'bg-vj-danger/90 border border-red-700/40',
-  };
-
-  const textColors = {
-    primary: 'text-vj-bg',
-    secondary: 'text-vj-text',
-    danger: 'text-white',
-  };
-
-  const spinnerColors = {
-    primary: COLORS.vjBg,   // Light on dark button
-    secondary: COLORS.vjText, // Dark on light button
-    danger: '#ffffff',    // white on red
-  };
+  const activeTheme = appSettingsStore((s: any) => s.theme);
+  const colors = getThemeColors(activeTheme);
+  const isDark = activeTheme === 'dark';
 
   const handlePress = () => {
     try {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    } catch (e) {
-      // ignore
-    }
+    } catch (e) {}
     onPress();
+  };
+
+  // Button background styles
+  const btnBackgrounds = {
+    primary: colors.vjText,
+    secondary: isDark ? 'rgba(255, 255, 255, 0.10)' : 'rgba(212, 175, 55, 0.12)',
+    danger: 'rgba(220, 38, 38, 0.90)',
+  };
+
+  const btnBorders = {
+    primary: 'rgba(212, 175, 55, 0.45)',
+    secondary: isDark ? 'rgba(212, 175, 55, 0.35)' : 'rgba(212, 175, 55, 0.35)',
+    danger: 'rgba(185, 28, 28, 0.50)',
+  };
+
+  const textColors = {
+    primary: colors.vjBg,
+    secondary: colors.vjText,
+    danger: '#ffffff',
+  };
+
+  const spinnerColors = {
+    primary: colors.vjBg,
+    secondary: colors.vjText,
+    danger: '#ffffff',
   };
 
   return (
@@ -176,16 +240,32 @@ export function GlassButton({
       onPress={handlePress}
       disabled={disabled || loading}
       activeOpacity={0.8}
-      style={style}
-      className={`${baseStyle} ${variants[variant]} ${disabled ? 'opacity-50' : ''} relative`}
+      style={[
+        glassStyles.btnBase,
+        {
+          backgroundColor: btnBackgrounds[variant],
+          borderColor: btnBorders[variant],
+          opacity: disabled ? 0.5 : 1,
+        },
+        style,
+      ]}
     >
       {loading ? (
-        <ActivityIndicator color={spinnerColors[variant]} />
+        <ActivityIndicator color={spinnerColors[variant]} size="small" />
       ) : (
-        <>
-          {Boolean(icon) ? <View className="absolute left-6">{icon}</View> : null}
-          <Text className={`${textColors[variant]} font-bold text-lg text-center`} style={{ includeFontPadding: false, textAlignVertical: 'center' }}>{title}</Text>
-        </>
+        <View style={glassStyles.btnContentRow}>
+          {icon ? <View style={glassStyles.btnIconBox}>{icon}</View> : null}
+          <Text
+            style={[
+              glassStyles.btnText,
+              {
+                color: textColors[variant],
+              },
+            ]}
+          >
+            {title}
+          </Text>
+        </View>
       )}
     </TouchableOpacity>
   );
@@ -194,19 +274,19 @@ export function GlassButton({
 // ============================================================================
 // 4. GLASS SMART SEARCH (INLINE COMBOBOX)
 // ============================================================================
-interface SmartSearchOption {
+export interface SmartSearchOption {
   id: string;
   label: string;
   sublabel?: string | undefined;
 }
 
-interface GlassSmartSearchProps {
+export interface GlassSmartSearchProps {
   label?: string | undefined;
   placeholder?: string | undefined;
   options: SmartSearchOption[];
   selectedId: string | null;
   onSelect: (option: SmartSearchOption | null) => void;
-  onFocusFetch?: (() => void) | undefined; // Triggered when input is focused to load fresh data
+  onFocusFetch?: (() => void) | undefined;
   showAllOnFocus?: boolean | undefined;
 }
 
@@ -222,6 +302,10 @@ export function GlassSmartSearch({
   const [query, setQuery] = React.useState('');
   const [isFocused, setIsFocused] = React.useState(false);
   const lastSyncedId = React.useRef<string | null>(null);
+
+  const activeTheme = appSettingsStore((s: any) => s.theme);
+  const colors = getThemeColors(activeTheme);
+  const isDark = activeTheme === 'dark';
 
   // Sync input display text with selected item when selectedId or options change
   React.useEffect(() => {
@@ -243,7 +327,6 @@ export function GlassSmartSearch({
 
   const shouldShowOptions = React.useMemo(() => {
     if (!isFocused) return false;
-    
     if (showAllOnFocus && (!query || query === '')) return true;
 
     const searchStr = query.toLowerCase();
@@ -261,7 +344,6 @@ export function GlassSmartSearch({
   // Compute filtered options up to 5 items to keep it inline-friendly
   const filteredOptions = React.useMemo(() => {
     if (!shouldShowOptions) return [];
-    
     const searchStr = query.toLowerCase();
     
     if (showAllOnFocus && (!searchStr || (selectedId && options.find(o => o.id === selectedId)?.label.toLowerCase() === searchStr))) {
@@ -274,7 +356,7 @@ export function GlassSmartSearch({
       return labelMatch || sublabelMatch;
     });
 
-    return filtered.slice(0, 5); // Max 5 items inline
+    return filtered.slice(0, 5);
   }, [shouldShowOptions, query, options, showAllOnFocus, selectedId]);
 
   return (
@@ -285,39 +367,32 @@ export function GlassSmartSearch({
         value={query}
         onChangeText={(text) => {
           setQuery(text);
-          if (selectedId) onSelect(null); // Clear selection if they start typing a new query
+          if (selectedId) onSelect(null);
         }}
         onFocus={() => {
           setIsFocused(true);
           if (onFocusFetch) onFocusFetch();
         }}
         onBlur={() => {
-          // Add a small delay so tap on list item registers before blur hides it
           setTimeout(() => setIsFocused(false), 200);
         }}
       />
       
-      {/* Inline Dropdown List - ONLY SHOWS WHEN TYPING OR IF showAllOnFocus is true */}
+      {/* Inline Dropdown List with Translucent Frosted Glass */}
       {shouldShowOptions && (
         <ScrollView 
-          style={{ 
-            position: 'absolute',
-            top: 75,
-            left: 0,
-            right: 0,
-            maxHeight: 250,
-            backgroundColor: '#FCFBF8', 
-            borderRadius: 16, 
-            padding: 8,
-            borderWidth: 1,
-            borderColor: 'rgba(92,22,35,0.1)',
-            zIndex: 1000,
-          }}
+          style={[
+            glassStyles.dropdownScroll,
+            {
+              backgroundColor: isDark ? 'rgba(28, 20, 24, 0.96)' : 'rgba(252, 251, 248, 0.96)',
+              borderColor: isDark ? 'rgba(212, 175, 55, 0.35)' : 'rgba(212, 175, 55, 0.30)',
+            },
+          ]}
           nestedScrollEnabled={true}
           keyboardShouldPersistTaps="handled"
         >
           {filteredOptions.length === 0 ? (
-            <Text style={{ textAlign: 'center', color: 'rgba(92,22,35,0.5)', padding: 12, fontWeight: '500' }}>
+            <Text style={[glassStyles.dropdownEmptyText, { color: colors.vjText }]}>
               No results found
             </Text>
           ) : (
@@ -329,15 +404,19 @@ export function GlassSmartSearch({
                   setQuery(opt.label);
                   setIsFocused(false);
                 }}
-                style={{
-                  paddingVertical: 12,
-                  paddingHorizontal: 12,
-                  borderBottomWidth: 1,
-                  borderBottomColor: 'rgba(92,22,35,0.05)',
-                }}
+                style={[
+                  glassStyles.dropdownItemRow,
+                  {
+                    borderBottomColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(92, 22, 35, 0.08)',
+                  },
+                ]}
               >
-                <Text style={{ fontSize: 16, fontWeight: '600', color: COLORS.vjText }}>{opt.label}</Text>
-                {opt.sublabel ? <Text style={{ fontSize: 12, color: 'rgba(92,22,35,0.6)', marginTop: 2 }}>{opt.sublabel}</Text> : null}
+                <Text style={[glassStyles.dropdownItemLabel, { color: colors.vjText }]}>{opt.label}</Text>
+                {opt.sublabel ? (
+                  <Text style={[glassStyles.dropdownItemSublabel, { color: `${colors.vjText}99` }]}>
+                    {opt.sublabel}
+                  </Text>
+                ) : null}
               </TouchableOpacity>
             ))
           )}
@@ -348,34 +427,42 @@ export function GlassSmartSearch({
 }
 
 // ============================================================================
-// 6. MODERN GLASS HEADER PILL
+// 5. MODERN GLASS HEADER PILL
 // Sleek, modern iOS 17 / Material 3 glassmorphic pill badge for screen headers
 // ============================================================================
-interface HeaderPillProps {
+export interface HeaderPillProps {
   icon?: React.ReactNode;
   label: string;
   variant?: 'default' | 'success' | 'warning' | 'info';
 }
 
 export function HeaderPill({ icon, label, variant = 'default' }: HeaderPillProps) {
+  const activeTheme = appSettingsStore((s: any) => s.theme);
+  const colors = getThemeColors(activeTheme);
+
   const containerStyles = {
-    default: 'bg-white/10 border-white/20',
-    success: 'bg-emerald-500/15 border-emerald-400/30',
-    warning: 'bg-amber-500/15 border-amber-400/30',
-    info: 'bg-sky-500/15 border-sky-400/30',
+    default: { backgroundColor: 'rgba(255, 255, 255, 0.12)', borderColor: 'rgba(255, 255, 255, 0.25)' },
+    success: { backgroundColor: 'rgba(16, 185, 129, 0.15)', borderColor: 'rgba(52, 211, 153, 0.35)' },
+    warning: { backgroundColor: 'rgba(245, 158, 11, 0.15)', borderColor: 'rgba(251, 191, 36, 0.35)' },
+    info: { backgroundColor: 'rgba(14, 165, 233, 0.15)', borderColor: 'rgba(56, 189, 248, 0.35)' },
   };
 
-  const textStyles = {
-    default: 'text-vj-bg/90',
-    success: 'text-emerald-300',
-    warning: 'text-amber-200',
-    info: 'text-sky-200',
+  const textColors = {
+    default: colors.vjBg,
+    success: '#34D399',
+    warning: '#FBBF24',
+    info: '#38BDF8',
   };
 
   return (
-    <View className={`px-3 py-1 rounded-full border flex-row items-center gap-1.5 ${containerStyles[variant]}`}>
+    <View
+      style={[
+        glassStyles.headerPillContainer,
+        containerStyles[variant],
+      ]}
+    >
       {icon}
-      <Text className={`text-xs font-bold ${textStyles[variant]}`}>
+      <Text style={[glassStyles.headerPillText, { color: textColors[variant] }]}>
         {label}
       </Text>
     </View>
@@ -383,7 +470,7 @@ export function HeaderPill({ icon, label, variant = 'default' }: HeaderPillProps
 }
 
 // ============================================================================
-// 7. 3D BULLION BAR COMPONENT
+// 6. 3D BULLION BAR COMPONENT
 // Premium 3D metallic Gold & Silver Bar element with bevels & reflective highlights
 // ============================================================================
 export function BullionBar3D({ isGold, scale = 1 }: { isGold: boolean; scale?: number }) {
@@ -405,7 +492,7 @@ export function BullionBar3D({ isGold, scale = 1 }: { isGold: boolean; scale?: n
         justifyContent: 'center',
         alignItems: 'center',
         overflow: 'hidden',
-        position: 'relative'
+        position: 'relative',
       }}
     >
       {/* Glossy Metallic Light Reflective Highlight */}
@@ -449,7 +536,7 @@ export function BullionBar3D({ isGold, scale = 1 }: { isGold: boolean; scale?: n
 }
 
 // ============================================================================
-// 7B. 3D GOLD RUPEE COIN COMPONENT
+// 7. 3D GOLD RUPEE COIN COMPONENT
 // Premium 3D metallic Gold Coin element with bevels, reflection & Rupee symbol
 // ============================================================================
 export function RupeeCoin3D({ size = 38 }: { size?: number }) {
@@ -471,7 +558,7 @@ export function RupeeCoin3D({ size = 38 }: { size?: number }) {
         justifyContent: 'center',
         alignItems: 'center',
         overflow: 'hidden',
-        position: 'relative'
+        position: 'relative',
       }}
     >
       {/* Glossy Metallic Light Reflective Highlight */}
@@ -516,7 +603,7 @@ export function RupeeCoin3D({ size = 38 }: { size?: number }) {
 }
 
 // ============================================================================
-// 7C. MODERN BHARTIYA TRICOLOR FLAG EMBLEM
+// 8. MODERN BHARTIYA TRICOLOR FLAG EMBLEM
 // Crisp, modern vector flag emblem with Saffron, White, Green bands & Chakra
 // ============================================================================
 export function BhartiyaFlagEmblem({ width = 20, height = 14 }: { width?: number; height?: number }) {
@@ -544,7 +631,7 @@ export function BhartiyaFlagEmblem({ width = 20, height = 14 }: { width?: number
           flex: 1, 
           backgroundColor: '#FFFFFF', 
           justifyContent: 'center', 
-          alignItems: 'center' 
+          alignItems: 'center', 
         }}
       >
         <View 
@@ -577,16 +664,20 @@ export function BhartiyaFlagEmblem({ width = 20, height = 14 }: { width?: number
 }
 
 // ============================================================================
-// 8. GLASS METAL SELECTOR & BADGE
+// 9. GLASS METAL SELECTOR & BADGE
 // High-end glassmorphic UI components for Gold & Silver selection & badges
 // ============================================================================
-interface GlassMetalSelectorProps {
+export interface GlassMetalSelectorProps {
   selectedMetal: 'GOLD' | 'SILVER';
   onSelectMetal: (metal: 'GOLD' | 'SILVER') => void;
   label?: string;
 }
 
 export function GlassMetalSelector({ selectedMetal, onSelectMetal, label = 'Metal Type' }: GlassMetalSelectorProps) {
+  const activeTheme = appSettingsStore((s: any) => s.theme);
+  const colors = getThemeColors(activeTheme);
+  const isDark = activeTheme === 'dark';
+
   const handlePress = (metal: 'GOLD' | 'SILVER') => {
     try {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -600,7 +691,7 @@ export function GlassMetalSelector({ selectedMetal, onSelectMetal, label = 'Meta
   return (
     <View style={{ marginBottom: 20 }}>
       {label ? (
-        <Text style={{ fontSize: 12, fontWeight: '800', color: 'rgba(92,22,35,0.6)', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 10 }}>
+        <Text style={[glassStyles.inputLabel, { color: colors.vjText, marginBottom: 10 }]}>
           {label}
         </Text>
       ) : null}
@@ -614,9 +705,11 @@ export function GlassMetalSelector({ selectedMetal, onSelectMetal, label = 'Meta
             paddingVertical: 14,
             paddingHorizontal: 16,
             borderRadius: 18,
-            borderWidth: isGoldSelected ? 2 : 1,
-            borderColor: isGoldSelected ? '#D4AF37' : 'rgba(212, 175, 55, 0.25)',
-            backgroundColor: isGoldSelected ? '#FEF3C7' : 'rgba(255, 255, 255, 0.5)',
+            borderWidth: isGoldSelected ? 2 : 1.2,
+            borderColor: isGoldSelected ? '#D4AF37' : 'rgba(212, 175, 55, 0.30)',
+            backgroundColor: isGoldSelected
+              ? (isDark ? 'rgba(212, 175, 55, 0.25)' : '#FEF3C7')
+              : (isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(255, 255, 255, 0.70)'),
             flexDirection: 'row',
             alignItems: 'center',
             justifyContent: 'center',
@@ -628,7 +721,7 @@ export function GlassMetalSelector({ selectedMetal, onSelectMetal, label = 'Meta
               fontSize: 15,
               fontWeight: '900',
               letterSpacing: 1,
-              color: isGoldSelected ? '#92400E' : 'rgba(120, 53, 15, 0.5)',
+              color: isGoldSelected ? (isDark ? '#FDE68A' : '#92400E') : `${colors.vjText}99`,
               backgroundColor: 'transparent',
             }}
           >
@@ -646,9 +739,11 @@ export function GlassMetalSelector({ selectedMetal, onSelectMetal, label = 'Meta
             paddingVertical: 14,
             paddingHorizontal: 16,
             borderRadius: 18,
-            borderWidth: isSilverSelected ? 2 : 1,
-            borderColor: isSilverSelected ? '#64748B' : 'rgba(148, 163, 184, 0.25)',
-            backgroundColor: isSilverSelected ? '#E2E8F0' : 'rgba(255, 255, 255, 0.5)',
+            borderWidth: isSilverSelected ? 2 : 1.2,
+            borderColor: isSilverSelected ? '#94A3B8' : 'rgba(148, 163, 184, 0.30)',
+            backgroundColor: isSilverSelected
+              ? (isDark ? 'rgba(148, 163, 184, 0.25)' : '#E2E8F0')
+              : (isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(255, 255, 255, 0.70)'),
             flexDirection: 'row',
             alignItems: 'center',
             justifyContent: 'center',
@@ -660,7 +755,7 @@ export function GlassMetalSelector({ selectedMetal, onSelectMetal, label = 'Meta
               fontSize: 15,
               fontWeight: '900',
               letterSpacing: 1,
-              color: isSilverSelected ? '#0F172A' : 'rgba(30, 41, 59, 0.5)',
+              color: isSilverSelected ? (isDark ? '#F1F5F9' : '#0F172A') : `${colors.vjText}99`,
               backgroundColor: 'transparent',
             }}
           >
@@ -675,6 +770,9 @@ export function GlassMetalSelector({ selectedMetal, onSelectMetal, label = 'Meta
 
 export function GlassMetalBadge({ metal }: { metal: 'GOLD' | 'SILVER' }) {
   const isGold = metal === 'GOLD';
+  const activeTheme = appSettingsStore((s: any) => s.theme);
+  const isDark = activeTheme === 'dark';
+
   return (
     <View
       style={{
@@ -682,8 +780,10 @@ export function GlassMetalBadge({ metal }: { metal: 'GOLD' | 'SILVER' }) {
         paddingVertical: 5,
         borderRadius: 12,
         borderWidth: 1.5,
-        backgroundColor: isGold ? '#FEF3C7' : '#E2E8F0',
-        borderColor: isGold ? '#D4AF37' : '#64748B',
+        backgroundColor: isGold
+          ? (isDark ? 'rgba(212, 175, 55, 0.20)' : '#FEF3C7')
+          : (isDark ? 'rgba(148, 163, 184, 0.20)' : '#E2E8F0'),
+        borderColor: isGold ? '#D4AF37' : '#94A3B8',
         flexDirection: 'row',
         alignItems: 'center',
         gap: 8,
@@ -694,7 +794,7 @@ export function GlassMetalBadge({ metal }: { metal: 'GOLD' | 'SILVER' }) {
           fontSize: 11,
           fontWeight: '900',
           letterSpacing: 0.8,
-          color: isGold ? '#92400E' : '#0F172A',
+          color: isGold ? (isDark ? '#FDE68A' : '#92400E') : (isDark ? '#F1F5F9' : '#0F172A'),
         }}
       >
         {metal}
@@ -705,9 +805,9 @@ export function GlassMetalBadge({ metal }: { metal: 'GOLD' | 'SILVER' }) {
 }
 
 // ============================================================================
-// 9. GLASS PICKER INPUT (Modal Sheet Trigger)
+// 10. GLASS PICKER INPUT (Translucent Modal Sheet Trigger)
 // ============================================================================
-interface GlassPickerInputProps {
+export interface GlassPickerInputProps {
   label?: string | undefined;
   placeholder?: string | undefined;
   selectedLabel?: string | null | undefined;
@@ -726,6 +826,10 @@ export function GlassPickerInput({
   onPress,
   disabled = false,
 }: GlassPickerInputProps) {
+  const activeTheme = appSettingsStore((s: any) => s.theme);
+  const colors = getThemeColors(activeTheme);
+  const isDark = activeTheme === 'dark';
+
   const handlePress = () => {
     if (disabled) return;
     try {
@@ -734,10 +838,21 @@ export function GlassPickerInput({
     onPress();
   };
 
+  const containerBg = isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(255, 255, 255, 0.82)';
+  const containerBorder = isDark ? 'rgba(212, 175, 55, 0.30)' : 'rgba(212, 175, 55, 0.35)';
+
   return (
-    <View className="mb-4">
+    <View style={glassStyles.inputWrapper}>
       {label && (
-        <Text className="font-bold text-xs uppercase tracking-wider mb-2 ml-1 text-vj-text/70">
+        <Text
+          style={[
+            glassStyles.inputLabel,
+            {
+              color: colors.vjText,
+              opacity: disabled ? 0.4 : 0.75,
+            },
+          ]}
+        >
           {label}
         </Text>
       )}
@@ -745,30 +860,41 @@ export function GlassPickerInput({
         onPress={handlePress}
         disabled={disabled}
         activeOpacity={0.75}
-        className={`flex-row items-center justify-between rounded-2xl px-4 py-4 border bg-white border-vj-text/30 ${
-          disabled ? 'opacity-50' : ''
-        }`}
+        style={[
+          glassStyles.pickerContainer,
+          {
+            backgroundColor: containerBg,
+            borderColor: containerBorder,
+            opacity: disabled ? 0.5 : 1,
+          },
+        ]}
       >
-        {Boolean(icon) ? <View className="mr-3">{icon}</View> : null}
-        <View className="flex-1 mr-2">
+        {icon ? <View style={{ marginRight: 12 }}>{icon}</View> : null}
+        <View style={{ flex: 1, marginRight: 8 }}>
           {selectedLabel ? (
             <>
-              <Text className="text-vj-text font-bold text-base" numberOfLines={1}>
+              <Text style={[glassStyles.pickerSelectedText, { color: colors.vjText }]} numberOfLines={1}>
                 {selectedLabel}
               </Text>
               {selectedSublabel ? (
-                <Text className="text-vj-text/60 text-xs mt-0.5" numberOfLines={1}>
+                <Text style={[glassStyles.pickerSublabel, { color: `${colors.vjText}99` }]} numberOfLines={1}>
                   {selectedSublabel}
                 </Text>
               ) : null}
             </>
           ) : (
-            <Text className="text-gray-400 font-semibold text-base" numberOfLines={1}>
+            <Text
+              style={[
+                glassStyles.pickerPlaceholder,
+                { color: isDark ? 'rgba(255, 255, 255, 0.35)' : 'rgba(92, 22, 35, 0.38)' },
+              ]}
+              numberOfLines={1}
+            >
               {placeholder}
             </Text>
           )}
         </View>
-        <ChevronDown size={20} color={COLORS.vjText} style={{ opacity: 0.6 }} />
+        <ChevronDown size={20} color={colors.vjText} style={{ opacity: 0.6 }} />
       </TouchableOpacity>
     </View>
   );
@@ -777,4 +903,128 @@ export function GlassPickerInput({
 // Re-export FixedGlassBar for unified access
 export * from './FixedGlassBar';
 
-
+const glassStyles = StyleSheet.create({
+  inputWrapper: {
+    marginBottom: 16,
+  },
+  inputLabel: {
+    fontWeight: '800',
+    fontSize: 11.5,
+    textTransform: 'uppercase',
+    letterSpacing: 0.8,
+    marginBottom: 8,
+    marginLeft: 4,
+  },
+  inputContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderRadius: 16,
+    paddingHorizontal: 14,
+    paddingVertical: 13,
+  },
+  inputIconBox: {
+    marginRight: 12,
+    opacity: 0.65,
+  },
+  inputText: {
+    flex: 1,
+    fontWeight: '700',
+    fontSize: 15.5,
+    paddingVertical: 0,
+    textAlignVertical: 'center',
+    includeFontPadding: false,
+  },
+  btnBase: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: 15,
+    paddingHorizontal: 20,
+    borderRadius: 20,
+    borderWidth: 1.2,
+  },
+  btnContentRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  btnIconBox: {
+    marginRight: 4,
+  },
+  btnText: {
+    fontWeight: '800',
+    fontSize: 16,
+    textAlign: 'center',
+    includeFontPadding: false,
+  },
+  dropdownScroll: {
+    position: 'absolute',
+    top: 76,
+    left: 0,
+    right: 0,
+    maxHeight: 240,
+    borderRadius: 16,
+    padding: 6,
+    borderWidth: 1.2,
+    zIndex: 1000,
+    elevation: 8,
+  },
+  dropdownEmptyText: {
+    textAlign: 'center',
+    padding: 14,
+    fontWeight: '600',
+    opacity: 0.5,
+    fontSize: 13,
+  },
+  dropdownItemRow: {
+    paddingVertical: 12,
+    paddingHorizontal: 12,
+    borderBottomWidth: 1,
+  },
+  dropdownItemLabel: {
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  dropdownItemSublabel: {
+    fontSize: 11.5,
+    fontWeight: '600',
+    marginTop: 2,
+  },
+  headerPillContainer: {
+    paddingHorizontal: 12,
+    paddingVertical: 4.5,
+    borderRadius: 999,
+    borderWidth: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  headerPillText: {
+    fontSize: 11.5,
+    fontWeight: '800',
+    letterSpacing: 0.3,
+  },
+  pickerContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    borderRadius: 16,
+    paddingHorizontal: 14,
+    paddingVertical: 14,
+    borderWidth: 1.2,
+  },
+  pickerSelectedText: {
+    fontWeight: '800',
+    fontSize: 15.5,
+  },
+  pickerSublabel: {
+    fontSize: 11.5,
+    fontWeight: '600',
+    marginTop: 2,
+  },
+  pickerPlaceholder: {
+    fontWeight: '600',
+    fontSize: 15,
+  },
+});

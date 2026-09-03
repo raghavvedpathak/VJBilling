@@ -1,25 +1,27 @@
 // components/ui/CardContainer.tsx — Centralized Card Container Design System for VJ Billing
 // Purpose: Unified single source of truth for all card containers across all screens and hubs.
 // Note: Android HWUI safe — zero shadow/elevation to prevent black rectangular clipping artifacts.
-// Visual Architecture: Crisp 4-Sided Jewel Gold Borders, Spacious Luxury Sizing, and High-Definition Clarity.
+// Visual Architecture: Translucent Frosted Glass with Crisp 4-Sided Jewel Gold Borders, Spacious Luxury Sizing, and High-Definition Clarity.
 
 import React from 'react';
-import { View, Text, TouchableOpacity, ViewProps, ViewStyle } from 'react-native';
+import { View, Text, TouchableOpacity, ViewProps, ViewStyle, StyleSheet, Platform } from 'react-native';
+import { BlurView } from 'expo-blur';
 import * as Haptics from 'expo-haptics';
 import { ChevronRight } from 'lucide-react-native';
-import { COLORS } from '../../constants/theme';
+import { COLORS, getThemeColors } from '../../constants/theme';
+import { appSettingsStore } from '../../store/phase1/appSettingsStore';
 
 // ============================================================================
 // 1. BASE GLASS CARD CONTAINER
-// Foundational glassmorphism container with crisp uniform Android-safe borders.
+// Foundational translucent glassmorphism container with crisp uniform Android-safe borders.
 // ============================================================================
 export interface GlassCardProps extends ViewProps {
   children: React.ReactNode;
   intensity?: number | undefined;
-  contentPadding?: number;
-  borderColor?: string;
-  backgroundColor?: string;
-  rounded?: number;
+  contentPadding?: number | undefined;
+  borderColor?: string | undefined;
+  backgroundColor?: string | undefined;
+  rounded?: number | undefined;
 }
 
 export function GlassCard({
@@ -29,26 +31,69 @@ export function GlassCard({
   borderColor,
   backgroundColor,
   rounded = 24,
+  intensity = 40,
   ...props
 }: GlassCardProps) {
+  const activeTheme = appSettingsStore((s: any) => s.theme);
+  const isDark = activeTheme === 'dark';
+  const defaultBg = isDark ? 'rgba(28, 20, 24, 0.86)' : 'rgba(255, 255, 255, 0.86)';
+  const defaultBorder = isDark ? 'rgba(212, 175, 55, 0.35)' : 'rgba(212, 175, 55, 0.45)';
+
+  const flatStyle: ViewStyle = StyleSheet.flatten(style) || {};
+
+  // Extract padding, borders, and background color for the frosted glass layer
+  const effectiveBg = flatStyle.backgroundColor || backgroundColor || defaultBg;
+  const effectiveBorderColor = flatStyle.borderColor || borderColor || defaultBorder;
+  const effectiveBorderWidth = flatStyle.borderWidth !== undefined ? flatStyle.borderWidth : 1.2;
+  const effectivePadding = flatStyle.padding !== undefined ? flatStyle.padding : contentPadding;
+
+  const isFixedSize = flatStyle.height !== undefined || flatStyle.flex !== undefined;
+
+  // Outer container handles positioning, margins, dimensions, and rounded border clipping
+  const outerStyle: ViewStyle = {
+    borderRadius: rounded,
+    borderWidth: effectiveBorderWidth,
+    borderColor: effectiveBorderColor,
+    overflow: 'hidden',
+    marginBottom: flatStyle.marginBottom !== undefined ? flatStyle.marginBottom : 16,
+    backgroundColor: 'transparent',
+    ...(flatStyle.width !== undefined ? { width: flatStyle.width } : {}),
+    ...(flatStyle.height !== undefined ? { height: flatStyle.height } : {}),
+    ...(flatStyle.flex !== undefined ? { flex: flatStyle.flex } : {}),
+    ...(flatStyle.margin !== undefined ? { margin: flatStyle.margin } : {}),
+    ...(flatStyle.marginTop !== undefined ? { marginTop: flatStyle.marginTop } : {}),
+    ...(flatStyle.marginLeft !== undefined ? { marginLeft: flatStyle.marginLeft } : {}),
+    ...(flatStyle.marginRight !== undefined ? { marginRight: flatStyle.marginRight } : {}),
+    ...(flatStyle.marginHorizontal !== undefined ? { marginHorizontal: flatStyle.marginHorizontal } : {}),
+    ...(flatStyle.marginVertical !== undefined ? { marginVertical: flatStyle.marginVertical } : {}),
+    ...(flatStyle.opacity !== undefined ? { opacity: flatStyle.opacity } : {}),
+    ...(flatStyle.alignSelf !== undefined ? { alignSelf: flatStyle.alignSelf } : {}),
+  };
+
+  // Inner BlurView handles the frosted translucent glass backdrop and internal content padding
+  const innerStyle: ViewStyle = {
+    width: '100%',
+    padding: effectivePadding,
+    ...(flatStyle.paddingHorizontal !== undefined ? { paddingHorizontal: flatStyle.paddingHorizontal } : {}),
+    ...(flatStyle.paddingVertical !== undefined ? { paddingVertical: flatStyle.paddingVertical } : {}),
+    ...(flatStyle.paddingTop !== undefined ? { paddingTop: flatStyle.paddingTop } : {}),
+    ...(flatStyle.paddingBottom !== undefined ? { paddingBottom: flatStyle.paddingBottom } : {}),
+    ...(flatStyle.paddingLeft !== undefined ? { paddingLeft: flatStyle.paddingLeft } : {}),
+    ...(flatStyle.paddingRight !== undefined ? { paddingRight: flatStyle.paddingRight } : {}),
+    backgroundColor: effectiveBg,
+    ...(isFixedSize ? { flex: 1 } : {}),
+  };
+
   return (
-    <View
-      style={[
-        {
-          borderRadius: rounded,
-          backgroundColor: 'rgba(255, 255, 255, 0.92)',
-          borderWidth: 1.2,
-          borderColor: 'rgba(212, 175, 55, 0.45)',
-          padding: contentPadding,
-          marginBottom: 16,
-        },
-        style,
-        backgroundColor ? { backgroundColor } : undefined,
-        borderColor ? { borderColor } : undefined,
-      ]}
-      {...props}
-    >
-      {children}
+    <View style={outerStyle} {...props}>
+      <BlurView
+        intensity={Platform.OS === 'ios' ? intensity : 0}
+        tint={isDark ? 'dark' : 'light'}
+        {...(Platform.OS === 'android' ? { blurMethod: 'none' as const } : {})}
+        style={innerStyle}
+      >
+        {children}
+      </BlurView>
     </View>
   );
 }
@@ -84,7 +129,10 @@ export function MenuTile({
   onPress,
   disabled,
 }: MenuTileProps) {
+  const activeTheme = appSettingsStore((s: any) => s.theme);
+  const colors = getThemeColors(activeTheme);
   const hasAlert = alertCount !== undefined && alertCount > 0;
+
   return (
     <View style={{ width: '48%' }}>
       <TouchableOpacity
@@ -104,7 +152,7 @@ export function MenuTile({
             opacity: disabled ? 0.65 : 1,
             borderColor: hasAlert ? '#F59E0B' : borderColor,
             borderWidth: hasAlert ? 1.5 : 1.2,
-            backgroundColor: hasAlert ? 'rgba(254, 243, 199, 0.85)' : (cardBg || 'rgba(255, 255, 255, 0.92)'),
+            backgroundColor: hasAlert ? 'rgba(254, 243, 199, 0.85)' : (cardBg || (activeTheme === 'dark' ? 'rgba(28, 20, 24, 0.86)' : 'rgba(255, 255, 255, 0.86)')),
             padding: 14,
           }}
         >
@@ -205,7 +253,7 @@ export function MenuTile({
               <View style={{ flex: 1, paddingRight: 4, marginTop: 4 }}>
                 <Text
                   style={{
-                    color: COLORS.vjText,
+                    color: colors.vjText,
                     fontWeight: '900',
                     fontSize: 16,
                     lineHeight: 20,
@@ -218,7 +266,7 @@ export function MenuTile({
                 {subtitle ? (
                   <Text
                     style={{
-                      color: 'rgba(42, 18, 8, 0.55)',
+                      color: `${colors.vjText}8C`,
                       fontSize: 10,
                       fontWeight: '800',
                       textTransform: 'uppercase',
@@ -278,6 +326,9 @@ export function ListTileCard({
   onPress,
   disabled,
 }: ListTileCardProps) {
+  const activeTheme = appSettingsStore((s: any) => s.theme);
+  const colors = getThemeColors(activeTheme);
+
   return (
     <TouchableOpacity
       onPress={() => {
@@ -306,9 +357,9 @@ export function ListTileCard({
             {icon}
           </View>
           <View style={{ flex: 1 }}>
-            <Text style={{ color: COLORS.vjText, fontWeight: '800', fontSize: 15.5 }}>{title}</Text>
+            <Text style={{ color: colors.vjText, fontWeight: '800', fontSize: 15.5 }}>{title}</Text>
             {subtitle ? (
-              <Text style={{ color: 'rgba(42, 18, 8, 0.60)', fontSize: 11.5, fontWeight: '600', marginTop: 1 }}>
+              <Text style={{ color: `${colors.vjText}99`, fontSize: 11.5, fontWeight: '600', marginTop: 1 }}>
                 {subtitle}
               </Text>
             ) : null}
@@ -367,6 +418,9 @@ export function BannerCard({
   onPress,
   rightAction,
 }: BannerCardProps) {
+  const activeTheme = appSettingsStore((s: any) => s.theme);
+  const colors = getThemeColors(activeTheme);
+
   const content = (
     <GlassCard style={{ padding: 0, borderWidth: 1.2, borderColor }}>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 16, padding: 18 }}>
@@ -385,7 +439,7 @@ export function BannerCard({
         </View>
         <View style={{ flex: 1 }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 2 }}>
-            <Text style={{ color: COLORS.vjText, fontWeight: '900', fontSize: 18 }}>{title}</Text>
+            <Text style={{ color: colors.vjText, fontWeight: '900', fontSize: 18 }}>{title}</Text>
             {badgeText ? (
               <View
                 style={{
@@ -412,7 +466,7 @@ export function BannerCard({
             ) : null}
           </View>
           {subtitle ? (
-            <Text style={{ color: 'rgba(92, 22, 35, 0.65)', fontSize: 12.5, fontWeight: '600' }}>
+            <Text style={{ color: `${colors.vjText}99`, fontSize: 12.5, fontWeight: '600' }}>
               {subtitle}
             </Text>
           ) : null}
@@ -479,6 +533,9 @@ export function FormSectionCard({
   borderColor,
   style,
 }: FormSectionCardProps) {
+  const activeTheme = appSettingsStore((s: any) => s.theme);
+  const colors = getThemeColors(activeTheme);
+
   return (
     <GlassCard style={[{ padding: 18, marginBottom: 16, borderWidth: 1.2, borderColor: borderColor || 'rgba(212, 175, 55, 0.45)' }, style]}>
       {title ? (
@@ -486,9 +543,9 @@ export function FormSectionCard({
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
             {icon ? <View style={{ marginRight: 2 }}>{icon}</View> : null}
             <View>
-              <Text style={{ fontSize: 16, fontWeight: '900', color: COLORS.vjText }}>{title}</Text>
+              <Text style={{ fontSize: 16, fontWeight: '900', color: colors.vjText }}>{title}</Text>
               {subtitle ? (
-                <Text style={{ fontSize: 11.5, color: 'rgba(92, 22, 35, 0.6)', marginTop: 1 }}>{subtitle}</Text>
+                <Text style={{ fontSize: 11.5, color: `${colors.vjText}99`, marginTop: 1 }}>{subtitle}</Text>
               ) : null}
             </View>
           </View>
@@ -534,23 +591,27 @@ export function StatCard({
   value,
   subtitle,
   icon,
-  color = COLORS.vjText,
+  color,
   borderColor = 'rgba(212, 175, 55, 0.45)',
   style,
 }: StatCardProps) {
+  const activeTheme = appSettingsStore((s: any) => s.theme);
+  const colors = getThemeColors(activeTheme);
+  const textColor = color || colors.vjText;
+
   return (
     <GlassCard style={[{ padding: 14, borderWidth: 1.2, borderColor, flex: 1 }, style]}>
       <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
-        <Text style={{ fontSize: 10.5, fontWeight: '800', color: 'rgba(42, 18, 8, 0.6)', textTransform: 'uppercase', letterSpacing: 0.5 }}>
+        <Text style={{ fontSize: 10.5, fontWeight: '800', color: `${colors.vjText}99`, textTransform: 'uppercase', letterSpacing: 0.5 }}>
           {label}
         </Text>
         {icon}
       </View>
-      <Text style={{ fontSize: 19, fontWeight: '900', color }} numberOfLines={1}>
+      <Text style={{ fontSize: 19, fontWeight: '900', color: textColor }} numberOfLines={1}>
         {value}
       </Text>
       {subtitle ? (
-        <Text style={{ fontSize: 10.5, color: 'rgba(42, 18, 8, 0.5)', marginTop: 2 }} numberOfLines={1}>
+        <Text style={{ fontSize: 10.5, color: `${colors.vjText}80`, marginTop: 2 }} numberOfLines={1}>
           {subtitle}
         </Text>
       ) : null}
