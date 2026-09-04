@@ -4,18 +4,19 @@ import React, { useState, useCallback, useEffect, memo } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, Modal, TextInput } from 'react-native';
 import { FlashList } from '@shopify/flash-list';
 import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import { TwoToneWrapper } from '@/components/TwoToneWrapper';
-import { HeaderPill, GlassButton } from '@/components/ui/Glass';
+import { GlassButton } from '@/components/ui/Glass';
 import { useFirmStore } from '@/store/phase1/useFirmStore';
 import { useMastersSyncStore } from '@/store/phase2/mastersSyncStore';
 import { inventoryDrillDownService } from '@/services/phase2/inventoryDrillDownService';
 import { designService } from '@/services/phase2/designService';
 import type { DesignCategoryStockResult } from '@/types/phase2/phase2.types';
-import { formatWeightMg as formatWeight } from '@/utils/calculations';
+import { formatWeightMg as formatWeight, formatKaratBadge } from '@/utils/calculations';
 import { appSettingsStore } from '@/store/phase1/appSettingsStore';
 import { COLORS, getThemeColors } from '@/constants/theme';
-import { ChevronRight, Layers, Bell, X, AlertTriangle, Scale, Package, Tag } from 'lucide-react-native';
+import { ChevronRight, Layers, Bell, X, AlertTriangle, Scale, Package, Tag, ShieldCheck } from 'lucide-react-native';
 import { getJewelryCategoryIcon } from '@/utils/jewelryIcons';
 
 type DesignRowProps = {
@@ -30,6 +31,11 @@ type DesignRowProps = {
 
 const DesignRow = memo(({ item, categoryName, isLowStock, currentThreshold, colors, onPress, onOpenLowStockModal }: DesignRowProps) => {
   const metalColor = item.metal === 'GOLD' ? COLORS.bullionGold : COLORS.bullionSilver;
+  const isGold = item.metal === 'GOLD';
+  const karatBadge = formatKaratBadge(item.purityPercent, item.metal);
+  const purityLabel = isGold && karatBadge 
+    ? `${karatBadge} · ${item.purityPercent.toFixed(1)}%` 
+    : `${item.purityPercent.toFixed(1)}%`;
 
   return (
     <TouchableOpacity
@@ -38,36 +44,31 @@ const DesignRow = memo(({ item, categoryName, isLowStock, currentThreshold, colo
         try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
         onPress(item.designId, item.designName, item.purityPercent);
       }}
-      activeOpacity={0.75}
+      activeOpacity={0.8}
       style={[
         s.card,
         {
-          backgroundColor: '#FFFFFF',
-          borderColor: `${colors.vjAccent}25`,
-          borderRadius: 20,
-          overflow: 'hidden',
-          shadowColor: '#000',
-          shadowOffset: { width: 0, height: 2 },
-          shadowOpacity: 0.04,
-          shadowRadius: 6,
-          elevation: 2,
+          borderColor: `${colors.vjAccent}22`,
         },
       ]}
     >
       <View style={[s.metalStripe, { backgroundColor: metalColor }]} />
 
-      <View style={[s.metalBadge, { backgroundColor: `${colors.vjAccent}1A`, borderColor: `${colors.vjAccent}40` }]}>
+      <View style={[s.metalBadge, { backgroundColor: `${colors.vjAccent}12`, borderColor: `${colors.vjAccent}35` }]}>
         {getJewelryCategoryIcon(categoryName, item.designName, item.metal, 22, colors.vjAccent)}
       </View>
 
       <View style={s.cardBody}>
         <View style={s.titleRow}>
           <Text style={[s.designName, { color: colors.vjText }]} numberOfLines={1}>{item.designName}</Text>
+          <View style={[s.purityPill, { borderColor: `${colors.vjHeaderBg}35`, backgroundColor: `${colors.vjHeaderBg}14` }]}>
+            <Text style={[s.purityPillText, { color: colors.vjHeaderBg }]}>{purityLabel}</Text>
+          </View>
         </View>
 
         <View style={s.metaRow}>
-          <View style={[s.weightBadge, { backgroundColor: `${colors.vjAccent}14`, borderColor: `${colors.vjAccent}35` }]}>
-            <Scale size={11} color={colors.vjAccent} />
+          <View style={[s.weightBadge, { backgroundColor: `${metalColor}10`, borderColor: `${metalColor}35` }]}>
+            <Scale size={11} color={metalColor} />
             <Text style={[s.weightText, { color: colors.vjText }]}>Net: {formatWeight(item.totalNetWeightMg)}</Text>
           </View>
 
@@ -103,9 +104,9 @@ const DesignRow = memo(({ item, categoryName, isLowStock, currentThreshold, colo
         </View>
       </View>
 
-      <View style={[s.countBadge, { backgroundColor: '#FFFFFF', borderColor: `${colors.vjAccent}35` }]}>
+      <View style={[s.countBadge, { backgroundColor: '#FFFFFF', borderColor: `${colors.vjAccent}30` }]}>
         <Text style={[s.countText, { color: colors.vjText }]}>{item.availableCount}</Text>
-        <Text style={[s.countLabel, { color: colors.vjText, opacity: 0.5 }]}>items</Text>
+        <Text style={[s.countLabel, { color: colors.vjText, opacity: 0.55 }]}>items</Text>
       </View>
 
       <ChevronRight size={18} color={colors.vjAccent} style={{ opacity: 0.5 }} />
@@ -115,6 +116,7 @@ const DesignRow = memo(({ item, categoryName, isLowStock, currentThreshold, colo
 
 export default function CategoryItemsScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const params = useLocalSearchParams<{ categoryId: string; categoryName: string }>();
   const categoryId = Array.isArray(params.categoryId) ? params.categoryId[0] : params.categoryId;
   const categoryName = Array.isArray(params.categoryName) ? params.categoryName[0] : params.categoryName;
@@ -251,16 +253,57 @@ export default function CategoryItemsScreen() {
   const totalItems = data.reduce((sum, i) => sum + i.availableCount, 0);
   const totalWeightMg = data.reduce((sum, i) => sum + i.totalNetWeightMg, 0);
 
-  const categoryHeaderPills = (
-    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginTop: 4 }}>
-      <HeaderPill icon={<Tag size={12} color={colors.vjBg} />} label="Designs & Variants" />
-      <HeaderPill icon={<Package size={12} color={colors.vjBg} />} label={`${totalItems} Items`} />
-      <HeaderPill icon={<Scale size={12} color="#4ADE80" />} label={`Net: ${formatWeight(totalWeightMg)}`} variant="success" />
+  const lowCount = lowStockVariantKeys.size;
+
+  const headerCategoryCard = (
+    <View style={s.headerCategoryCard}>
+      <View style={s.heroTopRow}>
+        <View style={s.headerCategoryBadge}>
+          <Tag size={13} color={COLORS.bullionGold} />
+          <Text style={s.headerCategoryBadgeText}>CATEGORY SUMMARY</Text>
+        </View>
+        <View style={s.heroPillsRow}>
+          <View style={s.headerMetaPill}>
+            <Package size={11} color="rgba(255, 255, 255, 0.85)" />
+            <Text style={s.headerMetaText}>{totalItems} Pieces</Text>
+          </View>
+          <View style={s.headerMetaPill}>
+            <Layers size={11} color="rgba(255, 255, 255, 0.85)" />
+            <Text style={s.headerMetaText}>{data.length} Variants</Text>
+          </View>
+        </View>
+      </View>
+
+      <View style={s.headerDivider} />
+
+      <View style={s.heroBottomRow}>
+        <View style={s.heroScaleContainer}>
+          <Text style={s.headerScaleLabel}>CATEGORY PHYSICAL NET WEIGHT</Text>
+          <View style={s.heroScaleValueRow}>
+            <Scale size={20} color={COLORS.bullionGold} style={{ marginRight: 6 }} />
+            <Text style={s.headerScaleDigits}>
+              {formatWeight(totalWeightMg)}
+            </Text>
+          </View>
+        </View>
+
+        {lowCount > 0 ? (
+          <View style={[s.statusCapsule, { backgroundColor: 'rgba(245, 158, 11, 0.20)', borderColor: 'rgba(245, 158, 11, 0.45)' }]}>
+            <AlertTriangle size={12} color="#FBBF24" />
+            <Text style={[s.statusCapsuleText, { color: '#FDE68A' }]}>{lowCount} Low Stock</Text>
+          </View>
+        ) : (
+          <View style={[s.statusCapsule, { backgroundColor: 'rgba(22, 163, 74, 0.18)', borderColor: 'rgba(74, 222, 128, 0.35)' }]}>
+            <ShieldCheck size={12} color="#4ADE80" />
+            <Text style={[s.statusCapsuleText, { color: '#BBF7D0' }]}>Stock Optimal</Text>
+          </View>
+        )}
+      </View>
     </View>
   );
 
   return (
-    <TwoToneWrapper title={categoryName || 'Category Items'} showBack headerContent={categoryHeaderPills}>
+    <TwoToneWrapper title={categoryName || 'Category Items'} showBack headerContent={headerCategoryCard}>
       <View style={s.listContainer}>
         {loading ? (
           <View style={s.loadingContainer}>
@@ -287,7 +330,11 @@ export default function CategoryItemsScreen() {
             }}
             // @ts-ignore: estimatedItemSize required by FlashList
             estimatedItemSize={88}
-            contentContainerStyle={{ paddingBottom: 100, paddingTop: 32 }}
+            contentContainerStyle={{ 
+              paddingHorizontal: 16,
+              paddingTop: 16,
+              paddingBottom: Math.max(insets.bottom + 60, 90) 
+            }}
             showsVerticalScrollIndicator={false}
             ListEmptyComponent={
               <View style={s.emptyContainer}>
@@ -372,49 +419,187 @@ export default function CategoryItemsScreen() {
 
 const s = StyleSheet.create({
   listContainer: { flex: 1 },
+
+  // HEADER CATEGORY CARD STYLES (DARK GLASS STYLE)
+  headerCategoryCard: {
+    backgroundColor: 'rgba(255, 255, 255, 0.09)',
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.16)',
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    marginTop: 4,
+  },
+  headerCategoryBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 8,
+    paddingVertical: 3.5,
+    borderRadius: 7,
+    backgroundColor: 'rgba(212, 175, 55, 0.18)',
+    borderWidth: 1,
+    borderColor: 'rgba(212, 175, 55, 0.40)',
+  },
+  headerCategoryBadgeText: {
+    fontSize: 10,
+    fontWeight: '900',
+    letterSpacing: 0.8,
+    color: COLORS.bullionGold,
+  },
+  headerMetaPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 3.5,
+    borderRadius: 7,
+    backgroundColor: 'rgba(255, 255, 255, 0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.18)',
+  },
+  headerMetaText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  headerDivider: {
+    height: 1,
+    backgroundColor: 'rgba(255, 255, 255, 0.12)',
+    marginVertical: 10,
+  },
+  headerScaleLabel: {
+    fontSize: 10.5,
+    fontWeight: '800',
+    letterSpacing: 0.8,
+    color: 'rgba(255, 255, 255, 0.80)',
+  },
+  headerScaleDigits: {
+    fontSize: 22,
+    fontWeight: '900',
+    letterSpacing: 0.5,
+    color: '#FFFFFF',
+  },
+  heroTopRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  heroPillsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  heroBottomRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    flexWrap: 'wrap',
+    gap: 10,
+  },
+  heroScaleContainer: {
+    alignItems: 'flex-start',
+    gap: 2,
+  },
+  heroScaleValueRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 2,
+  },
+  statusCapsule: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 8,
+    borderWidth: 1,
+  },
+  statusCapsuleText: {
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 0.3,
+  },
+
+  // DESIGN ROW CARD STYLES
   card: {
     flexDirection: 'row',
     alignItems: 'center',
     marginBottom: 12,
-    borderRadius: 20,
+    borderRadius: 18,
     overflow: 'hidden',
-    backgroundColor: '#FCFBF8',
-    borderWidth: 1,
-    borderColor: 'rgba(212, 175, 55, 0.25)',
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1.2,
     paddingRight: 14,
-    gap: 10,
+    gap: 12,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.08,
-    shadowRadius: 10,
-    elevation: 3,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
   },
   metalStripe: {
-    width: 6,
+    width: 5,
     alignSelf: 'stretch',
   },
   metalBadge: {
-    width: 42,
-    height: 42,
-    borderRadius: 12,
-    borderWidth: 1,
+    width: 44,
+    height: 44,
+    borderRadius: 13,
+    borderWidth: 1.2,
     justifyContent: 'center',
     alignItems: 'center',
+    marginLeft: 4,
   },
   cardBody: {
     flex: 1,
     paddingVertical: 14,
   },
-  designName: {
-    fontWeight: '800',
-    fontSize: 15,
-  },
   titleRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
     gap: 8,
     marginBottom: 6,
-    paddingRight: 6,
+    paddingRight: 4,
+  },
+  designName: {
+    fontWeight: '800',
+    fontSize: 15.5,
+    flexShrink: 1,
+  },
+  purityPill: {
+    paddingHorizontal: 7,
+    paddingVertical: 2.5,
+    borderRadius: 6,
+    borderWidth: 1,
+  },
+  purityPillText: {
+    fontSize: 10.5,
+    fontWeight: '800',
+    letterSpacing: 0.3,
+  },
+  metaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingRight: 4,
+    marginTop: 2,
+  },
+  weightBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4.5,
+    paddingHorizontal: 8,
+    paddingVertical: 3.5,
+    borderRadius: 7,
+    borderWidth: 1,
+  },
+  weightText: {
+    fontSize: 11.5,
+    fontWeight: '800',
   },
   lowStockPill: {
     flexDirection: 'row',
@@ -422,7 +607,7 @@ const s = StyleSheet.create({
     gap: 4,
     backgroundColor: 'rgba(92,22,35,0.04)',
     paddingHorizontal: 8,
-    paddingVertical: 3,
+    paddingVertical: 3.5,
     borderRadius: 6,
     borderWidth: 1,
   },
@@ -441,37 +626,6 @@ const s = StyleSheet.create({
     fontWeight: '800',
     textTransform: 'uppercase',
     opacity: 1,
-  },
-  metaRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingRight: 6,
-    marginTop: 2,
-  },
-  metalPill: {
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 6,
-    borderWidth: 1,
-  },
-  metalPillText: {
-    fontSize: 10,
-    fontWeight: '800',
-    letterSpacing: 0.5,
-  },
-  weightBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-    paddingHorizontal: 9,
-    paddingVertical: 3,
-    borderRadius: 6,
-    borderWidth: 1,
-  },
-  weightText: {
-    fontSize: 11,
-    fontWeight: '800',
   },
   countBadge: {
     alignItems: 'center',
@@ -602,3 +756,4 @@ const s = StyleSheet.create({
     fontWeight: '700',
   },
 });
+

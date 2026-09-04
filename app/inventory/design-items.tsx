@@ -4,9 +4,9 @@ import React, { useState, useCallback, memo, useMemo } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, ScrollView, Modal } from 'react-native';
 import { FlashList } from '@shopify/flash-list';
 import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import { TwoToneWrapper } from '@/components/TwoToneWrapper';
-import { HeaderPill } from '@/components/ui/Glass';
 import { appSettingsStore } from '@/store/phase1/appSettingsStore';
 import { useFirmStore } from '@/store/phase1/useFirmStore';
 import { inventoryDrillDownService } from '@/services/phase2/inventoryDrillDownService';
@@ -98,18 +98,18 @@ const ItemRow = memo(({
 
             {/* Row 2: SKU below name */}
             <View style={s.skuRowBelow}>
-              <View style={s.skuCapsule}>
-                <Tag size={11} color={colors.vjAccent} style={{ opacity: 0.7 }} />
-                <Text style={[s.skuText, { color: colors.vjAccent }]}>{formatSKUDisplay(item.sku)}</Text>
+              <View style={[s.skuCapsule, { backgroundColor: `${colors.vjHeaderBg}10`, borderColor: `${colors.vjHeaderBg}28` }]}>
+                <Tag size={11} color={colors.vjHeaderBg} style={{ opacity: 0.85 }} />
+                <Text style={[s.skuText, { color: colors.vjHeaderBg }]}>{formatSKUDisplay(item.sku)}</Text>
               </View>
             </View>
           </View>
 
           {/* Top Right Corner: Purity Badge + Drill-down Affordance */}
           <View style={s.headerCornerCluster}>
-            <View style={[s.purityBadge, { borderColor: metalColor, backgroundColor: `${metalColor}14` }]}>
-              <Sparkles size={11} color={metalColor} style={{ marginRight: 4 }} />
-              <Text style={[s.purityBadgeText, { color: metalColor }]}>{purityFull}</Text>
+            <View style={[s.purityBadge, { borderColor: `${colors.vjHeaderBg}35`, backgroundColor: `${colors.vjHeaderBg}14` }]}>
+              <Sparkles size={11} color={colors.vjHeaderBg} style={{ marginRight: 4 }} />
+              <Text style={[s.purityBadgeText, { color: colors.vjHeaderBg }]}>{purityFull}</Text>
             </View>
             <ChevronRight size={17} color={colors.vjAccent} style={{ opacity: 0.38, marginLeft: 2 }} />
           </View>
@@ -120,7 +120,7 @@ const ItemRow = memo(({
           {/* Net & Gross Weights on a Single Line */}
           <View style={s.weightSingleLine}>
             <Text style={s.weightLabel}>NET: </Text>
-            <Text style={[s.weightValueNet, { color: colors.vjAccent }]}>
+            <Text style={[s.weightValueNet, { color: colors.vjHeaderBg }]}>
               {formatWeight(item.netWeightMg ?? item.grossWeightMg)}
             </Text>
             <Text style={s.weightBullet}>  •  </Text>
@@ -181,6 +181,7 @@ const ItemRow = memo(({
 
 export default function DesignItemsScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const params = useLocalSearchParams<{ designId: string; designName: string; purityPercent?: string }>();
   const designId = Array.isArray(params.designId) ? params.designId[0] : params.designId;
   const designName = Array.isArray(params.designName) ? params.designName[0] : params.designName;
@@ -318,19 +319,49 @@ export default function DesignItemsScreen() {
     return getDisplayPurity(purityNum, items[0]?.purityKarat || null, items[0]?.metal || 'GOLD');
   }, [purityNum, items]);
 
+  const isSilver = items[0]?.metal === 'SILVER';
+  const bullionColor = isSilver ? COLORS.bullionSilver : COLORS.bullionGold;
+
   const activeSortLabel = useMemo(() => {
     return SORT_PRESETS.find((p) => p.id === selectedSort)?.label || 'Sort';
   }, [selectedSort]);
 
-  const designHeaderPills = (
-    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginTop: 4 }}>
-      <HeaderPill icon={<Package size={12} color={colors.vjBg} />} label={`${processedItems.length} Tagged Items`} />
-      <HeaderPill icon={<Scale size={12} color="#4ADE80" />} label={`Net: ${formatWeight(totalNetWeightMg)}`} variant="success" />
+  const headerDesignCard = !loading && items.length > 0 ? (
+    <View style={s.headerDesignCard}>
+      <View style={s.heroTopRow}>
+        <View style={[s.headerPurityBadge, { backgroundColor: `${bullionColor}18`, borderColor: `${bullionColor}40` }]}>
+          <Sparkles size={13} color={bullionColor} />
+          <Text style={[s.headerPurityBadgeText, { color: bullionColor }]}>{purityPillLabel || 'BULLION PURITY'}</Text>
+        </View>
+        <View style={s.heroPillsRow}>
+          <View style={s.headerMetaPill}>
+            <Package size={11} color="rgba(255, 255, 255, 0.85)" />
+            <Text style={s.headerMetaText}>{processedItems.length} Tagged</Text>
+          </View>
+          {distinctSizes.length > 0 && (
+            <View style={s.headerMetaPill}>
+              <Text style={s.headerMetaText}>{distinctSizes.length} Sizes</Text>
+            </View>
+          )}
+        </View>
+      </View>
+
+      <View style={s.headerDivider} />
+
+      <View style={s.heroScaleContainer}>
+        <Text style={s.headerScaleLabel}>TOTAL PHYSICAL NET WEIGHT</Text>
+        <View style={s.heroScaleValueRow}>
+          <Scale size={20} color={bullionColor} style={{ marginRight: 6 }} />
+          <Text style={s.headerScaleDigits}>
+            {formatWeight(totalNetWeightMg)}
+          </Text>
+        </View>
+      </View>
     </View>
-  );
+  ) : null;
 
   return (
-    <TwoToneWrapper title={dbDesignName || designName || 'Design Stock'} showBack headerContent={designHeaderPills}>
+    <TwoToneWrapper title={dbDesignName || designName || 'Design Stock'} showBack headerContent={headerDesignCard}>
       
       {/* Interactive Toolbar: Size Filter Chips + Quick Sort Button */}
       <View style={s.filterBarContainer}>
@@ -417,7 +448,7 @@ export default function DesignItemsScreen() {
           )}
           // @ts-ignore: estimatedItemSize required by FlashList
           estimatedItemSize={175}
-          contentContainerStyle={{ paddingTop: 14, paddingBottom: 100, paddingHorizontal: 14 }}
+          contentContainerStyle={{ paddingTop: 14, paddingBottom: Math.max(insets.bottom + 60, 90), paddingHorizontal: 14 }}
           ListEmptyComponent={
             <View style={s.emptyContainer}>
               <Package size={48} color={colors.vjAccent} style={{ opacity: 0.3 }} />
@@ -500,6 +531,85 @@ const s = StyleSheet.create({
   loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 12 },
   loadingText: { fontSize: 14, fontWeight: '600', opacity: 0.6 },
   
+  // HEADER DESIGN CARD STYLES (DARK GLASS STYLE)
+  headerDesignCard: {
+    backgroundColor: 'rgba(255, 255, 255, 0.09)',
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.16)',
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    marginTop: 4,
+  },
+  headerPurityBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 8,
+    paddingVertical: 3.5,
+    borderRadius: 7,
+    borderWidth: 1,
+  },
+  headerPurityBadgeText: {
+    fontSize: 10,
+    fontWeight: '900',
+    letterSpacing: 0.8,
+  },
+  headerMetaPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 3.5,
+    borderRadius: 7,
+    backgroundColor: 'rgba(255, 255, 255, 0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.18)',
+  },
+  headerMetaText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  headerDivider: {
+    height: 1,
+    backgroundColor: 'rgba(255, 255, 255, 0.12)',
+    marginVertical: 10,
+  },
+  headerScaleLabel: {
+    fontSize: 10.5,
+    fontWeight: '800',
+    letterSpacing: 0.8,
+    color: 'rgba(255, 255, 255, 0.80)',
+  },
+  headerScaleDigits: {
+    fontSize: 22,
+    fontWeight: '900',
+    letterSpacing: 0.5,
+    color: '#FFFFFF',
+  },
+  heroTopRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  heroPillsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  heroScaleContainer: {
+    alignItems: 'flex-start',
+    gap: 2,
+  },
+  heroScaleValueRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 2,
+  },
+
   filterBarContainer: {
     paddingVertical: 11,
     backgroundColor: 'rgba(255,255,255,0.7)',
@@ -691,14 +801,14 @@ const s = StyleSheet.create({
   },
   weightSingleLine: {
     flexDirection: 'row',
-    alignItems: 'baseline',
+    alignItems: 'center',
     flexWrap: 'wrap',
   },
   weightLabel: {
-    fontSize: 9.5,
+    fontSize: 10.5,
     fontWeight: '800',
-    color: 'rgba(92, 22, 35, 0.55)',
-    letterSpacing: 0.6,
+    color: 'rgba(92, 22, 35, 0.65)',
+    letterSpacing: 0.5,
   },
   weightValueNet: {
     fontSize: 15,
@@ -709,6 +819,7 @@ const s = StyleSheet.create({
     fontSize: 12,
     color: 'rgba(92, 22, 35, 0.3)',
     fontWeight: '700',
+    marginHorizontal: 3,
   },
   weightValueGross: {
     fontSize: 13,
