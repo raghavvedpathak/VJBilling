@@ -2,13 +2,23 @@
 // Aligned with STEP 12.12, URD-BILL-DECIMAL-SPEC & URD-AMOUNT-WORDS (v1.54)
 
 import * as FileSystem from 'expo-file-system/legacy';
+import * as Print from 'expo-print';
 import { urdPurchaseRepository } from '@/repositories/phase2/urdPurchaseRepository';
 import { firmRepository } from '@/repositories/phase1/firmRepository';
 import { bisLogoRepository } from '@/repositories/phase1/bisLogoRepository';
 import { ERR } from '@/constants/errorCodes';
 import { amountToWords, getCurrencySymbol, formatWeightMg } from '@/utils/calculations';
 import { formatDate } from '@/utils/formatDate';
-import { renderURDTemplate1, renderURDTemplate2, renderURDCustomerDeclaration } from '@/templates/urd';
+import { 
+  renderURDTemplate1, 
+  renderURDCustomerDeclaration1, 
+  renderURDCustomerDeclaration2,
+  getFirmURDBillTemplateId,
+  getFirmURDDeclarationTemplateId,
+  URD_PRINT_FORMATS,
+  type URDBillTemplateId,
+  type URDDeclarationTemplateId
+} from '@/templates/urd';
 
 async function getBase64ImageUri(fileUri: string | null | undefined): Promise<string | null> {
   if (!fileUri) return null;
@@ -41,13 +51,15 @@ function maskAadhaar(aadhaar: string): string {
 }
 
 /**
- * Generates A5 URD Purchase Bill HTML (Template 1 or Template 2)
+ * Generates A5 URD Purchase Bill HTML
+ * Enforces firmId scoping and loads firm-specific logos, preferences, and details.
  */
 export async function generateURDPurchaseBill(
   urdId: string,
   firmId: string,
-  templateId: 'template1' | 'template2' = 'template1'
+  templateId?: URDBillTemplateId
 ): Promise<string> {
+  const activeTemplateId = templateId || getFirmURDBillTemplateId(firmId);
   const urd = await urdPurchaseRepository.getById(urdId, firmId);
   if (!urd || urd.firmId !== firmId) throw new Error(ERR.URD_NOT_FOUND_OR_WRONG_FIRM);
 
@@ -125,21 +137,20 @@ export async function generateURDPurchaseBill(
     upiAmt,
   };
 
-  if (templateId === 'template2') {
-    return renderURDTemplate2(templatePayload);
-  }
-
   return renderURDTemplate1(templatePayload);
 }
 
 /**
- * Generates Customer Declaration / Affidavit HTML (Marathi / Legal)
+ * Generates Customer Declaration / Affidavit HTML
+ * Supports urdDeclaration1 (Marathi Undertaking) and urdDeclaration2 (English 2-page Affidavit)
+ * Enforces firmId scoping and loads firm-specific logos and details.
  */
 export async function generateURDCustomerDeclaration(
   urdId: string,
   firmId: string,
-  _templateId: 'template1' | 'template2' = 'template1'
+  templateId?: URDDeclarationTemplateId
 ): Promise<string> {
+  const activeTemplateId = templateId || getFirmURDDeclarationTemplateId(firmId);
   const urd = await urdPurchaseRepository.getById(urdId, firmId);
   if (!urd || urd.firmId !== firmId) throw new Error(ERR.URD_NOT_FOUND_OR_WRONG_FIRM);
 
@@ -168,7 +179,34 @@ export async function generateURDCustomerDeclaration(
     ? maskAadhaar(urd.customerAadhaar)
     : (urd.customerPAN || '-');
 
-  return renderURDCustomerDeclaration({
+  if (activeTemplateId === 'urdDeclaration2') {
+    return renderURDCustomerDeclaration2({
+      urd,
+      firm,
+      firmLogoUri,
+      symbol,
+      grossGrams,
+      fineGrams,
+      grossValueRupees,
+      adjustmentRupees,
+      hasAdjustment,
+      adjustmentSign,
+      formattedAdjustment,
+      discountRupees: '0.00',
+      hasDiscount: false,
+      totalRupees,
+      rateRupees: ratePerGram,
+      words: amountToWords(urd.totalValuePaise),
+      formattedDate,
+      idProofHtml: '',
+      cashAmt: '',
+      bankAmt: '',
+      chequeAmt: '',
+      upiAmt: '',
+    });
+  }
+
+  return renderURDCustomerDeclaration1({
     urd,
     firm,
     firmLogoUri,
@@ -188,7 +226,43 @@ export async function generateURDCustomerDeclaration(
   });
 }
 
+/**
+ * Directly prints the URD Purchase Bill in A5 Landscape format (595x420 pt).
+ */
+export async function printURDPurchaseBill(
+  urdId: string,
+  firmId: string,
+  templateId?: URDBillTemplateId
+): Promise<void> {
+  const html = await generateURDPurchaseBill(urdId, firmId, templateId);
+  await Print.printAsync({
+    html,
+    width: URD_PRINT_FORMATS.BILL.width,
+    height: URD_PRINT_FORMATS.BILL.height,
+    orientation: URD_PRINT_FORMATS.BILL.orientation,
+  });
+}
+
+/**
+ * Directly prints the Customer Declaration in A4 Portrait format (595x842 pt).
+ */
+export async function printURDCustomerDeclaration(
+  urdId: string,
+  firmId: string,
+  templateId?: URDDeclarationTemplateId
+): Promise<void> {
+  const html = await generateURDCustomerDeclaration(urdId, firmId, templateId);
+  await Print.printAsync({
+    html,
+    width: URD_PRINT_FORMATS.DECLARATION.width,
+    height: URD_PRINT_FORMATS.DECLARATION.height,
+    orientation: URD_PRINT_FORMATS.DECLARATION.orientation,
+  });
+}
+
 export const urdPrintService = {
   generateURDPurchaseBill,
   generateURDCustomerDeclaration,
+  printURDPurchaseBill,
+  printURDCustomerDeclaration,
 };

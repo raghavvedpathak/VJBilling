@@ -10,7 +10,7 @@ import { TwoToneWrapper } from '@/components/TwoToneWrapper';
 import { HeaderPill, GlassButton, GlassInput, GlassPickerInput, GlassMetalSelector, FixedGlassBar, fixedBarStyles } from '@/components/ui/Glass';
 import { GlassPickerModal, GlassPickerOption } from '@/components/ui/GlassPickerModal';
 import { appSettingsStore } from '@/store/phase1/appSettingsStore';
-import { Tag, CheckCircle, ShieldCheck, Plus } from 'lucide-react-native';
+import { Tag, CheckCircle, ShieldCheck, Plus, Barcode, Layers } from 'lucide-react-native';
 import { useFirmStore } from '@/store/phase1/useFirmStore';
 import { categoryRepository } from '@/repositories/phase2/categoryRepository';
 import { designService } from '@/services/phase2/designService';
@@ -27,6 +27,7 @@ export default function CreateDesignScreen() {
   const [newName, setNewName] = useState('');
   const [newMetal, setNewMetal] = useState<'GOLD' | 'SILVER'>('GOLD');
   const [selectedCategoryId, setSelectedCategoryId] = useState<string>('');
+  const [stockType, setStockType] = useState<'SERIALIZED' | 'LOOSE'>('SERIALIZED');
   
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
@@ -98,9 +99,10 @@ export default function CreateDesignScreen() {
         name: trimmedName,
         metal: newMetal,
         categoryId: selectedCategoryId,
+        stockType,
       }, activeFirmId);
       
-      setSuccessMessage(`Design "${trimmedName}" created successfully.`);
+      setSuccessMessage(`Design "${trimmedName}" (${stockType === 'LOOSE' ? 'Loose Stock' : 'Serialized'}) created successfully.`);
     } catch (e: any) {
       if (e.message?.includes('DESIGN_NAME_TAKEN') || e.message?.includes('UNIQUE')) {
         Alert.alert('Duplicate Design', `A design named "${trimmedName}" in ${newMetal} already exists.`);
@@ -160,6 +162,72 @@ export default function CreateDesignScreen() {
                 setNewMetal(m);
               }}
             />
+
+            {/* STOCK TYPE SELECTOR (FEAT-LOOSE-STOCK-1 v2.24) */}
+            <View style={s.formGroup}>
+              <View style={s.labelRow}>
+                <Text style={[s.label, { color: colors.vjText, opacity: 0.7 }]}>
+                  Stock Tracking Model *
+                </Text>
+                <Text style={[s.immutableBadge, { color: colors.vjAccent }]}>
+                  Immutable
+                </Text>
+              </View>
+
+              <View style={s.stockTypeRow}>
+                {/* Serialized Option */}
+                <TouchableOpacity
+                  testID="stock-type-serialized-btn"
+                  activeOpacity={0.8}
+                  onPress={() => {
+                    try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
+                    setStockType('SERIALIZED');
+                  }}
+                  style={[
+                    s.stockTypeCard,
+                    { borderColor: `${colors.vjAccent}25` },
+                    stockType === 'SERIALIZED' && [
+                      s.stockTypeCardActive,
+                      { backgroundColor: `${colors.vjAccent}14`, borderColor: colors.vjAccent },
+                    ],
+                  ]}
+                >
+                  <View style={[s.stockTypeIconBox, { backgroundColor: `${colors.vjAccent}15` }]}>
+                    <Barcode size={18} color={colors.vjAccent} />
+                  </View>
+                  <Text style={[s.stockTypeTitle, { color: colors.vjText }]}>Serialized</Text>
+                  <Text style={[s.stockTypeSubtitle, { color: colors.vjText, opacity: 0.65 }]}>
+                    Individual Barcode, SKU & Tagging
+                  </Text>
+                </TouchableOpacity>
+
+                {/* Loose Stock Option */}
+                <TouchableOpacity
+                  testID="stock-type-loose-btn"
+                  activeOpacity={0.8}
+                  onPress={() => {
+                    try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
+                    setStockType('LOOSE');
+                  }}
+                  style={[
+                    s.stockTypeCard,
+                    { borderColor: `${colors.vjAccent}25` },
+                    stockType === 'LOOSE' && [
+                      s.stockTypeCardActive,
+                      { backgroundColor: `${colors.vjAccent}14`, borderColor: colors.vjAccent },
+                    ],
+                  ]}
+                >
+                  <View style={[s.stockTypeIconBox, { backgroundColor: `${colors.vjAccent}15` }]}>
+                    <Layers size={18} color={colors.vjAccent} />
+                  </View>
+                  <Text style={[s.stockTypeTitle, { color: colors.vjText }]}>Loose Stock</Text>
+                  <Text style={[s.stockTypeSubtitle, { color: colors.vjText, opacity: 0.65 }]}>
+                    Bulk Lot Weights without Barcode Tags
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </View>
 
             <GlassPickerInput
               label="Link to Category *"
@@ -273,6 +341,54 @@ const s = StyleSheet.create({
     borderWidth: 1,
   },
   formGroup: { marginBottom: 20 },
+  labelRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+  },
+  label: { 
+    fontSize: 12, 
+    fontWeight: '700', 
+    textTransform: 'uppercase', 
+  },
+  immutableBadge: {
+    fontSize: 10,
+    fontWeight: '800',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  stockTypeRow: {
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: 4,
+  },
+  stockTypeCard: {
+    flex: 1,
+    padding: 12,
+    borderRadius: 14,
+    borderWidth: 1,
+    backgroundColor: '#fff',
+    alignItems: 'flex-start',
+  },
+  stockTypeCardActive: {
+    borderWidth: 1.5,
+  },
+  stockTypeIconBox: {
+    padding: 6,
+    borderRadius: 8,
+    marginBottom: 8,
+  },
+  stockTypeTitle: {
+    fontSize: 13,
+    fontWeight: '800',
+    marginBottom: 2,
+  },
+  stockTypeSubtitle: {
+    fontSize: 10.5,
+    fontWeight: '500',
+    lineHeight: 14,
+  },
   modalOverlayCenter: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.6)',

@@ -9,7 +9,7 @@ import * as Haptics from 'expo-haptics';
 import { TwoToneWrapper } from '@/components/TwoToneWrapper';
 import { HeaderPill, GlassButton, GlassInput, GlassMetalBadge, FixedGlassBar, fixedBarStyles } from '@/components/ui/Glass';
 import { appSettingsStore } from '@/store/phase1/appSettingsStore';
-import { Edit2, CheckCircle, ShieldCheck, Tag, Save } from 'lucide-react-native';
+import { Edit2, CheckCircle, ShieldCheck, Tag, Save, Barcode, Layers } from 'lucide-react-native';
 import { useFirmStore } from '@/store/phase1/useFirmStore';
 import { designService } from '@/services/phase2/designService';
 import { designRepository } from '@/repositories/phase2/designRepository';
@@ -26,6 +26,7 @@ export default function EditDesignScreen() {
     initialMetal?: 'GOLD' | 'SILVER'; 
     initialCode?: string; 
     initialDefaultHsn?: string;
+    initialStockType?: 'SERIALIZED' | 'LOOSE';
   }>();
 
   const id = Array.isArray(params.id) ? params.id[0] : params.id;
@@ -33,11 +34,13 @@ export default function EditDesignScreen() {
   const initialMetal = Array.isArray(params.initialMetal) ? params.initialMetal[0] : params.initialMetal;
   const initialCode = Array.isArray(params.initialCode) ? params.initialCode[0] : params.initialCode;
   const initialDefaultHsn = Array.isArray(params.initialDefaultHsn) ? params.initialDefaultHsn[0] : params.initialDefaultHsn;
+  const initialStockType = Array.isArray(params.initialStockType) ? params.initialStockType[0] : params.initialStockType;
   
   const [newName, setNewName] = useState(initialName || '');
   const [metal, setMetal] = useState<'GOLD' | 'SILVER'>(initialMetal || 'GOLD');
   const [designCode, setDesignCode] = useState(initialCode || '');
   const [defaultHsn, setDefaultHsn] = useState(initialDefaultHsn || '');
+  const [stockType, setStockType] = useState<'SERIALIZED' | 'LOOSE'>(initialStockType || 'SERIALIZED');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
@@ -52,6 +55,7 @@ export default function EditDesignScreen() {
           if (d.code) setDesignCode(d.code);
           if (d.metal) setMetal(d.metal);
           if (d.defaultHsn) setDefaultHsn(d.defaultHsn);
+          if (d.stockType) setStockType(d.stockType as 'SERIALIZED' | 'LOOSE');
         }
       })
       .catch((err) => {
@@ -82,7 +86,7 @@ export default function EditDesignScreen() {
     try {
       await designService.updateDesign(id, activeFirmId, { 
         name: trimmedName,
-        defaultHsn: defaultHsn.trim() || null
+        defaultHsn: defaultHsn.trim() || null,
       });
       setSuccessMessage(`Design "${trimmedName}" updated successfully.`);
     } catch (e: any) {
@@ -114,6 +118,10 @@ export default function EditDesignScreen() {
       ) : null}
       <HeaderPill icon={<Edit2 size={12} color={colors.vjBg} />} label={newName || 'Design'} />
       <HeaderPill label={metal} variant={metal === 'GOLD' ? 'warning' : 'default'} />
+      <HeaderPill 
+        icon={stockType === 'LOOSE' ? <Layers size={12} color={colors.vjBg} /> : <Barcode size={12} color={colors.vjBg} />}
+        label={stockType === 'LOOSE' ? 'Loose Stock' : 'Serialized'} 
+      />
       <HeaderPill icon={<ShieldCheck size={12} color="#4ADE80" />} label="Firm Scoped" variant="success" />
     </View>
   );
@@ -160,10 +168,43 @@ export default function EditDesignScreen() {
               </Text>
             </View>
 
+            {/* Metal Type (Immutable) */}
             <View style={s.formGroup}>
               <Text style={[s.label, { color: colors.vjText, opacity: 0.6 }]}>Metal Type (Immutable)</Text>
               <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4 }}>
                 <GlassMetalBadge metal={metal} />
+              </View>
+            </View>
+
+            {/* Stock Tracking Model (Immutable) */}
+            <View style={s.formGroup}>
+              <Text style={[s.label, { color: colors.vjText, opacity: 0.6 }]}>
+                Stock Tracking Model (Immutable)
+              </Text>
+              <View 
+                style={[
+                  s.immutableStockBadge, 
+                  { 
+                    backgroundColor: `${colors.vjAccent}12`, 
+                    borderColor: `${colors.vjAccent}30` 
+                  }
+                ]}
+              >
+                {stockType === 'LOOSE' ? (
+                  <Layers size={16} color={colors.vjAccent} style={{ marginRight: 8 }} />
+                ) : (
+                  <Barcode size={16} color={colors.vjAccent} style={{ marginRight: 8 }} />
+                )}
+                <View style={{ flex: 1 }}>
+                  <Text style={[s.immutableStockTitle, { color: colors.vjText }]}>
+                    {stockType === 'LOOSE' ? 'Loose Stock' : 'Serialized Inventory'}
+                  </Text>
+                  <Text style={[s.immutableStockSubtitle, { color: colors.vjText, opacity: 0.65 }]}>
+                    {stockType === 'LOOSE' 
+                      ? 'Aggregated bulk lot weights without individual barcode tags' 
+                      : 'Individual items tracked with SKUs, barcodes, and HUID'}
+                  </Text>
+                </View>
               </View>
             </View>
 
@@ -251,6 +292,25 @@ const s = StyleSheet.create({
   formGroup: { marginBottom: 20 },
   label: { fontSize: 12, fontWeight: '700', textTransform: 'uppercase', marginBottom: 8 },
   helpText: { fontSize: 10, marginTop: 4, fontStyle: 'italic' },
+  immutableStockBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    borderRadius: 14,
+    borderWidth: 1,
+    marginTop: 4,
+  },
+  immutableStockTitle: {
+    fontSize: 13,
+    fontWeight: '800',
+    marginBottom: 2,
+  },
+  immutableStockSubtitle: {
+    fontSize: 11,
+    fontWeight: '500',
+    lineHeight: 15,
+  },
   modalOverlayCenter: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.6)',

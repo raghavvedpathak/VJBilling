@@ -43,6 +43,7 @@ export function renderURDCustomerDeclaration(params: URDCustomerDeclarationParam
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Tiro+Devanagari+Marathi&family=Poppins:wght@400;600;700&display=swap');
   @page {
+    size: 210mm 297mm;
     size: A4 portrait;
     margin: 8mm;
   }
@@ -58,6 +59,11 @@ export function renderURDCustomerDeclaration(params: URDCustomerDeclarationParam
     color-adjust: exact !important;
   }
   @media print {
+    @page {
+      size: 210mm 297mm;
+      size: A4 portrait;
+      margin: 8mm;
+    }
     * {
       -webkit-print-color-adjust: exact !important;
       print-color-adjust: exact !important;

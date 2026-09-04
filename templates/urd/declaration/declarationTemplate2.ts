@@ -53,8 +53,21 @@ export function renderURDTemplate2(params: URDTemplateParams): string {
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Liberation+Sans:wght@400;600;700&display=swap');
   @page {
+    size: 210mm 297mm;
     size: A4 portrait;
     margin: 12mm 15mm;
+  }
+  @media print {
+    @page {
+      size: 210mm 297mm;
+      size: A4 portrait;
+      margin: 12mm 15mm;
+    }
+    * {
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
+      color-adjust: exact !important;
+    }
   }
   body {
     font-family: 'Liberation Sans', Arial, Helvetica, sans-serif;
@@ -66,6 +79,7 @@ export function renderURDTemplate2(params: URDTemplateParams): string {
     line-height: 1.4;
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;
+    color-adjust: exact !important;
   }
   .page {
     width: 100%;

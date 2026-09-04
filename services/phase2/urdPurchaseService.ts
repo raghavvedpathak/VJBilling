@@ -312,10 +312,14 @@ export const urdPurchaseService = {
   updateURDPurchase,
   deleteURDPurchase,
   confirmURDPurchase,
-  generateURDPurchaseBill: (urdId: string, firmId: string) =>
-    urdPrintService.generateURDPurchaseBill(urdId, firmId),
-  generateURDCustomerDeclaration: (urdId: string, firmId: string, templateId?: 'template1' | 'template2') =>
+  generateURDPurchaseBill: (urdId: string, firmId: string, templateId?: import('@/templates/urd').URDBillTemplateId) =>
+    urdPrintService.generateURDPurchaseBill(urdId, firmId, templateId),
+  generateURDCustomerDeclaration: (urdId: string, firmId: string, templateId?: import('@/templates/urd').URDDeclarationTemplateId) =>
     urdPrintService.generateURDCustomerDeclaration(urdId, firmId, templateId),
+  printURDPurchaseBill: (urdId: string, firmId: string, templateId?: import('@/templates/urd').URDBillTemplateId) =>
+    urdPrintService.printURDPurchaseBill(urdId, firmId, templateId),
+  printURDCustomerDeclaration: (urdId: string, firmId: string, templateId?: import('@/templates/urd').URDDeclarationTemplateId) =>
+    urdPrintService.printURDCustomerDeclaration(urdId, firmId, templateId),
   findByFirmId: findURDByFirmId,
   findByFyId: findURDByFyId,
   findByCustomerId: findURDByCustomerId,

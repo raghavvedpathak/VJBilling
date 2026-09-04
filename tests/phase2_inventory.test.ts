@@ -68,6 +68,16 @@ import { oldGoldLotRepository } from '@/repositories/phase2/oldGoldLotRepository
 import { fyService } from '@/services/phase1/fyService';
 import { urdPurchaseService } from '@/services/phase2/urdPurchaseService';
 import { urdPurchaseRepository } from '@/repositories/phase2/urdPurchaseRepository';
+import {
+  URD_PRINT_FORMATS,
+  getFirmURDBillTemplateId,
+  setFirmURDBillTemplateId,
+  getFirmURDDeclarationTemplateId,
+  setFirmURDDeclarationTemplateId,
+  renderURDTemplate1,
+  renderURDCustomerDeclaration1,
+  renderURDCustomerDeclaration2,
+} from '@/templates/urd';
 
 // ─── SETUP & TEARDOWN ──────────────────────────────────────────────────
 beforeAll(async () => {
@@ -654,5 +664,126 @@ describe('Low Stock Threshold (v2.13 FIX-LOWSTOCK-PURITYGRAIN-1)', () => {
 
     lowStock = await inventoryDrillDownService.getLowStockDesignPurityVariants(FIRM_ID);
     expect(lowStock.some(c => c.designId === d.id && c.purityPercent === 91.6)).toBe(false);
+  });
+});
+
+// ============================================================================
+// TEST 20: URD Print Page Specifications & Template Registry (A5 Landscape & A4 Portrait)
+// ============================================================================
+describe('TEST 20: URD Print Page Specifications & Template Registry', () => {
+  it('enforces A5 Landscape print specifications for URD Purchase Bill', () => {
+    expect(URD_PRINT_FORMATS.BILL.paperSize).toBe('A5');
+    expect(URD_PRINT_FORMATS.BILL.orientation).toBe('landscape');
+    expect(URD_PRINT_FORMATS.BILL.width).toBe(595);
+    expect(URD_PRINT_FORMATS.BILL.height).toBe(420);
+  });
+
+  it('enforces A4 Portrait print specifications for Customer Declaration', () => {
+    expect(URD_PRINT_FORMATS.DECLARATION.paperSize).toBe('A4');
+    expect(URD_PRINT_FORMATS.DECLARATION.orientation).toBe('portrait');
+    expect(URD_PRINT_FORMATS.DECLARATION.width).toBe(595);
+    expect(URD_PRINT_FORMATS.DECLARATION.height).toBe(842);
+  });
+
+  it('persists and isolates declaration template preferences per firmId', () => {
+    const firmA = 'firm_alpha_test';
+    const firmB = 'firm_beta_test';
+
+    expect(getFirmURDDeclarationTemplateId(firmA)).toBe('urdDeclaration1');
+    setFirmURDDeclarationTemplateId(firmA, 'urdDeclaration2');
+    expect(getFirmURDDeclarationTemplateId(firmA)).toBe('urdDeclaration2');
+    expect(getFirmURDDeclarationTemplateId(firmB)).toBe('urdDeclaration1');
+
+    setFirmURDDeclarationTemplateId(firmA, 'urdDeclaration1');
+    expect(getFirmURDDeclarationTemplateId(firmA)).toBe('urdDeclaration1');
+  });
+
+  it('renders URD Purchase Bill with A5 Landscape @page rule and Declaration with A4 Portrait rule', () => {
+    const mockUrd: any = {
+      id: 'urd_test_1',
+      urdNumber: 'URD-2026-0001',
+      purchaseDate: '2026-09-04',
+      customerName: 'Suresh Patil',
+      customerAddress: 'Station Road, Pune',
+      customerMobile: '9876543210',
+      metalType: 'GOLD',
+      grossWeightMg: 10500,
+      fineWeightMg: 9160,
+      purityPercent: 91.6,
+      ratePerGramPaise: 720000,
+      totalValuePaise: 6595200,
+      paymentMode: 'CASH',
+    };
+    const mockFirm: any = {
+      id: FIRM_ID,
+      name: 'V. J. Jewellers',
+      proprietor: 'Vijay Joshi',
+      phone1: '9822000000',
+      city: 'Pune',
+      stateName: 'Maharashtra',
+      pincode: '411002',
+    };
+
+    const billHtml = renderURDTemplate1({
+      urd: mockUrd,
+      firm: mockFirm,
+      bisLogoUri: null,
+      firmLogoUri: null,
+      symbol: '₹',
+      grossGrams: '10.500',
+      fineGrams: '9.160',
+      grossValueRupees: '65952.00',
+      totalRupees: '65952.00',
+      rateRupees: '7200.00',
+      words: 'Rupees Sixty-Five Thousand Nine Hundred Fifty-Two Only',
+      formattedDate: '04/09/2026',
+      idProofHtml: '',
+      cashAmt: '65952.00',
+      bankAmt: '0.00',
+      chequeAmt: '0.00',
+      upiAmt: '0.00',
+      discountRupees: '0.00',
+      hasDiscount: false,
+    });
+    expect(billHtml).toContain('size: 210mm 148mm');
+    expect(billHtml).toContain('size: A5 landscape');
+
+    const decHtml = renderURDCustomerDeclaration1({
+      urd: mockUrd,
+      firm: mockFirm,
+      firmLogoUri: null,
+      symbol: '₹',
+      grossGrams: '10.500',
+      fineGrams: '9.160',
+      ratePerGram: '7200.00',
+      totalRupees: '65952.00',
+      formattedDate: '04/09/2026',
+      idProofType: 'आधार कार्ड',
+      idProofNumber: 'XXXX-XXXX-9012',
+    });
+    expect(decHtml).toContain('size: 210mm 297mm');
+    expect(decHtml).toContain('size: A4 portrait');
+
+    const decHtml2 = renderURDCustomerDeclaration2({
+      urd: mockUrd,
+      firm: mockFirm,
+      symbol: '₹',
+      grossGrams: '10.500',
+      fineGrams: '9.160',
+      grossValueRupees: '65952.00',
+      totalRupees: '65952.00',
+      rateRupees: '7200.00',
+      words: 'Rupees Sixty-Five Thousand Nine Hundred Fifty-Two Only',
+      formattedDate: '04/09/2026',
+      idProofHtml: '',
+      cashAmt: '65952.00',
+      bankAmt: '0.00',
+      chequeAmt: '0.00',
+      upiAmt: '0.00',
+      discountRupees: '0.00',
+      hasDiscount: false,
+    });
+    expect(decHtml2).toContain('size: 210mm 297mm');
+    expect(decHtml2).toContain('size: A4 portrait');
   });
 });

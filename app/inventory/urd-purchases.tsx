@@ -20,6 +20,14 @@ import { formatRupees, formatWeightMg as formatWeight, formatKaratBadge } from '
 import { FileDown, Plus, Scale, Banknote, ShieldAlert, CheckCircle, Printer, Trash2, Eye, X, Share2, Edit3, Sparkles, ChevronRight, ShieldCheck } from 'lucide-react-native';
 import type { URDPurchase } from '@/types/phase2/phase2.types';
 import type { Firm } from '@/types/phase1/firm';
+import { 
+  getFirmURDBillTemplateId, 
+  getFirmURDDeclarationTemplateId, 
+  setFirmURDDeclarationTemplateId, 
+  URD_PRINT_FORMATS,
+  type URDDeclarationTemplateId, 
+  type URDBillTemplateId 
+} from '@/templates/urd';
 import { COLORS, getThemeColors } from '@/constants/theme';
 
 interface URDRowProps {
@@ -170,7 +178,7 @@ export default function URDPurchasesScreen() {
 
   const [selectedItem, setSelectedItem] = useState<URDPurchase | null>(null);
   const [previewType, setPreviewType] = useState<'BILL' | 'DECLARATION'>('BILL');
-  const [selectedTemplate, setSelectedTemplate] = useState<'template1' | 'template2'>('template1');
+  const [selectedTemplate, setSelectedTemplate] = useState<URDDeclarationTemplateId>('urdDeclaration1');
 
   const activeTheme = appSettingsStore((s: any) => s.theme);
   const colors = getThemeColors(activeTheme);
@@ -260,7 +268,7 @@ export default function URDPurchasesScreen() {
     }
   }, [confirmingPurchase, activeFirmId, loadData]);
 
-  const loadDeclarationPreview = useCallback(async (item: URDPurchase, tId: 'template1' | 'template2') => {
+  const loadDeclarationPreview = useCallback(async (item: URDPurchase, tId: URDDeclarationTemplateId) => {
     if (!activeFirmId) return;
     setPreviewHtml(null);
     try {
@@ -281,7 +289,8 @@ export default function URDPurchasesScreen() {
     setPreviewVisible(true);
 
     try {
-      const html = await urdPurchaseService.generateURDPurchaseBill(item.id, activeFirmId);
+      const templateId = getFirmURDBillTemplateId(activeFirmId);
+      const html = await urdPurchaseService.generateURDPurchaseBill(item.id, activeFirmId, templateId);
       setPreviewHtml(html);
     } catch (error: any) {
       setPreviewVisible(false);
@@ -289,30 +298,41 @@ export default function URDPurchasesScreen() {
     }
   }, [activeFirmId]);
 
-  const handlePreviewDeclaration = useCallback(async (item: URDPurchase, tId: 'template1' | 'template2' = 'template1') => {
+  const handlePreviewDeclaration = useCallback(async (item: URDPurchase, tId?: URDDeclarationTemplateId) => {
     if (!activeFirmId) return;
     try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
+    const resolvedTId = tId || getFirmURDDeclarationTemplateId(activeFirmId);
     setSelectedItem(item);
     setPreviewType('DECLARATION');
-    setSelectedTemplate(tId);
+    setSelectedTemplate(resolvedTId);
     setPreviewTitle('घोषणापत्र / शपथपत्र Preview');
     setPreviewHtml(null);
     setPreviewVisible(true);
 
-    await loadDeclarationPreview(item, tId);
+    await loadDeclarationPreview(item, resolvedTId);
   }, [activeFirmId, loadDeclarationPreview]);
 
-  const handleSwitchTemplate = useCallback(async (tId: 'template1' | 'template2') => {
+  const handleSwitchTemplate = useCallback(async (tId: URDDeclarationTemplateId) => {
     if (!selectedItem || tId === selectedTemplate) return;
     try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
     setSelectedTemplate(tId);
+    if (activeFirmId) {
+      setFirmURDDeclarationTemplateId(activeFirmId, tId);
+    }
     await loadDeclarationPreview(selectedItem, tId);
-  }, [selectedItem, selectedTemplate, loadDeclarationPreview]);
+  }, [selectedItem, selectedTemplate, activeFirmId, loadDeclarationPreview]);
 
   const handlePrintFromPreview = async () => {
     if (!previewHtml) return;
     try {
-      await Print.printAsync({ html: previewHtml });
+      const isBill = previewType === 'BILL';
+      const printConfig = isBill ? URD_PRINT_FORMATS.BILL : URD_PRINT_FORMATS.DECLARATION;
+      await Print.printAsync({
+        html: previewHtml,
+        width: printConfig.width,
+        height: printConfig.height,
+        orientation: printConfig.orientation,
+      });
     } catch (error: any) {
       Alert.alert('Print Error', error.message || 'Failed to print document.');
     }
@@ -321,7 +341,13 @@ export default function URDPurchasesScreen() {
   const handleShareFromPreview = async () => {
     if (!previewHtml) return;
     try {
-      const { uri } = await Print.printToFileAsync({ html: previewHtml });
+      const isBill = previewType === 'BILL';
+      const printConfig = isBill ? URD_PRINT_FORMATS.BILL : URD_PRINT_FORMATS.DECLARATION;
+      const { uri } = await Print.printToFileAsync({
+        html: previewHtml,
+        width: printConfig.width,
+        height: printConfig.height,
+      });
       await Sharing.shareAsync(uri);
     } catch (error: any) {
       Alert.alert('Share Error', error.message || 'Failed to share document.');
@@ -807,18 +833,20 @@ export default function URDPurchasesScreen() {
               <Text style={s.templateBarLabel}>Format / Language:</Text>
               <View style={s.templateSegmentGroup}>
                 <TouchableOpacity
-                  style={[s.templateSegmentBtn, selectedTemplate === 'template1' && [s.templateSegmentBtnActive, { backgroundColor: colors.vjText }]]}
-                  onPress={() => handleSwitchTemplate('template1')}
+                  testID="declaration-template-marathi-btn"
+                  style={[s.templateSegmentBtn, selectedTemplate === 'urdDeclaration1' && [s.templateSegmentBtnActive, { backgroundColor: colors.vjText }]]}
+                  onPress={() => handleSwitchTemplate('urdDeclaration1')}
                 >
-                  <Text style={[s.templateSegmentText, selectedTemplate === 'template1' && s.templateSegmentTextActive]}>
+                  <Text style={[s.templateSegmentText, selectedTemplate === 'urdDeclaration1' && s.templateSegmentTextActive]}>
                     Marathi (मराठी)
                   </Text>
                 </TouchableOpacity>
                 <TouchableOpacity
-                  style={[s.templateSegmentBtn, selectedTemplate === 'template2' && [s.templateSegmentBtnActive, { backgroundColor: colors.vjText }]]}
-                  onPress={() => handleSwitchTemplate('template2')}
+                  testID="declaration-template-english-btn"
+                  style={[s.templateSegmentBtn, selectedTemplate === 'urdDeclaration2' && [s.templateSegmentBtnActive, { backgroundColor: colors.vjText }]]}
+                  onPress={() => handleSwitchTemplate('urdDeclaration2')}
                 >
-                  <Text style={[s.templateSegmentText, selectedTemplate === 'template2' && s.templateSegmentTextActive]}>
+                  <Text style={[s.templateSegmentText, selectedTemplate === 'urdDeclaration2' && s.templateSegmentTextActive]}>
                     English (Affidavit)
                   </Text>
                 </TouchableOpacity>
@@ -853,7 +881,9 @@ export default function URDPurchasesScreen() {
 
             <TouchableOpacity style={[s.previewPrintBtn, { backgroundColor: colors.vjAccent }]} onPress={handlePrintFromPreview}>
               <Printer size={16} color="#fff" />
-              <Text style={s.previewPrintBtnText}>Print Full Document</Text>
+              <Text style={s.previewPrintBtnText}>
+                {previewType === 'BILL' ? 'Print Bill (A5 Landscape)' : 'Print Declaration (A4 Portrait)'}
+              </Text>
             </TouchableOpacity>
           </View>
         </View>

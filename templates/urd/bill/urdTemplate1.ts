@@ -50,6 +50,7 @@ export function renderURDTemplate1(params: URDTemplateParams): string {
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Tiro+Devanagari+Marathi&family=Poppins:wght@400;500;600;700&display=swap');
   @page {
+    size: 210mm 148mm;
     size: A5 landscape;
     margin: 4mm;
   }
@@ -64,6 +65,11 @@ export function renderURDTemplate1(params: URDTemplateParams): string {
     color-adjust: exact !important;
   }
   @media print {
+    @page {
+      size: 210mm 148mm;
+      size: A5 landscape;
+      margin: 4mm;
+    }
     * {
       -webkit-print-color-adjust: exact !important;
       print-color-adjust: exact !important;
