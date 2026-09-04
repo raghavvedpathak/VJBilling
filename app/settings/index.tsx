@@ -194,27 +194,29 @@ export default function SettingsScreen() {
         <View style={{ marginBottom: 12 }} pointerEvents="none">
           <GlassCard style={[s.currencyCard, { borderColor: `${colors.vjAccent}35` }]}>
             <View 
-              style={s.currencyRow} 
+              style={s.currencyMainRow} 
               accessibilityRole="text" 
-              accessibilityLabel="Currency: Bhartiya Rupee, fixed"
+              accessibilityLabel="Currency: Bhartiya Rupee, fixed for Bhartiya Jewellers, Bhartiya Region"
             >
-              <View style={s.currencyLeft}>
-                <RupeeCoin3D size={38} />
-                <View style={{ flex: 1, minWidth: 0 }}>
-                  <Text style={[s.currencyTitle, { color: colors.vjText }]} numberOfLines={1}>
-                    {`Bhartiya Rupee (${['I', 'N', 'R'].join('')})`}
-                  </Text>
-                  <Text style={[s.currencySubtitle, { color: colors.vjText, opacity: 0.6 }]} numberOfLines={1}>
-                    Fixed For Bhartiya Jewellers
-                  </Text>
-                </View>
+              <View style={s.currencyCoinBox}>
+                <RupeeCoin3D size={42} />
               </View>
-              <View style={s.regionBadge}>
-                <BhartiyaFlagEmblem width={16} height={11} />
-                <Text style={s.regionBadgeText}>
-                  BHARTIYA REGION
+              <View style={s.currencyContent}>
+                <Text style={[s.currencyTitle, { color: colors.vjText }]}>
+                  {`Bhartiya Rupee (${['I', 'N', 'R'].join('')})`}
                 </Text>
-                <Lock size={10} color="#B8860B" />
+                <Text style={[s.currencySubtitle, { color: colors.vjText, opacity: 0.65 }]}>
+                  Fixed For Bhartiya Jewellers
+                </Text>
+                <View style={s.regionBadgeRow}>
+                  <View style={s.regionBadge}>
+                    <BhartiyaFlagEmblem width={15} height={10} />
+                    <Text style={s.regionBadgeText}>
+                      BHARTIYA REGION
+                    </Text>
+                    <Lock size={9} color="#B8860B" />
+                  </View>
+                </View>
               </View>
             </View>
           </GlassCard>
@@ -254,8 +256,8 @@ export default function SettingsScreen() {
                   <AlertCircle size={22} color={colors.vjAccent} />
                 </View>
                 <View style={{ flex: 1, minWidth: 0 }}>
-                  <Text style={[s.switchCardTitle, { color: colors.vjText }]} numberOfLines={1}>Unsaved Changes</Text>
-                  <Text style={[s.switchCardSubtitle, { color: colors.vjText, opacity: 0.6 }]} numberOfLines={1}>
+                  <Text style={[s.switchCardTitle, { color: colors.vjText }]}>Unsaved Changes</Text>
+                  <Text style={[s.switchCardSubtitle, { color: colors.vjText, opacity: 0.6 }]}>
                     Warn before exiting forms
                   </Text>
                 </View>
@@ -456,41 +458,50 @@ const s = StyleSheet.create({
     borderRadius: 20,
     marginBottom: 0,
   },
-  currencyRow: {
+  currencyMainRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 8,
+    gap: 14,
   },
-  currencyLeft: {
-    flexDirection: 'row',
+  currencyCoinBox: {
+    width: 44,
+    height: 44,
+    justifyContent: 'center',
     alignItems: 'center',
-    gap: 12,
+    flexShrink: 0,
+  },
+  currencyContent: {
     flex: 1,
     minWidth: 0,
-    marginRight: 4,
+    justifyContent: 'center',
   },
   currencyTitle: {
     fontWeight: '800',
-    fontSize: 15.5,
-    lineHeight: 20,
+    fontSize: 16,
+    lineHeight: 21,
   },
   currencySubtitle: {
-    fontSize: 11.5,
+    fontSize: 12,
     fontWeight: '600',
     marginTop: 2,
+    lineHeight: 16,
+  },
+  regionBadgeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 6,
   },
   regionBadge: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 5,
     paddingHorizontal: 8,
-    paddingVertical: 4.5,
+    paddingVertical: 3.5,
     borderRadius: 999,
     backgroundColor: 'rgba(245, 158, 11, 0.14)',
     borderWidth: 1,
     borderColor: 'rgba(245, 158, 11, 0.3)',
-    flexShrink: 0,
+    alignSelf: 'flex-start',
   },
   regionBadgeText: {
     fontSize: 8.5,

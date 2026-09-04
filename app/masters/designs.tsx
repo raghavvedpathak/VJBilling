@@ -385,7 +385,7 @@ export default function DesignsScreen() {
 
                     {/* CENTER DETAILS */}
                     <View style={s.listTextContainer}>
-                      <Text style={[s.listTitle, { color: colors.vjText }]} numberOfLines={1}>
+                      <Text style={[s.listTitle, { color: colors.vjText }]} numberOfLines={2}>
                         {d.name}
                       </Text>
                       <View style={s.listSubRow}>

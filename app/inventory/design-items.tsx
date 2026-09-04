@@ -12,7 +12,7 @@ import { useFirmStore } from '@/store/phase1/useFirmStore';
 import { inventoryDrillDownService } from '@/services/phase2/inventoryDrillDownService';
 import { designRepository } from '@/repositories/phase2/designRepository';
 import { getDisplayPurity, formatKaratBadge, formatSKUDisplay, formatWeightMg as formatWeight } from '@/utils/calculations';
-import { MapPin, Package, Printer, Scale, Sparkles, ArrowUpDown, Check, X, ShieldCheck, ShieldAlert, ChevronRight, Barcode, Tag } from 'lucide-react-native';
+import { MapPin, Package, Printer, Scale, Sparkles, ArrowUpDown, Check, X, ShieldCheck, ShieldAlert, ChevronRight, Tag } from 'lucide-react-native';
 import type { ItemSearchResult } from '@/types/phase2/phase2.types';
 import { COLORS, getThemeColors } from '@/constants/theme';
 
@@ -79,27 +79,34 @@ const ItemRow = memo(({
       <View style={[s.metalStripe, { backgroundColor: metalColor }]} />
 
       <View style={s.cardBody}>
-        {/* TOP ROW: DESIGN NAME + SKU CAPSULE + SIZE PILL & PURITY BADGE */}
+        {/* TOP ROW: NAME + SIZE AFTER NAME, SKU BELOW NAME, PURITY IN CORNER */}
         <View style={s.itemHeaderRow}>
-          <View style={s.skuContainer}>
-            {item.designName ? (
-              <Text style={[s.designNameText, { color: colors.vjText }]} numberOfLines={1}>
-                {item.designName}
-              </Text>
-            ) : null}
-            <View style={s.skuCapsule}>
-              <Tag size={11} color={colors.vjAccent} style={{ opacity: 0.7 }} />
-              <Text style={[s.skuText, { color: colors.vjAccent }]}>{formatSKUDisplay(item.sku)}</Text>
+          <View style={s.titleAndSkuBlock}>
+            {/* Row 1: Design Name + Size directly after name */}
+            <View style={s.nameAndSizeRow}>
+              {item.designName ? (
+                <Text style={[s.designNameText, { color: colors.vjText }]} numberOfLines={2}>
+                  {item.designName}
+                </Text>
+              ) : null}
+              {sizeDisplay && (
+                <View style={[s.sizeBadge, { backgroundColor: 'rgba(212, 175, 55, 0.12)', borderColor: 'rgba(212, 175, 55, 0.35)' }]}>
+                  <Text style={[s.sizeBadgeText, { color: colors.vjText }]}>{sizeDisplay}</Text>
+                </View>
+              )}
             </View>
-            {sizeDisplay && (
-              <View style={[s.sizeBadge, { backgroundColor: 'rgba(212, 175, 55, 0.12)', borderColor: 'rgba(212, 175, 55, 0.35)' }]}>
-                <Text style={[s.sizeBadgeText, { color: colors.vjText }]}>{sizeDisplay}</Text>
+
+            {/* Row 2: SKU below name */}
+            <View style={s.skuRowBelow}>
+              <View style={s.skuCapsule}>
+                <Tag size={11} color={colors.vjAccent} style={{ opacity: 0.7 }} />
+                <Text style={[s.skuText, { color: colors.vjAccent }]}>{formatSKUDisplay(item.sku)}</Text>
               </View>
-            )}
+            </View>
           </View>
 
-          {/* Right Header: Purity Badge + Drill-down Affordance */}
-          <View style={s.headerRightCluster}>
+          {/* Top Right Corner: Purity Badge + Drill-down Affordance */}
+          <View style={s.headerCornerCluster}>
             <View style={[s.purityBadge, { borderColor: metalColor, backgroundColor: `${metalColor}14` }]}>
               <Sparkles size={11} color={metalColor} style={{ marginRight: 4 }} />
               <Text style={[s.purityBadgeText, { color: metalColor }]}>{purityFull}</Text>
@@ -110,49 +117,46 @@ const ItemRow = memo(({
 
         {/* HERO METRICS CONTAINER (Swiss Digital Scale View) */}
         <View style={[s.heroMetricsContainer, { backgroundColor: 'rgba(255, 255, 255, 0.85)', borderColor: 'rgba(92, 22, 35, 0.09)' }]}>
-          {/* Left Metadata: Barcode & HUID */}
-          <View style={s.metaCol}>
-            <View style={s.barcodeCapsule}>
-              <Barcode size={14} color={colors.vjAccent} style={{ opacity: 0.75 }} />
-              <View>
-                <Text style={s.barcodeLabel}>BARCODE</Text>
-                <Text style={s.barcodeValue}>{item.barcode}</Text>
-              </View>
-            </View>
-
-            {item.huid ? (
-              <View style={s.huidVerifiedCapsule}>
-                <ShieldCheck size={13} color="#15803d" />
-                <Text style={s.huidVerifiedText}>HUID: {item.huid}</Text>
-              </View>
-            ) : (
-              <View style={s.huidPendingCapsule}>
-                <ShieldAlert size={12} color="rgba(92, 22, 35, 0.45)" />
-                <Text style={s.huidPendingText}>No HUID</Text>
-              </View>
-            )}
-          </View>
-
-          {/* Right Hero: Net Weight Precision Readout */}
-          <View style={s.heroWeightCol}>
-            <Text style={s.heroNetLabel}>AVAILABLE NET WT</Text>
-            <View style={s.weightNumberRow}>
-              <Text style={[s.heroNetValue, { color: colors.vjAccent }]}>
-                {formatWeight(item.netWeightMg ?? item.grossWeightMg)}
-              </Text>
-            </View>
-            <Text style={s.grossSubText}>
-              Gross: {formatWeight(item.grossWeightMg)}
+          {/* Net & Gross Weights on a Single Line */}
+          <View style={s.weightSingleLine}>
+            <Text style={s.weightLabel}>NET: </Text>
+            <Text style={[s.weightValueNet, { color: colors.vjAccent }]}>
+              {formatWeight(item.netWeightMg ?? item.grossWeightMg)}
+            </Text>
+            <Text style={s.weightBullet}>  •  </Text>
+            <Text style={s.weightLabel}>GROSS: </Text>
+            <Text style={s.weightValueGross}>
+              {formatWeight(item.grossWeightMg)}
             </Text>
           </View>
+
+          {/* HUID Badge: Shows HUID if available, else 'No HUID' */}
+          {item.huid?.trim() ? (
+            <View style={s.huidVerifiedCapsule}>
+              <ShieldCheck size={11} color="#15803d" />
+              <Text style={s.huidVerifiedText}>HUID: {item.huid.trim()}</Text>
+            </View>
+          ) : (
+            <View style={s.huidPendingCapsule}>
+              <ShieldAlert size={11} color="rgba(92, 22, 35, 0.45)" />
+              <Text style={s.huidPendingText}>No HUID</Text>
+            </View>
+          )}
         </View>
 
-        {/* BOTTOM ROW: LOCATION & PRINT TAG ACTION */}
+        {/* BOTTOM ROW: LOCATION (OR 'NO LOCATION') & PRINT TAG ACTION */}
         <View style={s.bottomRow}>
           <View style={s.locationRow}>
-            <MapPin size={13} color={colors.vjAccent} style={{ opacity: 0.65 }} />
-            <Text style={[s.locationText, { color: colors.vjText, opacity: 0.7 }]}>
-              {item.location || 'Showroom Tray'}
+            <MapPin size={12} color={item.location?.trim() ? colors.vjAccent : 'rgba(92, 22, 35, 0.4)'} style={{ opacity: 0.65 }} />
+            <Text 
+              style={[
+                s.locationText, 
+                item.location?.trim() 
+                  ? { color: colors.vjText, opacity: 0.75 } 
+                  : { color: 'rgba(92, 22, 35, 0.45)', fontStyle: 'italic' }
+              ]}
+            >
+              {item.location?.trim() ? item.location.trim() : 'No Location'}
             </Text>
           </View>
 
@@ -166,7 +170,7 @@ const ItemRow = memo(({
             }}
             style={[s.printBtn, { borderColor: `${colors.vjAccent}45`, backgroundColor: `${colors.vjAccent}12` }]}
           >
-            <Printer size={14} color={colors.vjAccent} />
+            <Printer size={13} color={colors.vjAccent} />
             <Text style={[s.printBtnText, { color: colors.vjAccent }]}>Print Tag</Text>
           </TouchableOpacity>
         </View>
@@ -321,9 +325,6 @@ export default function DesignItemsScreen() {
   const designHeaderPills = (
     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginTop: 4 }}>
       <HeaderPill icon={<Package size={12} color={colors.vjBg} />} label={`${processedItems.length} Tagged Items`} />
-      {purityPillLabel && (
-        <HeaderPill icon={<Sparkles size={12} color="#38BDF8" />} label={purityPillLabel} variant="info" />
-      )}
       <HeaderPill icon={<Scale size={12} color="#4ADE80" />} label={`Net: ${formatWeight(totalNetWeightMg)}`} variant="success" />
     </View>
   );
@@ -579,40 +580,50 @@ const s = StyleSheet.create({
   // MODERN STOCK CARD STYLES
   itemCard: {
     flexDirection: 'row',
-    marginBottom: 14,
-    borderRadius: 22,
+    marginBottom: 10,
+    borderRadius: 18,
     overflow: 'hidden',
     backgroundColor: '#FFFFFF',
     borderWidth: 1.5,
     borderColor: 'rgba(212, 175, 55, 0.28)',
     shadowColor: '#5C1623',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.08,
-    shadowRadius: 12,
-    elevation: 4,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    elevation: 3,
   },
   metalStripe: {
-    width: 6,
+    width: 5,
     alignSelf: 'stretch',
-    borderTopLeftRadius: 22,
-    borderBottomLeftRadius: 22,
+    borderTopLeftRadius: 18,
+    borderBottomLeftRadius: 18,
   },
   cardBody: {
     flex: 1,
-    padding: 16,
-    gap: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    gap: 8,
   },
   itemHeaderRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
+    alignItems: 'flex-start',
   },
-  skuContainer: {
+  titleAndSkuBlock: {
+    flex: 1,
+    paddingRight: 8,
+    gap: 3,
+  },
+  nameAndSizeRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: 6,
     flexWrap: 'wrap',
-    flex: 1,
+  },
+  skuRowBelow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 1,
   },
   designNameText: {
     fontSize: 16,
@@ -646,10 +657,11 @@ const s = StyleSheet.create({
     fontSize: 11,
     fontWeight: '800',
   },
-  headerRightCluster: {
+  headerCornerCluster: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    gap: 3,
+    alignSelf: 'flex-start',
   },
   purityBadge: {
     flexDirection: 'row',
@@ -670,49 +682,52 @@ const s = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingVertical: 12,
-    paddingHorizontal: 14,
-    borderRadius: 16,
+    flexWrap: 'wrap',
+    gap: 8,
+    paddingVertical: 7,
+    paddingHorizontal: 12,
+    borderRadius: 14,
     borderWidth: 1,
   },
-  metaCol: {
-    flex: 1,
-    gap: 8,
-    justifyContent: 'center',
-  },
-  barcodeCapsule: {
+  weightSingleLine: {
     flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
+    alignItems: 'baseline',
+    flexWrap: 'wrap',
   },
-  barcodeLabel: {
-    fontSize: 8.5,
-    fontWeight: '900',
-    color: 'rgba(92, 22, 35, 0.45)',
-    letterSpacing: 0.6,
-    lineHeight: 11,
-  },
-  barcodeValue: {
-    fontSize: 11.5,
+  weightLabel: {
+    fontSize: 9.5,
     fontWeight: '800',
-    fontFamily: 'monospace',
-    color: 'rgba(92, 22, 35, 0.8)',
-    lineHeight: 14,
+    color: 'rgba(92, 22, 35, 0.55)',
+    letterSpacing: 0.6,
+  },
+  weightValueNet: {
+    fontSize: 15,
+    fontWeight: '900',
+    letterSpacing: 0.2,
+  },
+  weightBullet: {
+    fontSize: 12,
+    color: 'rgba(92, 22, 35, 0.3)',
+    fontWeight: '700',
+  },
+  weightValueGross: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: 'rgba(92, 22, 35, 0.75)',
   },
   huidVerifiedCapsule: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 5,
+    gap: 4,
     backgroundColor: 'rgba(22, 163, 74, 0.08)',
-    paddingHorizontal: 8,
-    paddingVertical: 3.5,
+    paddingHorizontal: 7,
+    paddingVertical: 2.5,
     borderRadius: 7,
-    alignSelf: 'flex-start',
     borderWidth: 1,
     borderColor: 'rgba(22, 163, 74, 0.25)',
   },
   huidVerifiedText: {
-    fontSize: 10.5,
+    fontSize: 10,
     fontWeight: '800',
     color: '#15803d',
     letterSpacing: 0.3,
@@ -723,45 +738,14 @@ const s = StyleSheet.create({
     gap: 4,
     backgroundColor: 'rgba(92, 22, 35, 0.04)',
     paddingHorizontal: 7,
-    paddingVertical: 3,
+    paddingVertical: 2.5,
     borderRadius: 6,
-    alignSelf: 'flex-start',
   },
   huidPendingText: {
-    fontSize: 10,
+    fontSize: 9.5,
     fontWeight: '600',
     color: 'rgba(92, 22, 35, 0.45)',
     fontStyle: 'italic',
-  },
-
-  // HERO WEIGHT
-  heroWeightCol: {
-    alignItems: 'flex-end',
-    justifyContent: 'center',
-    paddingLeft: 12,
-  },
-  heroNetLabel: {
-    fontSize: 8.5,
-    fontWeight: '900',
-    color: 'rgba(92, 22, 35, 0.5)',
-    letterSpacing: 0.8,
-    marginBottom: 2,
-    textTransform: 'uppercase',
-  },
-  weightNumberRow: {
-    flexDirection: 'row',
-    alignItems: 'baseline',
-  },
-  heroNetValue: {
-    fontSize: 18.5,
-    fontWeight: '900',
-    letterSpacing: 0.3,
-  },
-  grossSubText: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: 'rgba(92, 22, 35, 0.55)',
-    marginTop: 2,
   },
 
   // CARD BOTTOM ROW
@@ -769,30 +753,30 @@ const s = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginTop: 2,
+    marginTop: 1,
   },
   locationRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 5,
+    gap: 4,
   },
   locationText: {
-    fontSize: 11.5,
+    fontSize: 11,
     fontWeight: '700',
   },
   printBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 12,
+    gap: 5,
+    paddingHorizontal: 11,
+    paddingVertical: 6,
+    borderRadius: 10,
     borderWidth: 1.2,
   },
   printBtnText: {
-    fontSize: 12,
+    fontSize: 11.5,
     fontWeight: '800',
-    letterSpacing: 0.4,
+    letterSpacing: 0.3,
   },
   emptyContainer: { alignItems: 'center', marginTop: 60, gap: 8 },
   emptyTitle: { fontSize: 18, fontWeight: '700', opacity: 0.7 },

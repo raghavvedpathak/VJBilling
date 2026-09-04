@@ -184,7 +184,7 @@ export default function FirmManagerScreen() {
 
                   <View className="flex-1 pr-2">
                     <View className="flex-row flex-wrap items-center gap-2 mb-1">
-                      <Text className="text-vj-text font-bold text-lg leading-tight flex-shrink" numberOfLines={1}>
+                      <Text className="text-vj-text font-bold text-lg leading-tight flex-shrink" numberOfLines={2}>
                         {firm.name}
                       </Text>
                       {isActive && (

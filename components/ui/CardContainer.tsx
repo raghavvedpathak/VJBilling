@@ -265,7 +265,7 @@ export function MenuTile({
                     lineHeight: 20,
                     marginBottom: 2,
                   }}
-                  numberOfLines={1}
+                  numberOfLines={2}
                 >
                   {title}
                 </Text>
@@ -406,7 +406,7 @@ export function MenuTile({
                       lineHeight: 20,
                       marginBottom: 2,
                     }}
-                    numberOfLines={1}
+                    numberOfLines={2}
                   >
                     {title}
                   </Text>
@@ -507,7 +507,7 @@ export function ListTileCard({
           <View style={{ flex: 1, minWidth: 0 }}>
             <Text 
               style={{ color: colors.vjText, fontWeight: '800', fontSize: 16, lineHeight: 21 }}
-              numberOfLines={1}
+              numberOfLines={2}
             >
               {title}
             </Text>

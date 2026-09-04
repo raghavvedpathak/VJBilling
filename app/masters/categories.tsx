@@ -346,7 +346,7 @@ export default function CategoriesScreen() {
 
                     {/* CENTER DETAILS */}
                     <View style={s.listTextContainer}>
-                      <Text style={[s.listTitle, { color: colors.vjText }]} numberOfLines={1}>
+                      <Text style={[s.listTitle, { color: colors.vjText }]} numberOfLines={2}>
                         {c.name}
                       </Text>
                       <View style={s.listSubRow}>

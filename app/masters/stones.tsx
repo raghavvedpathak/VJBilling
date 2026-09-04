@@ -421,7 +421,7 @@ export default function StonesScreen() {
                     </View>
 
                     <View style={s.listTextContainer}>
-                      <Text style={[s.listTitle, { color: colors.vjText }]} numberOfLines={1}>
+                      <Text style={[s.listTitle, { color: colors.vjText }]} numberOfLines={2}>
                         {stone.name}
                       </Text>
                       <View style={[s.stoneTypeBadge, { backgroundColor: stoneColors.bg, borderColor: stoneColors.border }]}>

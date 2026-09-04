@@ -257,7 +257,7 @@ export default function WelcomeScreen() {
                   {/* Store Details */}
                   <View className="flex-1">
                     <View className="flex-row items-center gap-2">
-                      <Text className="text-vj-text font-black text-base leading-tight flex-1" numberOfLines={1}>
+                      <Text className="text-vj-text font-black text-base leading-tight flex-1" numberOfLines={2}>
                         {f.name}
                       </Text>
                       <View className="px-2 py-0.5 rounded-md bg-amber-500/15 border border-amber-500/30">
@@ -267,7 +267,7 @@ export default function WelcomeScreen() {
                       </View>
                     </View>
 
-                    <Text className="text-vj-text/60 text-xs font-semibold mt-0.5" numberOfLines={1}>
+                    <Text className="text-vj-text/60 text-xs font-semibold mt-0.5" numberOfLines={2}>
                       {f.proprietor} • {f.city || 'Store'}
                     </Text>
 
