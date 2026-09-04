@@ -449,7 +449,8 @@ const s = StyleSheet.create({
     opacity: 0.6,
   },
   currencyCard: {
-    padding: 14,
+    paddingVertical: 15,
+    paddingHorizontal: 16,
     borderWidth: 1,
     backgroundColor: 'rgba(255, 255, 255, 0.95)',
     borderRadius: 20,
@@ -468,10 +469,11 @@ const s = StyleSheet.create({
   },
   currencyTitle: {
     fontWeight: '800',
-    fontSize: 15.5,
+    fontSize: 16.5,
+    lineHeight: 21,
   },
   currencySubtitle: {
-    fontSize: 11.5,
+    fontSize: 12,
     fontWeight: '600',
     marginTop: 2,
   },
@@ -505,7 +507,8 @@ const s = StyleSheet.create({
     borderColor: '#ffffff',
   },
   switchCard: {
-    padding: 14,
+    paddingVertical: 15,
+    paddingHorizontal: 16,
     borderWidth: 1,
     backgroundColor: 'rgba(255, 255, 255, 0.92)',
     borderRadius: 20,
@@ -523,8 +526,8 @@ const s = StyleSheet.create({
     marginRight: 8,
   },
   switchIconBox: {
-    padding: 10,
-    borderRadius: 14,
+    padding: 12,
+    borderRadius: 16,
     borderWidth: 1,
     borderColor: 'rgba(0,0,0,0.05)',
     alignItems: 'center',
@@ -532,10 +535,11 @@ const s = StyleSheet.create({
   },
   switchCardTitle: {
     fontWeight: '800',
-    fontSize: 15.5,
+    fontSize: 16.5,
+    lineHeight: 21,
   },
   switchCardSubtitle: {
-    fontSize: 11.5,
+    fontSize: 12,
     fontWeight: '600',
     marginTop: 2,
   },

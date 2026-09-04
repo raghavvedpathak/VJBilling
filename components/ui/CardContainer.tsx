@@ -114,6 +114,7 @@ export interface MenuTileProps {
   alertCount?: number;
   onPress?: () => void;
   disabled?: boolean;
+  variant?: 'default' | 'dashboard';
 }
 
 export function MenuTile({
@@ -128,10 +129,12 @@ export function MenuTile({
   alertCount,
   onPress,
   disabled,
+  variant = 'default',
 }: MenuTileProps) {
   const activeTheme = appSettingsStore((s: any) => s.theme);
   const colors = getThemeColors(activeTheme);
   const hasAlert = alertCount !== undefined && alertCount > 0;
+  const isDashboard = variant === 'dashboard';
 
   return (
     <View style={{ width: '48%' }}>
@@ -152,105 +155,108 @@ export function MenuTile({
             opacity: disabled ? 0.65 : 1,
             borderColor: hasAlert ? '#F59E0B' : borderColor,
             borderWidth: hasAlert ? 1.5 : 1.2,
-            backgroundColor: hasAlert ? 'rgba(254, 243, 199, 0.85)' : (cardBg || (activeTheme === 'dark' ? 'rgba(28, 20, 24, 0.86)' : 'rgba(255, 255, 255, 0.86)')),
+            backgroundColor: hasAlert
+              ? 'rgba(254, 243, 199, 0.85)'
+              : (cardBg || (activeTheme === 'dark' ? 'rgba(28, 20, 24, 0.86)' : 'rgba(255, 255, 255, 0.86)')),
             padding: 14,
           }}
         >
-          <View style={{ flex: 1, justifyContent: 'space-between', paddingBottom: 4 }}>
-            {/* Top Row: Icon & Status Badge */}
-            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-              <View style={{ position: 'relative' }}>
-                <View
-                  style={{
-                    padding: 11,
-                    borderRadius: 18,
-                    borderWidth: 1.5,
-                    borderColor: 'rgba(255, 255, 255, 0.95)',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    backgroundColor: iconBg,
-                  }}
-                >
-                  {icon}
-                </View>
-                {hasAlert && (
-                  <View
-                    style={{
-                      position: 'absolute',
-                      top: -4,
-                      right: -4,
-                      backgroundColor: '#EF4444',
-                      borderRadius: 10,
-                      minWidth: 18,
-                      height: 18,
-                      justifyContent: 'center',
-                      alignItems: 'center',
-                      paddingHorizontal: 4,
-                      borderWidth: 1.5,
-                      borderColor: '#FFFFFF',
-                    }}
-                  >
-                    <Text style={{ color: '#FFFFFF', fontSize: 9, fontWeight: '900' }}>
-                      {alertCount > 99 ? '99+' : alertCount}
-                    </Text>
-                  </View>
-                )}
-              </View>
-
-              {badgeText ? (
-                <View
-                  style={{
-                    flexDirection: 'row',
-                    alignItems: 'center',
-                    paddingHorizontal: 8,
-                    paddingVertical: 2.5,
-                    borderRadius: 999,
-                    borderWidth: 1,
-                    backgroundColor: hasAlert
-                      ? 'rgba(245, 158, 11, 0.2)'
-                      : badgeVariant === 'active'
-                      ? 'rgba(16, 185, 129, 0.12)'
-                      : 'rgba(0, 0, 0, 0.05)',
-                    borderColor: hasAlert
-                      ? 'rgba(245, 158, 11, 0.4)'
-                      : badgeVariant === 'active'
-                      ? 'rgba(16, 185, 129, 0.25)'
-                      : 'rgba(0, 0, 0, 0.10)',
-                  }}
-                >
-                  {badgeVariant === 'active' && (
+          {isDashboard ? (
+            <View style={{ flex: 1, justifyContent: 'space-between' }}>
+              {/* Upper Section: Icon, Badge, and Title grouped close together */}
+              <View>
+                {/* Top Row: Icon & Status Badge */}
+                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+                  <View style={{ position: 'relative' }}>
                     <View
                       style={{
-                        width: 5,
-                        height: 5,
-                        borderRadius: 2.5,
-                        backgroundColor: '#10B981',
-                        marginRight: 4,
+                        padding: 10,
+                        borderRadius: 16,
+                        borderWidth: 1.5,
+                        borderColor: 'rgba(255, 255, 255, 0.95)',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        backgroundColor: iconBg,
                       }}
-                    />
-                  )}
-                  <Text
-                    style={{
-                      fontSize: 8.5,
-                      fontWeight: '900',
-                      textTransform: 'uppercase',
-                      letterSpacing: 0.8,
-                      color: hasAlert
-                        ? '#B45309'
-                        : badgeVariant === 'active'
-                        ? '#047857'
-                        : 'rgba(42, 18, 8, 0.5)',
-                    }}
-                  >
-                    {badgeText}
-                  </Text>
-                </View>
-              ) : null}
-            </View>
+                    >
+                      {icon}
+                    </View>
+                    {hasAlert && (
+                      <View
+                        style={{
+                          position: 'absolute',
+                          top: -4,
+                          right: -4,
+                          backgroundColor: '#EF4444',
+                          borderRadius: 10,
+                          minWidth: 18,
+                          height: 18,
+                          justifyContent: 'center',
+                          alignItems: 'center',
+                          paddingHorizontal: 4,
+                          borderWidth: 1.5,
+                          borderColor: '#FFFFFF',
+                        }}
+                      >
+                        <Text style={{ color: '#FFFFFF', fontSize: 9, fontWeight: '900' }}>
+                          {alertCount > 99 ? '99+' : alertCount}
+                        </Text>
+                      </View>
+                    )}
+                  </View>
 
-            {/* Bottom Row: Title, Subtitle, and Micro-Navigation Indicator */}
-            <View style={{ flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between' }}>
-              <View style={{ flex: 1, paddingRight: 4, marginTop: 4 }}>
+                  {badgeText ? (
+                    <View
+                      style={{
+                        flexDirection: 'row',
+                        alignItems: 'center',
+                        paddingHorizontal: 8,
+                        paddingVertical: 2.5,
+                        borderRadius: 999,
+                        borderWidth: 1,
+                        backgroundColor: hasAlert
+                          ? 'rgba(245, 158, 11, 0.2)'
+                          : badgeVariant === 'active'
+                          ? 'rgba(16, 185, 129, 0.12)'
+                          : 'rgba(0, 0, 0, 0.05)',
+                        borderColor: hasAlert
+                          ? 'rgba(245, 158, 11, 0.4)'
+                          : badgeVariant === 'active'
+                          ? 'rgba(16, 185, 129, 0.25)'
+                          : 'rgba(0, 0, 0, 0.10)',
+                      }}
+                    >
+                      {badgeVariant === 'active' && (
+                        <View
+                          style={{
+                            width: 5,
+                            height: 5,
+                            borderRadius: 2.5,
+                            backgroundColor: '#10B981',
+                            marginRight: 4,
+                          }}
+                        />
+                      )}
+                      <Text
+                        style={{
+                          fontSize: 8.5,
+                          fontWeight: '900',
+                          textTransform: 'uppercase',
+                          letterSpacing: 0.8,
+                          color: hasAlert
+                            ? '#B45309'
+                            : badgeVariant === 'active'
+                            ? '#047857'
+                            : 'rgba(42, 18, 8, 0.5)',
+                        }}
+                      >
+                        {badgeText}
+                      </Text>
+                    </View>
+                  ) : null}
+                </View>
+
+                {/* Title & Subtitle sitting directly in close proximity to the icon */}
                 <Text
                   style={{
                     color: colors.vjText,
@@ -279,22 +285,164 @@ export function MenuTile({
                 ) : null}
               </View>
 
-              {!disabled && (
-                <View
-                  style={{
-                    padding: 4,
-                    borderRadius: 999,
-                    backgroundColor: 'rgba(212, 175, 55, 0.12)',
-                    borderWidth: 1,
-                    borderColor: 'rgba(212, 175, 55, 0.30)',
-                    marginBottom: 2,
-                  }}
-                >
-                  <ChevronRight size={13} color="#D4AF37" />
-                </View>
-              )}
+              {/* Bottom Row: Micro-Navigation Indicator at bottom right */}
+              <View style={{ flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center', minHeight: 18 }}>
+                {!disabled && (
+                  <View
+                    style={{
+                      padding: 4,
+                      borderRadius: 999,
+                      backgroundColor: 'rgba(212, 175, 55, 0.12)',
+                      borderWidth: 1,
+                      borderColor: 'rgba(212, 175, 55, 0.30)',
+                    }}
+                  >
+                    <ChevronRight size={13} color="#D4AF37" />
+                  </View>
+                )}
+              </View>
             </View>
-          </View>
+          ) : (
+            <View style={{ flex: 1, justifyContent: 'space-between', paddingBottom: 4 }}>
+              {/* Top Row: Icon & Status Badge */}
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                <View style={{ position: 'relative' }}>
+                  <View
+                    style={{
+                      padding: 11,
+                      borderRadius: 18,
+                      borderWidth: 1.5,
+                      borderColor: 'rgba(255, 255, 255, 0.95)',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      backgroundColor: iconBg,
+                    }}
+                  >
+                    {icon}
+                  </View>
+                  {hasAlert && (
+                    <View
+                      style={{
+                        position: 'absolute',
+                        top: -4,
+                        right: -4,
+                        backgroundColor: '#EF4444',
+                        borderRadius: 10,
+                        minWidth: 18,
+                        height: 18,
+                        justifyContent: 'center',
+                        alignItems: 'center',
+                        paddingHorizontal: 4,
+                        borderWidth: 1.5,
+                        borderColor: '#FFFFFF',
+                      }}
+                    >
+                      <Text style={{ color: '#FFFFFF', fontSize: 9, fontWeight: '900' }}>
+                        {alertCount > 99 ? '99+' : alertCount}
+                      </Text>
+                    </View>
+                  )}
+                </View>
+
+                {badgeText ? (
+                  <View
+                    style={{
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      paddingHorizontal: 8,
+                      paddingVertical: 2.5,
+                      borderRadius: 999,
+                      borderWidth: 1,
+                      backgroundColor: hasAlert
+                        ? 'rgba(245, 158, 11, 0.2)'
+                        : badgeVariant === 'active'
+                        ? 'rgba(16, 185, 129, 0.12)'
+                        : 'rgba(0, 0, 0, 0.05)',
+                      borderColor: hasAlert
+                        ? 'rgba(245, 158, 11, 0.4)'
+                        : badgeVariant === 'active'
+                        ? 'rgba(16, 185, 129, 0.25)'
+                        : 'rgba(0, 0, 0, 0.10)',
+                    }}
+                  >
+                    {badgeVariant === 'active' && (
+                      <View
+                        style={{
+                          width: 5,
+                          height: 5,
+                          borderRadius: 2.5,
+                          backgroundColor: '#10B981',
+                          marginRight: 4,
+                        }}
+                      />
+                    )}
+                    <Text
+                      style={{
+                        fontSize: 8.5,
+                        fontWeight: '900',
+                        textTransform: 'uppercase',
+                        letterSpacing: 0.8,
+                        color: hasAlert
+                          ? '#B45309'
+                          : badgeVariant === 'active'
+                          ? '#047857'
+                          : 'rgba(42, 18, 8, 0.5)',
+                      }}
+                    >
+                      {badgeText}
+                    </Text>
+                  </View>
+                ) : null}
+              </View>
+
+              {/* Bottom Row: Title, Subtitle, and Micro-Navigation Indicator */}
+              <View style={{ flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between' }}>
+                <View style={{ flex: 1, paddingRight: 4, marginTop: 4 }}>
+                  <Text
+                    style={{
+                      color: colors.vjText,
+                      fontWeight: '900',
+                      fontSize: 16,
+                      lineHeight: 20,
+                      marginBottom: 2,
+                    }}
+                    numberOfLines={1}
+                  >
+                    {title}
+                  </Text>
+                  {subtitle ? (
+                    <Text
+                      style={{
+                        color: `${colors.vjText}8C`,
+                        fontSize: 10,
+                        fontWeight: '800',
+                        textTransform: 'uppercase',
+                        letterSpacing: 0.5,
+                      }}
+                      numberOfLines={1}
+                    >
+                      {subtitle}
+                    </Text>
+                  ) : null}
+                </View>
+
+                {!disabled && (
+                  <View
+                    style={{
+                      padding: 4,
+                      borderRadius: 999,
+                      backgroundColor: 'rgba(212, 175, 55, 0.12)',
+                      borderWidth: 1,
+                      borderColor: 'rgba(212, 175, 55, 0.30)',
+                      marginBottom: 2,
+                    }}
+                  >
+                    <ChevronRight size={13} color="#D4AF37" />
+                  </View>
+                )}
+              </View>
+            </View>
+          )}
         </GlassCard>
       </TouchableOpacity>
     </View>
@@ -339,15 +487,15 @@ export function ListTileCard({
       }}
       disabled={disabled}
       activeOpacity={0.7}
-      style={{ marginBottom: 8 }}
+      style={{ marginBottom: 10 }}
     >
-      <GlassCard style={{ padding: 12, borderWidth: 1.2, borderColor }}>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, opacity: disabled ? 0.5 : 1 }}>
+      <GlassCard style={{ paddingVertical: 15, paddingHorizontal: 16, borderWidth: 1.2, borderColor }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14, opacity: disabled ? 0.5 : 1 }}>
           <View
             style={{
               backgroundColor: iconBg,
-              padding: 10,
-              borderRadius: 15,
+              padding: 12,
+              borderRadius: 16,
               borderWidth: 1.5,
               borderColor: 'rgba(255, 255, 255, 0.90)',
               alignItems: 'center',
@@ -357,9 +505,9 @@ export function ListTileCard({
             {icon}
           </View>
           <View style={{ flex: 1 }}>
-            <Text style={{ color: colors.vjText, fontWeight: '800', fontSize: 15.5 }}>{title}</Text>
+            <Text style={{ color: colors.vjText, fontWeight: '800', fontSize: 16.5, lineHeight: 21 }}>{title}</Text>
             {subtitle ? (
-              <Text style={{ color: `${colors.vjText}99`, fontSize: 11.5, fontWeight: '600', marginTop: 1 }}>
+              <Text style={{ color: `${colors.vjText}99`, fontSize: 12, fontWeight: '600', marginTop: 2 }}>
                 {subtitle}
               </Text>
             ) : null}
@@ -369,14 +517,14 @@ export function ListTileCard({
           ) : (
             <View 
               style={{ 
-                padding: 6, 
+                padding: 7, 
                 borderRadius: 999, 
                 backgroundColor: 'rgba(212, 175, 55, 0.10)',
                 borderWidth: 1,
                 borderColor: 'rgba(212, 175, 55, 0.30)',
               }}
             >
-              <ChevronRight size={17} color="#D4AF37" />
+              <ChevronRight size={18} color="#D4AF37" />
             </View>
           )}
         </View>

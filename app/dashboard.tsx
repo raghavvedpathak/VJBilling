@@ -169,17 +169,22 @@ export default function Dashboard() {
         <View className="flex-row flex-wrap justify-between gap-y-4 mb-8">
           
           <MenuTile 
+            variant="dashboard"
             title="Inventory & Stock" 
-            icon={<Package size={24} color="#7C3AED" />} 
+            subtitle="Stock & URD Intake"
+            badgeText="LIVE"
+            badgeVariant="active"
+            icon={<Package size={22} color="#7C3AED" />} 
             iconBg="rgba(124, 58, 237, 0.12)"
-            borderColor="rgba(124, 58, 237, 0.25)"
+            borderColor="rgba(124, 58, 237, 0.3)"
             onPress={() => router.push('/inventory')} 
           />
 
           <MenuTile 
+            variant="dashboard"
             title="Billing & Sales" 
             subtitle="Phase 3 Layer" 
-            icon={<FileText size={24} color="#059669" />} 
+            icon={<FileText size={22} color="#059669" />} 
             iconBg="rgba(5, 150, 105, 0.12)"
             borderColor="rgba(5, 150, 105, 0.2)"
             badgeText="PHASE 3"
@@ -187,9 +192,10 @@ export default function Dashboard() {
           />
 
           <MenuTile 
+            variant="dashboard"
             title="Vault & Refinery" 
             subtitle="Phase 4 Layer" 
-            icon={<Landmark size={24} color="#D97706" />} 
+            icon={<Landmark size={22} color="#D97706" />} 
             iconBg="rgba(217, 119, 6, 0.12)"
             borderColor="rgba(217, 119, 6, 0.2)"
             badgeText="PHASE 4"
@@ -197,9 +203,10 @@ export default function Dashboard() {
           />
 
           <MenuTile 
+            variant="dashboard"
             title="Business Reports" 
             subtitle="Phase 6 Layer" 
-            icon={<TrendingUp size={24} color="#DB2777" />} 
+            icon={<TrendingUp size={22} color="#DB2777" />} 
             iconBg="rgba(219, 39, 119, 0.12)"
             borderColor="rgba(219, 39, 119, 0.2)"
             badgeText="PHASE 6"
