@@ -487,9 +487,9 @@ export function ListTileCard({
       }}
       disabled={disabled}
       activeOpacity={0.7}
-      style={{ marginBottom: 10 }}
+      style={{ marginBottom: 12 }}
     >
-      <GlassCard style={{ paddingVertical: 15, paddingHorizontal: 16, borderWidth: 1.2, borderColor }}>
+      <GlassCard style={{ paddingVertical: 14, paddingHorizontal: 16, borderWidth: 1.2, borderColor, marginBottom: 0 }}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14, opacity: disabled ? 0.5 : 1 }}>
           <View
             style={{
@@ -504,10 +504,18 @@ export function ListTileCard({
           >
             {icon}
           </View>
-          <View style={{ flex: 1 }}>
-            <Text style={{ color: colors.vjText, fontWeight: '800', fontSize: 16.5, lineHeight: 21 }}>{title}</Text>
+          <View style={{ flex: 1, minWidth: 0 }}>
+            <Text 
+              style={{ color: colors.vjText, fontWeight: '800', fontSize: 16, lineHeight: 21 }}
+              numberOfLines={1}
+            >
+              {title}
+            </Text>
             {subtitle ? (
-              <Text style={{ color: `${colors.vjText}99`, fontSize: 12, fontWeight: '600', marginTop: 2 }}>
+              <Text 
+                style={{ color: `${colors.vjText}99`, fontSize: 12, fontWeight: '600', marginTop: 2, lineHeight: 16 }}
+                numberOfLines={2}
+              >
                 {subtitle}
               </Text>
             ) : null}
@@ -524,7 +532,7 @@ export function ListTileCard({
                 borderColor: 'rgba(212, 175, 55, 0.30)',
               }}
             >
-              <ChevronRight size={18} color="#D4AF37" />
+              <ChevronRight size={17} color="#D4AF37" />
             </View>
           )}
         </View>

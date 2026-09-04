@@ -6,3 +6,4 @@ export * from './phase1/leaseStore';
 export * from './phase1/safeModeStore';
 export * from './phase1/useFirmStore';
 export * from './phase1/verifyStore';
+export * from './phase2/mastersSyncStore';

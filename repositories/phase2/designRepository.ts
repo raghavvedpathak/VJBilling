@@ -85,7 +85,7 @@ export const designRepository: DesignRepository = {
           eq(designs.isActive, 1)
         )
       )
-      .orderBy(designs.name);
+      .orderBy(sql`${designs.name} COLLATE NOCASE ASC`);
   },
 
   softDelete(tx: DrizzleTransaction, second: string, third?: string): void {
@@ -172,7 +172,7 @@ export const designRepository: DesignRepository = {
       .where(and(...conditions))
       // BLOCK-5 (v1.15): GROUP BY designs.id, items.purityPercent
       .groupBy(designs.id, items.purityPercent, items.sizeValue, items.sizeUnit)
-      .orderBy(designs.name, sql`${items.purityPercent} DESC`, sql`${items.sizeValue} ASC`)
+      .orderBy(sql`${designs.name} COLLATE NOCASE ASC`, sql`${items.purityPercent} DESC`, sql`${items.sizeValue} ASC`)
       .limit(20); // RED-7: Mandatory limit 20
 
     return results.map(r => ({

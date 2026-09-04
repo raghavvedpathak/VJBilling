@@ -37,6 +37,7 @@ import {
   Sparkles,
 } from 'lucide-react-native';
 import { useFirmStore } from '@/store/phase1/useFirmStore';
+import { useMastersSyncStore } from '@/store/phase2/mastersSyncStore';
 import { stoneRepository } from '@/repositories/phase2/stoneRepository';
 import { stoneService } from '@/services/phase2/stoneService';
 import type { Stone } from '@/types/phase2/phase2.types';
@@ -50,13 +51,13 @@ export default function StonesScreen() {
   const insets = useSafeAreaInsets();
   const { width, height } = useWindowDimensions();
 
-  // Responsive Grid System for Phone vs Tablet
+  // Responsive Grid System: Always 2 Columns for Smartphones & Tablets
   const isTablet = width >= 768;
-  const isLargeTablet = width >= 1024;
-  const numColumns = isLargeTablet ? 4 : isTablet ? 3 : 2;
+  const contentWidth = isTablet ? Math.min(width, 920) : width;
+  const availableWidth = contentWidth - 32; // TwoToneWrapper horizontal padding = 16 each side
+  const numColumns = 2;
   const gap = 12;
-  const availableWidth = width - 32; // TwoToneWrapper horizontal padding = 16 each side
-  const gridItemWidth = Math.floor((availableWidth - gap * (numColumns - 1)) / numColumns);
+  const gridItemWidth = Math.floor((availableWidth - gap) / numColumns);
 
   const { activeFirmId } = useFirmStore();
 
@@ -96,9 +97,10 @@ export default function StonesScreen() {
     storageInstance.setItem('stoneViewMode', mode);
   };
 
+  const stoneVersion = useMastersSyncStore((s) => s.stoneVersion);
+
   const loadStones = useCallback(async () => {
     if (!activeFirmId) return;
-    setLoading(true);
     try {
       const results = await stoneRepository.findByFirmId(activeFirmId);
       setStones((results || []).filter((s) => s.isActive !== 0));
@@ -109,29 +111,14 @@ export default function StonesScreen() {
     }
   }, [activeFirmId]);
 
+  useEffect(() => {
+    loadStones();
+  }, [loadStones, stoneVersion]);
+
   useFocusEffect(
     useCallback(() => {
-      let active = true;
-      const fetchCurrent = async () => {
-        if (!activeFirmId) return;
-        setLoading(true);
-        try {
-          const results = await stoneRepository.findByFirmId(activeFirmId);
-          if (active) {
-            setStones((results || []).filter((s) => s.isActive !== 0));
-          }
-        } catch (e) {
-          console.error('[StonesScreen] fetchCurrent failed:', e);
-        } finally {
-          if (active) setLoading(false);
-        }
-      };
-
-      fetchCurrent();
-      return () => {
-        active = false;
-      };
-    }, [activeFirmId])
+      loadStones();
+    }, [loadStones])
   );
 
   const handleAdd = async () => {
@@ -239,11 +226,16 @@ export default function StonesScreen() {
 
   const filteredStones = useMemo(() => {
     const q = deferredQuery.toLowerCase().trim();
-    if (!q) return stones;
-    return stones.filter(
-      (s) =>
-        s.name.toLowerCase().includes(q) ||
-        s.type.toLowerCase().includes(q)
+    let list = stones;
+    if (q) {
+      list = stones.filter(
+        (s) =>
+          s.name.toLowerCase().includes(q) ||
+          s.type.toLowerCase().includes(q)
+      );
+    }
+    return [...list].sort((a, b) =>
+      a.name.localeCompare(b.name, undefined, { sensitivity: 'base', numeric: true })
     );
   }, [stones, deferredQuery]);
 
@@ -253,7 +245,7 @@ export default function StonesScreen() {
   const stoneHeaderPills = (
     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginTop: 4 }}>
       <HeaderPill icon={<Gem size={12} color={colors.vjBg} />} label={`${stones.length} Active Materials`} />
-      <HeaderPill icon={<ShieldCheck size={12} color="#4ADE80" />} label="Precious Stones Scoped" variant="success" />
+      <HeaderPill icon={<ShieldCheck size={12} color="#4ADE80" />} label="A → Z Sorted" variant="success" />
     </View>
   );
 

@@ -41,7 +41,11 @@ import { isPinSet, isPinSkipped } from "@/services/phase1/pinService";
 import { appSettingsStore } from "@/store/phase1/appSettingsStore";
 import { getThemeColors } from "@/constants/theme";
 
-LogBox.ignoreLogs(["SafeAreaView has been deprecated", "SafeAreaView"]);
+LogBox.ignoreLogs([
+  "SafeAreaView has been deprecated", 
+  "SafeAreaView",
+  "Can't perform a React state update on a component that hasn't mounted yet",
+]);
 
 type BootstrapResult =
   | "DASHBOARD"

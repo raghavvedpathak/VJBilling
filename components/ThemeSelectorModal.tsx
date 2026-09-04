@@ -29,7 +29,7 @@ export function ThemeSelectorModal({
       onRequestClose={onClose}
     >
       <View className="flex-1 bg-black/50 justify-center items-center px-6">
-        <View className="w-full bg-vj-bg rounded-3xl p-6 border border-white/50">
+        <View className="w-full bg-vj-bg rounded-3xl p-6 border border-white/50" style={{ maxWidth: 440 }}>
           <View className="flex-row justify-between items-center mb-6">
             <Text className="text-vj-text font-bold text-xl">App Theme</Text>
             <TouchableOpacity onPress={onClose} className="p-1 bg-black/5 rounded-full">

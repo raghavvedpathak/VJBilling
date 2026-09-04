@@ -33,6 +33,7 @@ import {
   Sparkles,
 } from 'lucide-react-native';
 import { useFirmStore } from '@/store/phase1/useFirmStore';
+import { useMastersSyncStore } from '@/store/phase2/mastersSyncStore';
 import { designRepository } from '@/repositories/phase2/designRepository';
 import { categoryRepository } from '@/repositories/phase2/categoryRepository';
 import { designCategoryMapRepository } from '@/repositories/phase2/designCategoryMapRepository';
@@ -47,13 +48,13 @@ export default function DesignsScreen() {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
 
-  // Responsive Grid System for Phone vs Tablet
+  // Responsive Grid System: Always 2 Columns for Smartphones & Tablets
   const isTablet = width >= 768;
-  const isLargeTablet = width >= 1024;
-  const numColumns = isLargeTablet ? 4 : isTablet ? 3 : 2;
+  const contentWidth = isTablet ? Math.min(width, 920) : width;
+  const availableWidth = contentWidth - 32; // TwoToneWrapper horizontal padding = 16 each side
+  const numColumns = 2;
   const gap = 12;
-  const availableWidth = width - 32; // TwoToneWrapper horizontal padding = 16 each side
-  const gridItemWidth = Math.floor((availableWidth - gap * (numColumns - 1)) / numColumns);
+  const gridItemWidth = Math.floor((availableWidth - gap) / numColumns);
 
   const { activeFirmId } = useFirmStore();
 
@@ -84,9 +85,11 @@ export default function DesignsScreen() {
   const [confirmDelete, setConfirmDelete] = useState<Design | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
+  const designVersion = useMastersSyncStore((s) => s.designVersion);
+  const categoryVersion = useMastersSyncStore((s) => s.categoryVersion);
+
   const loadData = useCallback(async () => {
     if (!activeFirmId) return;
-    setLoading(true);
     try {
       const [rawDesigns, cRes] = await Promise.all([
         designRepository.findByFirmId(activeFirmId),
@@ -119,53 +122,14 @@ export default function DesignsScreen() {
     }
   }, [activeFirmId]);
 
+  useEffect(() => {
+    loadData();
+  }, [loadData, designVersion, categoryVersion]);
+
   useFocusEffect(
     useCallback(() => {
-      let active = true;
-      const fetchCurrent = async () => {
-        if (!activeFirmId) return;
-        setLoading(true);
-        try {
-          const [rawDesigns, cRes] = await Promise.all([
-            designRepository.findByFirmId(activeFirmId),
-            categoryRepository.findByFirmId(activeFirmId),
-          ]);
-
-          if (!active) return;
-
-          const activeCategories = (cRes || []).filter((c) => c.isActive === 1);
-          const activeDesigns = (rawDesigns || []).filter((d) => d.isActive === 1);
-
-          const formattedDesigns: DesignWithCategory[] = await Promise.all(
-            activeDesigns.map(async (d: Design) => {
-              let categoryName: string | null = null;
-              try {
-                const maps = await designCategoryMapRepository.findByDesignId(d.id, activeFirmId);
-                if (maps.length > 0) {
-                  const cat = activeCategories.find((c: Category) => c.id === maps[0].categoryId);
-                  if (cat) categoryName = cat.name;
-                }
-              } catch {}
-              return { ...d, categoryName };
-            })
-          );
-
-          if (active) {
-            setDesigns(formattedDesigns);
-            setCategories(activeCategories);
-          }
-        } catch (e) {
-          console.error('[DesignsScreen] fetchCurrent failed:', e);
-        } finally {
-          if (active) setLoading(false);
-        }
-      };
-
-      fetchCurrent();
-      return () => {
-        active = false;
-      };
-    }, [activeFirmId])
+      loadData();
+    }, [loadData])
   );
 
   const handleDelete = (d: Design) => {
@@ -216,13 +180,18 @@ export default function DesignsScreen() {
 
   const filteredDesigns = useMemo(() => {
     const q = deferredQuery.toLowerCase().trim();
-    if (!q) return designs;
-    return designs.filter(
-      (d) =>
-        d.name.toLowerCase().includes(q) ||
-        (d.code && d.code.toLowerCase().includes(q)) ||
-        (d.metal && d.metal.toLowerCase().includes(q)) ||
-        (d.categoryName && d.categoryName.toLowerCase().includes(q))
+    let list = designs;
+    if (q) {
+      list = designs.filter(
+        (d) =>
+          d.name.toLowerCase().includes(q) ||
+          (d.code && d.code.toLowerCase().includes(q)) ||
+          (d.metal && d.metal.toLowerCase().includes(q)) ||
+          (d.categoryName && d.categoryName.toLowerCase().includes(q))
+      );
+    }
+    return [...list].sort((a, b) =>
+      a.name.localeCompare(b.name, undefined, { sensitivity: 'base', numeric: true })
     );
   }, [designs, deferredQuery]);
 
@@ -235,7 +204,7 @@ export default function DesignsScreen() {
         icon={<Tag size={12} color={colors.vjBg} />}
         label={`${designs.length} Product Patterns`}
       />
-      <HeaderPill icon={<ShieldCheck size={12} color="#4ADE80" />} label="Multi-Category Scoped" variant="success" />
+      <HeaderPill icon={<ShieldCheck size={12} color="#4ADE80" />} label="A → Z Sorted" variant="success" />
     </View>
   );
 

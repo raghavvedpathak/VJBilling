@@ -1,6 +1,6 @@
 // app/inventory/index.tsx — Phase 2 v2.24 Canonical Screen
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, StyleSheet } from 'react-native';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -11,6 +11,7 @@ import { InventoryStockSummary } from '@/components/InventoryStockSummary';
 import { useFirmStore } from '@/store/phase1/useFirmStore';
 import { appSettingsStore } from '@/store/phase1/appSettingsStore';
 import { inventoryDrillDownService } from '@/services/phase2/inventoryDrillDownService';
+import { useMastersSyncStore } from '@/store/phase2/mastersSyncStore';
 import { 
   PackageSearch, 
   Layers, 
@@ -36,6 +37,14 @@ export default function InventoryHubScreen() {
 
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [draftCount, setDraftCount] = useState(0);
+
+  const categoryVersion = useMastersSyncStore((s) => s.categoryVersion);
+  const designVersion = useMastersSyncStore((s) => s.designVersion);
+  const stoneVersion = useMastersSyncStore((s) => s.stoneVersion);
+
+  useEffect(() => {
+    setRefreshTrigger((prev) => prev + 1);
+  }, [categoryVersion, designVersion, stoneVersion]);
 
   useFocusEffect(
     useCallback(() => {

@@ -1,6 +1,6 @@
 // app/inventory/add-loose-stock.tsx — Phase 2 v2.24 Canonical Screen
 
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import { View, Text, Alert, Modal, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import { useRouter, useFocusEffect } from 'expo-router';
@@ -9,6 +9,7 @@ import { TwoToneWrapper } from '@/components/TwoToneWrapper';
 import { GlassCard, GlassInput, GlassButton, GlassPickerInput, FixedGlassBar, fixedBarStyles } from '@/components/ui/Glass';
 import { GlassPickerModal, GlassPickerOption } from '@/components/ui/GlassPickerModal';
 import { useFirmStore } from '@/store/phase1/useFirmStore';
+import { useMastersSyncStore } from '@/store/phase2/mastersSyncStore';
 import { designRepository } from '@/repositories/phase2/designRepository';
 import { looseStockService } from '@/services/phase2/looseStockService';
 import { 
@@ -56,31 +57,29 @@ export default function AddLooseStockScreen() {
     onSelect: () => {},
   });
 
-  // Fetch only active designs configured for LOOSE stock
+  const designVersion = useMastersSyncStore((s) => s.designVersion);
+
+  const fetchDesigns = useCallback(async () => {
+    if (!activeFirmId) return;
+    try {
+      const results = await designRepository.findByFirmId(activeFirmId);
+      const looseOnly = (results || [])
+        .filter((d) => d.isActive === 1 && d.stockType === 'LOOSE')
+        .sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base', numeric: true }));
+      setDesigns(looseOnly);
+    } catch (e) {
+      console.error('[AddLooseStockScreen] Failed to fetch designs:', e);
+    }
+  }, [activeFirmId]);
+
+  useEffect(() => {
+    fetchDesigns();
+  }, [fetchDesigns, designVersion]);
+
   useFocusEffect(
     useCallback(() => {
-      if (!activeFirmId) return;
-      let isMounted = true;
-
-      const fetchDesigns = async () => {
-        try {
-          const results = await designRepository.findByFirmId(activeFirmId);
-          if (isMounted) {
-            const looseOnly = results.filter(
-              (d) => d.isActive === 1 && d.stockType === 'LOOSE'
-            );
-            setDesigns(looseOnly);
-          }
-        } catch (e) {
-          console.error('[AddLooseStockScreen] Failed to fetch designs:', e);
-        }
-      };
-
       fetchDesigns();
-      return () => {
-        isMounted = false;
-      };
-    }, [activeFirmId])
+    }, [fetchDesigns])
   );
 
   // Available purity presets based on selected design's metal

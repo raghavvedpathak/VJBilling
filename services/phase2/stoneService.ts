@@ -11,6 +11,7 @@ import { sanitizeText } from '@/utils/sanitize';
 import * as Crypto from 'expo-crypto';
 import type { CreateStoneInput, Stone } from '@/types/phase2/phase2.types';
 import { ERR } from '@/constants/errorCodes';
+import { useMastersSyncStore } from '@/store/phase2/mastersSyncStore';
 
 // --- createStone (Step 4 / FIX-STONE-1) ---
 export async function createStone(input: CreateStoneInput, firmId: string): Promise<Stone> {
@@ -20,7 +21,7 @@ export async function createStone(input: CreateStoneInput, firmId: string): Prom
   const sanitizedName = sanitizeText(input.name); // GAP-P1ALIGN-4 (v1.74)
   const deviceId = await getDeviceId();
 
-  return db.transaction((tx) => {
+  const stone = db.transaction((tx) => {
     const stone = stoneRepository.insert(tx, {
       id: Crypto.randomUUID(),
       name: sanitizedName,
@@ -41,6 +42,9 @@ export async function createStone(input: CreateStoneInput, firmId: string): Prom
 
     return stone;
   });
+
+  useMastersSyncStore.getState().notifyStoneChanged();
+  return stone;
 }
 
 // --- updateStone ---
@@ -54,7 +58,7 @@ export async function updateStone(
 
   const deviceId = await getDeviceId();
 
-  return db.transaction((tx) => {
+  const updated = db.transaction((tx) => {
     const existing = stoneRepository.getById(tx, stoneId, firmId);
     if (!existing || existing.firmId !== firmId) {
       throw new Error(ERR.STONE_NOT_FOUND_OR_WRONG_FIRM);
@@ -82,6 +86,9 @@ export async function updateStone(
 
     return updated;
   });
+
+  useMastersSyncStore.getState().notifyStoneChanged();
+  return updated;
 }
 
 // --- softDeleteStone (Step 4 / FIX-STONE-1) ---
@@ -91,7 +98,7 @@ export async function softDeleteStone(stoneId: string, firmId: string): Promise<
 
   const deviceId = await getDeviceId();
 
-  return db.transaction((tx) => {
+  await db.transaction(async (tx) => {
     const stone = stoneRepository.getById(tx, stoneId, firmId);
     if (!stone || stone.firmId !== firmId) {
       throw new Error(ERR.STONE_NOT_FOUND_OR_WRONG_FIRM);
@@ -112,6 +119,8 @@ export async function softDeleteStone(stoneId: string, firmId: string): Promise<
       payload: { stoneId, name: stone.name },
     });
   });
+
+  useMastersSyncStore.getState().notifyStoneChanged();
 }
 
 // --- Read Queries ---

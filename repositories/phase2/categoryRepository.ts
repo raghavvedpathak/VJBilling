@@ -1,6 +1,6 @@
 // repositories/phase2/categoryRepository.ts — Phase 2 v2.24 Canonical Repository
 
-import { eq, and } from 'drizzle-orm';
+import { eq, and, sql } from 'drizzle-orm';
 import { db } from '@/db/client';
 import { categories } from '@/db/schema';
 import type { DrizzleTransaction, Category, NewCategory } from '@/types/phase2/phase2.types';
@@ -81,7 +81,7 @@ export const categoryRepository: CategoryRepository = {
           eq(categories.isActive, 1)
         )
       )
-      .orderBy(categories.name);
+      .orderBy(sql`${categories.name} COLLATE NOCASE ASC`);
   },
 
   update(

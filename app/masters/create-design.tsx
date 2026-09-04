@@ -1,6 +1,6 @@
 // app/masters/create-design.tsx — Phase 2 v2.24 Canonical Screen
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { View, Text, StyleSheet, Alert, Modal, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import { useRouter, useFocusEffect } from 'expo-router';
@@ -12,6 +12,7 @@ import { GlassPickerModal, GlassPickerOption } from '@/components/ui/GlassPicker
 import { appSettingsStore } from '@/store/phase1/appSettingsStore';
 import { Tag, CheckCircle, ShieldCheck, Plus, Barcode, Layers } from 'lucide-react-native';
 import { useFirmStore } from '@/store/phase1/useFirmStore';
+import { useMastersSyncStore } from '@/store/phase2/mastersSyncStore';
 import { categoryRepository } from '@/repositories/phase2/categoryRepository';
 import { designService } from '@/services/phase2/designService';
 import type { Category } from '@/types/phase2/phase2.types';
@@ -50,26 +51,26 @@ export default function CreateDesignScreen() {
     onSelect: () => {},
   });
 
+  const categoryVersion = useMastersSyncStore((s) => s.categoryVersion);
+
+  const loadCategories = useCallback(async () => {
+    if (!activeFirmId) return;
+    try {
+      const results = await categoryRepository.findByFirmId(activeFirmId);
+      setCategories((results || []).filter((c) => c.isActive === 1));
+    } catch (e) {
+      console.error('[CreateDesignScreen] loadCategories failed:', e);
+    }
+  }, [activeFirmId]);
+
+  useEffect(() => {
+    loadCategories();
+  }, [loadCategories, categoryVersion]);
+
   useFocusEffect(
     useCallback(() => {
-      let active = true;
-      const loadCategories = async () => {
-        if (!activeFirmId) return;
-        try {
-          const results = await categoryRepository.findByFirmId(activeFirmId);
-          if (active) {
-            setCategories((results || []).filter((c) => c.isActive === 1));
-          }
-        } catch (e) {
-          console.error('[CreateDesignScreen] loadCategories failed:', e);
-        }
-      };
-
       loadCategories();
-      return () => {
-        active = false;
-      };
-    }, [activeFirmId])
+    }, [loadCategories])
   );
 
   const handleAdd = async () => {

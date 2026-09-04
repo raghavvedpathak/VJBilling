@@ -14,6 +14,7 @@ import * as Crypto from 'expo-crypto';
 import { eq, and, desc, sql } from 'drizzle-orm';
 import { categories } from '@/db/schema';
 import type { CreateCategoryInput, Category, DrizzleTransaction } from '@/types/phase2/phase2.types';
+import { useMastersSyncStore } from '@/store/phase2/mastersSyncStore';
 
 // Step 2 / FIX-MISSING-CREATE-1 (v1.95)
 export function generateCategoryCode(tx: DrizzleTransaction, firmId: string): string {
@@ -50,7 +51,7 @@ export async function softDeleteCategory(categoryId: string, firmId: string): Pr
 
   const deviceId = await getDeviceId();
 
-  return db.transaction((tx) => {
+  await db.transaction(async (tx) => {
     const cat = categoryRepository.getById(tx, firmId, categoryId);
     if (!cat || cat.firmId !== firmId) throw new Error(ERR.CATEGORY_NOT_FOUND_OR_WRONG_FIRM);
 
@@ -72,6 +73,8 @@ export async function softDeleteCategory(categoryId: string, firmId: string): Pr
       payload: { categoryId, name: cat.name },
     });
   });
+
+  useMastersSyncStore.getState().notifyCategoryChanged();
 }
 
 // --- createCategory (Step 2 / FIX-MISSING-CREATE-1 v1.95) ---
@@ -82,7 +85,7 @@ export async function createCategory(input: CreateCategoryInput, firmId: string)
   const sanitizedName = sanitizeText(input.name); // GAP-P1ALIGN-4 v1.74
   const deviceId = await getDeviceId();
 
-  return db.transaction((tx) => {
+  const result = db.transaction((tx) => {
     // Case-insensitive check matching uq_category_firm_name index
     const existing = tx
       .select()
@@ -158,6 +161,9 @@ export async function createCategory(input: CreateCategoryInput, firmId: string)
       throw e;
     }
   });
+
+  useMastersSyncStore.getState().notifyCategoryChanged();
+  return result;
 }
 
 // --- updateCategory (Step 2 / FIX-UPDATE-CAT-1 v1.44) ---
@@ -167,7 +173,7 @@ export async function updateCategory(categoryId: string, firmId: string, name: s
 
   const deviceId = await getDeviceId();
 
-  return db.transaction((tx) => {
+  await db.transaction(async (tx) => {
     const cat = categoryRepository.getById(tx, firmId, categoryId);
     if (!cat || cat.firmId !== firmId) throw new Error(ERR.CATEGORY_NOT_FOUND_OR_WRONG_FIRM);
 
@@ -194,6 +200,8 @@ export async function updateCategory(categoryId: string, firmId: string, name: s
       payload: { categoryId, oldName: cat.name, newName: sanitizedName },
     });
   });
+
+  useMastersSyncStore.getState().notifyCategoryChanged();
 }
 
 export const categoryService = {

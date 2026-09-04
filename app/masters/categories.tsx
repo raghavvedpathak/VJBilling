@@ -33,6 +33,7 @@ import {
   FolderOpen,
 } from 'lucide-react-native';
 import { useFirmStore } from '@/store/phase1/useFirmStore';
+import { useMastersSyncStore } from '@/store/phase2/mastersSyncStore';
 import { categoryRepository } from '@/repositories/phase2/categoryRepository';
 import { categoryService } from '@/services/phase2/categoryService';
 import type { Category } from '@/types/phase2/phase2.types';
@@ -43,13 +44,13 @@ export default function CategoriesScreen() {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
 
-  // Responsive Grid System for Phone vs Tablet
+  // Responsive Grid System: Always 2 Columns for Smartphones & Tablets
   const isTablet = width >= 768;
-  const isLargeTablet = width >= 1024;
-  const numColumns = isLargeTablet ? 4 : isTablet ? 3 : 2;
+  const contentWidth = isTablet ? Math.min(width, 920) : width;
+  const availableWidth = contentWidth - 32; // TwoToneWrapper horizontal padding = 16 each side
+  const numColumns = 2;
   const gap = 12;
-  const availableWidth = width - 32; // TwoToneWrapper horizontal padding = 16 each side
-  const gridItemWidth = Math.floor((availableWidth - gap * (numColumns - 1)) / numColumns);
+  const gridItemWidth = Math.floor((availableWidth - gap) / numColumns);
 
   const { activeFirmId } = useFirmStore();
 
@@ -79,9 +80,11 @@ export default function CategoriesScreen() {
   const [confirmDelete, setConfirmDelete] = useState<Category | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
+  const categoryVersion = useMastersSyncStore((s) => s.categoryVersion);
+  const designVersion = useMastersSyncStore((s) => s.designVersion);
+
   const loadCategories = useCallback(async () => {
     if (!activeFirmId) return;
-    setLoading(true);
     try {
       const results = await categoryRepository.findByFirmId(activeFirmId);
       setCategories(results || []);
@@ -92,27 +95,14 @@ export default function CategoriesScreen() {
     }
   }, [activeFirmId]);
 
+  useEffect(() => {
+    loadCategories();
+  }, [loadCategories, categoryVersion, designVersion]);
+
   useFocusEffect(
     useCallback(() => {
-      let active = true;
-      const fetchCurrent = async () => {
-        if (!activeFirmId) return;
-        setLoading(true);
-        try {
-          const results = await categoryRepository.findByFirmId(activeFirmId);
-          if (active) setCategories(results || []);
-        } catch (e) {
-          console.error('[CategoriesScreen] fetchCurrent failed:', e);
-        } finally {
-          if (active) setLoading(false);
-        }
-      };
-
-      fetchCurrent();
-      return () => {
-        active = false;
-      };
-    }, [activeFirmId])
+      loadCategories();
+    }, [loadCategories])
   );
 
   const handleDelete = (cat: Category) => {
@@ -158,11 +148,16 @@ export default function CategoriesScreen() {
 
   const filteredCategories = useMemo(() => {
     const q = deferredQuery.toLowerCase().trim();
-    if (!q) return categories;
-    return categories.filter(
-      (c) =>
-        c.name.toLowerCase().includes(q) ||
-        (c.code && c.code.toLowerCase().includes(q))
+    let list = categories;
+    if (q) {
+      list = categories.filter(
+        (c) =>
+          c.name.toLowerCase().includes(q) ||
+          (c.code && c.code.toLowerCase().includes(q))
+      );
+    }
+    return [...list].sort((a, b) =>
+      a.name.localeCompare(b.name, undefined, { sensitivity: 'base', numeric: true })
     );
   }, [categories, deferredQuery]);
 
@@ -175,7 +170,7 @@ export default function CategoriesScreen() {
         icon={<Layers size={12} color={colors.vjBg} />}
         label={`${categories.length} Categories`}
       />
-      <HeaderPill icon={<ShieldCheck size={12} color="#4ADE80" />} label="Master Hierarchy" variant="success" />
+      <HeaderPill icon={<ShieldCheck size={12} color="#4ADE80" />} label="A → Z Sorted" variant="success" />
     </View>
   );
 

@@ -11,6 +11,7 @@ import { GlassCard, GlassInput, GlassButton, GlassPickerInput, FixedGlassBar, fi
 import { GlassPickerModal, GlassPickerOption } from '@/components/ui/GlassPickerModal';
 import { GlassDatePickerModal } from '@/components/ui/GlassDatePickerModal';
 import { useFirmStore } from '@/store/phase1/useFirmStore';
+import { useMastersSyncStore } from '@/store/phase2/mastersSyncStore';
 import { itemService } from '@/services/phase2/itemService';
 import { designRepository } from '@/repositories/phase2/designRepository';
 import { categoryRepository } from '@/repositories/phase2/categoryRepository';
@@ -116,39 +117,51 @@ export default function AddStockScreen() {
     fetchStock();
   }, [selectedDesign, activeFirmId]);
 
+  const categoryVersion = useMastersSyncStore((s) => s.categoryVersion);
+  const designVersion = useMastersSyncStore((s) => s.designVersion);
+  const stoneVersion = useMastersSyncStore((s) => s.stoneVersion);
+
+  const loadData = useCallback(async () => {
+    if (!activeFirmId) return;
+    try {
+      let h = await hsnMasterRepository.findByChapter('71');
+      if (h.length === 0) {
+        await seedHsnCodes();
+        h = await hsnMasterRepository.findByChapter('71');
+      }
+      const d = await designRepository.findByFirmId(activeFirmId);
+      const c = await categoryRepository.findByFirmId(activeFirmId);
+      const s = await stoneRepository.findByFirmId(activeFirmId);
+
+      const serializedDesigns = (d || [])
+        .filter((item) => item.isActive === 1 && item.stockType !== 'LOOSE')
+        .sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base', numeric: true }));
+
+      const activeCategories = (c || [])
+        .filter((item) => item.isActive === 1)
+        .sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base', numeric: true }));
+
+      const activeStones = (s || [])
+        .filter((item) => item.isActive === 1)
+        .sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base', numeric: true }));
+
+      setDesigns(serializedDesigns);
+      setCategories(activeCategories);
+      setHsnCodes((h || []).filter((item) => item.isActive === 1));
+      setStones(activeStones);
+    } catch (err) {
+      console.error('[AddStockScreen] Failed to load initial data:', err);
+    }
+  }, [activeFirmId]);
+
+  useEffect(() => {
+    loadData();
+  }, [loadData, designVersion, categoryVersion, stoneVersion]);
+
   useFocusEffect(
     useCallback(() => {
-      if (!activeFirmId) return;
-      let isMounted = true;
-
-      const loadData = async () => {
-        try {
-          let h = await hsnMasterRepository.findByChapter('71');
-          if (h.length === 0) {
-            await seedHsnCodes();
-            h = await hsnMasterRepository.findByChapter('71');
-          }
-          const d = await designRepository.findByFirmId(activeFirmId);
-          const c = await categoryRepository.findByFirmId(activeFirmId);
-          const s = await stoneRepository.findByFirmId(activeFirmId);
-          
-          if (isMounted) {
-            // Filter strictly for SERIALIZED stock (exclude LOOSE designs)
-            setDesigns((d || []).filter((item) => item.isActive === 1 && item.stockType !== 'LOOSE'));
-            setCategories((c || []).filter((item) => item.isActive === 1));
-            setHsnCodes((h || []).filter((item) => item.isActive === 1));
-            setStones((s || []).filter((item) => item.isActive === 1));
-          }
-        } catch (err) {
-          console.error('[AddStockScreen] Failed to load initial data:', err);
-        }
-      };
-
       loadData();
-      return () => {
-        isMounted = false;
-      };
-    }, [activeFirmId])
+    }, [loadData])
   );
 
   const computedKarat = useMemo(() => {
@@ -353,7 +366,9 @@ export default function AddStockScreen() {
                   let dList = designs;
                   if (activeFirmId) {
                     const fetched = await designRepository.findByFirmId(activeFirmId);
-                    dList = (fetched || []).filter((item) => item.isActive === 1 && item.stockType !== 'LOOSE');
+                    dList = (fetched || [])
+                      .filter((item) => item.isActive === 1 && item.stockType !== 'LOOSE')
+                      .sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base', numeric: true }));
                     setDesigns(dList);
                   }
                   setPickerModal({
@@ -415,7 +430,9 @@ export default function AddStockScreen() {
                 let cList = categories;
                 if (activeFirmId) {
                   const fetched = await categoryRepository.findByFirmId(activeFirmId);
-                  cList = (fetched || []).filter((item) => item.isActive === 1);
+                  cList = (fetched || [])
+                    .filter((item) => item.isActive === 1)
+                    .sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base', numeric: true }));
                   setCategories(cList);
                 }
                 setPickerModal({

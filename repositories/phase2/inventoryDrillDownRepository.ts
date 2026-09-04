@@ -37,7 +37,7 @@ export const inventoryDrillDownRepository = {
       )
       .where(and(eq(categories.firmId, firmId), eq(categories.isActive, 1)))
       .groupBy(categories.id)
-      .orderBy(asc(categories.name));
+      .orderBy(sql`${categories.name} COLLATE NOCASE ASC`);
 
     return results.map(r => ({
       id: r.id,
@@ -153,7 +153,7 @@ export const inventoryDrillDownRepository = {
         )
       )
       .groupBy(designs.id, items.purityPercent)
-      .orderBy(asc(designs.name), desc(items.purityPercent));
+      .orderBy(sql`${designs.name} COLLATE NOCASE ASC`, desc(items.purityPercent));
 
     return results.map(r => ({
       designId: r.designId,

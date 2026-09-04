@@ -1,6 +1,6 @@
 // repositories/phase2/stoneRepository.ts — Phase 2 v2.24 Canonical Repository
 
-import { eq, and, or } from 'drizzle-orm';
+import { eq, and, or, sql } from 'drizzle-orm';
 import * as Crypto from 'expo-crypto';
 import { db } from '@/db/client';
 import { stones, items } from '@/db/schema';
@@ -116,7 +116,7 @@ export const stoneRepository: StoneRepository = {
             eq(stones.isActive, 1)
           )
         )
-        .orderBy(stones.name);
+        .orderBy(sql`${stones.name} COLLATE NOCASE ASC`);
     }
     const tx = first as DrizzleTransaction;
     const firmId = second!;
@@ -129,7 +129,7 @@ export const stoneRepository: StoneRepository = {
           eq(stones.isActive, 1)
         )
       )
-      .orderBy(stones.name)
+      .orderBy(sql`${stones.name} COLLATE NOCASE ASC`)
       .all() as Stone[];
   },
 

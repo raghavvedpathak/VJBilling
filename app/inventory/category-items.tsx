@@ -1,6 +1,6 @@
 // app/inventory/category-items.tsx — Phase 2 v2.24 Canonical Screen (Screen B)
 
-import React, { useState, useCallback, memo } from 'react';
+import React, { useState, useCallback, useEffect, memo } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, Modal, TextInput } from 'react-native';
 import { FlashList } from '@shopify/flash-list';
 import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
@@ -8,10 +8,11 @@ import * as Haptics from 'expo-haptics';
 import { TwoToneWrapper } from '@/components/TwoToneWrapper';
 import { HeaderPill, GlassButton } from '@/components/ui/Glass';
 import { useFirmStore } from '@/store/phase1/useFirmStore';
+import { useMastersSyncStore } from '@/store/phase2/mastersSyncStore';
 import { inventoryDrillDownService } from '@/services/phase2/inventoryDrillDownService';
 import { designService } from '@/services/phase2/designService';
 import type { DesignCategoryStockResult } from '@/types/phase2/phase2.types';
-import { formatWeightMg as formatWeight, formatKaratBadge } from '@/utils/calculations';
+import { formatWeightMg as formatWeight } from '@/utils/calculations';
 import { appSettingsStore } from '@/store/phase1/appSettingsStore';
 import { COLORS, getThemeColors } from '@/constants/theme';
 import { ChevronRight, Layers, Bell, X, AlertTriangle, Scale, Package, Tag } from 'lucide-react-native';
@@ -29,12 +30,6 @@ type DesignRowProps = {
 
 const DesignRow = memo(({ item, categoryName, isLowStock, currentThreshold, colors, onPress, onOpenLowStockModal }: DesignRowProps) => {
   const metalColor = item.metal === 'GOLD' ? (colors.vjAccent || COLORS.gold) : COLORS.silver;
-  const isGold = item.metal === 'GOLD';
-
-  const karatBadge = formatKaratBadge(item.purityPercent, item.metal);
-  const purityFull = (isGold && karatBadge)
-    ? `${karatBadge} (${item.purityPercent.toFixed(1)}%)`
-    : `${item.purityPercent.toFixed(1)}%`;
 
   return (
     <TouchableOpacity
@@ -68,9 +63,6 @@ const DesignRow = memo(({ item, categoryName, isLowStock, currentThreshold, colo
       <View style={s.cardBody}>
         <View style={s.titleRow}>
           <Text style={[s.designName, { color: colors.vjText }]} numberOfLines={1}>{item.designName}</Text>
-          <View style={[s.metalPill, { borderColor: metalColor, backgroundColor: `${metalColor}12` }]}>
-            <Text style={[s.metalPillText, { color: metalColor }]}>{purityFull}</Text>
-          </View>
         </View>
 
         <View style={s.metaRow}>
@@ -141,16 +133,24 @@ export default function CategoryItemsScreen() {
   const activeTheme = appSettingsStore((s: any) => s.theme);
   const colors = getThemeColors(activeTheme);
 
+  const categoryVersion = useMastersSyncStore((s) => s.categoryVersion);
+  const designVersion = useMastersSyncStore((s) => s.designVersion);
+
   const loadData = useCallback(async () => {
     if (!activeFirmId || !categoryId) return;
-    setLoading(true);
     try {
       const [results, lowStockList] = await Promise.all([
         inventoryDrillDownService.getDesignsByCategory(activeFirmId, categoryId),
         inventoryDrillDownService.getLowStockDesignPurityVariants(activeFirmId),
       ]);
 
-      setData(results);
+      const sorted = (results || []).sort((a, b) => {
+        const nameComp = a.designName.localeCompare(b.designName, undefined, { sensitivity: 'base', numeric: true });
+        if (nameComp !== 0) return nameComp;
+        return (b.purityPercent || 0) - (a.purityPercent || 0);
+      });
+
+      setData(sorted);
 
       // Keyed strictly by (designId, purityPercent) variant
       const lowKeys = new Set<string>();
@@ -170,6 +170,10 @@ export default function CategoryItemsScreen() {
       setLoading(false);
     }
   }, [activeFirmId, categoryId]);
+
+  useEffect(() => {
+    loadData();
+  }, [loadData, designVersion, categoryVersion]);
 
   useFocusEffect(
     useCallback(() => {

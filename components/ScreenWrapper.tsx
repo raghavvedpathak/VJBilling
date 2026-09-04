@@ -28,8 +28,8 @@ export function ScreenWrapper({
 }: ScreenWrapperProps) {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { width } = useWindowDimensions();
-  const isTablet = width >= 768;
+  const { width, height } = useWindowDimensions();
+  const isTablet = width >= 768 || Math.min(width, height) >= 600;
 
   // Reactive subscription ensures component re-renders instantly on theme change from Settings
   const activeTheme = appSettingsStore((s) => s.theme);

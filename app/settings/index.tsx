@@ -191,7 +191,7 @@ export default function SettingsScreen() {
         <SectionHeader title="General" colors={colors} />
         
         {/* Fixed Currency Card (Constitutional Requirement) */}
-        <View style={{ marginBottom: 10 }} pointerEvents="none">
+        <View style={{ marginBottom: 12 }} pointerEvents="none">
           <GlassCard style={[s.currencyCard, { borderColor: `${colors.vjAccent}35` }]}>
             <View 
               style={s.currencyRow} 
@@ -199,18 +199,18 @@ export default function SettingsScreen() {
               accessibilityLabel="Currency: Bhartiya Rupee, fixed"
             >
               <View style={s.currencyLeft}>
-                <RupeeCoin3D size={40} />
-                <View style={{ flex: 1 }}>
-                  <Text style={[s.currencyTitle, { color: colors.vjText }]}>
+                <RupeeCoin3D size={38} />
+                <View style={{ flex: 1, minWidth: 0 }}>
+                  <Text style={[s.currencyTitle, { color: colors.vjText }]} numberOfLines={1}>
                     {`Bhartiya Rupee (${['I', 'N', 'R'].join('')})`}
                   </Text>
-                  <Text style={[s.currencySubtitle, { color: colors.vjText, opacity: 0.6 }]}>
+                  <Text style={[s.currencySubtitle, { color: colors.vjText, opacity: 0.6 }]} numberOfLines={1}>
                     Fixed For Bhartiya Jewellers
                   </Text>
                 </View>
               </View>
               <View style={s.regionBadge}>
-                <BhartiyaFlagEmblem width={18} height={12} />
+                <BhartiyaFlagEmblem width={16} height={11} />
                 <Text style={s.regionBadgeText}>
                   BHARTIYA REGION
                 </Text>
@@ -246,16 +246,16 @@ export default function SettingsScreen() {
         />
 
         {/* Unsaved Changes Form Safeguard */}
-        <View style={{ marginBottom: 10 }}>
+        <View style={{ marginBottom: 12 }}>
           <GlassCard style={[s.switchCard, { borderColor: `${colors.vjAccent}25` }]}>
             <View style={s.switchCardRow}>
               <View style={s.switchCardLeft}>
                 <View style={[s.switchIconBox, { backgroundColor: `${colors.vjAccent}15` }]}>
                   <AlertCircle size={22} color={colors.vjAccent} />
                 </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={[s.switchCardTitle, { color: colors.vjText }]}>Unsaved Changes</Text>
-                  <Text style={[s.switchCardSubtitle, { color: colors.vjText, opacity: 0.6 }]}>
+                <View style={{ flex: 1, minWidth: 0 }}>
+                  <Text style={[s.switchCardTitle, { color: colors.vjText }]} numberOfLines={1}>Unsaved Changes</Text>
+                  <Text style={[s.switchCardSubtitle, { color: colors.vjText, opacity: 0.6 }]} numberOfLines={1}>
                     Warn before exiting forms
                   </Text>
                 </View>
@@ -449,50 +449,54 @@ const s = StyleSheet.create({
     opacity: 0.6,
   },
   currencyCard: {
-    paddingVertical: 15,
+    paddingVertical: 14,
     paddingHorizontal: 16,
-    borderWidth: 1,
+    borderWidth: 1.2,
     backgroundColor: 'rgba(255, 255, 255, 0.95)',
     borderRadius: 20,
+    marginBottom: 0,
   },
   currencyRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    gap: 8,
   },
   currencyLeft: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 14,
+    gap: 12,
     flex: 1,
-    marginRight: 8,
+    minWidth: 0,
+    marginRight: 4,
   },
   currencyTitle: {
     fontWeight: '800',
-    fontSize: 16.5,
-    lineHeight: 21,
+    fontSize: 15.5,
+    lineHeight: 20,
   },
   currencySubtitle: {
-    fontSize: 12,
+    fontSize: 11.5,
     fontWeight: '600',
     marginTop: 2,
   },
   regionBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
+    gap: 5,
+    paddingHorizontal: 8,
+    paddingVertical: 4.5,
     borderRadius: 999,
     backgroundColor: 'rgba(245, 158, 11, 0.14)',
     borderWidth: 1,
     borderColor: 'rgba(245, 158, 11, 0.3)',
+    flexShrink: 0,
   },
   regionBadgeText: {
-    fontSize: 9,
+    fontSize: 8.5,
     fontWeight: '900',
     color: '#78350F',
-    letterSpacing: 0.8,
+    letterSpacing: 0.6,
     textTransform: 'uppercase',
   },
   pinAlertDot: {
@@ -507,11 +511,12 @@ const s = StyleSheet.create({
     borderColor: '#ffffff',
   },
   switchCard: {
-    paddingVertical: 15,
+    paddingVertical: 14,
     paddingHorizontal: 16,
-    borderWidth: 1,
+    borderWidth: 1.2,
     backgroundColor: 'rgba(255, 255, 255, 0.92)',
     borderRadius: 20,
+    marginBottom: 0,
   },
   switchCardRow: {
     flexDirection: 'row',
@@ -523,6 +528,7 @@ const s = StyleSheet.create({
     alignItems: 'center',
     gap: 14,
     flex: 1,
+    minWidth: 0,
     marginRight: 8,
   },
   switchIconBox: {
@@ -535,7 +541,7 @@ const s = StyleSheet.create({
   },
   switchCardTitle: {
     fontWeight: '800',
-    fontSize: 16.5,
+    fontSize: 16,
     lineHeight: 21,
   },
   switchCardSubtitle: {

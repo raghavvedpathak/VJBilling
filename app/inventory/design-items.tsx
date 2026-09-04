@@ -12,7 +12,7 @@ import { useFirmStore } from '@/store/phase1/useFirmStore';
 import { inventoryDrillDownService } from '@/services/phase2/inventoryDrillDownService';
 import { designRepository } from '@/repositories/phase2/designRepository';
 import { getDisplayPurity, formatKaratBadge, formatSKUDisplay, formatWeightMg as formatWeight } from '@/utils/calculations';
-import { MapPin, Package, Printer, Scale, Sparkles, ArrowUpDown, Check, X, ShieldCheck, ShieldAlert } from 'lucide-react-native';
+import { MapPin, Package, Printer, Scale, Sparkles, ArrowUpDown, Check, X, ShieldCheck, ShieldAlert, ChevronRight, Barcode, Tag } from 'lucide-react-native';
 import type { ItemSearchResult } from '@/types/phase2/phase2.types';
 import { COLORS, getThemeColors } from '@/constants/theme';
 
@@ -68,45 +68,56 @@ const ItemRow = memo(({
   return (
     <TouchableOpacity 
       testID={`design-item-row-${item.itemId}`}
-      activeOpacity={0.8} 
+      activeOpacity={0.85} 
       style={s.itemCard} 
       onPress={() => {
         try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
         onPress(item.itemId);
       }}
     >
-      {/* Left Metal Accent Indicator */}
+      {/* Left Metallic Inlay Accent */}
       <View style={[s.metalStripe, { backgroundColor: metalColor }]} />
 
       <View style={s.cardBody}>
-        {/* TOP ROW: DESIGN NAME + SKU + SIZE PILL & PURITY BADGE */}
+        {/* TOP ROW: DESIGN NAME + SKU CAPSULE + SIZE PILL & PURITY BADGE */}
         <View style={s.itemHeaderRow}>
           <View style={s.skuContainer}>
             {item.designName ? (
-              <Text style={[s.designNameText, { color: colors.vjText }]}>{item.designName}</Text>
+              <Text style={[s.designNameText, { color: colors.vjText }]} numberOfLines={1}>
+                {item.designName}
+              </Text>
             ) : null}
-            <Text style={[s.skuText, { color: colors.vjAccent }]}>{formatSKUDisplay(item.sku)}</Text>
+            <View style={s.skuCapsule}>
+              <Tag size={11} color={colors.vjAccent} style={{ opacity: 0.7 }} />
+              <Text style={[s.skuText, { color: colors.vjAccent }]}>{formatSKUDisplay(item.sku)}</Text>
+            </View>
             {sizeDisplay && (
-              <View style={[s.sizeBadge, { backgroundColor: 'rgba(212, 175, 55, 0.14)', borderColor: 'rgba(212, 175, 55, 0.35)' }]}>
+              <View style={[s.sizeBadge, { backgroundColor: 'rgba(212, 175, 55, 0.12)', borderColor: 'rgba(212, 175, 55, 0.35)' }]}>
                 <Text style={[s.sizeBadgeText, { color: colors.vjText }]}>{sizeDisplay}</Text>
               </View>
             )}
           </View>
 
-          {/* Karat & Purity Pill */}
-          <View style={[s.purityBadge, { borderColor: metalColor, backgroundColor: `${metalColor}14` }]}>
-            <Sparkles size={11} color={metalColor} style={{ marginRight: 4 }} />
-            <Text style={[s.purityBadgeText, { color: metalColor }]}>{purityFull}</Text>
+          {/* Right Header: Purity Badge + Drill-down Affordance */}
+          <View style={s.headerRightCluster}>
+            <View style={[s.purityBadge, { borderColor: metalColor, backgroundColor: `${metalColor}14` }]}>
+              <Sparkles size={11} color={metalColor} style={{ marginRight: 4 }} />
+              <Text style={[s.purityBadgeText, { color: metalColor }]}>{purityFull}</Text>
+            </View>
+            <ChevronRight size={17} color={colors.vjAccent} style={{ opacity: 0.38, marginLeft: 2 }} />
           </View>
         </View>
 
-        {/* HERO METRICS CONTAINER */}
-        <View style={[s.heroMetricsContainer, { backgroundColor: 'rgba(255, 255, 255, 0.7)', borderColor: 'rgba(92, 22, 35, 0.08)' }]}>
+        {/* HERO METRICS CONTAINER (Swiss Digital Scale View) */}
+        <View style={[s.heroMetricsContainer, { backgroundColor: 'rgba(255, 255, 255, 0.85)', borderColor: 'rgba(92, 22, 35, 0.09)' }]}>
           {/* Left Metadata: Barcode & HUID */}
           <View style={s.metaCol}>
             <View style={s.barcodeCapsule}>
-              <Text style={s.barcodeLabel}>BARCODE</Text>
-              <Text style={s.barcodeValue}>{item.barcode}</Text>
+              <Barcode size={14} color={colors.vjAccent} style={{ opacity: 0.75 }} />
+              <View>
+                <Text style={s.barcodeLabel}>BARCODE</Text>
+                <Text style={s.barcodeValue}>{item.barcode}</Text>
+              </View>
             </View>
 
             {item.huid ? (
@@ -116,13 +127,13 @@ const ItemRow = memo(({
               </View>
             ) : (
               <View style={s.huidPendingCapsule}>
-                <ShieldAlert size={12} color="rgba(92, 22, 35, 0.4)" />
+                <ShieldAlert size={12} color="rgba(92, 22, 35, 0.45)" />
                 <Text style={s.huidPendingText}>No HUID</Text>
               </View>
             )}
           </View>
 
-          {/* Right Hero: Net Weight */}
+          {/* Right Hero: Net Weight Precision Readout */}
           <View style={s.heroWeightCol}>
             <Text style={s.heroNetLabel}>AVAILABLE NET WT</Text>
             <View style={s.weightNumberRow}>
@@ -136,11 +147,13 @@ const ItemRow = memo(({
           </View>
         </View>
 
-        {/* BOTTOM ROW: LOCATION & PRINT ACTION */}
+        {/* BOTTOM ROW: LOCATION & PRINT TAG ACTION */}
         <View style={s.bottomRow}>
           <View style={s.locationRow}>
-            <MapPin size={13} color={colors.vjAccent} style={{ opacity: 0.6 }} />
-            <Text style={[s.locationText, { color: colors.vjText, opacity: 0.6 }]}>{item.location || '—'}</Text>
+            <MapPin size={13} color={colors.vjAccent} style={{ opacity: 0.65 }} />
+            <Text style={[s.locationText, { color: colors.vjText, opacity: 0.7 }]}>
+              {item.location || 'Showroom Tray'}
+            </Text>
           </View>
 
           <TouchableOpacity 
@@ -151,10 +164,10 @@ const ItemRow = memo(({
               try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
               onPrint(item.itemId);
             }}
-            style={[s.printBtn, { borderColor: `${colors.vjAccent}45`, backgroundColor: `${colors.vjAccent}14` }]}
+            style={[s.printBtn, { borderColor: `${colors.vjAccent}45`, backgroundColor: `${colors.vjAccent}12` }]}
           >
-            <Printer size={15} color={colors.vjAccent} />
-            <Text style={[s.printBtnText, { color: colors.vjAccent }]}>Print</Text>
+            <Printer size={14} color={colors.vjAccent} />
+            <Text style={[s.printBtnText, { color: colors.vjAccent }]}>Print Tag</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -402,8 +415,8 @@ export default function DesignItemsScreen() {
             <ItemRow item={item} colors={colors} onPress={handleItemPress} onPrint={handlePrint} />
           )}
           // @ts-ignore: estimatedItemSize required by FlashList
-          estimatedItemSize={145}
-          contentContainerStyle={{ paddingTop: 12, paddingBottom: 100, paddingHorizontal: 14 }}
+          estimatedItemSize={175}
+          contentContainerStyle={{ paddingTop: 14, paddingBottom: 100, paddingHorizontal: 14 }}
           ListEmptyComponent={
             <View style={s.emptyContainer}>
               <Package size={48} color={colors.vjAccent} style={{ opacity: 0.3 }} />
@@ -487,8 +500,8 @@ const s = StyleSheet.create({
   loadingText: { fontSize: 14, fontWeight: '600', opacity: 0.6 },
   
   filterBarContainer: {
-    paddingVertical: 10,
-    backgroundColor: 'rgba(255,255,255,0.55)',
+    paddingVertical: 11,
+    backgroundColor: 'rgba(255,255,255,0.7)',
     borderBottomWidth: 1,
     borderBottomColor: 'rgba(92,22,35,0.08)',
   },
@@ -508,12 +521,12 @@ const s = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    paddingHorizontal: 12,
-    paddingVertical: 7,
-    borderRadius: 12,
+    paddingHorizontal: 13,
+    paddingVertical: 8,
+    borderRadius: 14,
     backgroundColor: 'rgba(212,175,55,0.12)',
-    borderWidth: 1,
-    borderColor: 'rgba(212,175,55,0.3)',
+    borderWidth: 1.2,
+    borderColor: 'rgba(212,175,55,0.35)',
   },
   sortTriggerBtnActive: {
     backgroundColor: '#D4AF37',
@@ -526,38 +539,38 @@ const s = StyleSheet.create({
   filterChip: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 12,
+    gap: 7,
+    paddingHorizontal: 13,
+    paddingVertical: 7,
+    borderRadius: 14,
     backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: 'rgba(92,22,35,0.15)',
+    borderWidth: 1.2,
+    borderColor: 'rgba(92,22,35,0.14)',
   },
   filterChipActive: {
-    shadowColor: '#000',
+    shadowColor: '#5C1623',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 3,
-    elevation: 2,
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
+    elevation: 3,
   },
   filterChipText: {
     fontSize: 12,
     fontWeight: '700',
   },
   sizeCountBadge: {
-    paddingHorizontal: 5,
-    paddingVertical: 1,
-    borderRadius: 6,
+    paddingHorizontal: 6,
+    paddingVertical: 1.5,
+    borderRadius: 8,
     backgroundColor: 'rgba(92,22,35,0.06)',
   },
   sizeCountBadgeActive: {
-    backgroundColor: 'rgba(255,255,255,0.25)',
+    backgroundColor: 'rgba(255,255,255,0.28)',
   },
   sizeCountText: {
     fontSize: 10,
     fontWeight: '800',
-    color: 'rgba(92,22,35,0.6)',
+    color: 'rgba(92,22,35,0.65)',
   },
   sizeCountTextActive: {
     color: '#FFFFFF',
@@ -566,26 +579,28 @@ const s = StyleSheet.create({
   // MODERN STOCK CARD STYLES
   itemCard: {
     flexDirection: 'row',
-    marginBottom: 12,
-    borderRadius: 20,
+    marginBottom: 14,
+    borderRadius: 22,
     overflow: 'hidden',
-    backgroundColor: '#FCFBF8',
-    borderWidth: 1,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1.5,
     borderColor: 'rgba(212, 175, 55, 0.28)',
     shadowColor: '#5C1623',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.07,
-    shadowRadius: 10,
-    elevation: 3,
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    elevation: 4,
   },
   metalStripe: {
     width: 6,
     alignSelf: 'stretch',
+    borderTopLeftRadius: 22,
+    borderBottomLeftRadius: 22,
   },
   cardBody: {
     flex: 1,
-    padding: 14,
-    gap: 10,
+    padding: 16,
+    gap: 12,
   },
   itemHeaderRow: {
     flexDirection: 'row',
@@ -600,16 +615,26 @@ const s = StyleSheet.create({
     flex: 1,
   },
   designNameText: {
-    fontSize: 15,
+    fontSize: 16,
     fontWeight: '900',
     letterSpacing: 0.2,
+  },
+  skuCapsule: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: 'rgba(92, 22, 35, 0.05)',
+    paddingHorizontal: 7,
+    paddingVertical: 3,
+    borderRadius: 7,
+    borderWidth: 1,
+    borderColor: 'rgba(92, 22, 35, 0.08)',
   },
   skuText: {
     fontFamily: 'monospace',
     fontWeight: '800',
-    fontSize: 13,
+    fontSize: 12.5,
     letterSpacing: 0.5,
-    opacity: 0.85,
   },
   sizeBadge: {
     paddingHorizontal: 8,
@@ -621,13 +646,18 @@ const s = StyleSheet.create({
     fontSize: 11,
     fontWeight: '800',
   },
+  headerRightCluster: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
   purityBadge: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 9,
-    paddingVertical: 3.5,
-    borderRadius: 8,
-    borderWidth: 1,
+    paddingVertical: 4,
+    borderRadius: 9,
+    borderWidth: 1.2,
   },
   purityBadgeText: {
     fontSize: 11,
@@ -635,52 +665,54 @@ const s = StyleSheet.create({
     letterSpacing: 0.4,
   },
 
-  // HERO METRICS CONTAINER
+  // HERO METRICS CONTAINER (Swiss Digital Scale View)
   heroMetricsContainer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    borderRadius: 14,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    borderRadius: 16,
     borderWidth: 1,
   },
   metaCol: {
     flex: 1,
-    gap: 6,
+    gap: 8,
     justifyContent: 'center',
   },
   barcodeCapsule: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: 8,
   },
   barcodeLabel: {
-    fontSize: 9,
+    fontSize: 8.5,
     fontWeight: '900',
     color: 'rgba(92, 22, 35, 0.45)',
-    letterSpacing: 0.5,
+    letterSpacing: 0.6,
+    lineHeight: 11,
   },
   barcodeValue: {
-    fontSize: 11,
-    fontWeight: '700',
+    fontSize: 11.5,
+    fontWeight: '800',
     fontFamily: 'monospace',
-    color: 'rgba(92, 22, 35, 0.75)',
+    color: 'rgba(92, 22, 35, 0.8)',
+    lineHeight: 14,
   },
   huidVerifiedCapsule: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    gap: 5,
     backgroundColor: 'rgba(22, 163, 74, 0.08)',
-    paddingHorizontal: 7,
-    paddingVertical: 2.5,
-    borderRadius: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 3.5,
+    borderRadius: 7,
     alignSelf: 'flex-start',
     borderWidth: 1,
     borderColor: 'rgba(22, 163, 74, 0.25)',
   },
   huidVerifiedText: {
-    fontSize: 10,
+    fontSize: 10.5,
     fontWeight: '800',
     color: '#15803d',
     letterSpacing: 0.3,
@@ -690,8 +722,8 @@ const s = StyleSheet.create({
     alignItems: 'center',
     gap: 4,
     backgroundColor: 'rgba(92, 22, 35, 0.04)',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
+    paddingHorizontal: 7,
+    paddingVertical: 3,
     borderRadius: 6,
     alignSelf: 'flex-start',
   },
@@ -706,7 +738,7 @@ const s = StyleSheet.create({
   heroWeightCol: {
     alignItems: 'flex-end',
     justifyContent: 'center',
-    paddingLeft: 10,
+    paddingLeft: 12,
   },
   heroNetLabel: {
     fontSize: 8.5,
@@ -721,15 +753,15 @@ const s = StyleSheet.create({
     alignItems: 'baseline',
   },
   heroNetValue: {
-    fontSize: 17,
+    fontSize: 18.5,
     fontWeight: '900',
     letterSpacing: 0.3,
   },
   grossSubText: {
-    fontSize: 10.5,
+    fontSize: 11,
     fontWeight: '600',
     color: 'rgba(92, 22, 35, 0.55)',
-    marginTop: 1,
+    marginTop: 2,
   },
 
   // CARD BOTTOM ROW
@@ -742,25 +774,25 @@ const s = StyleSheet.create({
   locationRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    gap: 5,
   },
   locationText: {
-    fontSize: 11,
-    fontWeight: '600',
+    fontSize: 11.5,
+    fontWeight: '700',
   },
   printBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    paddingHorizontal: 12,
-    paddingVertical: 7,
-    borderRadius: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 12,
     borderWidth: 1.2,
   },
   printBtnText: {
     fontSize: 12,
     fontWeight: '800',
-    letterSpacing: 0.5,
+    letterSpacing: 0.4,
   },
   emptyContainer: { alignItems: 'center', marginTop: 60, gap: 8 },
   emptyTitle: { fontSize: 18, fontWeight: '700', opacity: 0.7 },

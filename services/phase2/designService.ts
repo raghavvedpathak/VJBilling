@@ -16,6 +16,7 @@ import * as Crypto from 'expo-crypto';
 import { eq, and, desc, sql } from 'drizzle-orm';
 import { designs, designCategoryMap, designPurityThresholds, looseStockLots } from '@/db/schema';
 import type { CreateDesignInput, Design, DrizzleTransaction } from '@/types/phase2/phase2.types';
+import { useMastersSyncStore } from '@/store/phase2/mastersSyncStore';
 
 // Step 3 / FIX-DESIGN-VALIDATE-1: 1 or 2 words only, letters only
 export function validateDesignName(name: string): void {
@@ -62,7 +63,7 @@ export async function createDesign(
 
   const deviceId = await getDeviceId();
 
-  return db.transaction((tx) => {
+  const result = db.transaction((tx) => {
     validateDesignName(input.name); // throws DESIGN_NAME_INVALID
     const sanitizedName = sanitizeText(input.name);
 
@@ -178,6 +179,9 @@ export async function createDesign(
       throw e;
     }
   });
+
+  useMastersSyncStore.getState().notifyDesignChanged();
+  return result;
 }
 
 // --- softDeleteDesign (Step 3 / FIX-V1-3 v1.23 / FEAT-LOOSE-STOCK-1 v2.23) ---
@@ -187,7 +191,7 @@ export async function softDeleteDesign(designId: string, firmId: string): Promis
 
   const deviceId = await getDeviceId();
 
-  return db.transaction((tx) => {
+  await db.transaction(async (tx) => {
     const design = designRepository.getById(tx, firmId, designId);
     if (!design || design.firmId !== firmId) throw new Error(ERR.DESIGN_NOT_FOUND_OR_WRONG_FIRM);
 
@@ -225,6 +229,8 @@ export async function softDeleteDesign(designId: string, firmId: string): Promis
       payload: { designId, name: design.name },
     });
   });
+
+  useMastersSyncStore.getState().notifyDesignChanged();
 }
 
 // --- updateDesign (Step 3 / FIX-UPDATE-DES-1 v1.44) ---
@@ -238,7 +244,7 @@ export async function updateDesign(
 
   const deviceId = await getDeviceId();
 
-  return db.transaction((tx) => {
+  await db.transaction(async (tx) => {
     const design = designRepository.getById(tx, firmId, designId);
     if (!design || design.firmId !== firmId) throw new Error(ERR.DESIGN_NOT_FOUND_OR_WRONG_FIRM);
 
@@ -276,6 +282,8 @@ export async function updateDesign(
       payload: { designId, changes: input },
     });
   });
+
+  useMastersSyncStore.getState().notifyDesignChanged();
 }
 
 // --- updateDesignPurityLowStockThreshold (v2.13 FIX-LOWSTOCK-PURITYGRAIN-1) ---

@@ -113,15 +113,24 @@ export function useDatabase() {
       })();
     }
 
+    let isMounted = true;
     initPromise
       .then(() => {
         isDbInitialized = true;
-        setIsLoaded(true);
+        if (isMounted) {
+          setIsLoaded(true);
+        }
       })
       .catch((e) => {
         console.error('[DB Client] Failed to apply migrations or PRAGMAs:', e);
-        setTriggerError(e as Error);
+        if (isMounted) {
+          setTriggerError(e as Error);
+        }
       });
+
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   return {

@@ -1,6 +1,6 @@
 // app/inventory/drill-down.tsx — Phase 2 v2.24 Canonical Screen
 
-import React, { useState, useCallback, memo } from 'react';
+import React, { useState, useCallback, useEffect, memo } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
 import { FlashList } from '@shopify/flash-list';
 import { useRouter, useFocusEffect } from 'expo-router';
@@ -8,6 +8,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import { TwoToneWrapper } from '@/components/TwoToneWrapper';
 import { useFirmStore } from '@/store/phase1/useFirmStore';
+import { useMastersSyncStore } from '@/store/phase2/mastersSyncStore';
 import { inventoryDrillDownService } from '@/services/phase2/inventoryDrillDownService';
 import { formatWeightMg as formatWeight } from '@/utils/calculations';
 import { HeaderPill } from '@/components/ui/Glass';
@@ -71,24 +72,32 @@ export default function DrillDownScreen() {
   const activeTheme = appSettingsStore((s: any) => s.theme);
   const colors = getThemeColors(activeTheme);
 
+  const categoryVersion = useMastersSyncStore((s) => s.categoryVersion);
+  const designVersion = useMastersSyncStore((s) => s.designVersion);
+
+  const load = useCallback(async () => {
+    if (!activeFirmId) return;
+    try {
+      const results = await inventoryDrillDownService.getCategoriesWithStock(activeFirmId);
+      const sorted = (results || []).sort((a, b) =>
+        a.name.localeCompare(b.name, undefined, { sensitivity: 'base', numeric: true })
+      );
+      setData(sorted);
+    } catch (e) {
+      console.error('[DrillDown] getCategoriesWithStock failed:', e);
+    } finally {
+      setLoading(false);
+    }
+  }, [activeFirmId]);
+
+  useEffect(() => {
+    load();
+  }, [load, categoryVersion, designVersion]);
+
   useFocusEffect(
     useCallback(() => {
-      let active = true;
-      const load = async () => {
-        if (!activeFirmId) return;
-        setLoading(true);
-        try {
-          const results = await inventoryDrillDownService.getCategoriesWithStock(activeFirmId);
-          if (active) setData(results || []);
-        } catch (e) {
-          console.error('[DrillDown] getCategoriesWithStock failed:', e);
-        } finally {
-          if (active) setLoading(false);
-        }
-      };
       load();
-      return () => { active = false; };
-    }, [activeFirmId])
+    }, [load])
   );
 
   const handleCategoryPress = useCallback((categoryId: string, categoryName: string) => {
