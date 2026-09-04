@@ -80,6 +80,9 @@ export const COLORS = {
   get gold() { return getThemeColors().vjAccent; },
   get goldAccent() { return getThemeColors().vjAccent; },
 
+  bullionGold: '#D4AF37', // 24K Physical Gold Bar Bullion (consistent across all themes)
+  bullionSilver: '#9CA3AF', // Sterling Silver Ingot (consistent across all themes)
+
   saffron: '#E67E22',
   saffronLight: '#FBE3C5',
   silver: '#94A3B8',

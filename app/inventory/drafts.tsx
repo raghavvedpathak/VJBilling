@@ -24,7 +24,7 @@ type DraftRowProps = {
 };
 
 const DraftRow = memo(({ item, colors, onActivate, onEdit }: DraftRowProps) => {
-  const metalColor = item.metal === 'GOLD' ? (colors.vjAccent || COLORS.gold) : COLORS.silver;
+  const metalColor = item.metal === 'GOLD' ? COLORS.bullionGold : COLORS.bullionSilver;
   const isGold = item.metal === 'GOLD';
 
   const karatBadge = formatKaratBadge(item.purityPercent, item.metal);

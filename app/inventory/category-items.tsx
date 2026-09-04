@@ -29,7 +29,7 @@ type DesignRowProps = {
 };
 
 const DesignRow = memo(({ item, categoryName, isLowStock, currentThreshold, colors, onPress, onOpenLowStockModal }: DesignRowProps) => {
-  const metalColor = item.metal === 'GOLD' ? (colors.vjAccent || COLORS.gold) : COLORS.silver;
+  const metalColor = item.metal === 'GOLD' ? COLORS.bullionGold : COLORS.bullionSilver;
 
   return (
     <TouchableOpacity

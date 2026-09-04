@@ -508,7 +508,7 @@ export default function ItemDetailScreen() {
     );
   }
 
-  const metalColor = item.metal === 'GOLD' ? (colors.vjAccent || COLORS.gold) : COLORS.silver;
+  const metalColor = item.metal === 'GOLD' ? COLORS.bullionGold : COLORS.bullionSilver;
   const isEditable = !TERMINAL_ITEM_STATUSES.includes(item.status);
 
   const detailHeaderPills = (

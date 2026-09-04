@@ -46,7 +46,7 @@ const URDPurchaseRow = memo(({
   onSelect,
 }: URDRowProps) => {
   const isConfirmed = item.status === 'CONFIRMED';
-  const metalColor = item.metalType === 'GOLD' ? (colors.vjAccent || COLORS.gold) : COLORS.silver;
+  const metalColor = item.metalType === 'GOLD' ? COLORS.bullionGold : COLORS.bullionSilver;
   const karatBadge = formatKaratBadge(item.purityPercent, item.metalType as 'GOLD' | 'SILVER');
 
   return (

@@ -79,7 +79,7 @@ const SearchResultRow = memo(({ item, query, colors, onPress }: SearchResultRowP
   const isGold = item.metal === 'GOLD';
   const isPhantom = item.status === 'PHANTOM_AVAILABLE';
   const activeQuery = query.trim();
-  const metalColor = isGold ? colors.vjAccent : COLORS.silver;
+  const metalColor = isGold ? COLORS.bullionGold : COLORS.bullionSilver;
 
   return (
     <TouchableOpacity 
