@@ -2,9 +2,9 @@
 // FEAT-DRILL-DOWN-1 (v1.65) / FIX-LOWSTOCK-PURITYGRAIN-1 (v2.13) / FEAT-SCREEN-C-SIZE-1 (v2.13)
 // All methods read-only. No DrizzleTransaction param.
 
-import { sql, eq, and, or, desc, asc } from 'drizzle-orm';
+import { sql, eq, and, or, desc, asc, inArray } from 'drizzle-orm';
 import { db } from '@/db/client';
-import { categories, items, designs, designPurityThresholds, itemEvents, auditLogs } from '@/db/schema';
+import { categories, items, designs, designPurityThresholds, itemEvents, auditLogs, oldGoldLots, looseStockLots } from '@/db/schema';
 import type { 
   ItemSearchResult, 
   DesignCategoryStockResult, 
@@ -13,6 +13,8 @@ import type {
   MetalSourceStockResult, 
   StockStatus, 
   LowStockDesignPurityVariant,
+  KarigarIssuedItem,
+  OldGoldLot,
   Metal
 } from '@/types/phase2/phase2.types';
 
@@ -47,7 +49,8 @@ export const inventoryDrillDownRepository = {
     }));
   },
 
-  // FIX-LOWSTOCK-PURITYGRAIN-1 (v2.13): Grouped by (designId, purityPercent) variant
+  // FIX-LOWSTOCK-PURITYGRAIN-1 (v2.13) / STEP 6.9 (FEAT-LOOSE-STOCK-1): Grouped by (designId, purityPercent)
+  // Supports both serialized and loose pooled stock accurately
   async getLowStockDesignPurityVariants(firmId: string): Promise<LowStockDesignPurityVariant[]> {
     const results = await db
       .select({
@@ -55,7 +58,7 @@ export const inventoryDrillDownRepository = {
         designName: designs.name,
         purityPercent: designPurityThresholds.purityPercent,
         lowStockThreshold: designPurityThresholds.lowStockThreshold,
-        availableCount: sql<number>`COUNT(${items.id})`,
+        availableCount: sql<number>`CASE WHEN ${designs.stockType} = 'LOOSE' THEN COALESCE(${looseStockLots.pieceCount}, 0) ELSE COUNT(${items.id}) END`,
       })
       .from(designPurityThresholds)
       .innerJoin(
@@ -75,8 +78,17 @@ export const inventoryDrillDownRepository = {
           eq(items.firmId, firmId)
         )
       )
+      .leftJoin(
+        looseStockLots,
+        and(
+          eq(looseStockLots.designId, designPurityThresholds.designId),
+          eq(looseStockLots.purityPercent, designPurityThresholds.purityPercent),
+          eq(looseStockLots.firmId, firmId),
+          eq(looseStockLots.status, 'ACTIVE')
+        )
+      )
       .where(eq(designs.firmId, firmId))
-      .groupBy(designPurityThresholds.designId, designPurityThresholds.purityPercent)
+      .groupBy(designPurityThresholds.designId, designPurityThresholds.purityPercent, designs.stockType, looseStockLots.pieceCount)
       .having(({ availableCount, lowStockThreshold }) => sql`${availableCount} <= ${lowStockThreshold}`)
       .orderBy(({ availableCount }) => asc(availableCount));
 
@@ -121,8 +133,99 @@ export const inventoryDrillDownRepository = {
     }));
   },
 
+  // FEAT-GAP5-REFINERYPENDING-1 (v1.66): STEP 9-Lite GAP-5
+  async getPendingRefineryLots(firmId: string): Promise<OldGoldLot[]> {
+    return db
+      .select()
+      .from(oldGoldLots)
+      .where(
+        and(
+          eq(oldGoldLots.firmId, firmId),
+          inArray(oldGoldLots.status, ['RECEIVED', 'PENDING', 'SENT_TO_REFINERY'])
+        )
+      )
+      .orderBy(desc(oldGoldLots.receivedDate));
+  },
+
+  // FEAT-GAP6-KARIGAR-SUMMARY-1 (v1.66) / FIX-KARIGAR-DUPES-1 (v1.71): STEP 9-Lite GAP-6
+  async getKarigarIssuedItems(firmId: string): Promise<KarigarIssuedItem[]> {
+    const rows = await db
+      .select({
+        id: items.id,
+        sku: items.sku,
+        barcode: items.barcode,
+        designName: designs.name,
+        metal: items.metal,
+        purityPercent: items.purityPercent,
+        purityKarat: items.purityKarat,
+        grossWeightMg: items.grossWeightMg,
+        netWeightMg: items.netWeightMg,
+        updatedAt: items.updatedAt,
+        karigarId: itemEvents.karigarId,
+        payload: auditLogs.payload,
+      })
+      .from(items)
+      .innerJoin(designs, and(eq(designs.id, items.designId), eq(designs.firmId, items.firmId)))
+      .leftJoin(
+        auditLogs,
+        and(
+          eq(auditLogs.entityId, items.id),
+          eq(auditLogs.eventType, 'ITEM_SENT_TO_KARIGAR'),
+          eq(auditLogs.firmId, items.firmId),
+          eq(
+            auditLogs.createdAt,
+            sql`(SELECT MAX(al2.created_at) FROM audit_logs al2 WHERE al2.entity_id = ${items.id} AND al2.event_type = 'ITEM_SENT_TO_KARIGAR' AND al2.firm_id = ${items.firmId})`
+          )
+        )
+      )
+      .leftJoin(
+        itemEvents,
+        and(
+          eq(itemEvents.itemId, items.id),
+          eq(itemEvents.eventType, 'ITEM_SENT_TO_KARIGAR'),
+          eq(itemEvents.firmId, items.firmId)
+        )
+      )
+      .where(and(eq(items.firmId, firmId), eq(items.status, 'SENT_TO_KARIGAR')))
+      .orderBy(desc(items.updatedAt));
+
+    const seen = new Set<string>();
+    const result: KarigarIssuedItem[] = [];
+
+    for (const r of rows) {
+      if (seen.has(r.id)) continue;
+      seen.add(r.id);
+
+      let karigarName: string | null = null;
+      if (r.payload) {
+        try {
+          const p = typeof r.payload === 'string' ? JSON.parse(r.payload) : r.payload;
+          if (p.karigarName) karigarName = p.karigarName;
+        } catch {
+          // ignore payload parse errors
+        }
+      }
+
+      result.push({
+        id: r.id,
+        sku: r.sku,
+        barcode: r.barcode,
+        designName: r.designName,
+        metal: r.metal as 'GOLD' | 'SILVER',
+        purityPercent: Number(r.purityPercent),
+        purityKarat: Number(r.purityKarat) || 0,
+        grossWeightMg: Number(r.grossWeightMg),
+        netWeightMg: Number(r.netWeightMg),
+        karigarName,
+        karigarId: r.karigarId ?? null,
+        updatedAt: r.updatedAt,
+      });
+    }
+
+    return result;
+  },
+
   // Screen B (Design List Under Category — getDesignsByCategory)
-  // Supports both (firmId, categoryId) and (categoryId, firmId) parameter ordering
   async getDesignsByCategory(first: string, second: string): Promise<DesignCategoryStockResult[]> {
     const results = await db
       .select({
@@ -328,7 +431,6 @@ export const inventoryDrillDownRepository = {
       )
       .orderBy(asc(itemEvents.timestamp));
 
-    // Deduplicate in case multiple audit log rows match an event type
     const seenEventIds = new Set<string>();
     const timeline: ItemTimelineEvent[] = [];
 

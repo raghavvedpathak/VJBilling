@@ -7,10 +7,6 @@ import { sequenceCounters, items } from '@/db/schema';
 import type { DrizzleTransaction, Design, SequenceCounter, Metal } from '@/types/phase2/phase2.types';
 import { now } from '@/utils/now';
 import { ERR } from '@/constants/errorCodes';
-import { formatSKUDisplay } from '@/utils/skuDisplay';
-
-// Re-export formatter for consumers importing via skuEngine
-export { formatSKUDisplay };
 
 // FIX-SKU-PREFIX-1 (v1.34) UPDATED (v1.41) & STEP 3 Alignment
 export function generateDesignPrefix(designName: string, _metal?: Metal): string {
@@ -122,5 +118,4 @@ export function generateSKU(
 export const skuEngine = {
   generateDesignPrefix,
   generateSKU,
-  formatSKUDisplay,
 };

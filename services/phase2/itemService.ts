@@ -48,19 +48,21 @@ function assertValidTransactionFy(firmId: string, entryDate: string): void {
   }
 }
 
-// --- createPhantomItem (FEAT-PHANTOM-INVENTORY-1 v1.67) ---
+// --- createPhantomItem (FEAT-PHANTOM-INVENTORY-1 v1.67 / FEAT-LOOSE-STOCK-1 v2.23) ---
 export async function createPhantomItem(input: CreatePhantomItemInput, firmId: string): Promise<Item> {
   await leaseService.assertNoActiveLease(); // GUARD 1
   safeModeService.assertNotInSafeMode();     // GUARD 2
-  const deviceId = getDeviceId();
+  const deviceId = await getDeviceId();
 
   return db.transaction((tx) => {
-    const design = designRepository.getById(tx, firmId, input.designId);
+    const design = designRepository.getById(tx, input.designId, firmId);
     if (!design || design.firmId !== firmId) throw new Error(ERR.DESIGN_NOT_FOUND_OR_WRONG_FIRM);
+    if (design.stockType === 'LOOSE') throw new Error(ERR.LOOSE_STOCK_DESIGN_TYPE_MISMATCH);
 
-    const category = categoryRepository.getById(tx, firmId, input.categoryId);
+    const category = categoryRepository.getById(tx, input.categoryId, firmId);
     if (!category || category.firmId !== firmId) throw new Error(ERR.CATEGORY_NOT_FOUND_OR_WRONG_FIRM);
 
+    if (!input.hsnCode || input.hsnCode.trim().length === 0) throw new Error(ERR.ITEM_HSN_MISSING);
     hsnMasterRepository.findByCode(tx, firmId, input.hsnCode); // throws ITEM_HSN_MISSING
 
     if (input.grossWeightMg <= 0) throw new Error(ERR.ITEM_GROSS_WEIGHT_INVALID);
@@ -106,7 +108,7 @@ export async function createPhantomItem(input: CreatePhantomItemInput, firmId: s
       sizeValue: null,
       sizeUnit: null,
       createdAt: now(),
-      updatedAt: now()
+      updatedAt: now(),
     });
 
     itemEventRepository.insert(tx, {
@@ -119,7 +121,7 @@ export async function createPhantomItem(input: CreatePhantomItemInput, firmId: s
       reason: 'Billed without prior stock entry',
       oldValue: null,
       newValue: null,
-      timestamp: now()
+      timestamp: now(),
     });
 
     auditRepository.log(tx, {
@@ -136,14 +138,14 @@ export async function createPhantomItem(input: CreatePhantomItemInput, firmId: s
         purityPercent: item.purityPercent,
         hsnCode: item.hsnCode,
         purityRoundingDeltaMg: item.purityRoundingDeltaMg,
-        reason: 'Stock not yet entered — billed in advance'
-      }
+        reason: 'Stock not yet entered — billed in advance',
+      },
     });
 
     designCategoryMapRepository.insert(tx, {
       designId: item.designId,
       categoryId: item.categoryId,
-      firmId
+      firmId,
     });
 
     return item;
@@ -154,7 +156,7 @@ export async function createPhantomItem(input: CreatePhantomItemInput, firmId: s
 export async function reconcilePhantomItem(phantomItemId: string, realItemId: string, firmId: string): Promise<void> {
   await leaseService.assertNoActiveLease(); // GUARD 1
   safeModeService.assertNotInSafeMode();     // GUARD 2
-  const deviceId = getDeviceId();
+  const deviceId = await getDeviceId();
 
   return db.transaction((tx) => {
     const phantom = itemRepository.getById(tx, firmId, phantomItemId);
@@ -186,7 +188,7 @@ export async function reconcilePhantomItem(phantomItemId: string, realItemId: st
       reason: 'Backdated real stock entry matched',
       oldValue: JSON.stringify({ phantomStockId: null }),
       newValue: JSON.stringify({ phantomStockId: realItemId }),
-      timestamp: now()
+      timestamp: now(),
     });
 
     itemEventRepository.insert(tx, {
@@ -199,7 +201,7 @@ export async function reconcilePhantomItem(phantomItemId: string, realItemId: st
       reason: 'This stock entry reconciles a phantom bill',
       oldValue: JSON.stringify({ status: 'AVAILABLE' }),
       newValue: JSON.stringify({ status: 'SOLD', phantomStockId: phantomItemId }),
-      timestamp: now()
+      timestamp: now(),
     });
 
     auditRepository.log(tx, {
@@ -215,17 +217,17 @@ export async function reconcilePhantomItem(phantomItemId: string, realItemId: st
         netWeightMg: phantom.netWeightMg,
         fineWeightMg: phantom.fineWeightMg,
         saleInvoiceId: phantom.saleInvoiceId,
-        reconciledAt: now()
-      }
+        reconciledAt: now(),
+      },
     });
   });
 }
 
-// --- createItem (Step 6 / v2.16 / v2.17) ---
+// --- createItem (Step 6 / v2.16 / v2.17 / v2.24) ---
 export async function createItem(input: CreateItemInput, firmId: string): Promise<Item> {
   await leaseService.assertNoActiveLease(); // GUARD 1
   safeModeService.assertNotInSafeMode();     // GUARD 2
-  const deviceId = getDeviceId();
+  const deviceId = await getDeviceId();
 
   // FIX-GAP-P2-BACKDATE-1 (v1.76): resolve + validate entry date
   const todayIso = now().split('T')[0];
@@ -235,10 +237,11 @@ export async function createItem(input: CreateItemInput, firmId: string): Promis
   assertValidTransactionFy(firmId, entryDate); // Throws ENTRY_DATE_IN_CLOSED_FY if closed
 
   return db.transaction((tx) => {
-    const design = designRepository.getById(tx, firmId, input.designId);
+    const design = designRepository.getById(tx, input.designId, firmId);
     if (!design || design.firmId !== firmId) throw new Error(ERR.DESIGN_NOT_FOUND_OR_WRONG_FIRM);
+    if (design.stockType === 'LOOSE') throw new Error(ERR.LOOSE_STOCK_DESIGN_TYPE_MISMATCH);
 
-    const category = categoryRepository.getById(tx, firmId, input.categoryId);
+    const category = categoryRepository.getById(tx, input.categoryId, firmId);
     if (!category || category.firmId !== firmId) throw new Error(ERR.CATEGORY_NOT_FOUND_OR_WRONG_FIRM);
 
     // Enforce sizeValue and sizeUnit pairing guard (FIX-GAP-P2-SIZE-2 v1.76)
@@ -246,6 +249,7 @@ export async function createItem(input: CreateItemInput, firmId: string): Promis
       throw new Error(ERR.ITEM_SIZE_PAIRING_INVALID);
     }
 
+    if (!input.hsnCode || input.hsnCode.trim().length === 0) throw new Error(ERR.ITEM_HSN_MISSING);
     const hsnCode = input.hsnCode;
     hsnMasterRepository.findByCode(tx, firmId, hsnCode);
 
@@ -368,7 +372,7 @@ export async function adjustWeight(
   const newNetWeightMg = newGrossWeightMg - newStoneWeightMg - newBeadsWeightMg;
   if (newNetWeightMg <= 0) throw new Error(ERR.ITEM_NET_WEIGHT_INVALID);
 
-  const deviceId = getDeviceId();
+  const deviceId = await getDeviceId();
 
   return db.transaction((tx) => {
     const item = itemRepository.getById(tx, firmId, itemId);
@@ -422,7 +426,7 @@ export async function adjustWeight(
         newFineWeightMg,
         newPurityRoundingDeltaMg,
         newFineGoldChargedMg,
-        reason
+        reason,
       },
     });
   });
@@ -444,16 +448,22 @@ export async function updateItem(
     'sizeValue', 'sizeUnit', // GAP-P2-SIZE-EDIT-1 (v1.78)
   ];
 
-  const presentFields = EDITABLE.filter(k => k in input);
+  const presentFields = EDITABLE.filter((k) => k in input);
   if (presentFields.length === 0) return;
 
-  const deviceId = getDeviceId();
+  const deviceId = await getDeviceId();
 
   return db.transaction((tx) => {
     const item = itemRepository.getById(tx, firmId, itemId);
     if (!item || item.firmId !== firmId) throw new Error(ERR.ITEM_NOT_FOUND_OR_WRONG_FIRM);
 
     if (TERMINAL_ITEM_STATUSES.includes(item.status)) throw new Error(ERR.ITEM_EDIT_LOCKED_TERMINAL_STATUS);
+
+    if (input.purityPercent !== undefined) {
+      if (input.purityPercent <= 0 || input.purityPercent > 100) {
+        throw new Error(ERR.ITEM_PURITY_PERCENT_INVALID);
+      }
+    }
 
     if ('sizeValue' in input || 'sizeUnit' in input) {
       const effSizeValue = 'sizeValue' in input ? input.sizeValue : item.sizeValue;
@@ -510,7 +520,7 @@ export async function updateItem(
   });
 }
 
-// --- createItemsBulk (Step 6.6 / FIX-BULK-1 v1.51) ---
+// --- createItemsBulk (Step 6.6 / FIX-BULK-1 v1.51 / FEAT-LOOSE-STOCK-1 v2.23) ---
 export async function createItemsBulk(inputs: CreateItemInput[], firmId: string): Promise<Item[]> {
   await leaseService.assertNoActiveLease(); // GUARD 1
   safeModeService.assertNotInSafeMode();     // GUARD 2
@@ -519,21 +529,23 @@ export async function createItemsBulk(inputs: CreateItemInput[], firmId: string)
   if (inputs.length === 0) return [];
   if (inputs.length > BULK_ITEM_MAX) throw new Error(ERR.BULK_ITEM_MAX_EXCEEDED);
 
-  const deviceId = getDeviceId();
+  const deviceId = await getDeviceId();
 
   return db.transaction((tx) => {
     const results: Item[] = [];
     for (const input of inputs) {
-      const design = designRepository.getById(tx, firmId, input.designId);
+      const design = designRepository.getById(tx, input.designId, firmId);
       if (!design || design.firmId !== firmId) throw new Error(ERR.DESIGN_NOT_FOUND_OR_WRONG_FIRM);
+      if (design.stockType === 'LOOSE') throw new Error(ERR.LOOSE_STOCK_DESIGN_TYPE_MISMATCH);
 
-      const category = categoryRepository.getById(tx, firmId, input.categoryId);
+      const category = categoryRepository.getById(tx, input.categoryId, firmId);
       if (!category || category.firmId !== firmId) throw new Error(ERR.CATEGORY_NOT_FOUND_OR_WRONG_FIRM);
 
       if ((input.sizeValue != null && input.sizeUnit == null) || (input.sizeValue == null && input.sizeUnit != null)) {
         throw new Error(ERR.ITEM_SIZE_PAIRING_INVALID);
       }
 
+      if (!input.hsnCode || input.hsnCode.trim().length === 0) throw new Error(ERR.ITEM_HSN_MISSING);
       hsnMasterRepository.findByCode(tx, firmId, input.hsnCode);
 
       if (input.grossWeightMg <= 0) throw new Error(ERR.ITEM_GROSS_WEIGHT_INVALID);
@@ -600,7 +612,7 @@ export async function createItemsBulk(inputs: CreateItemInput[], firmId: string)
         reason: null,
         oldValue: null,
         newValue: null,
-        timestamp: now()
+        timestamp: now(),
       });
         
       auditRepository.log(tx, {
@@ -623,7 +635,7 @@ export async function createItemsBulk(inputs: CreateItemInput[], firmId: string)
           metalSource: item.metalSource,
           bulkInsert: true,
           entryDate,
-        }
+        },
       });
 
       designCategoryMapRepository.insert(tx, { designId: item.designId, categoryId: item.categoryId, firmId });
@@ -639,7 +651,7 @@ export async function deleteItem(itemId: string, firmId: string, reason: string)
   await leaseService.assertNoActiveLease(); // GUARD 1
   safeModeService.assertNotInSafeMode();     // GUARD 2
   if (!reason || reason.trim().length === 0) throw new Error(ERR.ITEM_ACTION_REASON_REQUIRED);
-  const deviceId = getDeviceId();
+  const deviceId = await getDeviceId();
 
   return db.transaction((tx) => {
     const item = itemRepository.getById(tx, firmId, itemId);
@@ -666,7 +678,7 @@ export async function deleteItem(itemId: string, firmId: string, reason: string)
 export async function updateItemStatus(itemId: string, firmId: string, newStatus: StockStatus, reason?: string): Promise<void> {
   await leaseService.assertNoActiveLease(); // GUARD 1
   safeModeService.assertNotInSafeMode();     // GUARD 2
-  const deviceId = getDeviceId();
+  const deviceId = await getDeviceId();
 
   return db.transaction((tx) => {
     const item = itemRepository.getById(tx, firmId, itemId);
@@ -707,11 +719,114 @@ export async function updateItemStatus(itemId: string, firmId: string, newStatus
   });
 }
 
+// --- sendToKarigar (Step 10.7 / FIX-SERVICE-BODY-1 v1.35 / FIX-DMG-1 v1.32 / FIX-LOOP-1 v1.33) ---
+export async function sendToKarigar(
+  itemId: string,
+  firmId: string,
+  karigarName: string,
+  reason: string
+): Promise<void> {
+  await leaseService.assertNoActiveLease(); // GUARD 1
+  safeModeService.assertNotInSafeMode();     // GUARD 2
+  const deviceId = await getDeviceId();
+
+  return db.transaction((tx) => {
+    const item = itemRepository.getById(tx, firmId, itemId);
+    if (!item || item.firmId !== firmId) throw new Error(ERR.ITEM_NOT_FOUND_OR_WRONG_FIRM);
+
+    // State machine guard: only DAMAGED items may be sent to karigar
+    if (item.status !== 'DAMAGED') {
+      throw new Error(`${ERR.INVALID_TRANSITION}: ${item.status} -> SENT_TO_KARIGAR`);
+    }
+
+    // Loop guard (FIX-LOOP-1 v1.33): count prior ITEM_SENT_TO_KARIGAR events for this item
+    const priorCount = itemEventRepository.countByItemIdAndEventType(tx, itemId, 'ITEM_SENT_TO_KARIGAR');
+    if (priorCount >= 3) throw new Error(ERR.KARIGAR_LOOP_LIMIT_EXCEEDED);
+
+    itemRepository.updateStatus(tx, firmId, itemId, 'SENT_TO_KARIGAR');
+
+    itemEventRepository.insert(tx, {
+      id: Crypto.randomUUID(),
+      itemId,
+      firmId,
+      eventType: 'ITEM_SENT_TO_KARIGAR',
+      severity: 'WARNING',
+      performedBy: deviceId,
+      reason,
+      oldValue: 'DAMAGED',
+      newValue: 'SENT_TO_KARIGAR',
+      timestamp: now(),
+    });
+
+    auditRepository.log(tx, {
+      eventType: 'ITEM_SENT_TO_KARIGAR',
+      firmId,
+      entityId: itemId,
+      deviceId,
+      payload: { itemId, sku: item.sku, karigarName, reason, priorKarigarCount: priorCount },
+    });
+  });
+}
+
+// --- returnFromKarigar (Step 10.7 / FIX-SERVICE-BODY-1 v1.35) ---
+export async function returnFromKarigar(
+  itemId: string,
+  firmId: string,
+  outcome: 'REPAIRED' | 'UNREPAIRABLE' | 'DEFECTIVE',
+  karigarName: string,
+  reason?: string
+): Promise<void> {
+  await leaseService.assertNoActiveLease(); // GUARD 1
+  safeModeService.assertNotInSafeMode();     // GUARD 2
+  const deviceId = await getDeviceId();
+
+  const nextStatusMap: Record<string, StockStatus> = {
+    REPAIRED: 'AVAILABLE',
+    UNREPAIRABLE: 'SENT_TO_REFINERY',
+    DEFECTIVE: 'DAMAGED',
+  };
+
+  const nextStatus = nextStatusMap[outcome];
+  if (!nextStatus) throw new Error(`${ERR.INVALID_TRANSITION}: Unknown karigar outcome ${outcome}`);
+
+  return db.transaction((tx) => {
+    const item = itemRepository.getById(tx, firmId, itemId);
+    if (!item || item.firmId !== firmId) throw new Error(ERR.ITEM_NOT_FOUND_OR_WRONG_FIRM);
+
+    if (item.status !== 'SENT_TO_KARIGAR') {
+      throw new Error(`${ERR.INVALID_TRANSITION}: ${item.status} -> ${nextStatus}`);
+    }
+
+    itemRepository.updateStatus(tx, firmId, itemId, nextStatus);
+
+    itemEventRepository.insert(tx, {
+      id: Crypto.randomUUID(),
+      itemId,
+      firmId,
+      eventType: 'ITEM_RETURNED_FROM_KARIGAR',
+      severity: 'INFO',
+      performedBy: deviceId,
+      reason: reason ?? null,
+      oldValue: 'SENT_TO_KARIGAR',
+      newValue: nextStatus,
+      timestamp: now(),
+    });
+
+    auditRepository.log(tx, {
+      eventType: 'ITEM_RETURNED_FROM_KARIGAR',
+      firmId,
+      entityId: itemId,
+      deviceId,
+      payload: { itemId, sku: item.sku, outcome, nextStatus, karigarName, reason: reason ?? null },
+    });
+  });
+}
+
 // --- addHUID (Step 5.2 / FEAT-HUID-ASSIGN-1 v1.85) ---
 export async function addHUID(itemId: string, firmId: string, huid: string): Promise<Item> {
   await leaseService.assertNoActiveLease(); // GUARD 1
   safeModeService.assertNotInSafeMode();     // GUARD 2
-  const deviceId = getDeviceId();
+  const deviceId = await getDeviceId();
 
   return db.transaction((tx) => {
     const item = itemRepository.getById(tx, firmId, itemId);
@@ -719,12 +834,14 @@ export async function addHUID(itemId: string, firmId: string, huid: string): Pro
 
     if (TERMINAL_ITEM_STATUSES.includes(item.status)) throw new Error(ERR.ITEM_EDIT_LOCKED_TERMINAL_STATUS);
     if (item.huid !== null) throw new Error(ERR.HUID_ALREADY_SET);
-    if (!/^[A-Z0-9]{6}$/.test(huid)) throw new Error(ERR.HUID_INVALID);
 
-    const dup = itemRepository.findByHUID(tx, huid);
+    const cleanHuid = huid.trim().toUpperCase();
+    if (!/^[A-Z0-9]{6}$/.test(cleanHuid)) throw new Error(ERR.HUID_INVALID);
+
+    const dup = itemRepository.findByHUID(tx, cleanHuid);
     if (dup) throw new Error(ERR.HUID_ALREADY_EXISTS);
 
-    itemRepository.update(tx, firmId, itemId, { huid, barcodeReprintRequired: 1, updatedAt: now() });
+    itemRepository.update(tx, firmId, itemId, { huid: cleanHuid, barcodeReprintRequired: 1, updatedAt: now() });
 
     itemEventRepository.insert(tx, {
       id: Crypto.randomUUID(),
@@ -735,7 +852,7 @@ export async function addHUID(itemId: string, firmId: string, huid: string): Pro
       performedBy: deviceId, 
       reason: null,
       oldValue: null,
-      newValue: huid,
+      newValue: cleanHuid,
       timestamp: now(),
     });
 
@@ -744,10 +861,10 @@ export async function addHUID(itemId: string, firmId: string, huid: string): Pro
       entityId: itemId, 
       eventType: 'HUID_ADDED',
       deviceId, 
-      payload: { itemId, sku: item.sku, huid },
+      payload: { itemId, sku: item.sku, huid: cleanHuid },
     });
 
-    return { ...item, huid, barcodeReprintRequired: 1 } as Item;
+    return { ...item, huid: cleanHuid, barcodeReprintRequired: 1 } as Item;
   });
 }
 
@@ -756,7 +873,7 @@ export async function correctMetalSource(itemId: string, firmId: string, metalSo
   await leaseService.assertNoActiveLease(); // GUARD 1
   safeModeService.assertNotInSafeMode();     // GUARD 2
   if (!reason || reason.trim().length === 0) throw new Error(ERR.ITEM_ACTION_REASON_REQUIRED);
-  const deviceId = getDeviceId();
+  const deviceId = await getDeviceId();
 
   return db.transaction((tx) => {
     const item = itemRepository.getById(tx, firmId, itemId);
@@ -779,7 +896,7 @@ export async function correctMetalSource(itemId: string, firmId: string, metalSo
       timestamp: now(),
       reason,
       oldValue: oldMetalSource,
-      newValue: metalSource
+      newValue: metalSource,
     });
 
     auditRepository.log(tx, {
@@ -787,7 +904,7 @@ export async function correctMetalSource(itemId: string, firmId: string, metalSo
       firmId,
       entityId: itemId,
       deviceId,
-      payload: { itemId, sku: item.sku, oldMetalSource, newMetalSource: metalSource, reason }
+      payload: { itemId, sku: item.sku, oldMetalSource, newMetalSource: metalSource, reason },
     });
   });
 }
@@ -797,20 +914,22 @@ export async function correctHUID(itemId: string, firmId: string, huid: string, 
   await leaseService.assertNoActiveLease(); // GUARD 1
   safeModeService.assertNotInSafeMode();     // GUARD 2
   if (!reason || reason.trim().length === 0) throw new Error(ERR.ITEM_ACTION_REASON_REQUIRED);
-  const deviceId = getDeviceId();
+  const deviceId = await getDeviceId();
 
   return db.transaction((tx) => {
     const item = itemRepository.getById(tx, firmId, itemId);
     if (!item || item.firmId !== firmId) throw new Error(ERR.ITEM_NOT_FOUND_OR_WRONG_FIRM);
     if (TERMINAL_ITEM_STATUSES.includes(item.status)) throw new Error(ERR.ITEM_EDIT_LOCKED_TERMINAL_STATUS);
     if (item.huid === null) throw new Error(ERR.HUID_NOT_SET);
-    if (!/^[A-Z0-9]{6}$/.test(huid)) throw new Error(ERR.HUID_INVALID);
+
+    const cleanHuid = huid.trim().toUpperCase();
+    if (!/^[A-Z0-9]{6}$/.test(cleanHuid)) throw new Error(ERR.HUID_INVALID);
     
-    const dup = itemRepository.findByHUID(tx, huid);
+    const dup = itemRepository.findByHUID(tx, cleanHuid);
     if (dup && dup.id !== itemId) throw new Error(ERR.HUID_ALREADY_EXISTS);
     
     const oldHuid = item.huid;
-    itemRepository.update(tx, firmId, itemId, { huid, barcodeReprintRequired: 1, updatedAt: now() });
+    itemRepository.update(tx, firmId, itemId, { huid: cleanHuid, barcodeReprintRequired: 1, updatedAt: now() });
     
     itemEventRepository.insert(tx, {
       id: Crypto.randomUUID(),
@@ -821,8 +940,8 @@ export async function correctHUID(itemId: string, firmId: string, huid: string, 
       performedBy: deviceId,
       reason,
       oldValue: oldHuid,
-      newValue: huid,
-      timestamp: now()
+      newValue: cleanHuid,
+      timestamp: now(),
     });
     
     auditRepository.log(tx, {
@@ -830,7 +949,7 @@ export async function correctHUID(itemId: string, firmId: string, huid: string, 
       firmId,
       entityId: itemId,
       deviceId,
-      payload: { itemId, sku: item.sku, oldHuid, newHuid: huid, reason },
+      payload: { itemId, sku: item.sku, oldHuid, newHuid: cleanHuid, reason },
     });
   });
 }
@@ -841,7 +960,7 @@ export async function correctItemEntryDate(itemId: string, newEntryDate: string,
   safeModeService.assertNotInSafeMode();     // GUARD 2
   
   const todayIso = now().split('T')[0];
-  const deviceId = getDeviceId();
+  const deviceId = await getDeviceId();
 
   return db.transaction((tx) => {
     const item = itemRepository.getById(tx, firmId, itemId);
@@ -874,7 +993,7 @@ export async function correctItemEntryDate(itemId: string, newEntryDate: string,
     }
     
     // Different month — regenerate SKU
-    const design = designRepository.getById(tx, firmId, item.designId);
+    const design = designRepository.getById(tx, item.designId, firmId);
     if (!design) throw new Error(ERR.DESIGN_NOT_FOUND_OR_WRONG_FIRM);
     
     const newSku = skuEngine.generateSKU(tx, design, firmId, newEntryDate);
@@ -923,10 +1042,10 @@ export async function correctItemEntryDate(itemId: string, newEntryDate: string,
 export async function addLooseStock(input: AddLooseStockInput, firmId: string): Promise<LooseStockLot> {
   await leaseService.assertNoActiveLease(); // GUARD 1
   safeModeService.assertNotInSafeMode();     // GUARD 2
-  const deviceId = getDeviceId();
+  const deviceId = await getDeviceId();
 
   return db.transaction((tx) => {
-    const design = designRepository.getById(tx, firmId, input.designId);
+    const design = designRepository.getById(tx, input.designId, firmId);
     if (!design || design.firmId !== firmId) throw new Error(ERR.DESIGN_NOT_FOUND_OR_WRONG_FIRM);
     if (design.stockType !== 'LOOSE') throw new Error(ERR.LOOSE_STOCK_DESIGN_TYPE_MISMATCH);
     if (input.pieceCount <= 0) throw new Error(ERR.LOOSE_STOCK_QUANTITY_INVALID);
@@ -1047,7 +1166,7 @@ export function sellFromLooseLot(
 export async function discardDraftItem(itemId: string, firmId: string): Promise<void> {
   await leaseService.assertNoActiveLease(); // GUARD 1
   safeModeService.assertNotInSafeMode();     // GUARD 2
-  const deviceId = getDeviceId();
+  const deviceId = await getDeviceId();
   
   return db.transaction((tx) => {
     const item = itemRepository.getById(tx, firmId, itemId);
@@ -1080,6 +1199,8 @@ export const itemService = {
   createItemsBulk,
   deleteItem,
   updateItemStatus,
+  sendToKarigar,
+  returnFromKarigar,
   addHUID,
   correctMetalSource,
   correctHUID,

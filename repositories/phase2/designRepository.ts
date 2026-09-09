@@ -11,7 +11,7 @@ export interface DesignRepository {
   getById(id: string): Promise<Design | null>;
   getById(id: string, firmId: string): Promise<Design | null>;
   getById(tx: DrizzleTransaction, id: string): Design | null;
-  getById(tx: DrizzleTransaction, firmId: string, id: string): Design | null;
+  getById(tx: DrizzleTransaction, id: string, firmId: string): Design | null;
 
   // --- insert ---
   insert(tx: DrizzleTransaction, data: NewDesign): Design;
@@ -19,13 +19,13 @@ export interface DesignRepository {
   // --- findByFirmId ---
   findByFirmId(firmId: string): Promise<Design[]>;
 
-  // --- softDelete (Supports both 2-arg and 3-arg calls) ---
+  // --- softDelete ---
   softDelete(tx: DrizzleTransaction, id: string): void;
-  softDelete(tx: DrizzleTransaction, firmId: string, id: string): void;
+  softDelete(tx: DrizzleTransaction, id: string, firmId: string): void;
 
-  // --- update (Supports both 3-arg and 4-arg calls) ---
+  // --- update ---
   update(tx: DrizzleTransaction, id: string, data: Partial<Pick<Design, 'name' | 'defaultHsn' | 'updatedAt'>>): void;
-  update(tx: DrizzleTransaction, firmId: string, id: string, data: Partial<Pick<Design, 'name' | 'defaultHsn' | 'updatedAt'>>): void;
+  update(tx: DrizzleTransaction, id: string, firmId: string, data: Partial<Pick<Design, 'name' | 'defaultHsn' | 'updatedAt'>>): void;
 
   // --- searchStock (BLOCK-5 v1.15, RED-7 LIMIT 20, FIX-JOIN-ORDER-1 v1.71, FIX-GAP-P2-SIZE-1 v1.76) ---
   searchStock(firmId: string, query: string): Promise<DesignStockResult[]>;
@@ -37,35 +37,45 @@ export const designRepository: DesignRepository = {
     second?: string,
     third?: string
   ): any {
+    // Standalone async call: getById(id, firmId?)
     if (typeof first === 'string') {
-      if (second !== undefined) {
-        // 2-arg async call: getById(id, firmId)
+      const id = first;
+      const firmId = second;
+      if (firmId !== undefined) {
         return db
           .select()
           .from(designs)
-          .where(and(eq(designs.id, first), eq(designs.firmId, second)))
+          .where(and(eq(designs.id, id), eq(designs.firmId, firmId)))
           .limit(1)
-          .then(r => r[0] || null);
+          .then((r) => r[0] || null);
       }
       return db
         .select()
         .from(designs)
-        .where(eq(designs.id, first))
+        .where(eq(designs.id, id))
         .limit(1)
-        .then(r => r[0] || null);
+        .then((r) => r[0] || null);
     }
+
+    // Synchronous transaction call: getById(tx, id, firmId?)
     const tx = first as DrizzleTransaction;
-    if (third !== undefined) {
-      // 3-arg call: getById(tx, firmId, id)
+    const id = second!;
+    const firmId = third;
+
+    if (firmId !== undefined) {
       const res = tx
         .select()
         .from(designs)
-        .where(and(eq(designs.id, third), eq(designs.firmId, second!)))
+        .where(and(eq(designs.id, id), eq(designs.firmId, firmId)))
         .get();
       return (res as Design) || null;
     }
-    // 2-arg call: getById(tx, id)
-    const res = tx.select().from(designs).where(eq(designs.id, second!)).get();
+
+    const res = tx
+      .select()
+      .from(designs)
+      .where(eq(designs.id, id))
+      .get();
     return (res as Design) || null;
   },
 
@@ -88,47 +98,49 @@ export const designRepository: DesignRepository = {
       .orderBy(sql`${designs.name} COLLATE NOCASE ASC`);
   },
 
-  softDelete(tx: DrizzleTransaction, second: string, third?: string): void {
-    if (third === undefined) {
-      // 2-arg call: softDelete(tx, id)
+  softDelete(tx: DrizzleTransaction, id: string, firmId?: string): void {
+    if (firmId === undefined) {
+      // softDelete(tx, id)
       tx.update(designs)
         .set({ isActive: 0, updatedAt: now() })
-        .where(eq(designs.id, second))
+        .where(eq(designs.id, id))
         .run();
     } else {
-      // 3-arg call: softDelete(tx, firmId, id)
+      // softDelete(tx, id, firmId)
       tx.update(designs)
         .set({ isActive: 0, updatedAt: now() })
-        .where(and(eq(designs.id, third), eq(designs.firmId, second)))
+        .where(and(eq(designs.id, id), eq(designs.firmId, firmId)))
         .run();
     }
   },
 
   update(
     tx: DrizzleTransaction,
-    second: string,
+    id: string,
     third: string | Partial<Pick<Design, 'name' | 'defaultHsn' | 'updatedAt'>>,
     fourth?: Partial<Pick<Design, 'name' | 'defaultHsn' | 'updatedAt'>>
   ): void {
     if (typeof third === 'object' && third !== null) {
-      // 3-arg call: update(tx, id, data)
+      // update(tx, id, data)
       tx.update(designs)
         .set({ ...third, updatedAt: third.updatedAt ?? now() })
-        .where(eq(designs.id, second))
+        .where(eq(designs.id, id))
         .run();
     } else {
-      // 4-arg call: update(tx, firmId, id, data)
+      // update(tx, id, firmId, data)
+      const firmId = third as string;
+      const data = fourth ?? {};
       tx.update(designs)
-        .set({ ...fourth, updatedAt: fourth?.updatedAt ?? now() })
-        .where(and(eq(designs.id, third as string), eq(designs.firmId, second)))
+        .set({ ...data, updatedAt: data.updatedAt ?? now() })
+        .where(and(eq(designs.id, id), eq(designs.firmId, firmId)))
         .run();
     }
   },
 
   async searchStock(firmId: string, query: string): Promise<DesignStockResult[]> {
-    const tokens = query.trim().split(/\s+/).filter(t => t.length > 0);
-    const sizeToken = tokens.find(t => /^\d+(\.\d+)?$/.test(t));
-    const textQuery = tokens.filter(t => t !== sizeToken).join(' ');
+    const tokens = query.trim().split(/\s+/).filter((t) => t.length > 0);
+    const sizeToken = tokens.find((t) => /^\d+(\.\d+)?$/.test(t));
+    const textQuery = tokens.filter((t) => t !== sizeToken).join(' ');
 
     const conditions: any[] = [
       eq(designs.firmId, firmId),
@@ -170,12 +182,12 @@ export const designRepository: DesignRepository = {
         eq(categories.id, items.categoryId)
       )
       .where(and(...conditions))
-      // BLOCK-5 (v1.15): GROUP BY designs.id, items.purityPercent
+      // BLOCK-5 (v1.15): GROUP BY designs.id, items.purityPercent, items.sizeValue, items.sizeUnit
       .groupBy(designs.id, items.purityPercent, items.sizeValue, items.sizeUnit)
       .orderBy(sql`${designs.name} COLLATE NOCASE ASC`, sql`${items.purityPercent} DESC`, sql`${items.sizeValue} ASC`)
       .limit(20); // RED-7: Mandatory limit 20
 
-    return results.map(r => ({
+    return results.map((r) => ({
       ...r,
       totalGrossWeightMg: Number(r.totalGrossWeightMg) || 0,
       availableCount: Number(r.availableCount) || 0,

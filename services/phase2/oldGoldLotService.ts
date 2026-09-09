@@ -21,13 +21,19 @@ export async function getPendingRefineryLots(firmId: string): Promise<OldGoldLot
   return oldGoldLotRepository.getPendingRefineryLots(firmId);
 }
 
+// --- findAvailableForIssuance (DOMAIN-FIX-1 v1.22 / FIX-IDX-3 v1.25) ---
+export async function findAvailableForIssuance(firmId: string): Promise<OldGoldLot[]> {
+  if (!firmId) throw new Error(ERR.FIRM_ID_REQUIRED);
+  return oldGoldLotRepository.findAvailableForIssuance(firmId);
+}
+
 // --- createOldGoldLot (Step 12.6 / FIX-OLDGOLD-BODY-1 v1.35 / FEAT-PURITY-ROUND-1 v1.91) ---
 export async function createOldGoldLot(
   input: CreateOldGoldLotInput,
   firmId: string
 ): Promise<OldGoldLot> {
   await leaseService.assertNoActiveLease(); // GUARD 1
-  safeModeService.assertNotInSafeMode();    // GUARD 2
+  safeModeService.assertNotInSafeMode();     // GUARD 2
 
   if (input.grossWeightMg <= 0) throw new Error(ERR.OLD_GOLD_GROSS_WEIGHT_INVALID);
   if (input.purityPercent <= 0 || input.purityPercent > 100) {
@@ -47,7 +53,7 @@ export async function createOldGoldLot(
 
   const sanitizedReceivedFrom = sanitizeText(input.receivedFrom);
   const sanitizedNotes = input.notes ? sanitizeText(input.notes) : null;
-  const deviceId = getDeviceId();
+  const deviceId = await getDeviceId();
 
   return db.transaction((tx) => {
     const lotId = Crypto.randomUUID();
@@ -102,9 +108,9 @@ export async function updateOldGoldLotStatus(
   reason?: string
 ): Promise<void> {
   await leaseService.assertNoActiveLease(); // GUARD 1
-  safeModeService.assertNotInSafeMode();    // GUARD 2
+  safeModeService.assertNotInSafeMode();     // GUARD 2
 
-  const deviceId = getDeviceId();
+  const deviceId = await getDeviceId();
 
   return db.transaction((tx) => {
     const lot = oldGoldLotRepository.getById(tx, firmId, lotId);
@@ -144,6 +150,7 @@ export async function getOldGoldLotsByFirm(firmId: string): Promise<OldGoldLot[]
 
 export const oldGoldLotService = {
   getPendingRefineryLots,
+  findAvailableForIssuance,
   createOldGoldLot,
   updateOldGoldLotStatus,
   getById: getOldGoldLotById,

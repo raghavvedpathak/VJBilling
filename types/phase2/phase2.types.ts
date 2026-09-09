@@ -26,7 +26,7 @@ export type StockStatus =
 // Phantom states managed exclusively via createPhantomItem() + reconcilePhantomItem()
 export const ALLOWED_TRANSITIONS: Record<StockStatus, StockStatus[]> = {
   DRAFT:            ['AVAILABLE', 'DAMAGED'],
-  AVAILABLE:        ['SOLD', 'SENT_TO_REFINERY', 'DAMAGED', 'SENT_TO_KARIGAR'], // Added SENT_TO_KARIGAR for showroom resizing/alteration
+  AVAILABLE:        ['SOLD', 'SENT_TO_REFINERY', 'DAMAGED'], // FIX-AVAILABLE-KARIGAR-1 (v1.46 / v1.71): SENT_TO_KARIGAR is NOT reachable from AVAILABLE
   SOLD:             [], // Terminal in Phase 2
   SENT_TO_REFINERY: ['MELTED', 'SENT_TO_MELT'],
   SENT_TO_MELT:     ['MELTED'],
@@ -96,19 +96,10 @@ export type ItemEventType =
   | 'HUID_CORRECTED'
   | 'METAL_SOURCE_CORRECTED';
 
-// FIX-IMM-1 (v1.23) & FIX-IMM-2 (v1.95): Restricted update type — excludes WRITE-ONCE and adjustWeight fields
+// FIX-IMM-1 (v1.23) & FIX-IMM-2 (v1.95): Restricted update type — excludes WRITE-ONCE fields only
 export type UpdateableItemFields = Omit<
   Partial<Item>,
-  | 'metalSource'
-  | 'metal'
-  | 'sku'
-  | 'barcode'
-  | 'id'
-  | 'firmId'
-  | 'createdAt'
-  | 'grossWeightMg'
-  | 'netWeightMg'
-  | 'fineWeightMg'
+  'metalSource' | 'metal' | 'sku' | 'barcode' | 'id' | 'firmId' | 'createdAt'
 >;
 
 export interface CreateItemInput {

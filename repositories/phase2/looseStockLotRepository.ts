@@ -34,7 +34,8 @@ export interface LooseStockLotRepository {
     id: string,
     pieceCount: number,
     totalWeightMg: number,
-    status: LooseStockLotStatus
+    status: LooseStockLotStatus,
+    firmId?: string
   ): void;
 
   // --- findByFirmId ---
@@ -161,8 +162,13 @@ export const looseStockLotRepository: LooseStockLotRepository = {
     id: string,
     pieceCount: number,
     totalWeightMg: number,
-    status: LooseStockLotStatus
+    status: LooseStockLotStatus,
+    firmId?: string
   ): void {
+    const condition = firmId
+      ? and(eq(looseStockLots.id, id), eq(looseStockLots.firmId, firmId))
+      : eq(looseStockLots.id, id);
+
     tx.update(looseStockLots)
       .set({
         pieceCount,
@@ -170,7 +176,7 @@ export const looseStockLotRepository: LooseStockLotRepository = {
         status,
         updatedAt: now(),
       })
-      .where(eq(looseStockLots.id, id))
+      .where(condition)
       .run();
   },
 

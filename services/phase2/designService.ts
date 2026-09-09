@@ -109,7 +109,7 @@ export async function createDesign(
           });
         }
 
-        const restored = designRepository.getById(tx, firmId, existing.id)!;
+        const restored = designRepository.getById(tx, existing.id, firmId)!;
 
         auditRepository.log(tx, {
           eventType: 'DESIGN_CREATED',
@@ -191,8 +191,8 @@ export async function softDeleteDesign(designId: string, firmId: string): Promis
 
   const deviceId = await getDeviceId();
 
-  await db.transaction(async (tx) => {
-    const design = designRepository.getById(tx, firmId, designId);
+  db.transaction((tx) => {
+    const design = designRepository.getById(tx, designId, firmId);
     if (!design || design.firmId !== firmId) throw new Error(ERR.DESIGN_NOT_FOUND_OR_WRONG_FIRM);
 
     // 1. Guard against active serialized items
@@ -219,7 +219,7 @@ export async function softDeleteDesign(designId: string, firmId: string): Promis
     const hasLooseStock = activeLooseLots.some((lot) => lot.pieceCount > 0);
     if (hasLooseStock) throw new Error(ERR.DESIGN_HAS_ACTIVE_ITEMS);
 
-    designRepository.softDelete(tx, firmId, designId);
+    designRepository.softDelete(tx, designId, firmId);
 
     auditRepository.log(tx, {
       eventType: 'DESIGN_SOFT_DELETED',
@@ -244,8 +244,8 @@ export async function updateDesign(
 
   const deviceId = await getDeviceId();
 
-  await db.transaction(async (tx) => {
-    const design = designRepository.getById(tx, firmId, designId);
+  db.transaction((tx) => {
+    const design = designRepository.getById(tx, designId, firmId);
     if (!design || design.firmId !== firmId) throw new Error(ERR.DESIGN_NOT_FOUND_OR_WRONG_FIRM);
 
     const updateData: Partial<Pick<Design, 'name' | 'defaultHsn' | 'updatedAt'>> = {
@@ -262,7 +262,7 @@ export async function updateDesign(
     }
 
     try {
-      designRepository.update(tx, firmId, designId, updateData);
+      designRepository.update(tx, designId, firmId, updateData);
     } catch (e: any) {
       if (
         e.message?.includes('UNIQUE constraint failed') ||
@@ -303,7 +303,7 @@ export async function updateDesignPurityLowStockThreshold(
   const deviceId = await getDeviceId();
 
   return db.transaction((tx) => {
-    const design = designRepository.getById(tx, firmId, designId);
+    const design = designRepository.getById(tx, designId, firmId);
     if (!design || design.firmId !== firmId) throw new Error(ERR.DESIGN_NOT_FOUND_OR_WRONG_FIRM);
 
     const existing = tx
@@ -355,6 +355,8 @@ export async function updateDesignPurityLowStockThreshold(
       },
     });
   });
+
+  useMastersSyncStore.getState().notifyDesignChanged();
 }
 
 // Backward-compatibility alias

@@ -48,7 +48,8 @@ import {
   financialYears, firms, appSettings, safeModeState, bisLogos, auditDeleteGate,
   designPurityThresholds, looseStockLots, looseStockEvents, urdPurchases, schemaVersion, writerLeases
 } from '@/db/schema';
-import { generateDesignPrefix, formatSKUDisplay } from '@/services/phase2/skuEngine';
+import { generateDesignPrefix } from '@/services/phase2/skuEngine';
+import { formatSKUDisplay } from '@/utils/skuDisplay';
 import { ERR } from '@/constants/errorCodes';
 import { 
   computeEffectivePricePaisePerGram, 

@@ -35,7 +35,7 @@ export async function createURDPurchase(
   firmId: string
 ): Promise<URDPurchase> {
   await leaseService.assertNoActiveLease(); // GUARD 1
-  safeModeService.assertNotInSafeMode();    // GUARD 2
+  safeModeService.assertNotInSafeMode();     // GUARD 2
 
   if (!input.customerName?.trim()) throw new Error(ERR.URD_CUSTOMER_NAME_REQUIRED);
   if (input.grossWeightMg <= 0) throw new Error(ERR.URD_GROSS_WEIGHT_INVALID);
@@ -57,14 +57,14 @@ export async function createURDPurchase(
 
   const fineWeightMg = computeURDFineWeightMg(input.grossWeightMg, input.purityPercent, input.metalType);
   const totalValuePaise = input.totalValuePaise ?? computeURDTotalValuePaise(fineWeightMg, input.ratePerGramPaise, input.adjustmentPaise ?? 0);
-  const totalAmountPaise = totalValuePaise; // Resolves TS18004 shorthand scope error
+  const totalAmountPaise = totalValuePaise;
   if (totalValuePaise > 999999999) throw new Error(ERR.URD_AMOUNT_EXCEEDS_MAX); // ALIGN-P1-V77
 
   const fyId = await fyService.resolveTransactionFyId(firmId, input.purchaseDate);
   const deviceId = await getDeviceId();
 
   return db.transaction((tx) => {
-    // 1. Create linked old_gold_lots row
+    // 1. Create linked old_gold_lots row with metalSource: 'CUSTOMER_OLD_GOLD'
     const lot = oldGoldLotRepository.insert(tx, {
       id: Crypto.randomUUID(),
       firmId,
@@ -73,7 +73,7 @@ export async function createURDPurchase(
       receivedDate: input.purchaseDate,
       grossWeightMg: input.grossWeightMg,
       purityPercent: input.purityPercent,
-      metalSource: 'CUSTOMER',
+      metalSource: 'CUSTOMER_OLD_GOLD',
       fineWeightMg,
       purityRoundingDeltaMg: 0,
       purchaseRatePaise: input.ratePerGramPaise ?? null,
@@ -141,7 +141,7 @@ export async function updateURDPurchase(
   firmId: string
 ): Promise<URDPurchase> {
   await leaseService.assertNoActiveLease(); // GUARD 1
-  safeModeService.assertNotInSafeMode();    // GUARD 2
+  safeModeService.assertNotInSafeMode();     // GUARD 2
   const deviceId = await getDeviceId();
 
   return db.transaction((tx) => {
@@ -228,7 +228,7 @@ export async function updateURDPurchase(
 // --- deleteURDPurchase ---
 export async function deleteURDPurchase(urdId: string, firmId: string): Promise<void> {
   await leaseService.assertNoActiveLease(); // GUARD 1
-  safeModeService.assertNotInSafeMode();    // GUARD 2
+  safeModeService.assertNotInSafeMode();     // GUARD 2
   const deviceId = await getDeviceId();
 
   return db.transaction((tx) => {
@@ -259,7 +259,7 @@ export async function confirmURDPurchase(
   firmId: string
 ): Promise<URDPurchase> {
   await leaseService.assertNoActiveLease(); // GUARD 1
-  safeModeService.assertNotInSafeMode();    // GUARD 2
+  safeModeService.assertNotInSafeMode();     // GUARD 2
   const deviceId = await getDeviceId();
 
   return db.transaction((tx) => {

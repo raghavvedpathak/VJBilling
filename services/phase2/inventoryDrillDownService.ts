@@ -9,7 +9,9 @@ import type {
   MetalSourceStockResult, 
   ItemTimelineEvent, 
   ItemDetail,
-  LowStockDesignPurityVariant 
+  LowStockDesignPurityVariant,
+  KarigarIssuedItem,
+  OldGoldLot
 } from '@/types/phase2/phase2.types';
 import { ERR } from '@/constants/errorCodes';
 
@@ -96,7 +98,6 @@ export function getItemDetailSync(firmId: string, itemId: string): ItemDetail | 
     ORDER BY ie.timestamp ASC
   `, [itemId, firmId]);
 
-  // FIX-KARIGAR-DUPES-1: Deduplicate joined audit_logs rows by event ID
   const seenEventIds = new Set<string>();
   const timeline: ItemTimelineEvent[] = [];
 
@@ -204,6 +205,18 @@ export async function getStockByMetalSource(firmId: string): Promise<MetalSource
   return inventoryDrillDownRepository.getStockByMetalSource(firmId);
 }
 
+// --- Refinery Pending Lots (FEAT-GAP5-REFINERYPENDING-1 v1.66) ---
+export async function getPendingRefineryLots(firmId: string): Promise<OldGoldLot[]> {
+  if (!firmId) throw new Error(ERR.FIRM_ID_REQUIRED);
+  return inventoryDrillDownRepository.getPendingRefineryLots(firmId);
+}
+
+// --- Karigar Summary (FEAT-GAP6-KARIGAR-SUMMARY-1 v1.66 / FIX-KARIGAR-DUPES-1 v1.71) ---
+export async function getKarigarIssuedItems(firmId: string): Promise<KarigarIssuedItem[]> {
+  if (!firmId) throw new Error(ERR.FIRM_ID_REQUIRED);
+  return inventoryDrillDownRepository.getKarigarIssuedItems(firmId);
+}
+
 export const inventoryDrillDownService = {
   getDraftCountSync,
   getItemDetailSync,
@@ -217,4 +230,6 @@ export const inventoryDrillDownService = {
   getLowStockDesignPurityVariants,
   getLowStockDesigns,
   getStockByMetalSource,
+  getPendingRefineryLots,
+  getKarigarIssuedItems,
 };

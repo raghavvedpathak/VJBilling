@@ -20,10 +20,12 @@ export interface URDPurchaseRepository {
 
   // --- update (Overloaded to support 3-arg and 4-arg calls - Step 12.11 confirmURDPurchase) ---
   update(tx: DrizzleTransaction, id: string, data: Partial<NewURDPurchase>): void;
+  update(tx: DrizzleTransaction, id: string, firmId: string, data: Partial<NewURDPurchase>): void;
   update(tx: DrizzleTransaction, firmId: string, id: string, data: Partial<NewURDPurchase>): void;
 
   // --- delete (Overloaded to support 2-arg and 3-arg calls) ---
   delete(tx: DrizzleTransaction, id: string): void;
+  delete(tx: DrizzleTransaction, id: string, firmId: string): void;
   delete(tx: DrizzleTransaction, firmId: string, id: string): void;
 
   // --- findByFirmId (Sync tx overload and async standalone) ---
@@ -53,7 +55,6 @@ export const urdPurchaseRepository: URDPurchaseRepository = {
   ): any {
     if (typeof first === 'string') {
       if (second !== undefined) {
-        // 2-arg async call: supports both (id, firmId) and (firmId, id)
         return db
           .select()
           .from(urdPurchases)
@@ -66,7 +67,6 @@ export const urdPurchaseRepository: URDPurchaseRepository = {
           .limit(1)
           .then((r) => r[0] || null);
       }
-      // 1-arg async call: getById(id)
       return db
         .select()
         .from(urdPurchases)
@@ -76,7 +76,6 @@ export const urdPurchaseRepository: URDPurchaseRepository = {
     }
     const tx = first as DrizzleTransaction;
     if (third !== undefined) {
-      // 3-arg sync call: supports both (tx, id, firmId) and (tx, firmId, id)
       const res = tx
         .select()
         .from(urdPurchases)
@@ -89,7 +88,6 @@ export const urdPurchaseRepository: URDPurchaseRepository = {
         .get();
       return (res as URDPurchase) || null;
     }
-    // 2-arg sync call: getById(tx, id)
     const res = tx.select().from(urdPurchases).where(eq(urdPurchases.id, second!)).get();
     return (res as URDPurchase) || null;
   },
@@ -101,16 +99,22 @@ export const urdPurchaseRepository: URDPurchaseRepository = {
     fourth?: Partial<NewURDPurchase>
   ): void {
     if (typeof third === 'object' && third !== null) {
-      // 3-arg call: update(tx, id, data)
       tx.update(urdPurchases)
         .set({ ...third, updatedAt: third.updatedAt ?? now() })
         .where(eq(urdPurchases.id, second))
         .run();
     } else {
-      // 4-arg call: update(tx, firmId, id, data)
+      const a = second;
+      const b = third as string;
+      const data = fourth!;
       tx.update(urdPurchases)
-        .set({ ...fourth, updatedAt: fourth?.updatedAt ?? now() })
-        .where(and(eq(urdPurchases.id, third as string), eq(urdPurchases.firmId, second)))
+        .set({ ...data, updatedAt: data.updatedAt ?? now() })
+        .where(
+          or(
+            and(eq(urdPurchases.id, a), eq(urdPurchases.firmId, b)),
+            and(eq(urdPurchases.id, b), eq(urdPurchases.firmId, a))
+          )
+        )
         .run();
     }
   },
@@ -119,7 +123,16 @@ export const urdPurchaseRepository: URDPurchaseRepository = {
     if (third === undefined) {
       tx.delete(urdPurchases).where(eq(urdPurchases.id, second)).run();
     } else {
-      tx.delete(urdPurchases).where(and(eq(urdPurchases.id, third), eq(urdPurchases.firmId, second))).run();
+      const a = second;
+      const b = third;
+      tx.delete(urdPurchases)
+        .where(
+          or(
+            and(eq(urdPurchases.id, a), eq(urdPurchases.firmId, b)),
+            and(eq(urdPurchases.id, b), eq(urdPurchases.firmId, a))
+          )
+        )
+        .run();
     }
   },
 

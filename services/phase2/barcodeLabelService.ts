@@ -11,7 +11,7 @@ import { itemEventRepository } from '@/repositories/phase2/itemEventRepository';
 import { auditRepository } from '@/repositories/phase1/auditRepository';
 import { getDeviceId } from '@/utils/deviceId';
 import { getDisplayPurity, formatWeightMg } from '@/utils/calculations';
-import { formatSKUDisplay } from '@/services/phase2/skuEngine';
+import { formatSKUDisplay } from '@/utils/skuDisplay';
 import { now } from '@/utils/now';
 import * as Crypto from 'expo-crypto';
 import type { BarcodeLabel } from '@/types/phase2/phase2.types';

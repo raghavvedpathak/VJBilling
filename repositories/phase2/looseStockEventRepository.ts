@@ -2,7 +2,7 @@
 // FEAT-LOOSE-STOCK-1 (v2.23 / v2.24) / STEP 6.9 & FIX-P2-SYNC-CONTRACT-1
 // APPEND-ONLY audit trail for pooled loose stock lots
 
-import { eq, and, desc } from 'drizzle-orm';
+import { eq, and, desc, or } from 'drizzle-orm';
 import * as Crypto from 'expo-crypto';
 import { db } from '@/db/client';
 import { looseStockEvents } from '@/db/schema';
@@ -22,6 +22,7 @@ export interface LooseStockEventRepository {
   findByLotId(lotId: string, firmId: string): Promise<LooseStockEvent[]>;
   findByLotId(tx: DrizzleTransaction, lotId: string): LooseStockEvent[];
   findByLotId(tx: DrizzleTransaction, lotId: string, firmId: string): LooseStockEvent[];
+  findByLotId(tx: DrizzleTransaction, firmId: string, lotId: string): LooseStockEvent[];
 }
 
 export const looseStockEventRepository: LooseStockEventRepository = {
@@ -45,17 +46,17 @@ export const looseStockEventRepository: LooseStockEventRepository = {
     third?: string
   ): any {
     if (typeof first === 'string') {
-      const lotId = first;
-      const firmId = second;
+      const a = first;
+      const b = second;
 
-      if (firmId !== undefined) {
+      if (b !== undefined) {
         return db
           .select()
           .from(looseStockEvents)
           .where(
-            and(
-              eq(looseStockEvents.lotId, lotId),
-              eq(looseStockEvents.firmId, firmId)
+            or(
+              and(eq(looseStockEvents.lotId, a), eq(looseStockEvents.firmId, b)),
+              and(eq(looseStockEvents.lotId, b), eq(looseStockEvents.firmId, a))
             )
           )
           .orderBy(desc(looseStockEvents.timestamp));
@@ -64,22 +65,22 @@ export const looseStockEventRepository: LooseStockEventRepository = {
       return db
         .select()
         .from(looseStockEvents)
-        .where(eq(looseStockEvents.lotId, lotId))
+        .where(eq(looseStockEvents.lotId, a))
         .orderBy(desc(looseStockEvents.timestamp));
     }
 
     const tx = first as DrizzleTransaction;
-    const lotId = second!;
-    const firmId = third;
+    const a = second!;
+    const b = third;
 
-    if (firmId !== undefined) {
+    if (b !== undefined) {
       return tx
         .select()
         .from(looseStockEvents)
         .where(
-          and(
-            eq(looseStockEvents.lotId, lotId),
-            eq(looseStockEvents.firmId, firmId)
+          or(
+            and(eq(looseStockEvents.lotId, a), eq(looseStockEvents.firmId, b)),
+            and(eq(looseStockEvents.lotId, b), eq(looseStockEvents.firmId, a))
           )
         )
         .orderBy(desc(looseStockEvents.timestamp))
@@ -89,7 +90,7 @@ export const looseStockEventRepository: LooseStockEventRepository = {
     return tx
       .select()
       .from(looseStockEvents)
-      .where(eq(looseStockEvents.lotId, lotId))
+      .where(eq(looseStockEvents.lotId, a))
       .orderBy(desc(looseStockEvents.timestamp))
       .all() as LooseStockEvent[];
   },

@@ -7,11 +7,12 @@
 //   - resolveTransactionFyId: ALL Phase 3+ write services MUST use this — NEVER getActiveFY().id
 
 import * as Crypto from 'expo-crypto';
-import { eq, and, lte, gte } from 'drizzle-orm';
+import { eq, and, or, lte, gte } from 'drizzle-orm';
 import db, { db as dbNamed } from '@/db/client';
 import { financialYears, FYStatus } from '@/db/schema';
 import type { DrizzleTransaction, FinancialYear } from '@/types/phase2/phase2.types';
 import { now } from '@/utils/now';
+import { ERR } from '@/constants/errorCodes';
 
 type DbOrTx = any;
 
@@ -36,7 +37,6 @@ export type { FinancialYear };
 export const fyRepository = {
   /**
    * Primary insert method — creates a financial year row.
-   * Supports both (tx, data) and (data, tx) parameter orders.
    */
   insert(arg1: any, arg2?: any): FinancialYear {
     let tx: DbOrTx;
@@ -74,7 +74,6 @@ export const fyRepository = {
 
   /**
    * Creates initial FY for a firm (April 1 -> March 31).
-   * Supports both (tx, firmId) and (firmId, tx).
    */
   insertInitial(arg1: any, arg2?: any): FinancialYear {
     let tx: DbOrTx;
@@ -137,51 +136,64 @@ export const fyRepository = {
   },
 
   /**
-   * Fetches FY by UUID — supports (tx, fyId), (fyId, tx), (firmId, fyId), or (tx, firmId, fyId).
+   * Fetches FY by UUID — supports (id), (id, firmId), (tx, id), (tx, id, firmId), (tx, firmId, id).
    */
   findById(first: any, second?: any, third?: any): FinancialYear | null {
-    let targetTx: DbOrTx = db;
-    let firmId: string | undefined = undefined;
-    let fyId: string = '';
+    if (typeof first === 'string') {
+      const a = first;
+      const b = second;
+      const targetTx = typeof b === 'object' && b && 'select' in b ? b : getDb();
 
-    if (typeof first === 'string' && typeof second === 'string') {
-      // (firmId, fyId) or (fyId, unusedString)
-      if (third && typeof third === 'object' && 'select' in third) {
-        targetTx = third;
-        firmId = first;
-        fyId = second;
-      } else {
-        targetTx = getDb(third);
-        firmId = first;
-        fyId = second;
+      if (typeof b === 'string') {
+        const fy = targetTx
+          .select()
+          .from(financialYears)
+          .where(
+            or(
+              and(eq(financialYears.id, a), eq(financialYears.firmId, b)),
+              and(eq(financialYears.id, b), eq(financialYears.firmId, a))
+            )
+          )
+          .get();
+        return (fy as FinancialYear) ?? null;
       }
-    } else if (typeof first === 'string') {
-      // (fyId, tx?)
-      fyId = first;
-      targetTx = getDb(second);
-    } else {
-      // (tx, firmId, fyId) or (tx, fyId)
-      targetTx = getDb(first);
-      if (typeof second === 'string' && typeof third === 'string') {
-        firmId = second;
-        fyId = third;
-      } else if (typeof second === 'string') {
-        fyId = second;
-      }
+
+      const fy = targetTx
+        .select()
+        .from(financialYears)
+        .where(eq(financialYears.id, a))
+        .get();
+      return (fy as FinancialYear) ?? null;
     }
 
-    if (!fyId) return null;
+    const targetTx = getDb(first);
+    const a = second;
+    const b = third;
 
-    const fy = targetTx
-      .select()
-      .from(financialYears)
-      .where(
-        firmId
-          ? and(eq(financialYears.id, fyId), eq(financialYears.firmId, firmId))
-          : eq(financialYears.id, fyId)
-      )
-      .get();
-    return (fy as FinancialYear) ?? null;
+    if (typeof a === 'string' && typeof b === 'string') {
+      const fy = targetTx
+        .select()
+        .from(financialYears)
+        .where(
+          or(
+            and(eq(financialYears.id, a), eq(financialYears.firmId, b)),
+            and(eq(financialYears.id, b), eq(financialYears.firmId, a))
+          )
+        )
+        .get();
+      return (fy as FinancialYear) ?? null;
+    }
+
+    if (typeof a === 'string') {
+      const fy = targetTx
+        .select()
+        .from(financialYears)
+        .where(eq(financialYears.id, a))
+        .get();
+      return (fy as FinancialYear) ?? null;
+    }
+
+    return null;
   },
 
   /**
@@ -209,33 +221,55 @@ export const fyRepository = {
 
   /**
    * Updates status of a financial year.
+   * Robust against any parameter order:
+   *   updateStatus(tx, id, status)
+   *   updateStatus(tx, id, firmId, status)
+   *   updateStatus(tx, firmId, id, status)
+   *   updateStatus(firmId, id, status)
    */
   updateStatus(first: any, second: string, third?: string, fourth?: string): void {
-    let tx: DbOrTx;
-    let firmId = '';
-    let fyId = '';
-    let status: string = FYStatus.CLOSED;
+    let targetTx: DbOrTx;
+    let targetId = '';
+    let targetFirmId: string | undefined;
+    let newStatus = FYStatus.CLOSED;
+
+    const isStatus = (v?: string) => v === 'ACTIVE' || v === 'CLOSED' || v === FYStatus.ACTIVE || v === FYStatus.CLOSED;
 
     if (typeof first === 'string') {
-      firmId = first;
-      fyId = second;
-      status = third ?? FYStatus.CLOSED;
-      tx = getDb();
+      targetTx = getDb();
+      if (isStatus(third)) {
+        targetFirmId = first;
+        targetId = second;
+        newStatus = (third as any) ?? FYStatus.CLOSED;
+      } else if (isStatus(second)) {
+        targetId = first;
+        newStatus = (second as any) ?? FYStatus.CLOSED;
+      }
     } else {
-      tx = getDb(first);
-      firmId = second;
-      fyId = third!;
-      status = fourth ?? FYStatus.CLOSED;
+      targetTx = getDb(first);
+      if (fourth !== undefined && isStatus(fourth)) {
+        targetId = second;
+        targetFirmId = third;
+        newStatus = (fourth as any) ?? FYStatus.CLOSED;
+      } else if (isStatus(third)) {
+        targetId = second;
+        newStatus = (third as any) ?? FYStatus.CLOSED;
+      } else {
+        targetId = second;
+        targetFirmId = third;
+      }
     }
 
-    tx.update(financialYears)
-      .set({ status })
-      .where(
-        and(
-          eq(financialYears.id, fyId),
-          eq(financialYears.firmId, firmId)
+    const condition = targetFirmId
+      ? or(
+          and(eq(financialYears.id, targetId), eq(financialYears.firmId, targetFirmId)),
+          and(eq(financialYears.id, targetFirmId), eq(financialYears.firmId, targetId))
         )
-      )
+      : eq(financialYears.id, targetId);
+
+    targetTx.update(financialYears)
+      .set({ status: newStatus })
+      .where(condition)
       .run();
   },
 
@@ -259,7 +293,7 @@ export const fyRepository = {
       .get();
 
     if (!match) {
-      throw new Error('ENTRY_DATE_IN_CLOSED_FY');
+      throw new Error(ERR.ENTRY_DATE_IN_CLOSED_FY);
     }
 
     return match.id as string;

@@ -1,6 +1,6 @@
 // repositories/phase2/barcodeLabelRepository.ts — Phase 2 v2.24 Canonical Repository
 
-import { eq, and } from 'drizzle-orm';
+import { eq, and, or } from 'drizzle-orm';
 import { db } from '@/db/client';
 import { items, designs } from '@/db/schema';
 import type { DrizzleTransaction, Item } from '@/types/phase2/phase2.types';
@@ -11,9 +11,18 @@ export interface BarcodeLabelRepository {
     firmId: string
   ): Promise<(Item & { designName: string }) | null>;
   getItemWithDesignName(
+    firmId: string,
+    itemId: string
+  ): Promise<(Item & { designName: string }) | null>;
+  getItemWithDesignName(
     tx: DrizzleTransaction,
     itemId: string,
     firmId: string
+  ): (Item & { designName: string }) | null;
+  getItemWithDesignName(
+    tx: DrizzleTransaction,
+    firmId: string,
+    itemId: string
   ): (Item & { designName: string }) | null;
 }
 
@@ -25,8 +34,8 @@ export const barcodeLabelRepository: BarcodeLabelRepository = {
     third?: string
   ): any {
     if (typeof first === 'string') {
-      const itemId = first;
-      const firmId = second;
+      const a = first;
+      const b = second;
       return db
         .select({
           item: items,
@@ -37,7 +46,12 @@ export const barcodeLabelRepository: BarcodeLabelRepository = {
           designs,
           and(eq(designs.id, items.designId), eq(designs.firmId, items.firmId))
         )
-        .where(and(eq(items.id, itemId), eq(items.firmId, firmId)))
+        .where(
+          or(
+            and(eq(items.id, a), eq(items.firmId, b)),
+            and(eq(items.id, b), eq(items.firmId, a))
+          )
+        )
         .limit(1)
         .then((rows) => {
           const row = rows[0];
@@ -47,8 +61,8 @@ export const barcodeLabelRepository: BarcodeLabelRepository = {
     }
 
     const tx = first as DrizzleTransaction;
-    const itemId = second;
-    const firmId = third!;
+    const a = second;
+    const b = third!;
     const row = tx
       .select({
         item: items,
@@ -59,7 +73,12 @@ export const barcodeLabelRepository: BarcodeLabelRepository = {
         designs,
         and(eq(designs.id, items.designId), eq(designs.firmId, items.firmId))
       )
-      .where(and(eq(items.id, itemId), eq(items.firmId, firmId)))
+      .where(
+        or(
+          and(eq(items.id, a), eq(items.firmId, b)),
+          and(eq(items.id, b), eq(items.firmId, a))
+        )
+      )
       .limit(1)
       .get();
 

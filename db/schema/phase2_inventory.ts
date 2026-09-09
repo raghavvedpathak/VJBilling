@@ -261,6 +261,7 @@ export const oldGoldLots = sqliteTable('old_gold_lots', {
 }, (table) => ({
   firmFk: foreignKey({ columns: [table.firmId], foreignColumns: [firms.id] }),
   idxOldGoldLotsFirm: index('idx_old_gold_lots_firm').on(table.firmId, table.status, table.metalSource),
+  idxOldGoldLotsCustomer: index('idx_old_gold_lots_customer').on(table.firmId, table.customerId).where(isNotNull(table.customerId)),
 }));
 
 // URD Purchases (FIX-URD-1 v1.49 / Step 12.9)
@@ -307,6 +308,9 @@ export const designCategoryMap = sqliteTable('design_category_map', {
   firmId: text('firm_id').notNull(),
   createdAt: text('created_at').notNull(),
 }, (table) => ({
+  designFk: foreignKey({ columns: [table.designId], foreignColumns: [designs.id] }).onDelete('cascade'),
+  categoryFk: foreignKey({ columns: [table.categoryId], foreignColumns: [categories.id] }).onDelete('cascade'),
+  firmFk: foreignKey({ columns: [table.firmId], foreignColumns: [firms.id] }).onDelete('cascade'),
   uniqueDCM: unique().on(table.designId, table.categoryId, table.firmId),
   idxDcmDesign: index('idx_dcm_design').on(table.designId),
   idxDcmCategory: index('idx_dcm_category').on(table.categoryId),

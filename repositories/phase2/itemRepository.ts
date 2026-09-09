@@ -15,6 +15,7 @@ export interface ItemRepository {
   getById(firmId: string, id: string): Promise<Item | null>;
   getById(tx: DrizzleTransaction, id: string): Item | null;
   getById(tx: DrizzleTransaction, firmId: string, id: string): Item | null;
+  getById(tx: DrizzleTransaction, id: string, firmId: string): Item | null;
 
   // --- findBySku (RED-9: firmId required) ---
   findBySku(firmId: string, sku: string): Promise<Item | null>;
@@ -96,23 +97,33 @@ export const itemRepository: ItemRepository = {
         return db
           .select()
           .from(items)
-          .where(and(eq(items.id, second), eq(items.firmId, first)))
+          .where(
+            or(
+              and(eq(items.id, second), eq(items.firmId, first)),
+              and(eq(items.id, first), eq(items.firmId, second))
+            )
+          )
           .limit(1)
-          .then(r => r[0] || null);
+          .then((r) => r[0] || null);
       }
       return db
         .select()
         .from(items)
         .where(eq(items.id, first))
         .limit(1)
-        .then(r => r[0] || null);
+        .then((r) => r[0] || null);
     }
     const tx = first as DrizzleTransaction;
     if (third !== undefined) {
       const res = tx
         .select()
         .from(items)
-        .where(and(eq(items.id, third), eq(items.firmId, second!)))
+        .where(
+          or(
+            and(eq(items.id, third), eq(items.firmId, second!)),
+            and(eq(items.id, second!), eq(items.firmId, third))
+          )
+        )
         .get();
       return (res as Item) || null;
     }
@@ -133,7 +144,7 @@ export const itemRepository: ItemRepository = {
         .from(items)
         .where(and(eq(items.sku, sku), eq(items.firmId, firmId)))
         .limit(1)
-        .then(r => r[0] || null);
+        .then((r) => r[0] || null);
     }
     const tx = first as DrizzleTransaction;
     const firmId = second;
@@ -148,7 +159,7 @@ export const itemRepository: ItemRepository = {
 
   findByHUID(first: DrizzleTransaction | string, second?: string): any {
     if (typeof first === 'string') {
-      return db.select().from(items).where(eq(items.huid, first)).limit(1).then(r => r[0] || null);
+      return db.select().from(items).where(eq(items.huid, first)).limit(1).then((r) => r[0] || null);
     }
     const tx = first as DrizzleTransaction;
     const huid = second!;
@@ -210,10 +221,15 @@ export const itemRepository: ItemRepository = {
       const data = third as Partial<Item>;
       tx.update(items).set(data).where(eq(items.id, id)).run();
     } else {
-      const firmId = second;
-      const id = third as string;
+      const a = second;
+      const b = third as string;
       const data = fourth!;
-      tx.update(items).set(data).where(and(eq(items.id, id), eq(items.firmId, firmId))).run();
+      tx.update(items).set(data).where(
+        or(
+          and(eq(items.id, a), eq(items.firmId, b)),
+          and(eq(items.id, b), eq(items.firmId, a))
+        )
+      ).run();
     }
   },
 
@@ -227,13 +243,18 @@ export const itemRepository: ItemRepository = {
         .where(eq(items.id, id))
         .run();
     } else {
-      // 4-arg call: updateStatus(tx, firmId, id, status)
-      const firmId = second;
-      const id = third as string;
+      // 4-arg call: updateStatus(tx, firmId, id, status) or (tx, id, firmId, status)
+      const a = second;
+      const b = third as string;
       const status = fourth;
       tx.update(items)
         .set({ status, updatedAt: now() })
-        .where(and(eq(items.id, id), eq(items.firmId, firmId)))
+        .where(
+          or(
+            and(eq(items.id, a), eq(items.firmId, b)),
+            and(eq(items.id, b), eq(items.firmId, a))
+          )
+        )
         .run();
     }
   },
@@ -247,12 +268,17 @@ export const itemRepository: ItemRepository = {
         .where(eq(items.id, itemId))
         .run();
     } else {
-      const firmId = second;
-      const itemId = third as string;
+      const a = second;
+      const b = third as string;
       const flag = fourth!;
       tx.update(items)
         .set({ barcodeReprintRequired: flag ? 1 : 0, updatedAt: now() })
-        .where(and(eq(items.id, itemId), eq(items.firmId, firmId)))
+        .where(
+          or(
+            and(eq(items.id, a), eq(items.firmId, b)),
+            and(eq(items.id, b), eq(items.firmId, a))
+          )
+        )
         .run();
     }
   },
@@ -282,7 +308,14 @@ export const itemRepository: ItemRepository = {
     if (third === undefined) {
       tx.delete(items).where(eq(items.id, second)).run();
     } else {
-      tx.delete(items).where(and(eq(items.id, third), eq(items.firmId, second))).run();
+      const a = second;
+      const b = third;
+      tx.delete(items).where(
+        or(
+          and(eq(items.id, a), eq(items.firmId, b)),
+          and(eq(items.id, b), eq(items.firmId, a))
+        )
+      ).run();
     }
   },
 
@@ -290,7 +323,7 @@ export const itemRepository: ItemRepository = {
     const result = await db
       .select({
         totalNetWeightMg: sql<number>`SUM(${items.netWeightMg})`,
-        count: sql<number>`COUNT(${items.id})`
+        count: sql<number>`COUNT(${items.id})`,
       })
       .from(items)
       .where(
@@ -302,7 +335,7 @@ export const itemRepository: ItemRepository = {
       );
     return {
       totalNetWeightMg: Number(result[0]?.totalNetWeightMg) || 0,
-      count: Number(result[0]?.count) || 0
+      count: Number(result[0]?.count) || 0,
     };
   },
 
@@ -312,7 +345,7 @@ export const itemRepository: ItemRepository = {
       .select({
         metal: items.metal,
         availableNetWeightMg: sql<number>`SUM(CASE WHEN ${items.status} = 'AVAILABLE' THEN ${items.netWeightMg} ELSE 0 END)`,
-        phantomDebtMg: sql<number>`SUM(CASE WHEN ${items.status} IN ('PHANTOM_AVAILABLE','PHANTOM_SOLD') AND ${items.phantomStockId} IS NULL THEN ${items.netWeightMg} ELSE 0 END)`
+        phantomDebtMg: sql<number>`SUM(CASE WHEN ${items.status} IN ('PHANTOM_AVAILABLE','PHANTOM_SOLD') AND ${items.phantomStockId} IS NULL THEN ${items.netWeightMg} ELSE 0 END)`,
       })
       .from(items)
       .where(and(
@@ -351,9 +384,9 @@ export const itemRepository: ItemRepository = {
 
   // SEARCH-1 (v1.13): Item-level search with deterministic sort and LIMIT 20 (RED-7)
   async search(firmId: string, query: string): Promise<ItemSearchResult[]> {
-    const tokens = query.trim().split(/\s+/).filter(t => t.length > 0);
-    const sizeToken = tokens.find(t => /^\d+(\.\d+)?$/.test(t));
-    const textQuery = tokens.filter(t => t !== sizeToken).join(' ');
+    const tokens = query.trim().split(/\s+/).filter((t) => t.length > 0);
+    const sizeToken = tokens.find((t) => /^\d+(\.\d+)?$/.test(t));
+    const textQuery = tokens.filter((t) => t !== sizeToken).join(' ');
 
     const conditions: any[] = [
       eq(items.firmId, firmId),
@@ -402,11 +435,11 @@ export const itemRepository: ItemRepository = {
       .orderBy(asc(designs.name), asc(items.sku))
       .limit(20); // RED-7
 
-    return results.map(r => ({
+    return results.map((r) => ({
       ...r,
       metal: r.metal as 'GOLD' | 'SILVER',
       status: r.status as 'AVAILABLE' | 'PHANTOM_AVAILABLE',
-      sizeUnit: r.sizeUnit as 'INCH'|'MM'|'CM'|'RING_SIZE'|null
+      sizeUnit: r.sizeUnit as 'INCH' | 'MM' | 'CM' | 'RING_SIZE' | null,
     }));
-  }
+  },
 };

@@ -20,9 +20,19 @@ export * from './phase2/gemstoneLotService';
 export * from './phase2/inventoryDrillDownService';
 export * from './phase2/inventorySearchService';
 export * from './phase2/itemService';
-export * from './phase2/karigarService';
+export {
+  karigarService,
+  type KarigarOutcome,
+} from './phase2/karigarService';
 export * from './phase2/looseStockService';
-export * from './phase2/oldGoldLotService';
+export {
+  oldGoldLotService,
+  findAvailableForIssuance,
+  createOldGoldLot,
+  updateOldGoldLotStatus,
+  getOldGoldLotById,
+  getOldGoldLotsByFirm,
+} from './phase2/oldGoldLotService';
 export * from './phase2/skuEngine';
 export * from './phase2/stoneService';
 export * from './phase2/urdPrintService';

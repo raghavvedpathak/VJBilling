@@ -51,8 +51,8 @@ export async function softDeleteCategory(categoryId: string, firmId: string): Pr
 
   const deviceId = await getDeviceId();
 
-  await db.transaction(async (tx) => {
-    const cat = categoryRepository.getById(tx, firmId, categoryId);
+  db.transaction((tx) => {
+    const cat = categoryRepository.getById(tx, categoryId, firmId);
     if (!cat || cat.firmId !== firmId) throw new Error(ERR.CATEGORY_NOT_FOUND_OR_WRONG_FIRM);
 
     // Block if any non-terminal items reference this category
@@ -63,7 +63,7 @@ export async function softDeleteCategory(categoryId: string, firmId: string): Pr
 
     if (blocked.length > 0) throw new Error(ERR.CATEGORY_HAS_ACTIVE_ITEMS);
 
-    categoryRepository.softDelete(tx, firmId, categoryId);
+    categoryRepository.softDelete(tx, categoryId, firmId);
 
     auditRepository.log(tx, {
       eventType: 'CATEGORY_SOFT_DELETED',
@@ -104,7 +104,7 @@ export async function createCategory(input: CreateCategoryInput, firmId: string)
         throw new Error(ERR.CATEGORY_NAME_DUPLICATE);
       } else {
         // Restore soft-deleted category
-        categoryRepository.update(tx, firmId, existing.id, {
+        categoryRepository.update(tx, existing.id, firmId, {
           name: sanitizedName,
         });
 
@@ -114,7 +114,7 @@ export async function createCategory(input: CreateCategoryInput, firmId: string)
           .where(and(eq(categories.id, existing.id), eq(categories.firmId, firmId)))
           .run();
 
-        const restored = categoryRepository.getById(tx, firmId, existing.id)!;
+        const restored = categoryRepository.getById(tx, existing.id, firmId)!;
 
         auditRepository.log(tx, {
           eventType: 'CATEGORY_CREATED',
@@ -173,14 +173,14 @@ export async function updateCategory(categoryId: string, firmId: string, name: s
 
   const deviceId = await getDeviceId();
 
-  await db.transaction(async (tx) => {
-    const cat = categoryRepository.getById(tx, firmId, categoryId);
+  db.transaction((tx) => {
+    const cat = categoryRepository.getById(tx, categoryId, firmId);
     if (!cat || cat.firmId !== firmId) throw new Error(ERR.CATEGORY_NOT_FOUND_OR_WRONG_FIRM);
 
     const sanitizedName = sanitizeText(name); // GAP-P1ALIGN-4 (v1.74): FIX-VSEC-7
 
     try {
-      categoryRepository.update(tx, firmId, categoryId, { name: sanitizedName });
+      categoryRepository.update(tx, categoryId, firmId, { name: sanitizedName });
     } catch (e: any) {
       if (
         e.message?.includes('UNIQUE constraint failed') ||

@@ -249,7 +249,7 @@ CREATE TABLE `loose_stock_lots` (
 	FOREIGN KEY (`design_id`) REFERENCES `designs`(`id`) ON UPDATE no action ON DELETE no action
 );
 --> statement-breakpoint
-CREATE UNIQUE INDEX `loose_stock_lots_active_unique` ON `loose_stock_lots` (`design_id`, `purity_percent`, `firm_id`) WHERE `status` = 'ACTIVE';
+CREATE UNIQUE INDEX `loose_stock_lots_design_id_purity_percent_firm_id_unique` ON `loose_stock_lots` (`design_id`, `purity_percent`, `firm_id`);
 --> statement-breakpoint
 
 CREATE TABLE `loose_stock_events` (
@@ -295,6 +295,8 @@ CREATE INDEX IF NOT EXISTS idx_gemstone_lots_name ON gemstone_lots(name);
 CREATE INDEX IF NOT EXISTS idx_items_design_status ON items(design_id, status);
 --> statement-breakpoint
 CREATE INDEX IF NOT EXISTS idx_items_sku ON items(sku, firm_id);
+--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS idx_items_huid ON items(huid) WHERE huid IS NOT NULL;
 --> statement-breakpoint
 CREATE INDEX IF NOT EXISTS idx_items_category_status ON items(firm_id, category_id, status);
 --> statement-breakpoint

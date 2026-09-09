@@ -9,8 +9,9 @@ import { now } from '@/utils/now';
 export interface CategoryRepository {
   // --- getById (Synchronous inside tx per FIX-P2-SYNC-CONTRACT-1, async outside) ---
   getById(id: string): Promise<Category | null>;
+  getById(id: string, firmId: string): Promise<Category | null>;
   getById(tx: DrizzleTransaction, id: string): Category | null;
-  getById(tx: DrizzleTransaction, firmId: string, id: string): Category | null;
+  getById(tx: DrizzleTransaction, id: string, firmId: string): Category | null;
 
   // --- insert ---
   insert(tx: DrizzleTransaction, data: NewCategory): Category;
@@ -18,13 +19,13 @@ export interface CategoryRepository {
   // --- findByFirmId ---
   findByFirmId(firmId: string): Promise<Category[]>;
 
-  // --- update (Supports both 3-arg and 4-arg calls) ---
+  // --- update ---
   update(tx: DrizzleTransaction, id: string, data: Partial<Pick<Category, 'name' | 'updatedAt'>>): void;
-  update(tx: DrizzleTransaction, firmId: string, id: string, data: Partial<Pick<Category, 'name' | 'updatedAt'>>): void;
+  update(tx: DrizzleTransaction, id: string, firmId: string, data: Partial<Pick<Category, 'name' | 'updatedAt'>>): void;
 
-  // --- softDelete (Supports both 2-arg and 3-arg calls) ---
+  // --- softDelete ---
   softDelete(tx: DrizzleTransaction, id: string): void;
-  softDelete(tx: DrizzleTransaction, firmId: string, id: string): void;
+  softDelete(tx: DrizzleTransaction, id: string, firmId: string): void;
 }
 
 export const categoryRepository: CategoryRepository = {
@@ -33,29 +34,44 @@ export const categoryRepository: CategoryRepository = {
     second?: string,
     third?: string
   ): any {
+    // Standalone async call: getById(id, firmId?)
     if (typeof first === 'string') {
+      const id = first;
+      const firmId = second;
+      if (firmId !== undefined) {
+        return db
+          .select()
+          .from(categories)
+          .where(and(eq(categories.id, id), eq(categories.firmId, firmId)))
+          .limit(1)
+          .then((r) => r[0] || null);
+      }
       return db
         .select()
         .from(categories)
-        .where(eq(categories.id, first))
+        .where(eq(categories.id, id))
         .limit(1)
         .then((r) => r[0] || null);
     }
+
+    // Synchronous transaction call: getById(tx, id, firmId?)
     const tx = first as DrizzleTransaction;
-    if (third !== undefined) {
-      // 3-arg call: getById(tx, firmId, id)
+    const id = second!;
+    const firmId = third;
+
+    if (firmId !== undefined) {
       const res = tx
         .select()
         .from(categories)
-        .where(and(eq(categories.id, third), eq(categories.firmId, second!)))
+        .where(and(eq(categories.id, id), eq(categories.firmId, firmId)))
         .get();
       return (res as Category) || null;
     }
-    // 2-arg call: getById(tx, id)
+
     const res = tx
       .select()
       .from(categories)
-      .where(eq(categories.id, second!))
+      .where(eq(categories.id, id))
       .get();
     return (res as Category) || null;
   },
@@ -86,37 +102,39 @@ export const categoryRepository: CategoryRepository = {
 
   update(
     tx: DrizzleTransaction,
-    second: string,
+    id: string,
     third: string | Partial<Pick<Category, 'name' | 'updatedAt'>>,
     fourth?: Partial<Pick<Category, 'name' | 'updatedAt'>>
   ): void {
     if (typeof third === 'object' && third !== null) {
-      // 3-arg call: update(tx, id, data)
+      // update(tx, id, data)
       tx.update(categories)
         .set({ ...third, updatedAt: third.updatedAt ?? now() })
-        .where(eq(categories.id, second))
+        .where(eq(categories.id, id))
         .run();
     } else {
-      // 4-arg call: update(tx, firmId, id, data)
+      // update(tx, id, firmId, data)
+      const firmId = third as string;
+      const data = fourth ?? {};
       tx.update(categories)
-        .set({ ...fourth, updatedAt: fourth?.updatedAt ?? now() })
-        .where(and(eq(categories.id, third as string), eq(categories.firmId, second)))
+        .set({ ...data, updatedAt: data.updatedAt ?? now() })
+        .where(and(eq(categories.id, id), eq(categories.firmId, firmId)))
         .run();
     }
   },
 
-  softDelete(tx: DrizzleTransaction, second: string, third?: string): void {
-    if (third === undefined) {
-      // 2-arg call: softDelete(tx, id)
+  softDelete(tx: DrizzleTransaction, id: string, firmId?: string): void {
+    if (firmId === undefined) {
+      // softDelete(tx, id)
       tx.update(categories)
         .set({ isActive: 0, updatedAt: now() })
-        .where(eq(categories.id, second))
+        .where(eq(categories.id, id))
         .run();
     } else {
-      // 3-arg call: softDelete(tx, firmId, id)
+      // softDelete(tx, id, firmId)
       tx.update(categories)
         .set({ isActive: 0, updatedAt: now() })
-        .where(and(eq(categories.id, third), eq(categories.firmId, second)))
+        .where(and(eq(categories.id, id), eq(categories.firmId, firmId)))
         .run();
     }
   },

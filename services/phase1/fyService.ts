@@ -28,14 +28,6 @@ function getDb(customTx?: any): DbOrTx {
   return (fallback as any)?.db ? (fallback as any).db : fallback;
 }
 
-function getSafeDeviceId(): string {
-  try {
-    return getDeviceId();
-  } catch {
-    return 'DEV-DEVICE-ID';
-  }
-}
-
 // Hooks must be strictly synchronous to execute safely inside the JSI transaction boundary
 const fyCloseHooks: Array<(tx: DrizzleTransaction, firmId: string, fyId: string) => void> = [];
 
@@ -47,7 +39,7 @@ export function registerFYCloseHook(fn: (tx: DrizzleTransaction, firmId: string,
 export async function preCloseChecks(fyId: string, firmId: string): Promise<{ canClose: boolean; issues: VerifyIssue[] }> {
   const issues: VerifyIssue[] = [];
 
-  const fy = await fyRepository.getById(fyId);
+  const fy = await fyRepository.getById(fyId, firmId);
 
   if (!fy || fy.firmId !== firmId) {
     issues.push({ code: ERR.FY_OWNERSHIP_MISMATCH, severity: 'CRITICAL', message: 'Financial year does not belong to this firm' });
@@ -85,25 +77,42 @@ export async function preCloseChecks(fyId: string, firmId: string): Promise<{ ca
   return { canClose: issues.length === 0, issues };
 }
 
-// --- closeFY (Step 5.5 / ALIGN-P1-V76) ---
+// --- closeFY (Step 5.5 / ALIGN-P1-V76 / ALIGN-P1-V52 v1.28) ---
 export async function closeFY(fyId: string, firmId: string): Promise<void> {
   await leaseService.assertNoActiveLease(); // GUARD 1
-  safeModeService.assertNotInSafeMode();    // GUARD 2
+  safeModeService.assertNotInSafeMode();     // GUARD 2
 
-  // v6.5 GAP 5: Acquire 'FY_CLOSE' lease handle (not 'WRITE', which is prohibited in Phase 1)
-  const leaseId = await leaseService.acquire('FY_CLOSE', firmId);
+  // Acquire write lease with backward-compatible fallback to 'FY_CLOSE'
+  let leaseId: string;
+  try {
+    leaseId = await leaseService.acquire('WRITE', firmId);
+  } catch (err: any) {
+    if (err?.message === ERR.WRITE_LEASE_NOT_IMPLEMENTED) {
+      leaseId = await leaseService.acquire('FY_CLOSE' as any, firmId);
+    } else {
+      throw err;
+    }
+  }
 
   try {
+    // FIX-CLOSEFY-VERIFY-SYNC-1 (v1.82): Asynchronous check runs outside transaction
     const verifyIssues = await phase2VerifyService.runVerify(firmId);
     if (verifyIssues.some((i: VerifyIssue) => i.severity === 'CRITICAL')) {
       throw new Error(ERR.FY_CLOSE_BLOCKED_CRITICAL_VERIFY);
     }
 
-    const deviceId = getSafeDeviceId();
+    // Await device ID cleanly before entering synchronous JSI transaction
+    let deviceId: string;
+    try {
+      deviceId = await getDeviceId();
+    } catch {
+      deviceId = 'DEV-DEVICE-ID';
+    }
+
     const targetDb = getDb();
 
     targetDb.transaction((tx: any) => {
-      const fy = fyRepository.getById(tx, firmId, fyId) ?? fyRepository.getById(tx, fyId);
+      const fy = fyRepository.getById(tx, fyId, firmId);
 
       if (!fy || fy.firmId !== firmId) throw new Error(ERR.FY_OWNERSHIP_MISMATCH);
       if (fy.status !== 'ACTIVE') throw new Error(ERR.FY_NOT_ACTIVE);
@@ -120,7 +129,8 @@ export async function closeFY(fyId: string, firmId: string): Promise<void> {
       if (fyCloseHooks.length === 0) {
         console.warn(
           'FY_CLOSE_NO_HOOKS: closeFY() running with no registered hooks. ' +
-          'Phase 4 karigar/refinery outstanding fine balance will be 0.'
+          'Phase 4 karigar/refinery outstanding fine balance will be 0. ' +
+          'Phase 4 MUST call registerFYCloseHook() before this runs in production.'
         );
       }
 
@@ -137,13 +147,14 @@ export async function closeFY(fyId: string, firmId: string): Promise<void> {
         }
       } catch {}
 
+      // FIX-CLOSEF-2 (v1.95): Read stored fineWeightMg directly per RED-5
       const openGoldLotFineMg = openGoldLotsRows
         .filter(l => !['SETTLED', 'SENT_TO_MELT'].includes(l.status))
         .reduce((sum, l) => sum + (l.fineWeightMg || 0), 0);
 
       const totalOpeningFineMg = karigarOutstandingFineMg + refineryOutstandingFineMg + openGoldLotFineMg;
 
-      fyRepository.updateStatus(tx, firmId, fyId, 'CLOSED');
+      fyRepository.updateStatus(tx, fyId, firmId, 'CLOSED');
 
       for (const hook of fyCloseHooks) {
         hook(tx, firmId, fyId);

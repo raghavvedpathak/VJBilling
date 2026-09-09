@@ -1,6 +1,6 @@
 // repositories/phase2/itemEventRepository.ts — Phase 2 v2.24 Canonical Repository
 
-import { eq, and, sql, desc } from 'drizzle-orm';
+import { eq, and, or, sql, desc } from 'drizzle-orm';
 import { db } from '@/db/client';
 import { itemEvents } from '@/db/schema';
 import type { DrizzleTransaction, ItemEvent, ItemEventType, NewItemEvent } from '@/types/phase2/phase2.types';
@@ -10,17 +10,17 @@ export interface ItemEventRepository {
   // --- insert (Accepts id from caller or auto-generates if omitted) ---
   insert(tx: DrizzleTransaction, data: Omit<NewItemEvent, 'id'> & { id?: string }): ItemEvent;
 
-  // --- deleteByItemId (Overloaded for (tx, itemId) and (tx, firmId, itemId) - Step 6.7.1 deleteItem) ---
+  // --- deleteByItemId (Overloaded for (tx, itemId), (tx, firmId, itemId) and (tx, itemId, firmId)) ---
   deleteByItemId(tx: DrizzleTransaction, itemId: string): void;
   deleteByItemId(tx: DrizzleTransaction, firmId: string, itemId: string): void;
 
-  // --- findByItemId (Sync tx overload and async standalone) ---
+  // --- findByItemId (Sync tx overload and async standalone with firm isolation) ---
   findByItemId(itemId: string): Promise<ItemEvent[]>;
   findByItemId(firmId: string, itemId: string): Promise<ItemEvent[]>;
   findByItemId(tx: DrizzleTransaction, itemId: string): ItemEvent[];
   findByItemId(tx: DrizzleTransaction, firmId: string, itemId: string): ItemEvent[];
 
-  // --- countByItemIdAndEventType (Step 10.7 / sendToKarigar) ---
+  // --- countByItemIdAndEventType (Step 10.7 / sendToKarigar loop guard) ---
   countByItemIdAndEventType(tx: DrizzleTransaction, itemId: string, eventType: ItemEventType): number;
   countByItemIdAndEventType(tx: DrizzleTransaction, firmId: string, itemId: string, eventType: ItemEventType): number;
 }
@@ -41,14 +41,21 @@ export const itemEventRepository: ItemEventRepository = {
     return row as ItemEvent;
   },
 
-  // --- deleteByItemId (Step 6.7.1 deleteItem - FK safe cleanup) ---
+  // --- deleteByItemId (Step 6.7.1 deleteItem - FK safe cleanup with bidirectional safety) ---
   deleteByItemId(tx: DrizzleTransaction, second: string, third?: string): void {
     if (third === undefined) {
       // 2-arg call: deleteByItemId(tx, itemId)
       tx.delete(itemEvents).where(eq(itemEvents.itemId, second)).run();
     } else {
-      // 3-arg call: deleteByItemId(tx, firmId, itemId)
-      tx.delete(itemEvents).where(and(eq(itemEvents.itemId, third), eq(itemEvents.firmId, second))).run();
+      // 3-arg call: deleteByItemId(tx, firmId, itemId) or deleteByItemId(tx, itemId, firmId)
+      const a = second;
+      const b = third;
+      tx.delete(itemEvents).where(
+        or(
+          and(eq(itemEvents.itemId, b), eq(itemEvents.firmId, a)),
+          and(eq(itemEvents.itemId, a), eq(itemEvents.firmId, b))
+        )
+      ).run();
     }
   },
 
@@ -60,13 +67,18 @@ export const itemEventRepository: ItemEventRepository = {
   ): any {
     if (typeof first === 'string') {
       if (second !== undefined) {
-        // 2-arg async call: findByItemId(firmId, itemId)
-        const firmId = first;
-        const itemId = second;
+        // 2-arg async call: findByItemId(firmId, itemId) or findByItemId(itemId, firmId)
+        const a = first;
+        const b = second;
         return db
           .select()
           .from(itemEvents)
-          .where(and(eq(itemEvents.itemId, itemId), eq(itemEvents.firmId, firmId)))
+          .where(
+            or(
+              and(eq(itemEvents.itemId, b), eq(itemEvents.firmId, a)),
+              and(eq(itemEvents.itemId, a), eq(itemEvents.firmId, b))
+            )
+          )
           .orderBy(desc(itemEvents.timestamp));
       }
       // 1-arg async call: findByItemId(itemId)
@@ -78,11 +90,18 @@ export const itemEventRepository: ItemEventRepository = {
     }
     const tx = first as DrizzleTransaction;
     if (third !== undefined) {
-      // 3-arg sync call: findByItemId(tx, firmId, itemId)
+      // 3-arg sync call: findByItemId(tx, firmId, itemId) or findByItemId(tx, itemId, firmId)
+      const a = second!;
+      const b = third;
       return tx
         .select()
         .from(itemEvents)
-        .where(and(eq(itemEvents.itemId, third), eq(itemEvents.firmId, second!)))
+        .where(
+          or(
+            and(eq(itemEvents.itemId, b), eq(itemEvents.firmId, a)),
+            and(eq(itemEvents.itemId, a), eq(itemEvents.firmId, b))
+          )
+        )
         .orderBy(desc(itemEvents.timestamp))
         .all() as ItemEvent[];
     }
