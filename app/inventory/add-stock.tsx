@@ -387,6 +387,9 @@ export default function AddStockScreen() {
                         return;
                       }
                       const selDesign = dList.find(d => d.id === opt.id)!;
+                      if (selectedDesign && selectedDesign.metal !== selDesign.metal) {
+                        setPurityPercent('');
+                      }
                       setSelectedDesign(selDesign);
 
                       // Auto-select Default HSN if configured on design
@@ -895,6 +898,7 @@ export default function AddStockScreen() {
         visible={showDatePicker}
         title="Stock Entry Date"
         value={entryDate}
+        maxDate={todayIso}
         onClose={() => setShowDatePicker(false)}
         onSelect={(d) => setEntryDate(d)}
       />

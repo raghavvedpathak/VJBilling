@@ -1,4 +1,4 @@
-// services/phase2/stoneService.ts — Phase 2 v2.24 Canonical Service
+// services/phase2/stoneService.ts — Phase 2 v2.30 Canonical Service
 
 import { db } from '@/db/client';
 import { leaseService } from '@/services/phase1/leaseService';
@@ -9,14 +9,20 @@ import { getDeviceId } from '@/utils/deviceId';
 import { now } from '@/utils/now';
 import { sanitizeText } from '@/utils/sanitize';
 import * as Crypto from 'expo-crypto';
-import type { CreateStoneInput, Stone } from '@/types/phase2/phase2.types';
+import type { CreateStoneInput, Stone, StoneType } from '@/types/phase2/phase2.types';
 import { ERR } from '@/constants/errorCodes';
 import { useMastersSyncStore } from '@/store/phase2/mastersSyncStore';
 
-// --- createStone (Step 4 / FIX-STONE-1) ---
+const VALID_STONE_TYPES: StoneType[] = ['DIAMOND', 'RUBY', 'EMERALD', 'SAPPHIRE'];
+
+// --- createStone (Step 4 / FIX-STONE-1 / FIX-MISSING-CREATE-1 v1.95) ---
 export async function createStone(input: CreateStoneInput, firmId: string): Promise<Stone> {
   await leaseService.assertNoActiveLease(); // GUARD 1
   safeModeService.assertNotInSafeMode();    // GUARD 2
+
+  if (!VALID_STONE_TYPES.includes(input.type)) {
+    throw new Error(`${ERR.INVALID_TEXT_CONTENT}: invalid stone type ${input.type}`);
+  }
 
   const sanitizedName = sanitizeText(input.name); // GAP-P1ALIGN-4 (v1.74)
   const deviceId = await getDeviceId();
@@ -66,12 +72,17 @@ export async function updateStone(
 
     const updateData: Partial<CreateStoneInput> = {};
     if (input.name) updateData.name = sanitizeText(input.name);
-    if (input.type) updateData.type = input.type;
+    if (input.type) {
+      if (!VALID_STONE_TYPES.includes(input.type)) {
+        throw new Error(`${ERR.INVALID_TEXT_CONTENT}: invalid stone type ${input.type}`);
+      }
+      updateData.type = input.type;
+    }
 
     const updated = stoneRepository.update(tx, stoneId, firmId, updateData);
 
     auditRepository.log(tx, {
-      eventType: 'STONE_UPDATED',
+      eventType: 'STONE_UPDATED' as any,
       firmId,
       entityId: stoneId,
       deviceId,
@@ -91,14 +102,15 @@ export async function updateStone(
   return updated;
 }
 
-// --- softDeleteStone (Step 4 / FIX-STONE-1) ---
+// --- softDeleteStone (Step 4 / FIX-STONE-1 / FIX-P2-SYNC-CONTRACT-1 v1.81) ---
 export async function softDeleteStone(stoneId: string, firmId: string): Promise<void> {
   await leaseService.assertNoActiveLease(); // GUARD 1
   safeModeService.assertNotInSafeMode();    // GUARD 2
 
   const deviceId = await getDeviceId();
 
-  await db.transaction(async (tx) => {
+  // FIX-P2-SYNC-CONTRACT-1 (v1.81): Synchronous transaction callback mandatory
+  db.transaction((tx) => {
     const stone = stoneRepository.getById(tx, stoneId, firmId);
     if (!stone || stone.firmId !== firmId) {
       throw new Error(ERR.STONE_NOT_FOUND_OR_WRONG_FIRM);
@@ -112,7 +124,7 @@ export async function softDeleteStone(stoneId: string, firmId: string): Promise<
     stoneRepository.softDelete(tx, stoneId, firmId);
 
     auditRepository.log(tx, {
-      eventType: 'STONE_DELETED',
+      eventType: 'STONE_DELETED' as any,
       firmId,
       entityId: stoneId,
       deviceId,

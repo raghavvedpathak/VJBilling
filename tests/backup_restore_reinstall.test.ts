@@ -112,17 +112,18 @@ beforeAll(async () => {
     id TEXT PRIMARY KEY, firm_id TEXT NOT NULL, stone_id TEXT NOT NULL, name TEXT NOT NULL, weight_carat_x100 INTEGER NOT NULL, quantity INTEGER NOT NULL, purchase_rate_paise_per_carat INTEGER, total_purchase_amount_paise INTEGER, supplier_name TEXT, certification_ref TEXT, notes TEXT, status TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL
   )`);
   await _rawClient.execute(`CREATE TABLE IF NOT EXISTS old_gold_lots (
-    id TEXT PRIMARY KEY, firm_id TEXT NOT NULL, received_from TEXT NOT NULL, received_date TEXT NOT NULL, customer_id TEXT, gross_weight_mg INTEGER NOT NULL, purity_percent REAL NOT NULL, fine_weight_mg INTEGER NOT NULL DEFAULT 0, purity_rounding_delta_mg INTEGER NOT NULL DEFAULT 0, purchase_rate_paise INTEGER, total_amount_paise INTEGER, metal_source TEXT NOT NULL, notes TEXT, status TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+    id TEXT PRIMARY KEY, firm_id TEXT NOT NULL, received_from TEXT NOT NULL, received_date TEXT NOT NULL, customer_id TEXT, gross_weight_mg INTEGER NOT NULL, metal TEXT NOT NULL DEFAULT 'GOLD', purity_percent REAL NOT NULL, fine_weight_mg INTEGER NOT NULL DEFAULT 0, purity_rounding_delta_mg INTEGER NOT NULL DEFAULT 0, purchase_rate_paise INTEGER, total_amount_paise INTEGER, metal_source TEXT NOT NULL, notes TEXT, status TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL
   )`);
   await _rawClient.execute(`CREATE TABLE IF NOT EXISTS urd_purchases (
     id TEXT PRIMARY KEY, firm_id TEXT NOT NULL, fy_id TEXT NOT NULL, urd_number TEXT, purchase_date TEXT NOT NULL,
     customer_id TEXT, customer_name TEXT NOT NULL, customer_address TEXT, customer_mobile TEXT, customer_aadhaar TEXT, customer_pan TEXT,
     metal_type TEXT NOT NULL, gross_weight_mg INTEGER NOT NULL, purity_percent REAL NOT NULL, fine_weight_mg INTEGER NOT NULL,
+    purity_rounding_delta_mg INTEGER NOT NULL DEFAULT 0,
     rate_per_gram_paise INTEGER NOT NULL, total_value_paise INTEGER NOT NULL, payment_mode TEXT NOT NULL, bank_account_id TEXT,
     old_gold_lot_id TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'DRAFT', notes TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL
   )`);
   await _rawClient.execute(`CREATE TABLE IF NOT EXISTS loose_stock_lots (
-    id TEXT PRIMARY KEY, firm_id TEXT NOT NULL, design_id TEXT NOT NULL, purity_percent REAL NOT NULL, purity_karat INTEGER, metal TEXT NOT NULL, piece_count INTEGER NOT NULL DEFAULT 0, total_weight_mg INTEGER NOT NULL DEFAULT 0, hsn_code TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'ACTIVE', created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+    id TEXT PRIMARY KEY, firm_id TEXT NOT NULL, design_id TEXT NOT NULL, purity_percent REAL NOT NULL, purity_karat REAL NOT NULL, metal TEXT NOT NULL, piece_count INTEGER NOT NULL DEFAULT 0, total_weight_mg INTEGER NOT NULL DEFAULT 0, hsn_code TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'ACTIVE', created_at TEXT NOT NULL, updated_at TEXT NOT NULL
   )`);
   await _rawClient.execute(`CREATE TABLE IF NOT EXISTS loose_stock_events (
     id TEXT PRIMARY KEY, lot_id TEXT NOT NULL, firm_id TEXT NOT NULL, event_type TEXT NOT NULL, piece_count_delta INTEGER NOT NULL, weight_mg_delta INTEGER NOT NULL, purchase_rate_paise INTEGER, wastage_percent REAL, sale_invoice_id TEXT, performed_by TEXT NOT NULL, timestamp TEXT NOT NULL

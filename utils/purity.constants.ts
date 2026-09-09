@@ -1,4 +1,4 @@
-// utils/purity.constants.ts — Phase 2 v2.24 Canonical Purity & Math Utilities
+// utils/purity.constants.ts — Phase 2 v2.30 Canonical Purity & Math Utilities
 
 import { ERR } from '@/constants/errorCodes';
 
@@ -58,29 +58,24 @@ export const SILVER_PURITY_PRESETS: PurityPreset[] = [
 
 // Reference lists for informational UI display ONLY (v1.94 FEAT-SILVER-PURITY-GRADES-1)
 export const SILVER_PURITY_GRADES: number[] = [80.0, 83.5, 92.5, 95.8, 97.0, 99.0, 99.9]; // BIS IS 2112:2025
-export const GOLD_PURITY_GRADES: number[] = [
-  99.99,
-  99.9,
-  99.50,
-  ...Object.values(PURITY_MAP).filter((p) => p !== 99.9),
-];
+export const GOLD_PURITY_GRADES: number[] = Object.values(PURITY_MAP);
 
 export const PURITY_PRESETS: Record<'GOLD' | 'SILVER', PurityPreset[]> = {
   GOLD: GOLD_PURITY_PRESETS,
   SILVER: SILVER_PURITY_PRESETS,
 };
 
-export function getPurityPresets(metal: 'GOLD' | 'SILVER' = 'GOLD'): PurityPreset[] {
-  return PURITY_PRESETS[metal] || GOLD_PURITY_PRESETS;
+export function getPurityPresets(metal: 'GOLD' | 'SILVER'): PurityPreset[] {
+  return PURITY_PRESETS[metal];
 }
 
 export function getPurityPresetById(id: string): PurityPreset | undefined {
   return [...GOLD_PURITY_PRESETS, ...SILVER_PURITY_PRESETS].find((p) => p.id === id);
 }
 
-export function isStandardPurityGrade(purityPercent: number, metal: 'GOLD' | 'SILVER' = 'GOLD'): boolean {
+export function isStandardPurityGrade(purityPercent: number, metal: 'GOLD' | 'SILVER'): boolean {
   const grades = metal === 'SILVER' ? SILVER_PURITY_GRADES : GOLD_PURITY_GRADES;
-  return grades.some((g) => Math.abs(g - purityPercent) <= 0.05);
+  return grades.some((g) => Math.abs(g - purityPercent) <= 0.01);
 }
 
 // karatToPercent() — throws if karat not in map (STEP 6.1)
@@ -90,10 +85,10 @@ export function karatToPercent(karat: number): number {
   return pct;
 }
 
-// percentToKarat() — checks extended variants first, then PURITY_MAP with 0.05% tolerance
+// percentToKarat() — checks extended variants first (exact match), then PURITY_MAP with 0.05% tolerance
 export function percentToKarat(percent: number): number | null {
-  for (const [pStr, k] of Object.entries(PURITY_PERCENT_EXTENDED)) {
-    if (Math.abs(Number(pStr) - percent) < 0.05) return k;
+  if (PURITY_PERCENT_EXTENDED[percent] !== undefined) {
+    return PURITY_PERCENT_EXTENDED[percent];
   }
   for (const [k, v] of Object.entries(PURITY_MAP)) {
     if (Math.abs(v - percent) < 0.05) return Number(k);
@@ -102,7 +97,7 @@ export function percentToKarat(percent: number): number | null {
 }
 
 // =============================================================================
-// TRADE CONVENTION PURITY ROUNDING (FEAT-PURITY-ROUND-1 v1.90 / v1.91 / v2.14)
+// TRADE CONVENTION PURITY ROUNDING (FEAT-PURITY-ROUND-1 v1.90 / v1.91 / v2.14 / v2.26)
 // =============================================================================
 
 export const PURITY_ROUND_TO_100: Record<'GOLD' | 'SILVER', number[]> = {
@@ -113,17 +108,16 @@ export const PURITY_ROUND_TO_100: Record<'GOLD' | 'SILVER', number[]> = {
 // FIX-EFFPRICE-PURITYROUND-1 (v2.14): SOLE lookup point for trade-convention 100% purity rounding
 export function resolveEffectivePurityPercent(
   purityPercent: number,
-  metal: 'GOLD' | 'SILVER' = 'GOLD'
+  metal: 'GOLD' | 'SILVER'
 ): number {
-  const isRounded = PURITY_ROUND_TO_100[metal]?.some((target) => Math.abs(target - purityPercent) < 0.05);
-  return isRounded ? 100 : purityPercent;
+  return PURITY_ROUND_TO_100[metal].includes(purityPercent) ? 100 : purityPercent;
 }
 
-// SOLE fine-weight entry point for regular stock & MELT_OUTPUT old gold lots (Step 6.1)
+// SOLE fine-weight entry point for regular stock, all old-gold lots, and URD purchases (Step 6.1)
 export function resolveFineWeightMg(
   netWeightMg: number,
   purityPercent: number,
-  metal: 'GOLD' | 'SILVER' = 'GOLD'
+  metal: 'GOLD' | 'SILVER'
 ): { fineWeightMg: number; purityRoundingDeltaMg: number } {
   const trueFineWeightMg = Math.round((netWeightMg * purityPercent) / 100);
   const effectivePurityPercent = resolveEffectivePurityPercent(purityPercent, metal);
@@ -133,42 +127,28 @@ export function resolveFineWeightMg(
   return { fineWeightMg: netWeightMg, purityRoundingDeltaMg: netWeightMg - trueFineWeightMg };
 }
 
-// UI DISPLAY LAYER ONLY — getDisplayPurity() (Step 6.1 / PURITY-INTAKE-1 v1.21)
+// UI DISPLAY LAYER ONLY — getDisplayPurity() (Step 6.1 / PURITY-INTAKE-1 v1.21 / FIX-24KS-DISPLAY-1 v2.25)
 export function getDisplayPurity(
-  purityPercent?: number | null,
-  purityKarat?: number | null,
-  metal: 'GOLD' | 'SILVER' = 'GOLD'
+  purityPercent: number,
+  purityKarat: number | null,
+  metal: 'GOLD' | 'SILVER'
 ): string {
-  const safePercent = purityPercent != null && !isNaN(Number(purityPercent)) ? Number(purityPercent) : 0;
-
-  if (metal === 'GOLD' && Math.abs(safePercent - 99.50) < 0.05) {
-    return '24KS';
+  if (metal === 'GOLD' && purityKarat !== null && purityKarat > 0) {
+    if (purityPercent === 99.50) return `${purityKarat}KS`;
+    return `${purityKarat}K`;
   }
-
-  const resolvedKarat =
-    purityKarat !== undefined && purityKarat !== null
-      ? purityKarat
-      : metal === 'GOLD'
-      ? (percentToKarat(safePercent) ?? 0)
-      : 0;
-
-  if (metal === 'GOLD' && resolvedKarat > 0) {
-    return `${resolvedKarat}K`;
-  }
-  return `${safePercent}%`;
+  return `${purityPercent}%`;
 }
 
 // formatKaratBadge() — Formats top-right highlighter badge for purity inputs
 export function formatKaratBadge(
   purityPercent: number | string | null | undefined,
-  metal: 'GOLD' | 'SILVER' | string = 'GOLD'
+  metal: 'GOLD' | 'SILVER'
 ): string | null {
   if (metal !== 'GOLD') return null;
   const p = typeof purityPercent === 'number' ? purityPercent : parseCleanFloat(purityPercent);
   if (isNaN(p) || p <= 0) return null;
-  if (Math.abs(p - 99.50) < 0.05) {
-    return '24KS';
-  }
+  if (p === 99.50) return '24KS';
   const k = percentToKarat(p);
   return k ? `${k}K` : null;
 }
@@ -181,7 +161,7 @@ export function computeEffectivePricePerGram(
   ratePerGram: number,
   purityPercent: number,
   wastagePercent: number,
-  metal: 'GOLD' | 'SILVER' = 'GOLD'
+  metal: 'GOLD' | 'SILVER'
 ): number {
   const effectivePurityPercent = resolveEffectivePurityPercent(purityPercent, metal);
   return ratePerGram * ((effectivePurityPercent + wastagePercent) / 100);
@@ -191,7 +171,7 @@ export function computeEffectivePricePaisePerGram(
   purchaseRatePaise: number,
   purityPercent: number,
   wastagePercent: number,
-  metal: 'GOLD' | 'SILVER' = 'GOLD'
+  metal: 'GOLD' | 'SILVER'
 ): number {
   const effectivePurityPercent = resolveEffectivePurityPercent(purityPercent, metal);
   return Math.round(purchaseRatePaise * ((effectivePurityPercent + wastagePercent) / 100));
@@ -204,6 +184,7 @@ export function computeEstTotalCostPaise(
   return Math.round(effectivePricePaisePerGram * (netWeightMg / 1000));
 }
 
+// FIX-WAST-CENTRALIZE-1 + FIX-WAST-NETBASIS-1 (v2.04): Net-weight based supplier gold charge
 export function computeFineGoldChargedMg(
   netWeightMg: number,
   purityPercent: number,
@@ -213,7 +194,6 @@ export function computeFineGoldChargedMg(
   return Math.round(netWeightMg * ((purityPercent + wastagePercent) / 100));
 }
 
-// --- INVENTORY ITEM COST & TRUTH HELPERS FOR ALL SCREENS ---
 export function computeVaultTruthGrams(fineWeightMg: number): number {
   return fineWeightMg / 1000;
 }
@@ -307,7 +287,7 @@ export function computeGemstoneTotalPaise(
 }
 
 // =============================================================================
-// CENTRAL URD PURCHASE FORMULAS (STEP 12.9 / FIX-URD-COST-1 v1.62)
+// CENTRAL URD PURCHASE FORMULAS (STEP 12.9 / FIX-URD-COST-1 v1.62 / v2.26)
 // =============================================================================
 
 export interface URDCostBreakdown {
@@ -315,6 +295,7 @@ export interface URDCostBreakdown {
   grossWeightGrams: number;
   purityPercent: number;
   fineWeightMg: number;
+  purityRoundingDeltaMg: number;
   fineWeightGrams: number;
   ratePerGramPaise: number;
   ratePerGramRupees: number;
@@ -336,12 +317,11 @@ export interface URDCostBreakdown {
 export function computeURDFineWeightMg(
   grossWeightMg: number,
   purityPercent: number,
-  metal: 'GOLD' | 'SILVER' = 'GOLD'
-): number {
+  metal: 'GOLD' | 'SILVER'
+): { fineWeightMg: number; purityRoundingDeltaMg: number } {
   const safeGrossMg = Math.max(0, grossWeightMg || 0);
   const safePurity = Math.max(0, Math.min(100, purityPercent || 0));
-  const effectivePurity = resolveEffectivePurityPercent(safePurity, metal);
-  return Math.round(safeGrossMg * (effectivePurity / 100));
+  return resolveFineWeightMg(safeGrossMg, safePurity, metal);
 }
 
 export function computeURDTotalValuePaise(
@@ -368,7 +348,7 @@ export function computeURDCostBreakdown(
   const safeRatePaise = Math.max(0, ratePerGramPaise || 0);
   const safeAdjustmentPaise = adjustmentPaise || 0;
 
-  const fineWeightMg = computeURDFineWeightMg(safeGrossMg, safePurity, metal);
+  const { fineWeightMg, purityRoundingDeltaMg } = computeURDFineWeightMg(safeGrossMg, safePurity, metal);
   const grossValuePaise = Math.round((fineWeightMg / 1000) * safeRatePaise);
   const subtotalAfterAdjustmentPaise = Math.max(0, grossValuePaise + safeAdjustmentPaise);
 
@@ -391,6 +371,7 @@ export function computeURDCostBreakdown(
     grossWeightGrams,
     purityPercent: safePurity,
     fineWeightMg,
+    purityRoundingDeltaMg,
     fineWeightGrams,
     ratePerGramPaise: safeRatePaise,
     ratePerGramRupees,

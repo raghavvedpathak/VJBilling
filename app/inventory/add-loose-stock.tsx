@@ -14,12 +14,12 @@ import { designRepository } from '@/repositories/phase2/designRepository';
 import { looseStockService } from '@/services/phase2/looseStockService';
 import { 
   getPurityPresets, 
-  formatKaratBadge,
   gramsToMg, 
   parseCleanFloat, 
   type PurityPreset,
   getCurrencySymbol,
   rupeesToPaise,
+  percentToKarat,
 } from '@/utils/calculations';
 import { Layers, Scale, Banknote, CheckCircle, Plus } from 'lucide-react-native';
 import type { Design, AddLooseStockInput } from '@/types/phase2/phase2.types';
@@ -117,13 +117,13 @@ export default function AddLooseStockScreen() {
       return;
     }
 
+    if (!/^\d+$/.test(pieceCount.trim()) || parseInt(pieceCount.trim(), 10) <= 0) {
+      Alert.alert('Validation Error', 'Piece count must be a valid whole number of at least 1.');
+      return;
+    }
     const pcsVal = parseInt(pieceCount.trim(), 10);
     const wtGramsVal = parseCleanFloat(weightGrams);
 
-    if (isNaN(pcsVal) || pcsVal <= 0) {
-      Alert.alert('Validation Error', 'Piece count must be at least 1.');
-      return;
-    }
     if (isNaN(wtGramsVal) || wtGramsVal <= 0) {
       Alert.alert('Validation Error', 'Total weight must be greater than 0.');
       return;
@@ -131,13 +131,12 @@ export default function AddLooseStockScreen() {
 
     const totalWeightMg = gramsToMg(wtGramsVal);
     const purityPct = parseCleanFloat(selectedPurity.val);
-    const karatDisplay = formatKaratBadge(purityPct, selectedDesign.metal) ?? `${purityPct}%`;
 
     // Construct input with exact optional property adherence
     const input: AddLooseStockInput = {
       designId: selectedDesign.id,
       purityPercent: purityPct,
-      purityKarat: karatDisplay,
+      purityKarat: selectedDesign.metal === 'GOLD' ? (percentToKarat(purityPct) || 0) : 0,
       pieceCount: pcsVal,
       totalWeightMg,
       hsnCode: hsnCode.trim() || '7113',

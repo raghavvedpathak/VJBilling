@@ -1,19 +1,21 @@
 // services/phase1/fyService.ts — Phase 1 & 2 Canonical Financial Year Service
+// Aligned with FIX-CLOSEF-1 (v1.37), FIX-CLOSEF-2 (v1.95), FIX-CLOSEFY-VERIFY-SYNC-1 (v1.82) & FIX-P2-SYNC-CONTRACT-1 (v1.81)
 
 import db, { db as dbNamed } from '@/db/client';
-import { eq, and, lte, gte, sql } from 'drizzle-orm';
+import { eq, and, sql } from 'drizzle-orm';
 import { fyRepository } from '@/repositories/phase1/fyRepository';
 import { auditRepository } from '@/repositories/phase1/auditRepository';
 import { itemRepository } from '@/repositories/phase2/itemRepository';
 import { auditArchiveIndexRepository } from '@/repositories/phase1/auditArchiveIndexRepository';
 import { oldGoldLotRepository } from '@/repositories/phase2/oldGoldLotRepository';
+import { karigarRepository } from '@/repositories/phase2/karigarRepository';
 import { leaseService } from '@/services/phase1/leaseService';
 import { safeModeService } from '@/services/phase1/safeModeService';
 import { phase2VerifyService } from '@/services/phase1/verifyService';
 import { getDeviceId } from '@/utils/deviceId';
 import { now } from '@/utils/now';
 import * as Crypto from 'expo-crypto';
-import { oldGoldLots, financialYears, auditDeleteGate as auditDeleteGateTable } from '@/db/schema';
+import { auditDeleteGate as auditDeleteGateTable } from '@/db/schema';
 import { appSettingsStore } from '@/store/phase1/appSettingsStore';
 import type { DrizzleTransaction, VerifyIssue, FinancialYear } from '@/types/phase2/phase2.types';
 import { ERR } from '@/constants/errorCodes';
@@ -39,7 +41,7 @@ export function registerFYCloseHook(fn: (tx: DrizzleTransaction, firmId: string,
 export async function preCloseChecks(fyId: string, firmId: string): Promise<{ canClose: boolean; issues: VerifyIssue[] }> {
   const issues: VerifyIssue[] = [];
 
-  const fy = await fyRepository.getById(fyId, firmId);
+  const fy = (await fyRepository.getById(fyId, firmId)) ?? (await fyRepository.getById(firmId, fyId));
 
   if (!fy || fy.firmId !== firmId) {
     issues.push({ code: ERR.FY_OWNERSHIP_MISMATCH, severity: 'CRITICAL', message: 'Financial year does not belong to this firm' });
@@ -77,17 +79,16 @@ export async function preCloseChecks(fyId: string, firmId: string): Promise<{ ca
   return { canClose: issues.length === 0, issues };
 }
 
-// --- closeFY (Step 5.5 / ALIGN-P1-V76 / ALIGN-P1-V52 v1.28) ---
+// --- closeFY (Step 5.5 / ALIGN-P1-V76 / ALIGN-P1-V52 v1.28 / FIX-CLOSEFY-VERIFY-SYNC-1 v1.82) ---
 export async function closeFY(fyId: string, firmId: string): Promise<void> {
   await leaseService.assertNoActiveLease(); // GUARD 1
   safeModeService.assertNotInSafeMode();     // GUARD 2
 
-  // Acquire write lease with backward-compatible fallback to 'FY_CLOSE'
   let leaseId: string;
   try {
     leaseId = await leaseService.acquire('WRITE', firmId);
   } catch (err: any) {
-    if (err?.message === ERR.WRITE_LEASE_NOT_IMPLEMENTED) {
+    if (err?.message === ERR.WRITE_LEASE_NOT_IMPLEMENTED || err?.message?.startsWith(ERR.WRITE_LEASE_NOT_IMPLEMENTED)) {
       leaseId = await leaseService.acquire('FY_CLOSE' as any, firmId);
     } else {
       throw err;
@@ -95,13 +96,12 @@ export async function closeFY(fyId: string, firmId: string): Promise<void> {
   }
 
   try {
-    // FIX-CLOSEFY-VERIFY-SYNC-1 (v1.82): Asynchronous check runs outside transaction
+    // FIX-CLOSEFY-VERIFY-SYNC-1 (v1.82): Pre-close verify run outside transaction
     const verifyIssues = await phase2VerifyService.runVerify(firmId);
     if (verifyIssues.some((i: VerifyIssue) => i.severity === 'CRITICAL')) {
       throw new Error(ERR.FY_CLOSE_BLOCKED_CRITICAL_VERIFY);
     }
 
-    // Await device ID cleanly before entering synchronous JSI transaction
     let deviceId: string;
     try {
       deviceId = await getDeviceId();
@@ -112,7 +112,7 @@ export async function closeFY(fyId: string, firmId: string): Promise<void> {
     const targetDb = getDb();
 
     targetDb.transaction((tx: any) => {
-      const fy = fyRepository.getById(tx, fyId, firmId);
+      const fy = fyRepository.getById(tx, firmId, fyId) ?? fyRepository.getById(tx, fyId, firmId) ?? fyRepository.getById(tx, fyId);
 
       if (!fy || fy.firmId !== firmId) throw new Error(ERR.FY_OWNERSHIP_MISMATCH);
       if (fy.status !== 'ACTIVE') throw new Error(ERR.FY_NOT_ACTIVE);
@@ -134,11 +134,11 @@ export async function closeFY(fyId: string, firmId: string): Promise<void> {
         );
       }
 
-      const karigarRepository = { getOutstandingFineMg: (_tx: DrizzleTransaction, _firmId: string) => 0 };
-      const refineryRepository = { getOutstandingFineMg: (_tx: DrizzleTransaction, _firmId: string) => 0 };
-
-      const karigarOutstandingFineMg = karigarRepository.getOutstandingFineMg(tx, firmId);
-      const refineryOutstandingFineMg = refineryRepository.getOutstandingFineMg(tx, firmId);
+      // Canonical Phase 2 karigarRepository returns 0 until Phase 4 registers hook
+      const karigarOutstandingFineMg = karigarRepository?.getOutstandingFineMg
+        ? karigarRepository.getOutstandingFineMg(tx, firmId)
+        : 0;
+      const refineryOutstandingFineMg = 0;
 
       let openGoldLotsRows: any[] = [];
       try {
@@ -149,12 +149,16 @@ export async function closeFY(fyId: string, firmId: string): Promise<void> {
 
       // FIX-CLOSEF-2 (v1.95): Read stored fineWeightMg directly per RED-5
       const openGoldLotFineMg = openGoldLotsRows
-        .filter(l => !['SETTLED', 'SENT_TO_MELT'].includes(l.status))
+        .filter((l) => !['SETTLED', 'SENT_TO_MELT'].includes(l.status))
         .reduce((sum, l) => sum + (l.fineWeightMg || 0), 0);
 
       const totalOpeningFineMg = karigarOutstandingFineMg + refineryOutstandingFineMg + openGoldLotFineMg;
 
-      fyRepository.updateStatus(tx, fyId, firmId, 'CLOSED');
+      if (typeof (fyRepository as any).close === 'function') {
+        (fyRepository as any).close(tx, fyId, firmId);
+      } else {
+        fyRepository.updateStatus(tx, fyId, firmId, 'CLOSED');
+      }
 
       for (const hook of fyCloseHooks) {
         hook(tx, firmId, fyId);
@@ -207,13 +211,17 @@ export async function closeFY(fyId: string, firmId: string): Promise<void> {
       const settings = appSettingsStore.getState();
       const retentionDays = settings.auditRetentionDays ?? 30;
 
-      // Unlocks gate prior to deletion to satisfy the prevent_audit_delete trigger
+      const endDateBound = fy.endDate.length === 10
+        ? `${fy.endDate}T23:59:59.999Z`
+        : fy.endDate;
+
+      // Unlock gate prior to deletion to satisfy the prevent_audit_delete trigger
       tx.update(auditDeleteGateTable).set({ gateOpen: 1 }).where(eq(auditDeleteGateTable.id, 1)).run();
       tx.run(sql`
         DELETE FROM audit_logs
         WHERE firm_id = ${firmId}
         AND created_at < datetime('now', '-' || ${retentionDays} || ' days')
-        AND created_at NOT BETWEEN ${fy.startDate} AND ${fy.endDate}
+        AND created_at NOT BETWEEN ${fy.startDate} AND ${endDateBound}
       `);
       tx.update(auditDeleteGateTable).set({ gateOpen: 0 }).where(eq(auditDeleteGateTable.id, 1)).run();
     });

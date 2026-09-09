@@ -1,5 +1,5 @@
-// services/phase2/karigarService.ts — Phase 2 v2.24 Canonical Service
-// Step 10.7 / FIX-SERVICE-BODY-1 (v1.35) / FIX-LOOP-1 (v1.33) / FIX-KARIGAR-COMMENT-1 (v2.20)
+// services/phase2/karigarService.ts — Phase 2 v2.30 Canonical Service
+// Step 10.7 / FIX-SERVICE-BODY-1 (v1.35) / FIX-LOOP-1 (v1.33) / FIX-KARIGAR-FWDCOMPAT-1 (v2.18) / FIX-P2-SYNC-CONTRACT-1 (v1.81)
 
 import { db } from '@/db/client';
 import { itemRepository } from '@/repositories/phase2/itemRepository';
@@ -10,24 +10,33 @@ import { leaseService } from '@/services/phase1/leaseService';
 import { safeModeService } from '@/services/phase1/safeModeService';
 import { getDeviceId } from '@/utils/deviceId';
 import { now } from '@/utils/now';
+import { sanitizeText } from '@/utils/sanitize';
 import * as Crypto from 'expo-crypto';
 import { ERR } from '@/constants/errorCodes';
 import type { KarigarIssuedItem, StockStatus, Metal } from '@/types/phase2/phase2.types';
 import { ALLOWED_TRANSITIONS } from '@/types/phase2/phase2.types';
 
-export type KarigarOutcome = 'REPAIRED' | 'UNREPAIRABLE' | 'PARTIALLY_REPAIRED';
+export type KarigarOutcome = 'REPAIRED' | 'UNREPAIRABLE' | 'DEFECTIVE' | 'PARTIALLY_REPAIRED';
 
 // --- sendToKarigar (Step 10.7 / FIX-SERVICE-BODY-1 v1.35 / FIX-AVAILABLE-KARIGAR-1 v1.46) ---
 export async function sendToKarigar(
   itemId: string,
   firmId: string,
   karigarName: string,
-  reason: string
+  reason: string,
+  karigarId?: string
 ): Promise<void> {
   await leaseService.assertNoActiveLease(); // GUARD 1
   safeModeService.assertNotInSafeMode();     // GUARD 2
 
-  const deviceId = getDeviceId();
+  if (!reason || reason.trim().length === 0) throw new Error(ERR.ITEM_ACTION_REASON_REQUIRED);
+  if (!karigarName || karigarName.trim().length === 0) throw new Error(ERR.KARIGAR_NAME_REQUIRED);
+
+  const sanitizedKarigarName = sanitizeText(karigarName);
+  const sanitizedReason = sanitizeText(reason);
+
+  // FIX-P2-SYNC-CONTRACT-1: await deviceId cleanly outside tx
+  const deviceId = await getDeviceId();
 
   return db.transaction((tx) => {
     const item = itemRepository.getById(tx, firmId, itemId);
@@ -50,16 +59,16 @@ export async function sendToKarigar(
 
     itemRepository.updateStatus(tx, firmId, itemId, 'SENT_TO_KARIGAR');
 
-    // FIX-KARIGAR-FWDCOMPAT-1 (v2.18) & FIX-KARIGAR-COMMENT-1 (v2.20): karigarId stays NULL
+    // FIX-KARIGAR-FWDCOMPAT-1 (v2.18): supports optional karigarId
     itemEventRepository.insert(tx, {
       id: Crypto.randomUUID(),
       itemId,
       firmId,
-      karigarId: null,
+      karigarId: karigarId ?? null,
       eventType: 'ITEM_SENT_TO_KARIGAR',
       severity: 'WARNING',
       performedBy: deviceId,
-      reason: reason ?? null,
+      reason: sanitizedReason,
       oldValue: 'DAMAGED',
       newValue: 'SENT_TO_KARIGAR',
       timestamp: now(),
@@ -70,7 +79,14 @@ export async function sendToKarigar(
       firmId,
       entityId: itemId,
       deviceId,
-      payload: { itemId, sku: item.sku, karigarName, reason, priorKarigarCount },
+      payload: {
+        itemId,
+        sku: item.sku,
+        karigarName: sanitizedKarigarName,
+        karigarId: karigarId ?? null,
+        reason: sanitizedReason,
+        priorKarigarCount,
+      },
     });
   });
 }
@@ -86,12 +102,21 @@ export async function returnFromKarigar(
   await leaseService.assertNoActiveLease(); // GUARD 1
   safeModeService.assertNotInSafeMode();     // GUARD 2
 
-  const nextStatus: StockStatus =
-    outcome === 'REPAIRED' ? 'AVAILABLE' :
-    outcome === 'UNREPAIRABLE' ? 'SENT_TO_REFINERY' :
-    'DAMAGED';
+  const nextStatusMap: Record<string, StockStatus> = {
+    REPAIRED: 'AVAILABLE',
+    UNREPAIRABLE: 'SENT_TO_REFINERY',
+    DEFECTIVE: 'DAMAGED',
+    PARTIALLY_REPAIRED: 'DAMAGED',
+  };
 
-  const deviceId = getDeviceId();
+  const nextStatus = nextStatusMap[outcome];
+  if (!nextStatus) throw new Error(`${ERR.INVALID_TRANSITION}: Unknown karigar outcome ${outcome}`);
+
+  const sanitizedKarigarName = sanitizeText(karigarName);
+  const sanitizedReason = reason ? sanitizeText(reason) : null;
+
+  // FIX-P2-SYNC-CONTRACT-1: await deviceId cleanly outside tx
+  const deviceId = await getDeviceId();
 
   return db.transaction((tx) => {
     const item = itemRepository.getById(tx, firmId, itemId);
@@ -108,7 +133,6 @@ export async function returnFromKarigar(
 
     itemRepository.updateStatus(tx, firmId, itemId, nextStatus);
 
-    // FIX-KARIGAR-FWDCOMPAT-1 (v2.18) & FIX-KARIGAR-COMMENT-1 (v2.20): karigarId stays NULL
     itemEventRepository.insert(tx, {
       id: Crypto.randomUUID(),
       itemId,
@@ -117,7 +141,7 @@ export async function returnFromKarigar(
       eventType: 'ITEM_RETURNED_FROM_KARIGAR',
       severity: 'INFO',
       performedBy: deviceId,
-      reason: reason ?? null,
+      reason: sanitizedReason,
       oldValue: 'SENT_TO_KARIGAR',
       newValue: nextStatus,
       timestamp: now(),
@@ -128,13 +152,21 @@ export async function returnFromKarigar(
       firmId,
       entityId: itemId,
       deviceId,
-      payload: { itemId, sku: item.sku, outcome, nextStatus, karigarName, reason: reason ?? null },
+      payload: {
+        itemId,
+        sku: item.sku,
+        outcome,
+        nextStatus,
+        karigarName: sanitizedKarigarName,
+        reason: sanitizedReason,
+      },
     });
   });
 }
 
 // --- getKarigarIssuedItems (Step 10.8 / FEAT-GAP6-KARIGAR-SUMMARY-1 v1.66) ---
 export async function getKarigarIssuedItems(firmId: string): Promise<KarigarIssuedItem[]> {
+  if (!firmId) throw new Error(ERR.FIRM_ID_REQUIRED); // RED-9 firm guard
   const rawRows = await karigarRepository.getKarigarIssuedItemsRaw(firmId);
 
   return rawRows.map((row: any) => {
@@ -159,7 +191,7 @@ export async function getKarigarIssuedItems(firmId: string): Promise<KarigarIssu
       grossWeightMg: row.grossWeightMg,
       netWeightMg: row.netWeightMg,
       karigarName,
-      karigarId: null, // Phase 2 forward compatibility (v2.18)
+      karigarId: null,
       updatedAt: row.updatedAt,
     };
   });

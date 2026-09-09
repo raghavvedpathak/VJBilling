@@ -1,5 +1,6 @@
-// services/phase2/oldGoldLotService.ts — Phase 2 v2.24 Canonical Service
-// Aligned with FEAT-PURITY-ROUND-1 (v1.90 / v1.91), DOMAIN-FIX-1 (v1.22) & FIX-OLDGOLD-BODY-1 (v1.35)
+// services/phase2/oldGoldLotService.ts — Phase 2 v2.30 Canonical Service
+// Aligned with FIX-PURITYROUND-SCOPE-EXPAND-1 (v2.26), FIX-OLDGOLD-METAL-1 (v2.26),
+// FIX-OLDGOLD-METAL-VALIDATION-1 (v2.28), DOMAIN-FIX-1 (v1.22) & FIX-OLDGOLD-BODY-1 (v1.35)
 
 import { db } from '@/db/client';
 import { ERR } from '@/constants/errorCodes';
@@ -27,25 +28,30 @@ export async function findAvailableForIssuance(firmId: string): Promise<OldGoldL
   return oldGoldLotRepository.findAvailableForIssuance(firmId);
 }
 
-// --- createOldGoldLot (Step 12.6 / FIX-OLDGOLD-BODY-1 v1.35 / FEAT-PURITY-ROUND-1 v1.91) ---
+// --- createOldGoldLot (Step 12.6 / FIX-OLDGOLD-BODY-1 v1.35 / FIX-PURITYROUND-SCOPE-EXPAND-1 v2.26 / FIX-OLDGOLD-METAL-VALIDATION-1 v2.28) ---
 export async function createOldGoldLot(
   input: CreateOldGoldLotInput,
   firmId: string
 ): Promise<OldGoldLot> {
   await leaseService.assertNoActiveLease(); // GUARD 1
-  safeModeService.assertNotInSafeMode();     // GUARD 2
+  safeModeService.assertNotInSafeMode();    // GUARD 2
 
+  // FIX-OLDGOLD-METAL-VALIDATION-1 (v2.28): runtime validation on metal
+  if (input.metal !== 'GOLD' && input.metal !== 'SILVER') {
+    throw new Error(ERR.OLD_GOLD_METAL_INVALID);
+  }
   if (input.grossWeightMg <= 0) throw new Error(ERR.OLD_GOLD_GROSS_WEIGHT_INVALID);
   if (input.purityPercent <= 0 || input.purityPercent > 100) {
     throw new Error(ERR.OLD_GOLD_PURITY_PERCENT_INVALID);
   }
 
-  // FEAT-PURITY-ROUND-1 (v1.90 / v1.91): MELT_OUTPUT uses 100%-purity trade rounding.
-  // CUSTOMER / KARIGAR / EXCHANGE / PURCHASE old gold keeps exact purity.
-  const isMeltOutput = (input.metalSource ?? 'CUSTOMER') === 'MELT_OUTPUT';
-  const { fineWeightMg, purityRoundingDeltaMg } = isMeltOutput
-    ? resolveFineWeightMg(input.grossWeightMg, input.purityPercent, 'GOLD')
-    : { fineWeightMg: Math.round((input.grossWeightMg * input.purityPercent) / 100), purityRoundingDeltaMg: 0 };
+  // FIX-PURITYROUND-SCOPE-EXPAND-1 (v2.26): Scope expanded to ALL metalSource values unconditionally.
+  // The 100%-purity trade convention rounding applies to old-gold lots of ANY metalSource.
+  const { fineWeightMg, purityRoundingDeltaMg } = resolveFineWeightMg(
+    input.grossWeightMg,
+    input.purityPercent,
+    input.metal
+  );
 
   const totalAmountPaise = input.purchaseRatePaise
     ? Math.round((fineWeightMg / 1000) * input.purchaseRatePaise)
@@ -61,6 +67,7 @@ export async function createOldGoldLot(
     const lot = oldGoldLotRepository.insert(tx, {
       id: lotId,
       firmId,
+      metal: input.metal,
       receivedFrom: sanitizedReceivedFrom,
       fineWeightMg,
       purityRoundingDeltaMg,
@@ -84,6 +91,7 @@ export async function createOldGoldLot(
       deviceId,
       payload: {
         lotId: lot.id,
+        metal: input.metal, // FIX-OLDGOLD-METAL-VALIDATION-1 (v2.28): metal in audit payload
         grossWeightMg: lot.grossWeightMg,
         purityPercent: lot.purityPercent,
         metalSource: lot.metalSource,
@@ -108,7 +116,7 @@ export async function updateOldGoldLotStatus(
   reason?: string
 ): Promise<void> {
   await leaseService.assertNoActiveLease(); // GUARD 1
-  safeModeService.assertNotInSafeMode();     // GUARD 2
+  safeModeService.assertNotInSafeMode();    // GUARD 2
 
   const deviceId = await getDeviceId();
 
@@ -134,7 +142,7 @@ export async function updateOldGoldLotStatus(
       firmId,
       entityId: lotId,
       deviceId,
-      payload: { lotId, oldStatus, newStatus, reason: reason ?? null },
+      payload: { lotId, oldStatus, newStatus, reason: reason ? sanitizeText(reason) : null },
     });
   });
 }

@@ -1,5 +1,6 @@
-// services/phase2/urdPurchaseService.ts — Phase 2 v2.24 Canonical Service
-// Aligned with FIX-URD-1 (v1.49), FIX-URD-COST-1 (v1.62) & FIX-URD-SEQ-ARCH-1
+// services/phase2/urdPurchaseService.ts — Phase 2 v2.30 Canonical Service
+// Aligned with FIX-URD-1 (v1.49), FIX-URD-COST-1 (v1.62), FIX-PURITYROUND-SCOPE-EXPAND-1 (v2.26),
+// FIX-OLDGOLD-METAL-1 (v2.26) & FIX-FYREPO-SYNC-CONTRACT-1 (v1.84)
 
 import { ERR } from '@/constants/errorCodes';
 import { db } from '@/db/client';
@@ -15,7 +16,7 @@ import { urdPrintService } from '@/services/phase2/urdPrintService';
 import type { CreateURDPurchaseInput, URDPurchase } from '@/types/phase2/phase2.types';
 import { getDeviceId } from '@/utils/deviceId';
 import { now } from '@/utils/now';
-import { computeURDFineWeightMg, computeURDTotalValuePaise } from '@/utils/calculations';
+import { resolveFineWeightMg, computeURDTotalValuePaise } from '@/utils/calculations';
 import { sanitizeText } from '@/utils/sanitize';
 import * as Crypto from 'expo-crypto';
 
@@ -29,7 +30,7 @@ export async function getById(
   return urdPurchaseRepository.getById(id, firmId);
 }
 
-// --- createURDPurchase (Step 12.11 / FIX-URD-1 v1.49 & FIX-URD-COST-1 v1.62) ---
+// --- createURDPurchase (Step 12.11 / FIX-URD-1 v1.49 & FIX-URD-COST-1 v1.62 / FIX-PURITYROUND-SCOPE-EXPAND-1 v2.26) ---
 export async function createURDPurchase(
   input: CreateURDPurchaseInput,
   firmId: string
@@ -55,27 +56,35 @@ export async function createURDPurchase(
   const sanitizedCustomerAddress = input.customerAddress ? sanitizeText(input.customerAddress) : null;
   const sanitizedNotes = input.notes ? sanitizeText(input.notes) : null;
 
-  const fineWeightMg = computeURDFineWeightMg(input.grossWeightMg, input.purityPercent, input.metalType);
+  // FIX-PURITYROUND-SCOPE-EXPAND-1 (v2.26): resolveFineWeightMg applied to URD purchases
+  const { fineWeightMg, purityRoundingDeltaMg } = resolveFineWeightMg(
+    input.grossWeightMg,
+    input.purityPercent,
+    input.metalType
+  );
+
   const totalValuePaise = input.totalValuePaise ?? computeURDTotalValuePaise(fineWeightMg, input.ratePerGramPaise, input.adjustmentPaise ?? 0);
   const totalAmountPaise = totalValuePaise;
   if (totalValuePaise > 999999999) throw new Error(ERR.URD_AMOUNT_EXCEEDS_MAX); // ALIGN-P1-V77
 
+  // ALIGN-P1-V75 / FIX-URD-FYID-1 (v1.50): resolveTransactionFyId checks closed FY boundary
   const fyId = await fyService.resolveTransactionFyId(firmId, input.purchaseDate);
   const deviceId = await getDeviceId();
 
   return db.transaction((tx) => {
-    // 1. Create linked old_gold_lots row with metalSource: 'CUSTOMER_OLD_GOLD'
+    // 1. Create linked old_gold_lots row with canonical metalSource: 'PURCHASE'
     const lot = oldGoldLotRepository.insert(tx, {
       id: Crypto.randomUUID(),
       firmId,
+      metal: input.metalType, // FIX-OLDGOLD-METAL-1 (v2.26)
       receivedFrom: sanitizedCustomerName,
       customerId: input.customerId ?? null,
       receivedDate: input.purchaseDate,
       grossWeightMg: input.grossWeightMg,
       purityPercent: input.purityPercent,
-      metalSource: 'CUSTOMER_OLD_GOLD',
+      metalSource: 'PURCHASE', // Canonical old_gold_lots metalSource for URD intake
       fineWeightMg,
-      purityRoundingDeltaMg: 0,
+      purityRoundingDeltaMg, // FIX-PURITYROUND-SCOPE-EXPAND-1 (v2.26)
       purchaseRatePaise: input.ratePerGramPaise ?? null,
       totalAmountPaise,
       notes: sanitizedNotes,
@@ -101,6 +110,7 @@ export async function createURDPurchase(
       grossWeightMg: input.grossWeightMg,
       purityPercent: input.purityPercent,
       fineWeightMg,
+      purityRoundingDeltaMg, // FIX-PURITYROUND-SCOPE-EXPAND-1 (v2.26)
       ratePerGramPaise: input.ratePerGramPaise,
       totalValuePaise,
       paymentMode: input.paymentMode,
@@ -121,11 +131,13 @@ export async function createURDPurchase(
       payload: {
         urdId: urd.id,
         lotId: lot.id,
+        metalType: input.metalType,
         customerName: urd.customerName,
         customerId: urd.customerId,
         grossWeightMg: input.grossWeightMg,
         purityPercent: input.purityPercent,
         fineWeightMg,
+        purityRoundingDeltaMg,
         totalValuePaise,
       },
     });
@@ -163,19 +175,25 @@ export async function updateURDPurchase(
     if (purityPercent <= 0 || purityPercent > 100) throw new Error(ERR.URD_PURITY_PERCENT_INVALID);
     if (ratePerGramPaise <= 0) throw new Error(ERR.URD_RATE_INVALID);
 
-    const fineWeightMg = computeURDFineWeightMg(grossWeightMg, purityPercent, (urd.metalType as 'GOLD' | 'SILVER') || 'GOLD');
+    const { fineWeightMg, purityRoundingDeltaMg } = resolveFineWeightMg(
+      grossWeightMg,
+      purityPercent,
+      ((input.metalType ?? urd.metalType) as 'GOLD' | 'SILVER') || 'GOLD'
+    );
     const totalValuePaise = input.totalValuePaise ?? computeURDTotalValuePaise(fineWeightMg, ratePerGramPaise, input.adjustmentPaise ?? 0);
     const totalAmountPaise = totalValuePaise;
     if (totalValuePaise > 999999999) throw new Error(ERR.URD_AMOUNT_EXCEEDS_MAX);
 
     if (urd.oldGoldLotId) {
       oldGoldLotRepository.update(tx, firmId, urd.oldGoldLotId, {
+        metal: (input.metalType ?? urd.metalType) as 'GOLD' | 'SILVER',
         receivedFrom: customerName,
         customerId: input.customerId ?? urd.customerId,
         receivedDate: input.purchaseDate ?? urd.purchaseDate,
         grossWeightMg,
         purityPercent,
         fineWeightMg,
+        purityRoundingDeltaMg,
         purchaseRatePaise: ratePerGramPaise,
         totalAmountPaise,
         notes,
@@ -192,6 +210,7 @@ export async function updateURDPurchase(
       grossWeightMg,
       purityPercent,
       fineWeightMg,
+      purityRoundingDeltaMg,
       ratePerGramPaise,
       totalValuePaise,
       paymentMode,
@@ -215,6 +234,7 @@ export async function updateURDPurchase(
       grossWeightMg,
       purityPercent,
       fineWeightMg,
+      purityRoundingDeltaMg,
       ratePerGramPaise,
       totalValuePaise,
       paymentMode,
@@ -253,7 +273,7 @@ export async function deleteURDPurchase(urdId: string, firmId: string): Promise<
   });
 }
 
-// --- confirmURDPurchase (Step 12.11 / FIX-URD-1 v1.49) ---
+// --- confirmURDPurchase (Step 12.11 / FIX-URD-1 v1.49 / FIX-FYREPO-SYNC-CONTRACT-1 v1.84) ---
 export async function confirmURDPurchase(
   urdId: string,
   firmId: string
@@ -269,6 +289,7 @@ export async function confirmURDPurchase(
 
     if (urd.totalValuePaise > 999999999) throw new Error(ERR.URD_AMOUNT_EXCEEDS_MAX);
 
+    // FIX-FYREPO-SYNC-CONTRACT-1 (v1.84): synchronous execution inside active tx
     const seq = sequenceCounterRepository.nextVal(tx, firmId, urd.fyId, 'URD');
     const fy = resolvedFyRepository.getById(tx, firmId, urd.fyId) ?? resolvedFyRepository.getById(tx, urd.fyId);
     if (!fy) throw new Error(ERR.FY_NOT_FOUND);

@@ -1,12 +1,12 @@
-// services/phase2/itemService.ts — Phase 2 v2.24 Canonical Service
-// Aligned with FEAT-LOOSE-STOCK-1 (v2.23 / v2.24), FIX-ITEM-SALELINK-RENAME-1 (v2.17) & FIX-ITEM-PURCHASELINK-1 (v2.16)
+// services/phase2/itemService.ts — Phase 2 v2.30 Canonical Service
+// Aligned with FEAT-LOOSE-STOCK-1 (v2.23 / v2.24), FIX-ITEM-SALELINK-RENAME-1 (v2.17),
+// FIX-ITEM-PURCHASELINK-1 (v2.16), FIX-P2-SYNC-CONTRACT-1 (v1.81) & GAP-P2-DATE-SKU-EDIT-1 (v1.79)
 
 import { db } from '@/db/client';
 import { itemRepository } from '@/repositories/phase2/itemRepository';
 import { designRepository } from '@/repositories/phase2/designRepository';
 import { categoryRepository } from '@/repositories/phase2/categoryRepository';
 import { hsnMasterRepository } from '@/repositories/phase2/hsnMasterRepository';
-import { fyRepository } from '@/repositories/phase1/fyRepository';
 import { fyService } from '@/services/phase1/fyService';
 import * as skuEngine from '@/services/phase2/skuEngine';
 import { itemEventRepository } from '@/repositories/phase2/itemEventRepository';
@@ -20,7 +20,7 @@ import { getDeviceId } from '@/utils/deviceId';
 import { now } from '@/utils/now';
 import {
   resolveFineWeightMg,
-  computeFineGoldChargedMg
+  computeFineGoldChargedMg,
 } from '@/utils/calculations';
 import * as Crypto from 'expo-crypto';
 import { ERR } from '@/constants/errorCodes';
@@ -34,19 +34,10 @@ import type {
   AddLooseStockInput,
   LooseStockLot,
   LooseStockLotStatus,
-  DrizzleTransaction
+  DrizzleTransaction,
 } from '@/types/phase2/phase2.types';
 import { ALLOWED_TRANSITIONS, TERMINAL_ITEM_STATUSES } from '@/types/phase2/phase2.types';
 import { format, parseISO } from 'date-fns';
-
-// Helper for FY validation gate
-function assertValidTransactionFy(firmId: string, entryDate: string): void {
-  if (typeof (fyService as any)?.resolveTransactionFyId === 'function') {
-    (fyService as any).resolveTransactionFyId(firmId, entryDate);
-  } else if (typeof (fyRepository as any)?.resolveTransactionFyId === 'function') {
-    (fyRepository as any).resolveTransactionFyId(firmId, entryDate);
-  }
-}
 
 // --- createPhantomItem (FEAT-PHANTOM-INVENTORY-1 v1.67 / FEAT-LOOSE-STOCK-1 v2.23) ---
 export async function createPhantomItem(input: CreatePhantomItemInput, firmId: string): Promise<Item> {
@@ -63,7 +54,7 @@ export async function createPhantomItem(input: CreatePhantomItemInput, firmId: s
     if (!category || category.firmId !== firmId) throw new Error(ERR.CATEGORY_NOT_FOUND_OR_WRONG_FIRM);
 
     if (!input.hsnCode || input.hsnCode.trim().length === 0) throw new Error(ERR.ITEM_HSN_MISSING);
-    hsnMasterRepository.findByCode(tx, firmId, input.hsnCode); // throws ITEM_HSN_MISSING
+    hsnMasterRepository.findByCode(tx, firmId, input.hsnCode);
 
     if (input.grossWeightMg <= 0) throw new Error(ERR.ITEM_GROSS_WEIGHT_INVALID);
     if (input.purityPercent <= 0 || input.purityPercent > 100) throw new Error(ERR.ITEM_PURITY_PERCENT_INVALID);
@@ -229,12 +220,12 @@ export async function createItem(input: CreateItemInput, firmId: string): Promis
   safeModeService.assertNotInSafeMode();     // GUARD 2
   const deviceId = await getDeviceId();
 
-  // FIX-GAP-P2-BACKDATE-1 (v1.76): resolve + validate entry date
+  // FIX-GAP-P2-BACKDATE-1 (v1.76): validate entry date & check closed FY boundary
   const todayIso = now().split('T')[0];
   const entryDate = input.entryDate ?? todayIso;
   if (entryDate > todayIso) throw new Error(ERR.ENTRY_DATE_IN_FUTURE);
 
-  assertValidTransactionFy(firmId, entryDate); // Throws ENTRY_DATE_IN_CLOSED_FY if closed
+  await fyService.resolveTransactionFyId(firmId, entryDate); // Throws ENTRY_DATE_IN_CLOSED_FY if closed
 
   return db.transaction((tx) => {
     const design = designRepository.getById(tx, input.designId, firmId);
@@ -244,7 +235,6 @@ export async function createItem(input: CreateItemInput, firmId: string): Promis
     const category = categoryRepository.getById(tx, input.categoryId, firmId);
     if (!category || category.firmId !== firmId) throw new Error(ERR.CATEGORY_NOT_FOUND_OR_WRONG_FIRM);
 
-    // Enforce sizeValue and sizeUnit pairing guard (FIX-GAP-P2-SIZE-2 v1.76)
     if ((input.sizeValue != null && input.sizeUnit == null) || (input.sizeValue == null && input.sizeUnit != null)) {
       throw new Error(ERR.ITEM_SIZE_PAIRING_INVALID);
     }
@@ -258,7 +248,6 @@ export async function createItem(input: CreateItemInput, firmId: string): Promis
     const netWeightMg = input.grossWeightMg - (input.stoneWeightMg ?? 0) - (input.beadsWeightMg ?? 0);
     if (netWeightMg <= 0) throw new Error(ERR.ITEM_NET_WEIGHT_INVALID);
 
-    // FEAT-HUID-CREATE-1 (v1.87)
     const cleanHuid = input.huid && input.huid.trim().length > 0 ? input.huid.trim().toUpperCase() : null;
     if (cleanHuid != null) {
       if (!/^[A-Z0-9]{6}$/.test(cleanHuid)) throw new Error(ERR.HUID_INVALID);
@@ -269,7 +258,6 @@ export async function createItem(input: CreateItemInput, firmId: string): Promis
     const sku = skuEngine.generateSKU(tx, design, firmId, entryDate);
     const { fineWeightMg, purityRoundingDeltaMg } = resolveFineWeightMg(netWeightMg, input.purityPercent, design.metal);
 
-    // FIX-WAST-2 (v1.26) & FIX-WAST-CENTRALIZE-1 (v2.04)
     const wastagePercent = input.wastagePercent ?? 0;
     const fineGoldChargedMg = computeFineGoldChargedMg(netWeightMg, input.purityPercent, wastagePercent);
 
@@ -295,8 +283,8 @@ export async function createItem(input: CreateItemInput, firmId: string): Promis
       makingChargePaise: input.makingChargePaise ?? null,
       stoneCostPaise: input.stoneCostPaise ?? null,
       location: input.location ?? null,
-      saleInvoiceId: null, // FIX-ITEM-SALELINK-RENAME-1 (v2.17)
-      purchaseInvoiceId: null, // FIX-ITEM-PURCHASELINK-1 (v2.16)
+      saleInvoiceId: null,
+      purchaseInvoiceId: null,
       phantomStockId: null,
       hsnCode,
       huid: cleanHuid,
@@ -368,6 +356,7 @@ export async function adjustWeight(
   await leaseService.assertNoActiveLease(); // GUARD 1
   safeModeService.assertNotInSafeMode();     // GUARD 2
 
+  if (!reason || reason.trim().length === 0) throw new Error(ERR.ITEM_ACTION_REASON_REQUIRED);
   if (newGrossWeightMg <= 0) throw new Error(ERR.ITEM_GROSS_WEIGHT_INVALID);
   const newNetWeightMg = newGrossWeightMg - newStoneWeightMg - newBeadsWeightMg;
   if (newNetWeightMg <= 0) throw new Error(ERR.ITEM_NET_WEIGHT_INVALID);
@@ -383,7 +372,6 @@ export async function adjustWeight(
     const oldGrossWeightMg = item.grossWeightMg;
     const { fineWeightMg: newFineWeightMg, purityRoundingDeltaMg: newPurityRoundingDeltaMg } = resolveFineWeightMg(newNetWeightMg, item.purityPercent, item.metal);
 
-    // FIX-ADJ-WAST-1 (v1.29) & FIX-WAST-CENTRALIZE-1 (v2.04)
     const effectiveWastagePercent = newWastagePercent ?? item.wastagePercent ?? 0;
     const newFineGoldChargedMg = computeFineGoldChargedMg(newNetWeightMg, item.purityPercent, effectiveWastagePercent);
 
@@ -406,7 +394,7 @@ export async function adjustWeight(
       eventType: 'WEIGHT_ADJUSTED',
       severity: 'WARNING',
       performedBy: deviceId,
-      reason: reason ?? null,
+      reason,
       oldValue: String(oldGrossWeightMg),
       newValue: String(newGrossWeightMg),
       timestamp: now(),
@@ -445,7 +433,7 @@ export async function updateItem(
   const EDITABLE: (keyof UpdateableItemDraftFields)[] = [
     'purityPercent', 'purityKarat', 'primaryStoneId',
     'location', 'makingChargePaise', 'stoneCostPaise', 'purchaseRatePaise',
-    'sizeValue', 'sizeUnit', // GAP-P2-SIZE-EDIT-1 (v1.78)
+    'sizeValue', 'sizeUnit',
   ];
 
   const presentFields = EDITABLE.filter((k) => k in input);
@@ -482,6 +470,15 @@ export async function updateItem(
         changes[key] = { old: oldVal, new: newVal };
         updateData[key] = newVal;
       }
+    }
+
+    // Keep fine weights aligned if purityPercent changed
+    if (input.purityPercent !== undefined && input.purityPercent !== item.purityPercent) {
+      const { fineWeightMg, purityRoundingDeltaMg } = resolveFineWeightMg(item.netWeightMg, input.purityPercent, item.metal);
+      const fineGoldChargedMg = computeFineGoldChargedMg(item.netWeightMg, input.purityPercent, item.wastagePercent);
+      updateData.fineWeightMg = fineWeightMg;
+      updateData.purityRoundingDeltaMg = purityRoundingDeltaMg;
+      updateData.fineGoldChargedMg = fineGoldChargedMg;
     }
 
     if (Object.keys(changes).length === 0) return;
@@ -529,6 +526,15 @@ export async function createItemsBulk(inputs: CreateItemInput[], firmId: string)
   if (inputs.length === 0) return [];
   if (inputs.length > BULK_ITEM_MAX) throw new Error(ERR.BULK_ITEM_MAX_EXCEEDED);
 
+  const todayIso = now().split('T')[0];
+  const uniqueDates = Array.from(new Set(inputs.map((i) => i.entryDate ?? todayIso)));
+
+  // Validate all entry dates against future and closed FY boundaries outside tx
+  for (const date of uniqueDates) {
+    if (date > todayIso) throw new Error(ERR.ENTRY_DATE_IN_FUTURE);
+    await fyService.resolveTransactionFyId(firmId, date);
+  }
+
   const deviceId = await getDeviceId();
 
   return db.transaction((tx) => {
@@ -554,14 +560,10 @@ export async function createItemsBulk(inputs: CreateItemInput[], firmId: string)
       const netWeightMg = input.grossWeightMg - (input.stoneWeightMg ?? 0) - (input.beadsWeightMg ?? 0);
       if (netWeightMg <= 0) throw new Error(ERR.ITEM_NET_WEIGHT_INVALID);
 
-      const todayIso = now().split('T')[0];
       const entryDate = input.entryDate ?? todayIso;
-      if (entryDate > todayIso) throw new Error(ERR.ENTRY_DATE_IN_FUTURE);
-      assertValidTransactionFy(firmId, entryDate);
-
       const sku = skuEngine.generateSKU(tx, design, firmId, entryDate);
       const { fineWeightMg, purityRoundingDeltaMg } = resolveFineWeightMg(netWeightMg, input.purityPercent, design.metal);
-      
+
       const wastagePercent = input.wastagePercent ?? 0;
       const fineGoldChargedMg = computeFineGoldChargedMg(netWeightMg, input.purityPercent, wastagePercent);
 
@@ -587,8 +589,8 @@ export async function createItemsBulk(inputs: CreateItemInput[], firmId: string)
         makingChargePaise: input.makingChargePaise ?? null,
         stoneCostPaise: input.stoneCostPaise ?? null,
         location: input.location ?? null,
-        saleInvoiceId: null, // FIX-ITEM-SALELINK-RENAME-1 (v2.17)
-        purchaseInvoiceId: null, // FIX-ITEM-PURCHASELINK-1 (v2.16)
+        saleInvoiceId: null,
+        purchaseInvoiceId: null,
         phantomStockId: null,
         hsnCode: input.hsnCode,
         huid: null,
@@ -601,7 +603,7 @@ export async function createItemsBulk(inputs: CreateItemInput[], firmId: string)
         createdAt: `${entryDate}T${now().split('T')[1]}`,
         updatedAt: now(),
       });
-      
+
       itemEventRepository.insert(tx, {
         id: Crypto.randomUUID(),
         itemId: item.id,
@@ -614,7 +616,7 @@ export async function createItemsBulk(inputs: CreateItemInput[], firmId: string)
         newValue: null,
         timestamp: now(),
       });
-        
+
       auditRepository.log(tx, {
         eventType: 'ITEM_CREATED',
         firmId,
@@ -639,7 +641,7 @@ export async function createItemsBulk(inputs: CreateItemInput[], firmId: string)
       });
 
       designCategoryMapRepository.insert(tx, { designId: item.designId, categoryId: item.categoryId, firmId });
-      
+
       results.push(item);
     }
     return results;
@@ -724,7 +726,8 @@ export async function sendToKarigar(
   itemId: string,
   firmId: string,
   karigarName: string,
-  reason: string
+  reason: string,
+  karigarId?: string
 ): Promise<void> {
   await leaseService.assertNoActiveLease(); // GUARD 1
   safeModeService.assertNotInSafeMode();     // GUARD 2
@@ -734,12 +737,10 @@ export async function sendToKarigar(
     const item = itemRepository.getById(tx, firmId, itemId);
     if (!item || item.firmId !== firmId) throw new Error(ERR.ITEM_NOT_FOUND_OR_WRONG_FIRM);
 
-    // State machine guard: only DAMAGED items may be sent to karigar
     if (item.status !== 'DAMAGED') {
       throw new Error(`${ERR.INVALID_TRANSITION}: ${item.status} -> SENT_TO_KARIGAR`);
     }
 
-    // Loop guard (FIX-LOOP-1 v1.33): count prior ITEM_SENT_TO_KARIGAR events for this item
     const priorCount = itemEventRepository.countByItemIdAndEventType(tx, itemId, 'ITEM_SENT_TO_KARIGAR');
     if (priorCount >= 3) throw new Error(ERR.KARIGAR_LOOP_LIMIT_EXCEEDED);
 
@@ -755,6 +756,7 @@ export async function sendToKarigar(
       reason,
       oldValue: 'DAMAGED',
       newValue: 'SENT_TO_KARIGAR',
+      karigarId: karigarId ?? null,
       timestamp: now(),
     });
 
@@ -763,7 +765,7 @@ export async function sendToKarigar(
       firmId,
       entityId: itemId,
       deviceId,
-      payload: { itemId, sku: item.sku, karigarName, reason, priorKarigarCount: priorCount },
+      payload: { itemId, sku: item.sku, karigarName, karigarId: karigarId ?? null, reason, priorKarigarCount: priorCount },
     });
   });
 }
@@ -845,11 +847,11 @@ export async function addHUID(itemId: string, firmId: string, huid: string): Pro
 
     itemEventRepository.insert(tx, {
       id: Crypto.randomUUID(),
-      itemId, 
-      firmId, 
+      itemId,
+      firmId,
       eventType: 'HUID_ADDED',
-      severity: 'INFO', 
-      performedBy: deviceId, 
+      severity: 'INFO',
+      performedBy: deviceId,
       reason: null,
       oldValue: null,
       newValue: cleanHuid,
@@ -857,10 +859,10 @@ export async function addHUID(itemId: string, firmId: string, huid: string): Pro
     });
 
     auditRepository.log(tx, {
-      firmId, 
-      entityId: itemId, 
+      firmId,
+      entityId: itemId,
       eventType: 'HUID_ADDED',
-      deviceId, 
+      deviceId,
       payload: { itemId, sku: item.sku, huid: cleanHuid },
     });
 
@@ -878,14 +880,12 @@ export async function correctMetalSource(itemId: string, firmId: string, metalSo
   return db.transaction((tx) => {
     const item = itemRepository.getById(tx, firmId, itemId);
     if (!item || item.firmId !== firmId) throw new Error(ERR.ITEM_NOT_FOUND_OR_WRONG_FIRM);
-    
-    // FIX-METALSOURCE-POSTPUBLISH-1 (v2.11): Widened from DRAFT-only to non-terminal-status
-    if (TERMINAL_ITEM_STATUSES.includes(item.status)) throw new Error(ERR.ITEM_EDIT_LOCKED_TERMINAL_STATUS);
-    
-    const oldMetalSource = item.metalSource;
 
+    if (TERMINAL_ITEM_STATUSES.includes(item.status)) throw new Error(ERR.ITEM_EDIT_LOCKED_TERMINAL_STATUS);
+
+    const oldMetalSource = item.metalSource;
     itemRepository.update(tx, firmId, itemId, { metalSource, updatedAt: now() });
-    
+
     itemEventRepository.insert(tx, {
       id: Crypto.randomUUID(),
       itemId,
@@ -924,13 +924,13 @@ export async function correctHUID(itemId: string, firmId: string, huid: string, 
 
     const cleanHuid = huid.trim().toUpperCase();
     if (!/^[A-Z0-9]{6}$/.test(cleanHuid)) throw new Error(ERR.HUID_INVALID);
-    
+
     const dup = itemRepository.findByHUID(tx, cleanHuid);
     if (dup && dup.id !== itemId) throw new Error(ERR.HUID_ALREADY_EXISTS);
-    
+
     const oldHuid = item.huid;
     itemRepository.update(tx, firmId, itemId, { huid: cleanHuid, barcodeReprintRequired: 1, updatedAt: now() });
-    
+
     itemEventRepository.insert(tx, {
       id: Crypto.randomUUID(),
       itemId,
@@ -943,7 +943,7 @@ export async function correctHUID(itemId: string, firmId: string, huid: string, 
       newValue: cleanHuid,
       timestamp: now(),
     });
-    
+
     auditRepository.log(tx, {
       eventType: 'HUID_CORRECTED',
       firmId,
@@ -958,8 +958,13 @@ export async function correctHUID(itemId: string, firmId: string, huid: string, 
 export async function correctItemEntryDate(itemId: string, newEntryDate: string, firmId: string): Promise<Item> {
   await leaseService.assertNoActiveLease(); // GUARD 1
   safeModeService.assertNotInSafeMode();     // GUARD 2
-  
+
   const todayIso = now().split('T')[0];
+  const dateOnly = newEntryDate.includes('T') ? newEntryDate.split('T')[0] : newEntryDate.slice(0, 10);
+  if (dateOnly > todayIso) throw new Error(ERR.ENTRY_DATE_IN_FUTURE);
+
+  await fyService.resolveTransactionFyId(firmId, dateOnly);
+
   const deviceId = await getDeviceId();
 
   return db.transaction((tx) => {
@@ -968,20 +973,29 @@ export async function correctItemEntryDate(itemId: string, newEntryDate: string,
     if (TERMINAL_ITEM_STATUSES.includes(item.status)) {
       throw new Error(ERR.ITEM_EDIT_LOCKED_TERMINAL_STATUS);
     }
-    if (newEntryDate > todayIso) throw new Error(ERR.ENTRY_DATE_IN_FUTURE);
-    
-    assertValidTransactionFy(firmId, newEntryDate);
-    
+
     const oldDate = item.createdAt.slice(0, 10);
     const timeOfDay = item.createdAt.includes('T') ? item.createdAt.split('T')[1] : '00:00:00.000Z';
-    const dateOnly = newEntryDate.includes('T') ? newEntryDate.split('T')[0] : newEntryDate.slice(0, 10);
     const newCreatedAt = `${dateOnly}T${timeOfDay}`;
     const oldMmyy = format(parseISO(oldDate), 'MMyy');
     const newMmyy = format(parseISO(dateOnly), 'MMyy');
-    
+
     if (oldMmyy === newMmyy) {
-      // Same month — day-only correction
       itemRepository.updateCreatedAt(tx, itemId, newCreatedAt);
+
+      itemEventRepository.insert(tx, {
+        id: Crypto.randomUUID(),
+        itemId,
+        firmId,
+        eventType: 'ITEM_ENTRY_DATE_CORRECTED' as any,
+        severity: 'INFO',
+        performedBy: deviceId,
+        oldValue: item.createdAt,
+        newValue: newCreatedAt,
+        reason: 'ENTRY_DATE_CORRECTION',
+        timestamp: now(),
+      });
+
       auditRepository.log(tx, {
         eventType: 'ITEM_ENTRY_DATE_CORRECTED',
         firmId,
@@ -991,22 +1005,21 @@ export async function correctItemEntryDate(itemId: string, newEntryDate: string,
       });
       return { ...item, createdAt: newCreatedAt };
     }
-    
-    // Different month — regenerate SKU
+
     const design = designRepository.getById(tx, item.designId, firmId);
     if (!design) throw new Error(ERR.DESIGN_NOT_FOUND_OR_WRONG_FIRM);
-    
-    const newSku = skuEngine.generateSKU(tx, design, firmId, newEntryDate);
+
+    const newSku = skuEngine.generateSKU(tx, design, firmId, dateOnly);
     const oldSku = item.sku;
     const reprintNowRequired = item.status !== 'DRAFT';
-    
+
     itemRepository.updateSkuAndDate(tx, itemId, {
       sku: newSku,
       barcode: newSku,
       createdAt: newCreatedAt,
       barcodeReprintRequired: reprintNowRequired,
     });
-    
+
     itemEventRepository.insert(tx, {
       id: Crypto.randomUUID(),
       itemId,
@@ -1019,7 +1032,7 @@ export async function correctItemEntryDate(itemId: string, newEntryDate: string,
       reason: 'ENTRY_DATE_CORRECTION',
       timestamp: now(),
     });
-    
+
     auditRepository.log(tx, {
       eventType: 'SKU_CHANGED',
       firmId,
@@ -1027,7 +1040,7 @@ export async function correctItemEntryDate(itemId: string, newEntryDate: string,
       deviceId,
       payload: { oldSku, newSku, oldCreatedAt: item.createdAt, newCreatedAt, reason: 'ENTRY_DATE_CORRECTION' },
     });
-    
+
     return {
       ...item,
       sku: newSku,
@@ -1054,6 +1067,7 @@ export async function addLooseStock(input: AddLooseStockInput, firmId: string): 
 
     const resolvedHsn = input.hsnCode ?? design.defaultHsn ?? null;
     if (!resolvedHsn) throw new Error(ERR.ITEM_HSN_MISSING);
+    hsnMasterRepository.findByCode(tx, firmId, resolvedHsn);
 
     let lot = looseStockLotRepository.getByDesignAndPurity(tx, input.designId, input.purityPercent, firmId);
     if (!lot) {
@@ -1072,14 +1086,22 @@ export async function addLooseStock(input: AddLooseStockInput, firmId: string): 
         updatedAt: now(),
       });
     } else {
-      // Merge-on-add policy: pool into existing ACTIVE lot
+      const updatedPieceCount = lot.pieceCount + input.pieceCount;
+      const updatedTotalWeightMg = lot.totalWeightMg + input.totalWeightMg;
       looseStockLotRepository.updateCounts(
         tx,
         lot.id,
-        lot.pieceCount + input.pieceCount,
-        lot.totalWeightMg + input.totalWeightMg,
+        updatedPieceCount,
+        updatedTotalWeightMg,
         'ACTIVE'
       );
+      lot = {
+        ...lot,
+        pieceCount: updatedPieceCount,
+        totalWeightMg: updatedTotalWeightMg,
+        status: 'ACTIVE',
+        updatedAt: now(),
+      };
     }
 
     looseStockEventRepository.insert(tx, {
@@ -1120,7 +1142,8 @@ export function sellFromLooseLot(
   firmId: string,
   qtySold: number,
   weightSoldMg: number,
-  saleInvoiceId: string
+  saleInvoiceId: string,
+  deviceId: string = 'SYSTEM'
 ): void {
   const lot = looseStockLotRepository.getById(tx, firmId, lotId);
   if (!lot || lot.firmId !== firmId) throw new Error(ERR.LOOSE_LOT_NOT_FOUND_OR_WRONG_FIRM);
@@ -1144,7 +1167,7 @@ export function sellFromLooseLot(
     purchaseRatePaise: null,
     wastagePercent: null,
     saleInvoiceId,
-    performedBy: getDeviceId(),
+    performedBy: deviceId,
     timestamp: now(),
   });
 
@@ -1152,7 +1175,7 @@ export function sellFromLooseLot(
     eventType: 'LOOSE_STOCK_SOLD',
     firmId,
     entityId: lot.id,
-    deviceId: getDeviceId(),
+    deviceId,
     payload: {
       lotId: lot.id,
       qtySold,
@@ -1167,15 +1190,15 @@ export async function discardDraftItem(itemId: string, firmId: string): Promise<
   await leaseService.assertNoActiveLease(); // GUARD 1
   safeModeService.assertNotInSafeMode();     // GUARD 2
   const deviceId = await getDeviceId();
-  
+
   return db.transaction((tx) => {
     const item = itemRepository.getById(tx, firmId, itemId);
     if (!item || item.firmId !== firmId) throw new Error(ERR.ITEM_NOT_FOUND_OR_WRONG_FIRM);
     if (item.status !== 'DRAFT') throw new Error(ERR.ITEM_NOT_DRAFT);
-    
+
     itemEventRepository.deleteByItemId(tx, firmId, itemId);
     itemRepository.delete(tx, firmId, itemId);
-    
+
     auditRepository.log(tx, {
       eventType: 'DRAFT_ITEM_DISCARDED' as any,
       firmId,

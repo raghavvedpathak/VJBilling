@@ -79,8 +79,8 @@ export default function AddGemstoneScreen() {
   );
 
   const previewData = useMemo(() => {
-    const c = parseCleanFloat(carats);
-    const r = parseCleanFloat(ratePerCarat);
+    const c = Math.max(0, parseCleanFloat(carats));
+    const r = Math.max(0, parseCleanFloat(ratePerCarat));
     const totalRupees = c * r;
     return { total: Math.round(totalRupees) };
   }, [carats, ratePerCarat]);
@@ -101,16 +101,15 @@ export default function AddGemstoneScreen() {
     }
 
     const caratVal = parseCleanFloat(carats);
-    const qtyVal = parseInt(quantity.trim(), 10);
-
     if (isNaN(caratVal) || caratVal <= 0) { 
       Alert.alert('Validation Error', 'Please enter a valid Carat Weight greater than 0.'); 
       return; 
     }
-    if (isNaN(qtyVal) || qtyVal <= 0) { 
-      Alert.alert('Validation Error', 'Quantity must be at least 1.'); 
-      return; 
+    if (!/^\d+$/.test(quantity.trim()) || parseInt(quantity.trim(), 10) <= 0) {
+      Alert.alert('Validation Error', 'Quantity must be a valid whole number of at least 1.');
+      return;
     }
+    const qtyVal = parseInt(quantity.trim(), 10);
 
     const weightCaratX100 = caratsToCaratX100(caratVal);
 
