@@ -11,7 +11,9 @@
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "db:generate": "drizzle-kit generate",
-    "verify-migration": "ts-node scripts/verify-migration-zero.ts"
+    "verify-migration": "ts-node scripts/verify-migration-zero.ts",
+    "test:sanitize": "jest tests/utils/sanitize.test.ts",
+    "security:audit": "npm audit"
   },
   "jest": {
     "preset": "jest-expo",

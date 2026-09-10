@@ -21,8 +21,16 @@ export function sanitizeText(input: string, options: SanitizeOptions = {}): stri
     ? /[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g
     : /[\x00-\x1F\x7F]/g;
 
-  const stripped = input
-    .replace(/<[^>]*>/g, '')         // Strip HTML tags
+  // Repeatedly strip HTML tags to prevent nested tag bypasses (CWE-116 / CodeQL js/incomplete-multi-character-sanitization)
+  let stripped = input;
+  let previous: string;
+  do {
+    previous = stripped;
+    stripped = stripped.replace(/<[^>]*>/g, '');
+  } while (stripped !== previous);
+
+  stripped = stripped
+    .replace(/[<>]/g, '')            // Neutralize residual/unclosed angle brackets
     .replace(controlCharRegex, '')   // Strip ASCII control characters
     .trim();
 
@@ -42,6 +50,13 @@ export function sanitizeOptionalText(
   options: SanitizeOptions = {}
 ): string | null {
   if (!input || typeof input !== 'string') return null;
-  const sanitized = sanitizeText(input, options);
-  return sanitized.length > 0 ? sanitized : null;
+  try {
+    const sanitized = sanitizeText(input, options);
+    return sanitized.length > 0 ? sanitized : null;
+  } catch (err: any) {
+    if (err?.message?.includes(ERR.INVALID_TEXT_CONTENT)) {
+      return null;
+    }
+    throw err;
+  }
 }
