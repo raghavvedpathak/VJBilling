@@ -11,13 +11,13 @@ import { HeaderPill, GlassCard } from '@/components/ui/Glass';
 import { appSettingsStore } from '@/store/phase1/appSettingsStore';
 import { useFirmStore } from '@/store/phase1/useFirmStore';
 import { gemstoneLotRepository } from '@/repositories/phase2/gemstoneLotRepository';
-import { formatRupees } from '@/utils/calculations';
+import { formatRupees, formatCarats } from '@/utils/calculations';
 import { Gem, Plus, Diamond, Banknote, ShieldAlert, CheckCircle, Sparkles, Scale } from 'lucide-react-native';
 import type { GemstoneLot } from '@/types/phase2/phase2.types';
 import { COLORS, getThemeColors } from '@/constants/theme';
 
-const formatCarats = (caratsX100: number) => (caratsX100 / 100).toFixed(2) + ' ct';
-const formatCurrency = (paise: number | null) => (paise === null || paise === undefined ? '—' : formatRupees(paise));
+const formatCurrency = (paise: number | null | undefined) => 
+  paise === null || paise === undefined ? '—' : formatRupees(paise);
 
 const LotRow = memo(({ 
   item, 
@@ -143,15 +143,22 @@ export default function GemstonesInventoryScreen() {
     }, [activeFirmId])
   );
 
-  const totalCarats = useMemo(() => {
-    const totalX100 = data.reduce((acc, curr) => acc + (curr.weightCaratX100 || 0), 0);
+  const availableLotsCount = useMemo(
+    () => data.filter((item) => item.status === 'AVAILABLE').length,
+    [data]
+  );
+
+  const availableCarats = useMemo(() => {
+    const totalX100 = data
+      .filter((lot) => lot.status === 'AVAILABLE')
+      .reduce((acc, curr) => acc + (curr.weightCaratX100 || 0), 0);
     return (totalX100 / 100).toFixed(2);
   }, [data]);
 
   const gemstoneHeaderPills = (
     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginTop: 4 }}>
-      <HeaderPill icon={<Gem size={12} color={colors.vjBg} />} label={`${data.length} Stone Lots`} />
-      <HeaderPill icon={<Scale size={12} color="#4ADE80" />} label={`Total: ${totalCarats} ct`} variant="success" />
+      <HeaderPill icon={<Gem size={12} color={colors.vjBg} />} label={`${availableLotsCount} Available Lots`} />
+      <HeaderPill icon={<Scale size={12} color="#4ADE80" />} label={`Vault: ${availableCarats} ct`} variant="success" />
     </View>
   );
 

@@ -10,6 +10,7 @@ import { TwoToneWrapper } from '@/components/TwoToneWrapper';
 import { HeaderPill } from '@/components/ui/Glass';
 import { appSettingsStore } from '@/store/phase1/appSettingsStore';
 import { useFirmStore } from '@/store/phase1/useFirmStore';
+import { useMastersSyncStore } from '@/store/phase2/mastersSyncStore';
 import { inventoryDrillDownService } from '@/services/phase2/inventoryDrillDownService';
 import { 
   getDisplayPurity, 
@@ -145,6 +146,7 @@ export default function PurityItemsScreen() {
   const purityPercent = Array.isArray(params.purityPercent) ? params.purityPercent[0] : params.purityPercent;
 
   const { activeFirmId } = useFirmStore();
+  const designVersion = useMastersSyncStore((s) => s.designVersion);
   const [items, setItems] = useState<ItemSearchResult[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -175,7 +177,7 @@ export default function PurityItemsScreen() {
       };
       load();
       return () => { active = false; };
-    }, [activeFirmId, designId, purityPercent])
+    }, [activeFirmId, designId, purityPercent, designVersion])
   );
 
   const handleItemPress = useCallback((itemId: string) => {
@@ -211,8 +213,10 @@ export default function PurityItemsScreen() {
     );
   }, [items, purityPercent, totalNetWeightMg, colors.vjBg]);
 
+  const currentDesignName = items[0]?.designName || designName || 'Purity Items';
+
   return (
-    <TwoToneWrapper title={designName || 'Purity Items'} showBack headerContent={purityHeaderPills}>
+    <TwoToneWrapper title={currentDesignName} showBack headerContent={purityHeaderPills}>
       <View style={s.listContainer}>
         {loading && items.length === 0 ? (
           <View style={s.loadingContainer}>

@@ -77,29 +77,31 @@ export default function DrillDownScreen() {
   const categoryVersion = useMastersSyncStore((s) => s.categoryVersion);
   const designVersion = useMastersSyncStore((s) => s.designVersion);
 
-  const load = useCallback(async () => {
-    if (!activeFirmId) return;
-    try {
-      const results = await inventoryDrillDownService.getCategoriesWithStock(activeFirmId);
-      const sorted = (results || []).sort((a, b) =>
-        a.name.localeCompare(b.name, undefined, { sensitivity: 'base', numeric: true })
-      );
-      setData(sorted);
-    } catch (e) {
-      console.error('[DrillDown] getCategoriesWithStock failed:', e);
-    } finally {
-      setLoading(false);
-    }
-  }, [activeFirmId]);
-
-  useEffect(() => {
-    load();
-  }, [load, categoryVersion, designVersion]);
-
   useFocusEffect(
     useCallback(() => {
-      load();
-    }, [load])
+      let isMounted = true;
+      const executeLoad = async () => {
+        if (!activeFirmId) return;
+        try {
+          const results = await inventoryDrillDownService.getCategoriesWithStock(activeFirmId);
+          if (isMounted) {
+            const sorted = (results || []).sort((a, b) =>
+              a.name.localeCompare(b.name, undefined, { sensitivity: 'base', numeric: true })
+            );
+            setData(sorted);
+          }
+        } catch (e) {
+          console.error('[DrillDown] getCategoriesWithStock failed:', e);
+        } finally {
+          if (isMounted) setLoading(false);
+        }
+      };
+
+      executeLoad();
+      return () => {
+        isMounted = false;
+      };
+    }, [activeFirmId, categoryVersion, designVersion])
   );
 
   const handleCategoryPress = useCallback((categoryId: string, categoryName: string) => {

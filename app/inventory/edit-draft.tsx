@@ -86,9 +86,12 @@ export default function EditDraftScreen() {
     let active = true;
     const loadItem = async () => {
       if (!activeFirmId || !itemId) return;
+      setLoading(true);
       try {
-        const item = await itemRepository.getById(itemId);
-        if (active && item && item.firmId === activeFirmId) {
+        // FIX: Scope getById with activeFirmId per RED-9
+        const item = await itemRepository.getById(activeFirmId, itemId);
+        
+        if (active && item) {
           if (item.status !== 'DRAFT') {
             setErrorMessage('Only DRAFT items can be edited here.');
             return;
@@ -113,8 +116,8 @@ export default function EditDraftScreen() {
           setErrorMessage('Failed to load item details.');
         }
       } catch (error: any) {
-        console.error('Failed to load item:', error);
-        setErrorMessage('Failed to load item details.');
+        console.error('[EditDraft] Failed to load item:', error);
+        if (active) setErrorMessage('Failed to load item details.');
       } finally {
         if (active) setLoading(false);
       }

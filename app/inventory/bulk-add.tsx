@@ -23,7 +23,6 @@ import type { Design, Category, HsnCode, Stone, Metal, BulkItemInput } from '@/t
 import { Package, Plus, Trash2, Calculator, Layers, CheckCircle, Calendar as CalendarIcon } from 'lucide-react-native';
 import { formatDate } from '@/utils/formatDate';
 import { 
-  PURITY_MAP,
   percentToKarat, 
   formatKaratBadge,
   resolveFineWeightMg, 
@@ -934,6 +933,7 @@ export default function BulkAddScreen() {
         visible={showDatePicker}
         title="Batch Entry Date"
         value={entryDate}
+        maxDate={todayIso}
         onClose={() => setShowDatePicker(false)}
         onSelect={(d) => setEntryDate(d)}
       />

@@ -1,6 +1,6 @@
 // app/inventory/category-items.tsx — Phase 2 v2.24 Canonical Screen (Screen B)
 
-import React, { useState, useCallback, useEffect, memo } from 'react';
+import React, { useState, useCallback, useEffect, useMemo, memo } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, Modal, TextInput } from 'react-native';
 import { FlashList } from '@shopify/flash-list';
 import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
@@ -253,7 +253,9 @@ export default function CategoryItemsScreen() {
   const totalItems = data.reduce((sum, i) => sum + i.availableCount, 0);
   const totalWeightMg = data.reduce((sum, i) => sum + i.totalNetWeightMg, 0);
 
-  const lowCount = lowStockVariantKeys.size;
+  const categoryLowCount = useMemo(() => {
+    return data.filter((item) => lowStockVariantKeys.has(`${item.designId}_${item.purityPercent}`)).length;
+  }, [data, lowStockVariantKeys]);
 
   const headerCategoryCard = (
     <View style={s.headerCategoryCard}>
@@ -287,10 +289,10 @@ export default function CategoryItemsScreen() {
           </View>
         </View>
 
-        {lowCount > 0 ? (
+        {categoryLowCount > 0 ? (
           <View style={[s.statusCapsule, { backgroundColor: 'rgba(245, 158, 11, 0.20)', borderColor: 'rgba(245, 158, 11, 0.45)' }]}>
             <AlertTriangle size={12} color="#FBBF24" />
-            <Text style={[s.statusCapsuleText, { color: '#FDE68A' }]}>{lowCount} Low Stock</Text>
+            <Text style={[s.statusCapsuleText, { color: '#FDE68A' }]}>{categoryLowCount} Low Stock</Text>
           </View>
         ) : (
           <View style={[s.statusCapsule, { backgroundColor: 'rgba(22, 163, 74, 0.18)', borderColor: 'rgba(74, 222, 128, 0.35)' }]}>

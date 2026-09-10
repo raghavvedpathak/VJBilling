@@ -48,11 +48,14 @@ export default function BarcodePrintScreen() {
   // Extract base64 raster from native SVG for 100% offline-resilient printing
   const getQrBase64 = (): Promise<string> => {
     return new Promise((resolve) => {
+      const timeout = setTimeout(() => resolve(''), 800);
       if (qrRef.current?.toDataURL) {
         qrRef.current.toDataURL((data: string) => {
+          clearTimeout(timeout);
           resolve(`data:image/png;base64,${data}`);
         });
       } else {
+        clearTimeout(timeout);
         resolve('');
       }
     });
@@ -210,7 +213,11 @@ export default function BarcodePrintScreen() {
     try {
       const qrDataUri = await getQrBase64();
       const html = generateTagHTML(qrDataUri);
-      await Print.printAsync({ html });
+      await Print.printAsync({
+        html,
+        width: 142,
+        height: 34,
+      });
       await barcodeLabelService.logBarcodeReprint(itemId, activeFirmId);
       setSuccessMessage('Label sent to printer and reprint logged in timeline.');
     } catch (e: any) {
@@ -227,7 +234,11 @@ export default function BarcodePrintScreen() {
     try {
       const qrDataUri = await getQrBase64();
       const html = generateTagHTML(qrDataUri);
-      const { uri } = await Print.printToFileAsync({ html });
+      const { uri } = await Print.printToFileAsync({
+        html,
+        width: 142,
+        height: 34,
+      });
       
       if (!(await Sharing.isAvailableAsync())) {
         Alert.alert('Sharing Unavailable', 'Sharing is not available on your device.');

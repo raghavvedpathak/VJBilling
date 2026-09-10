@@ -144,25 +144,8 @@ export default function DraftsScreen() {
 
   useFocusEffect(
     useCallback(() => {
-      let active = true;
-      const fetchCurrent = async () => {
-        if (!activeFirmId) return;
-        setLoading(true);
-        try {
-          const results = await inventoryDrillDownService.getDraftItems(activeFirmId);
-          if (active) setData(results || []);
-        } catch (e) {
-          console.error('[Drafts] fetchCurrent failed:', e);
-        } finally {
-          if (active) setLoading(false);
-        }
-      };
-
-      fetchCurrent();
-      return () => {
-        active = false;
-      };
-    }, [activeFirmId])
+      loadDrafts();
+    }, [loadDrafts])
   );
 
   const handleEdit = useCallback((itemId: string) => {

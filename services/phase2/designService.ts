@@ -302,7 +302,7 @@ export async function updateDesignPurityLowStockThreshold(
 
   const deviceId = await getDeviceId();
 
-  return db.transaction((tx) => {
+  await db.transaction((tx) => {
     const design = designRepository.getById(tx, designId, firmId);
     if (!design || design.firmId !== firmId) throw new Error(ERR.DESIGN_NOT_FOUND_OR_WRONG_FIRM);
 

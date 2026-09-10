@@ -69,6 +69,12 @@ export default function EditURDScreen() {
           return;
         }
 
+        if (urd.status !== 'DRAFT') {
+          Alert.alert('Record Locked', 'Only DRAFT URD purchases can be edited. Confirmed vouchers are immutable.');
+          router.back();
+          return;
+        }
+
         setUrdRecord(urd);
         setCustomerName(urd.customerName || '');
         setCustomerMobile(urd.customerMobile || '');
@@ -188,6 +194,7 @@ export default function EditURDScreen() {
 
       await urdPurchaseService.updateURDPurchase(
         urdId,
+        activeFirmId,
         {
           customerName: cName,
           customerAddress: cAddr,
@@ -202,8 +209,7 @@ export default function EditURDScreen() {
           totalValuePaise: calculation.totalValuePaise,
           paymentMode,
           bankAccountId: resolvedBankId,
-        },
-        activeFirmId
+        }
       );
 
       setSuccessMessage('URD Purchase Draft updated successfully.');

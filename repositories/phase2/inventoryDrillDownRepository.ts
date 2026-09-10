@@ -357,7 +357,7 @@ export const inventoryDrillDownRepository = {
       designName: r.designName || 'Unknown Design',
       categoryName: r.categoryName || 'Unknown Category',
       metal: r.metal as 'GOLD' | 'SILVER',
-      status: r.status as unknown as 'AVAILABLE' | 'PHANTOM_AVAILABLE',
+      status: r.status as 'AVAILABLE' | 'PHANTOM_AVAILABLE' | 'DRAFT',
       sizeUnit: r.sizeUnit as 'INCH'|'MM'|'CM'|'RING_SIZE'|null,
     }));
   },

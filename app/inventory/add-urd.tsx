@@ -209,6 +209,7 @@ export default function AddURDScreen() {
     }
 
     setLoading(true);
+    const createdIds: string[] = [];
     try {
       const cName = customerName.trim();
       const cAddr = customerAddress.trim() || null;
@@ -238,11 +239,21 @@ export default function AddURDScreen() {
           bankAccountId: resolvedBankId,
         };
 
-        await urdPurchaseService.createURDPurchase(payload, activeFirmId);
+        const urd = await urdPurchaseService.createURDPurchase(payload, activeFirmId);
+        createdIds.push(urd.id);
       }
 
       setSuccessMessage(`Saved ${items.length} URD purchase item${items.length > 1 ? 's' : ''} successfully.`);
     } catch (e: any) {
+      if (createdIds.length > 0) {
+        for (const urdId of createdIds) {
+          try {
+            await urdPurchaseService.deleteURDPurchase(urdId, activeFirmId);
+          } catch (delErr) {
+            console.error('[AddURD] Failed to rollback created URD item:', urdId, delErr);
+          }
+        }
+      }
       Alert.alert('Error', e.message || 'Failed to save URD purchases.');
     } finally {
       setLoading(false);
@@ -626,6 +637,7 @@ export default function AddURDScreen() {
         visible={showDatePicker}
         title="Purchase Date"
         value={purchaseDate}
+        maxDate={todayIso}
         onClose={() => setShowDatePicker(false)}
         onSelect={(d) => setPurchaseDate(d)}
       />

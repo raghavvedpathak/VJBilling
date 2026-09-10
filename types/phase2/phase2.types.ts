@@ -267,7 +267,7 @@ export type ItemSearchResult = {
   grossWeightMg: number;
   purityPercent: number;
   huid: string | null;
-  status: 'AVAILABLE' | 'PHANTOM_AVAILABLE';
+  status: 'AVAILABLE' | 'PHANTOM_AVAILABLE' | 'DRAFT';
   barcode: string;
   netWeightMg: number;
   purityKarat: number;

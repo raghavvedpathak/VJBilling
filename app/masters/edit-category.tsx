@@ -37,9 +37,9 @@ export default function EditCategoryScreen() {
 
   // ID-Driven Database Sync on Mount
   useEffect(() => {
-    if (!id) return;
+    if (!id || !activeFirmId) return;
     let isMounted = true;
-    categoryRepository.getById(id)
+    categoryRepository.getById(id, activeFirmId)
       .then((cat) => {
         if (isMounted && cat) {
           if (cat.name) setNewName(cat.name);
@@ -52,7 +52,7 @@ export default function EditCategoryScreen() {
     return () => {
       isMounted = false;
     };
-  }, [id]);
+  }, [id, activeFirmId]);
 
   const handleEditSubmit = async () => {
     try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); } catch {}

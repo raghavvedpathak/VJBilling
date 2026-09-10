@@ -10,7 +10,6 @@ import { TwoToneWrapper } from '@/components/TwoToneWrapper';
 import { appSettingsStore } from '@/store/phase1/appSettingsStore';
 import { useFirmStore } from '@/store/phase1/useFirmStore';
 import { inventoryDrillDownService } from '@/services/phase2/inventoryDrillDownService';
-import { designRepository } from '@/repositories/phase2/designRepository';
 import { getDisplayPurity, formatKaratBadge, formatSKUDisplay, formatWeightMg as formatWeight } from '@/utils/calculations';
 import { MapPin, Package, Printer, Scale, Sparkles, ArrowUpDown, Check, X, ShieldCheck, ShieldAlert, ChevronRight, Tag } from 'lucide-react-native';
 import type { ItemSearchResult } from '@/types/phase2/phase2.types';
@@ -208,14 +207,13 @@ export default function DesignItemsScreen() {
         if (!activeFirmId || !designId) return;
         setLoading(true);
         try {
-          const [results, designRecord] = await Promise.all([
-            inventoryDrillDownService.getItemsByDesign(activeFirmId, designId, purityNum),
-            designRepository.getById(designId)
-          ]);
+          const results = await inventoryDrillDownService.getItemsByDesign(activeFirmId, designId, purityNum);
           if (active) {
             setItems(results);
-            if (designRecord?.name) {
-              setDbDesignName(designRecord.name);
+            if (results.length > 0 && results[0]?.designName) {
+              setDbDesignName(results[0].designName);
+            } else if (designName) {
+              setDbDesignName(designName);
             }
           }
         } catch (e) {
@@ -226,7 +224,7 @@ export default function DesignItemsScreen() {
       };
       load();
       return () => { active = false; };
-    }, [activeFirmId, designId, purityNum])
+    }, [activeFirmId, designId, purityNum, designName])
   );
 
   const handleItemPress = useCallback((itemId: string) => {

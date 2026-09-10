@@ -149,9 +149,22 @@ export async function createURDPurchase(
 // --- updateURDPurchase ---
 export async function updateURDPurchase(
   urdId: string,
+  firmId: string,
+  input: Partial<CreateURDPurchaseInput>
+): Promise<URDPurchase>;
+export async function updateURDPurchase(
+  urdId: string,
   input: Partial<CreateURDPurchaseInput>,
   firmId: string
+): Promise<URDPurchase>;
+export async function updateURDPurchase(
+  urdId: string,
+  second: string | Partial<CreateURDPurchaseInput>,
+  third: string | Partial<CreateURDPurchaseInput>
 ): Promise<URDPurchase> {
+  const firmId = typeof second === 'string' ? second : (third as string);
+  const input = typeof second === 'string' ? (third as Partial<CreateURDPurchaseInput>) : second;
+
   await leaseService.assertNoActiveLease(); // GUARD 1
   safeModeService.assertNotInSafeMode();     // GUARD 2
   const deviceId = await getDeviceId();

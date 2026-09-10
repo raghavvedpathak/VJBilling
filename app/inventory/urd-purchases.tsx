@@ -16,6 +16,7 @@ import { appSettingsStore } from '@/store/phase1/appSettingsStore';
 import { urdPurchaseRepository } from '@/repositories/phase2/urdPurchaseRepository';
 import { firmRepository } from '@/repositories/phase1/firmRepository';
 import { urdPurchaseService } from '@/services/phase2/urdPurchaseService';
+import { urdPrintService } from '@/services/phase2/urdPrintService';
 import { formatRupees, formatWeightMg as formatWeight, formatKaratBadge } from '@/utils/calculations';
 import { FileDown, Plus, Scale, Banknote, ShieldAlert, CheckCircle, Printer, Trash2, Eye, X, Share2, Edit3, Sparkles, ChevronRight, ShieldCheck } from 'lucide-react-native';
 import type { URDPurchase } from '@/types/phase2/phase2.types';
@@ -272,7 +273,7 @@ export default function URDPurchasesScreen() {
     if (!activeFirmId) return;
     setPreviewHtml(null);
     try {
-      const html = await urdPurchaseService.generateURDCustomerDeclaration(item.id, activeFirmId, tId);
+      const html = await urdPrintService.generateURDCustomerDeclaration(item.id, activeFirmId, tId);
       setPreviewHtml(html);
     } catch (error: any) {
       Alert.alert('Preview Error', error.message || 'Failed to load declaration preview.');
@@ -290,7 +291,7 @@ export default function URDPurchasesScreen() {
 
     try {
       const templateId = getFirmURDBillTemplateId(activeFirmId);
-      const html = await urdPurchaseService.generateURDPurchaseBill(item.id, activeFirmId, templateId);
+      const html = await urdPrintService.generateURDPurchaseBill(item.id, activeFirmId, templateId);
       setPreviewHtml(html);
     } catch (error: any) {
       setPreviewVisible(false);

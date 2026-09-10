@@ -46,9 +46,9 @@ export default function EditDesignScreen() {
 
   // ID-Driven Database Sync on Mount
   useEffect(() => {
-    if (!id) return;
+    if (!id || !activeFirmId) return;
     let isMounted = true;
-    designRepository.getById(id)
+    designRepository.getById(id, activeFirmId)
       .then((d) => {
         if (isMounted && d) {
           if (d.name) setNewName(d.name);
@@ -64,7 +64,7 @@ export default function EditDesignScreen() {
     return () => {
       isMounted = false;
     };
-  }, [id]);
+  }, [id, activeFirmId]);
 
   const handleEditSubmit = async () => {
     try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); } catch {}
