@@ -1,4 +1,6 @@
-// app/inventory/add-loose-stock.tsx — Phase 2 v2.24 Canonical Screen
+// app/inventory/add-loose-stock.tsx — Phase 2 v2.34 Canonical Screen
+// Aligned with FEAT-LOOSE-STOCK-1 (v2.23 / v2.24 / v2.28), FEAT-EFFECTIVE-PRICE-1 (v2.00),
+// and FIX-EFFPRICE-PURITYROUND-1 (v2.14)
 
 import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import { View, Text, Alert, Modal, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
@@ -10,6 +12,7 @@ import { GlassCard, GlassInput, GlassButton, GlassPickerInput, FixedGlassBar, fi
 import { GlassPickerModal, GlassPickerOption } from '@/components/ui/GlassPickerModal';
 import { useFirmStore } from '@/store/phase1/useFirmStore';
 import { useMastersSyncStore } from '@/store/phase2/mastersSyncStore';
+import { appSettingsStore } from '@/store/phase1/appSettingsStore';
 import { designRepository } from '@/repositories/phase2/designRepository';
 import { looseStockService } from '@/services/phase2/looseStockService';
 import { 
@@ -20,14 +23,17 @@ import {
   getCurrencySymbol,
   rupeesToPaise,
   percentToKarat,
+  computeEffectivePricePerGram,
 } from '@/utils/calculations';
 import { Layers, Scale, Banknote, CheckCircle, Plus } from 'lucide-react-native';
 import type { Design, AddLooseStockInput } from '@/types/phase2/phase2.types';
-import { COLORS } from '@/constants/theme';
+import { getThemeColors } from '@/constants/theme';
 
 export default function AddLooseStockScreen() {
   const router = useRouter();
   const { activeFirmId } = useFirmStore();
+  const activeTheme = appSettingsStore((s: any) => s.theme);
+  const colors = getThemeColors(activeTheme);
 
   const [designs, setDesigns] = useState<Design[]>([]);
   const [selectedDesign, setSelectedDesign] = useState<Design | null>(null);
@@ -82,25 +88,34 @@ export default function AddLooseStockScreen() {
     }, [fetchDesigns])
   );
 
-  // Available purity presets based on selected design's metal
   const availablePurityPresets = useMemo(() => {
     return getPurityPresets(selectedDesign ? selectedDesign.metal : 'GOLD');
   }, [selectedDesign]);
 
-  // Real-time calculation helpers (Avg piece weight and estimated lot valuation)
+  // Real-time calculation using canonical computeEffectivePricePerGram
   const previewData = useMemo(() => {
     const w = parseCleanFloat(weightGrams);
     const pcs = parseInt(pieceCount.trim(), 10) || 0;
     const r = parseCleanFloat(ratePerGram);
+    const wast = parseCleanFloat(wastagePercent);
 
     const avgWeightGrams = pcs > 0 && w > 0 ? w / pcs : 0;
-    const totalRupees = w * r;
+
+    let effPricePerGram = r;
+    if (r > 0 && selectedPurity && selectedDesign) {
+      const pPct = parseCleanFloat(selectedPurity.val);
+      effPricePerGram = computeEffectivePricePerGram(r, pPct, wast, selectedDesign.metal);
+    }
+
+    const totalRupees = w * effPricePerGram;
 
     return {
       avgWeightGrams: avgWeightGrams.toFixed(3),
+      effectivePricePerGram: effPricePerGram,
       totalValueRupees: Math.round(totalRupees),
+      hasCalculatedRate: r > 0 && selectedPurity !== null,
     };
-  }, [weightGrams, pieceCount, ratePerGram]);
+  }, [weightGrams, pieceCount, ratePerGram, wastagePercent, selectedPurity, selectedDesign]);
 
   const handleSubmit = async () => {
     try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); } catch {}
@@ -131,12 +146,12 @@ export default function AddLooseStockScreen() {
 
     const totalWeightMg = gramsToMg(wtGramsVal);
     const purityPct = parseCleanFloat(selectedPurity.val);
+    const resolvedKarat = selectedPurity.karat ?? (selectedDesign.metal === 'GOLD' ? (percentToKarat(purityPct) || 0) : 0);
 
-    // Construct input with exact optional property adherence
     const input: AddLooseStockInput = {
       designId: selectedDesign.id,
       purityPercent: purityPct,
-      purityKarat: selectedDesign.metal === 'GOLD' ? (percentToKarat(purityPct) || 0) : 0,
+      purityKarat: resolvedKarat,
       pieceCount: pcsVal,
       totalWeightMg,
       hsnCode: hsnCode.trim() || '7113',
@@ -166,7 +181,6 @@ export default function AddLooseStockScreen() {
     setLoading(true);
     try {
       await looseStockService.addLooseStock(input, activeFirmId);
-
       setSuccessMessage('Loose stock successfully added to inventory pool.');
     } catch (e: any) {
       Alert.alert('Error', e.message || 'Failed to add loose stock.');
@@ -187,11 +201,10 @@ export default function AddLooseStockScreen() {
         extraScrollHeight={120}
         extraHeight={140}
       >
-        {/* DESIGN & PURITY SPECIFICATION */}
         <GlassCard style={{ marginBottom: 16 }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 16 }}>
             <Layers size={20} color="#D4AF37" />
-            <Text style={{ fontSize: 18, fontWeight: '700', color: COLORS.vjText }}>Design & Fineness</Text>
+            <Text style={{ fontSize: 18, fontWeight: '700', color: colors.vjText }}>Design & Fineness</Text>
           </View>
 
           <GlassPickerInput
@@ -203,7 +216,7 @@ export default function AddLooseStockScreen() {
               if (designs.length === 0) {
                 Alert.alert(
                   'No Loose Designs',
-                  'No designs with Stock Type "LOOSE" were found. Please create or configure a loose stock design first.'
+                  'No designs with Stock Type "LOOSE" were found. Please configure a loose stock design in Design Master first.'
                 );
                 return;
               }
@@ -272,11 +285,10 @@ export default function AddLooseStockScreen() {
           />
         </GlassCard>
 
-        {/* PHYSICAL QUANTITY & TOTAL WEIGHT */}
         <GlassCard style={{ marginBottom: 16 }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 16 }}>
             <Scale size={20} color="#D4AF37" />
-            <Text style={{ fontSize: 18, fontWeight: '700', color: COLORS.vjText }}>Stock Metrics</Text>
+            <Text style={{ fontSize: 18, fontWeight: '700', color: colors.vjText }}>Stock Metrics</Text>
           </View>
 
           <View style={{ flexDirection: 'row', gap: 12 }}>
@@ -301,17 +313,16 @@ export default function AddLooseStockScreen() {
           </View>
 
           <View style={{ backgroundColor: 'rgba(212,175,55,0.08)', padding: 14, borderRadius: 12, marginTop: 6 }}>
-            <Text style={{ fontSize: 12, color: COLORS.vjText, fontWeight: '600' }}>
+            <Text style={{ fontSize: 12, color: colors.vjText, fontWeight: '600' }}>
               Average Piece Weight: <Text style={{ fontFamily: 'monospace', fontWeight: '800' }}>{previewData.avgWeightGrams} g</Text>
             </Text>
           </View>
         </GlassCard>
 
-        {/* PURCHASE RATE & ESTIMATED VALUE (OPTIONAL) */}
         <GlassCard style={{ marginBottom: 24 }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 16 }}>
             <Banknote size={20} color="#D4AF37" />
-            <Text style={{ fontSize: 18, fontWeight: '700', color: COLORS.vjText }}>Costing & Valuation (Optional)</Text>
+            <Text style={{ fontSize: 18, fontWeight: '700', color: colors.vjText }}>Costing & Valuation (Optional)</Text>
           </View>
 
           <View style={{ flexDirection: 'row', gap: 12 }}>
@@ -335,10 +346,17 @@ export default function AddLooseStockScreen() {
             </View>
           </View>
 
-          <View style={{ backgroundColor: COLORS.vjText, padding: 16, borderRadius: 12, marginTop: 8 }}>
-            <Text style={{ fontSize: 12, color: 'rgba(255,255,255,0.7)', textTransform: 'uppercase', fontWeight: '700', marginBottom: 4 }}>
-              Estimated Lot Value
-            </Text>
+          <View style={{ backgroundColor: colors.vjText, padding: 16, borderRadius: 12, marginTop: 8 }}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+              <Text style={{ fontSize: 12, color: 'rgba(255,255,255,0.7)', textTransform: 'uppercase', fontWeight: '700' }}>
+                Estimated Lot Value
+              </Text>
+              {previewData.hasCalculatedRate && (
+                <Text style={{ fontSize: 11, color: '#D4AF37', fontWeight: '700' }}>
+                  Eff: {getCurrencySymbol()}{previewData.effectivePricePerGram.toFixed(2)}/g
+                </Text>
+              )}
+            </View>
             <Text style={{ fontSize: 28, fontWeight: '800', color: '#FCFBF8', fontFamily: 'monospace' }}>
               {getCurrencySymbol()}{previewData.totalValueRupees.toLocaleString('en-IN')}
             </Text>
@@ -348,7 +366,6 @@ export default function AddLooseStockScreen() {
         <View style={{ height: 40 }} />
       </KeyboardAwareScrollView>
 
-      {/* FIXED BOTTOM ACTION BAR */}
       <FixedGlassBar>
         <TouchableOpacity
           style={fixedBarStyles.pillSecondaryBtn}
@@ -373,7 +390,6 @@ export default function AddLooseStockScreen() {
         </TouchableOpacity>
       </FixedGlassBar>
 
-      {/* CONFIRMATION / SUCCESS MODAL */}
       <Modal visible={!!successMessage} transparent animationType="fade">
         <View style={s.modalOverlayCenter}>
           <View style={s.successModalContent}>
@@ -396,7 +412,6 @@ export default function AddLooseStockScreen() {
         </View>
       </Modal>
 
-      {/* GENERIC PICKER MODAL */}
       <GlassPickerModal
         visible={pickerModal.visible}
         title={pickerModal.title}
@@ -442,7 +457,6 @@ const s = StyleSheet.create({
   successTitle: {
     fontSize: 24,
     fontWeight: '800',
-    color: COLORS.vjText,
     marginBottom: 8,
   },
   successSubtitle: {

@@ -1,17 +1,15 @@
-// services/phase1/verifyService.ts — Phase 2 v2.24 Canonical Implementation
+// services/phase1/verifyService.ts — Phase 2 v2.34 Canonical Implementation
+// Aligned with FIX-VERIFY-ADAPTER-1 (v1.31), FIX-CAT-ITEM-FK (v1.42), FEAT-PURITY-ROUND-1 (v1.90),
+// FIX-V192-CHECK4B-1/2 (v1.92), FEAT-PHANTOM-INVENTORY-1 (v1.67/v1.68), FIX-OLDMETAL-RENAME-1 (v2.32)
 
 import { db } from '@/db/client';
-import { eq, lt, and, isNotNull, notInArray, sum, gt, isNull, inArray } from 'drizzle-orm';
+import { eq, lt, and, isNotNull, notInArray } from 'drizzle-orm';
 import {
   firms,
   financialYears,
   writerLeases,
   auditLogs,
   schemaVersion,
-  oldGoldLots,
-  items,
-  designs,
-  categories
 } from '@/db/schema';
 import { safeModeService } from '@/services/phase1/safeModeService';
 import { verifyStore } from '@/store/phase1/verifyStore';
@@ -19,7 +17,6 @@ import { storage } from '@/utils/storage';
 import { now } from '@/utils/now';
 import { SCHEMA_VERSION } from '@/constants';
 import { ERR } from '@/constants/errorCodes';
-import type { VerifyIssue } from '@/types/phase2/phase2.types';
 
 const CACHE_KEY_STATUS = 'vjbilling_last_verify_status';
 const CACHE_KEY_AT     = 'vjbilling_last_verify_at';
@@ -97,7 +94,7 @@ export const verifyService = {
       });
     }
 
-    // Check 2 + 3: Missing FY / Multiple Active FY (Strictly scoped when firmId is specified)
+    // Check 2 + 3: Missing FY / Multiple Active FY
     const activeFirmRows = firmId
       ? await db.select({ id: firms.id }).from(firms).where(and(eq(firms.id, firmId), eq(firms.isArchived, 0)))
       : await db.select({ id: firms.id }).from(firms).where(eq(firms.isArchived, 0));
@@ -139,7 +136,7 @@ export const verifyService = {
       });
     }
 
-    // Check 5: Audit log timestamp continuity (uses auditLogs.createdAt)
+    // Check 5: Audit log timestamp continuity
     const auditRows = await db
       .select({ firmId: auditLogs.firmId, createdAt: auditLogs.createdAt })
       .from(auditLogs)
@@ -220,7 +217,6 @@ export const verifyService = {
     if (filteredFindings.some(f => f.severity === 'CRITICAL')) status = 'CRITICAL';
     else if (filteredFindings.some(f => f.severity === 'WARNING')) status = 'WARNING';
 
-    // Global Safe Mode management runs only on system-wide verify passes
     if (!firmId) {
       if (status === 'CRITICAL') {
         const criticalFindings = filteredFindings.filter(f => f.severity === 'CRITICAL');
@@ -257,57 +253,9 @@ export const verifyService = {
   },
 };
 
-export const phase2VerifyService = {
-  async runVerify(firmId: string): Promise<VerifyIssue[]> {
-    const issues: VerifyIssue[] = [];
-    const p1Result = await verifyService.runVerify(firmId);
-    
-    for (const f of p1Result.findings) {
-      if (f.severity === 'HEALTHY') continue;
-      issues.push({ code: f.check, severity: f.severity as 'CRITICAL' | 'WARNING' | 'INFO', message: f.detail });
-    }
-    
-    // Phase 2 Check 1: No orphaned items by design
-    const allDesignIds = new Set((await db.select({ id: designs.id }).from(designs).where(eq(designs.firmId, firmId))).map(r => r.id));
-    const itemDesignIds = (await db.select({ designId: items.designId }).from(items).where(eq(items.firmId, firmId))).map(r => r.designId);
-    const orphanItemCount = itemDesignIds.filter(id => !allDesignIds.has(id)).length;
-    if (orphanItemCount > 0) issues.push({ code: 'ORPHAN_ITEMS', severity: 'CRITICAL', message: `${orphanItemCount} item(s) reference non-existent designs` });
-
-    // Phase 2 Check 2: No orphaned items by category
-    const allCategoryIds = new Set((await db.select({ id: categories.id }).from(categories).where(eq(categories.firmId, firmId))).map(r => r.id));
-    const itemCategoryIds = (await db.select({ categoryId: items.categoryId }).from(items).where(eq(items.firmId, firmId))).map(r => r.categoryId);
-    const orphanItemCategoryCount = itemCategoryIds.filter(id => id && !allCategoryIds.has(id)).length;
-    if (orphanItemCategoryCount > 0) issues.push({ code: 'ORPHAN_ITEM_CATEGORIES', severity: 'CRITICAL', message: `${orphanItemCategoryCount} item(s) reference non-existent categories` });
-
-    // Phase 2 Check 3: Zero gross weight
-    const zeroWeightItems = await db.select({ id: items.id }).from(items).where(and(eq(items.firmId, firmId), eq(items.grossWeightMg, 0)));
-    if (zeroWeightItems.length > 0) issues.push({ code: 'ITEMS_ZERO_GROSS_WEIGHT', severity: 'CRITICAL', message: `${zeroWeightItems.length} item(s) have grossWeightMg = 0` });
-
-    // Phase 2 Check 4: Purity over 100%
-    const purityViolations = await db.select({ id: items.id }).from(items).where(and(eq(items.firmId, firmId), gt(items.fineWeightMg, items.grossWeightMg)));
-    if (purityViolations.length > 0) issues.push({ code: 'ITEMS_PURITY_OVER_100', severity: 'CRITICAL', message: `${purityViolations.length} item(s) have fineWeightMg > grossWeightMg (effective purity > 100%)` });
-
-    // Phase 2 Check 4b: Purity rounding accumulation (INFO)
-    const roundingTotal = await db.select({ total: sum(items.purityRoundingDeltaMg) }).from(items).where(eq(items.firmId, firmId));
-    const oldGoldRoundingTotal = await db.select({ total: sum(oldGoldLots.purityRoundingDeltaMg) }).from(oldGoldLots).where(eq(oldGoldLots.firmId, firmId));
-    const roundingDeltaMg = (Number(roundingTotal[0]?.total) || 0) + (Number(oldGoldRoundingTotal[0]?.total) || 0);
-    if (roundingDeltaMg > 0) issues.push({ code: 'PURITY_ROUNDING_ACCUMULATED', severity: 'INFO', message: `Accumulated purity-rounding gap across all items + old-gold lots: ${roundingDeltaMg}mg (expected, not an error — see FEAT-PURITY-ROUND-1)` });
-
-    // Phase 2 Check 5: Stale active FY boundary (> 60 days)
-    const sixtyDaysAgo = new Date(Date.now() - 60 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
-    const staleFYs = await db.select({ id: financialYears.id }).from(financialYears)
-      .where(and(eq(financialYears.firmId, firmId), eq(financialYears.status, 'ACTIVE'), lt(financialYears.endDate, sixtyDaysAgo)));
-    if (staleFYs.length > 0) issues.push({ code: 'STALE_ACTIVE_FY', severity: 'WARNING', message: `${staleFYs.length} active FY boundary is > 60 days in the past — close the financial year` });
-
-    // Phase 2 Check 6: Stale phantoms (> 30 days)
-    const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
-    const stalePhantoms = await db.select({ id: items.id }).from(items).where(and(eq(items.firmId, firmId), inArray(items.status, ['PHANTOM_AVAILABLE','PHANTOM_SOLD']), isNull(items.phantomStockId), lt(items.createdAt, thirtyDaysAgo)));
-    if (stalePhantoms.length > 0) issues.push({ code: 'STALE_PHANTOM_ITEMS', severity: 'WARNING', message: `${stalePhantoms.length} phantom item(s) have been unreconciled for > 30 days — add backdated stock and reconcile` });
-
-    // Phase 2 Check 7: Open phantoms blocking FY close
-    const openPhantoms = await db.select({ id: items.id }).from(items).where(and(eq(items.firmId, firmId), inArray(items.status, ['PHANTOM_AVAILABLE','PHANTOM_SOLD']), isNull(items.phantomStockId)));
-    if (openPhantoms.length > 0) issues.push({ code: 'FY_CLOSE_BLOCKED_PHANTOM_ITEMS', severity: 'CRITICAL', message: `${openPhantoms.length} phantom item(s) must be reconciled before closing FY — add backdated stock entries and call reconcilePhantomItem()` });
-
-    return issues;
-  }
-};
+// Backward compatibility re-exports for Phase 2 Verification
+export {
+  inventoryVerifyService as phase2VerifyService,
+  inventoryVerifyService,
+  runVerify,
+} from '@/services/phase2/inventoryVerifyService';

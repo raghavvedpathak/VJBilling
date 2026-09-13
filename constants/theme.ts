@@ -1,3 +1,7 @@
+// constants/theme.ts — Phase 2 v2.34 Canonical Theme Tokens & Color Palettes
+
+import { appSettingsStore } from '@/store/phase1/appSettingsStore';
+
 export const THEME_PRESETS = {
   saffron: { // DEFAULT - Option 1: Imperial Swarna Kesari
     id: 'saffron',
@@ -57,8 +61,6 @@ export const THEME_PRESETS = {
   },
 } as const;
 
-import { appSettingsStore } from '@/store/phase1/appSettingsStore';
-
 export function getThemeColors(themeKey?: string) {
   const currentStoreTheme = appSettingsStore ? appSettingsStore.getState()?.theme : null;
   const key = themeKey || currentStoreTheme || 'saffron';
@@ -67,7 +69,7 @@ export function getThemeColors(themeKey?: string) {
 
 export const COLORS = {
   // --- Dynamic Brand Colors (Resolved Live) ---
-  get vjHeaderBg() { return getThemeColors().vjHeaderBg || '#5C1623'; },
+  get vjHeaderBg() { return getThemeColors().vjHeaderBg || '#731E00'; },
   get vjText() { return getThemeColors().vjText; },
   get vjBg() { return getThemeColors().vjBg; },
   get vjAccent() { return getThemeColors().vjAccent; },
@@ -140,4 +142,3 @@ export const THEME = {
 } as const;
 
 export type ThemeColors = typeof COLORS;
-

@@ -1,4 +1,4 @@
-// services/phase2/urdPrintService.ts — Phase 2 v2.24 Canonical Service
+// services/phase2/urdPrintService.ts — Phase 2 v2.34 Canonical Service
 // Aligned with STEP 12.12, URD-BILL-DECIMAL-SPEC & URD-AMOUNT-WORDS (v1.54)
 
 import * as FileSystem from 'expo-file-system/legacy';
@@ -7,7 +7,8 @@ import { urdPurchaseRepository } from '@/repositories/phase2/urdPurchaseReposito
 import { firmRepository } from '@/repositories/phase1/firmRepository';
 import { bisLogoRepository } from '@/repositories/phase1/bisLogoRepository';
 import { ERR } from '@/constants/errorCodes';
-import { amountToWords, getCurrencySymbol, formatWeightMg } from '@/utils/calculations';
+import { amountToWords, getCurrencySymbol } from '@/utils/calculations';
+import { formatWeightMg } from '@/utils/purity.constants';
 import { formatDate } from '@/utils/formatDate';
 import { 
   renderURDTemplate1, 
@@ -174,6 +175,15 @@ export async function generateURDCustomerDeclaration(
   const formattedAdjustment = `${adjustmentSign}${symbol}${adjustmentRupees}`;
   const grossValueRupees = (grossValuePaise / 100).toFixed(2);
 
+  let idProofHtml = '';
+  if (urd.customerAadhaar) {
+    const masked = maskAadhaar(urd.customerAadhaar);
+    idProofHtml = `<div class="cust-row"><span class="cust-label">Aadhaar:</span><span class="cust-val">${masked}</span></div>`;
+  }
+  if (urd.customerPAN) {
+    idProofHtml += `<div class="cust-row"><span class="cust-label">PAN:</span><span class="cust-val">${urd.customerPAN}</span></div>`;
+  }
+
   const idProofType = urd.customerAadhaar ? 'आधार कार्ड' : (urd.customerPAN ? 'पॅन कार्ड' : 'आधार / पॅन कार्ड');
   const idProofNumber = urd.customerAadhaar
     ? maskAadhaar(urd.customerAadhaar)
@@ -198,7 +208,7 @@ export async function generateURDCustomerDeclaration(
       rateRupees: ratePerGram,
       words: amountToWords(urd.totalValuePaise),
       formattedDate,
-      idProofHtml: '',
+      idProofHtml,
       cashAmt: '',
       bankAmt: '',
       chequeAmt: '',

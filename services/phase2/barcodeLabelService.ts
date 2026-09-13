@@ -1,5 +1,5 @@
-// services/phase2/barcodeLabelService.ts — Phase 2 v2.24 Canonical Service
-// Step 5.1 / FEAT-BARCODE-LABEL-1 (v1.66)
+// services/phase2/barcodeLabelService.ts — Phase 2 v2.34 Canonical Service
+// Step 5.1 / FEAT-BARCODE-LABEL-1 (v1.66) / FIX-BARCODE-REPRINT-GUARD-1 (v1.79)
 
 import { db } from '@/db/client';
 import { leaseService } from '@/services/phase1/leaseService';
@@ -10,8 +10,8 @@ import { itemRepository } from '@/repositories/phase2/itemRepository';
 import { itemEventRepository } from '@/repositories/phase2/itemEventRepository';
 import { auditRepository } from '@/repositories/phase1/auditRepository';
 import { getDeviceId } from '@/utils/deviceId';
-import { getDisplayPurity, formatWeightMg } from '@/utils/calculations';
-import { formatSKUDisplay } from '@/utils/skuDisplay';
+import { getDisplayPurity, formatWeightMg } from '@/utils/purity.constants';
+import { formatSKUDisplay } from '@/services/phase2/skuEngine';
 import { now } from '@/utils/now';
 import * as Crypto from 'expo-crypto';
 import type { BarcodeLabel } from '@/types/phase2/phase2.types';
@@ -36,15 +36,15 @@ export async function generateBarcodeLabel(itemId: string, firmId: string): Prom
     backSide: {
       firmCode: firm.firmCode,
       barcodeValue: row.barcode,
-      skuDisplay: formatSKUDisplay(row.sku), // GAP-I6/FEAT-BARCODE-LABEL-1 (v1.66)
+      skuDisplay: formatSKUDisplay(row.sku), // GAP-I6 / FEAT-BARCODE-LABEL-1 (v1.66)
     },
   };
 }
 
-// --- logBarcodeReprint (Step 5.1 / FEAT-BARCODE-LABEL-1 v1.66) ---
+// --- logBarcodeReprint (Step 5.1 / FEAT-BARCODE-LABEL-1 v1.66 / FIX-BARCODE-REPRINT-GUARD-1 v1.79) ---
 export async function logBarcodeReprint(itemId: string, firmId: string): Promise<void> {
   await leaseService.assertNoActiveLease(); // GUARD 1
-  safeModeService.assertNotInSafeMode();    // GUARD 2
+  safeModeService.assertNotInSafeMode();     // GUARD 2
 
   const deviceId = await getDeviceId();
 

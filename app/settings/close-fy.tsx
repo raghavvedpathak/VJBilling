@@ -12,7 +12,7 @@ import { useFirmStore } from '@/store/phase1/useFirmStore';
 import { appSettingsStore } from '@/store/phase1/appSettingsStore';
 import { useSession } from '@/hooks/useSession';
 import { useFyBannerStore } from '@/store/phase1/fyBannerStore';
-import { fyService } from '@/services/phase1/fyService';
+import { fyInventoryService } from '@/services/phase2/fyInventoryService';
 import { backupService } from '@/services/phase1/backupService';
 import { Lock, ShieldAlert, ShieldCheck, HardDriveDownload, AlertTriangle, CheckCircle2 } from 'lucide-react-native';
 import type { VerifyIssue } from '@/types/phase2/phase2.types';
@@ -47,7 +47,7 @@ export default function CloseFYWizard() {
     const runChecks = async () => {
       if (!activeFirmId || !activeFY) return;
       try {
-        const result = await fyService.preCloseChecks(activeFY.id, activeFirmId);
+        const result = await fyInventoryService.preCloseChecks(activeFY.id, activeFirmId);
         if (isMounted) {
           setIssues(result.issues || []);
           setCanClose(result.canClose);
@@ -93,7 +93,7 @@ export default function CloseFYWizard() {
 
     setIsClosing(true);
     try {
-      await fyService.closeFY(activeFY.id, activeFirmId);
+      await fyInventoryService.closeFY(activeFY.id, activeFirmId);
       
       // Clear warning banner state outside transaction strictly after success
       useFyBannerStore.getState().setBannerVisible(false);

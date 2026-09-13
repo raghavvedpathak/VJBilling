@@ -1,4 +1,4 @@
-// services/phase2/karigarService.ts — Phase 2 v2.30 Canonical Service
+// services/phase2/karigarService.ts — Phase 2 v2.34 Canonical Service
 // Step 10.7 / FIX-SERVICE-BODY-1 (v1.35) / FIX-LOOP-1 (v1.33) / FIX-KARIGAR-FWDCOMPAT-1 (v2.18) / FIX-P2-SYNC-CONTRACT-1 (v1.81)
 
 import { db } from '@/db/client';
@@ -59,7 +59,7 @@ export async function sendToKarigar(
 
     itemRepository.updateStatus(tx, firmId, itemId, 'SENT_TO_KARIGAR');
 
-    // FIX-KARIGAR-FWDCOMPAT-1 (v2.18): supports optional karigarId
+    // FIX-KARIGAR-FWDCOMPAT-1 (v2.18) / FIX-KARIGAR-COMMENT-1 (v2.20)
     itemEventRepository.insert(tx, {
       id: Crypto.randomUUID(),
       itemId,
@@ -101,6 +101,8 @@ export async function returnFromKarigar(
 ): Promise<void> {
   await leaseService.assertNoActiveLease(); // GUARD 1
   safeModeService.assertNotInSafeMode();     // GUARD 2
+
+  if (!karigarName || karigarName.trim().length === 0) throw new Error(ERR.KARIGAR_NAME_REQUIRED);
 
   const nextStatusMap: Record<string, StockStatus> = {
     REPAIRED: 'AVAILABLE',

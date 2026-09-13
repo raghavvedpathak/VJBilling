@@ -1,8 +1,10 @@
 // components/DateFormatModal.tsx — Phase 1 & Phase 2 Date Format Picker Modal
+// Aligned with Phase 1 v6.2 (G67–G69) & Phase 2 FIX-DATEFORMAT-1 (v1.97 / v1.98 across all 6 options)
 
 import React from 'react';
 import { View, Text, TouchableOpacity, Modal } from 'react-native';
 import { CheckCircle2, X } from 'lucide-react-native';
+import { format as formatDateFns } from 'date-fns';
 import { COLORS } from '@/constants/theme';
 
 interface DateFormatModalProps {
@@ -18,36 +20,24 @@ export function DateFormatModal({
   onSelectFormat,
   onClose,
 }: DateFormatModalProps) {
-  const getTodayPreview = (format: string) => {
-    const today = new Date();
-    const d = String(today.getDate()).padStart(2, '0');
-    const m = String(today.getMonth() + 1).padStart(2, '0');
-    const y = today.getFullYear();
-    const monthNames = [
-      'January', 'February', 'March', 'April', 'May', 'June',
-      'July', 'August', 'September', 'October', 'November', 'December'
-    ];
-    const monthName = monthNames[today.getMonth()];
+  const today = new Date();
 
-    switch (format) {
-      case 'dd/MM/yyyy':
-        return `${d}/${m}/${y}`;
-      case 'd MMMM yyyy':
-        return `${Number(d)} ${monthName} ${y}`;
-      case 'dd-MM-yyyy':
-        return `${d}-${m}-${y}`;
-      case 'yyyy-MM-dd':
-        return `${y}-${m}-${d}`;
-      default:
-        return `${d}/${m}/${y}`;
+  const getTodayPreview = (token: string) => {
+    try {
+      return formatDateFns(today, token);
+    } catch {
+      return formatDateFns(today, 'dd/MM/yyyy');
     }
   };
 
+  // Full 6-option canonical format registry per Phase 1 v6.2 (G67–G69) and Phase 2 v1.97/v1.98
   const formats = [
     { token: 'dd/MM/yyyy', label: 'Compact (Default)' },
-    { token: 'd MMMM yyyy', label: 'Professional' },
     { token: 'dd-MM-yyyy', label: 'Hyphen Variant' },
-    { token: 'yyyy-MM-dd', label: 'ISO 8601 (Export)' },
+    { token: 'dd.MM.yyyy', label: 'Dot Variant' },
+    { token: 'd MMM yyyy', label: 'Standard (Abbrev)' },
+    { token: 'd MMMM yyyy', label: 'Formal (Full Month)' },
+    { token: 'yyyy-MM-dd', label: 'ISO 8601 (Export/Ledger)' },
   ];
 
   return (
@@ -72,7 +62,7 @@ export function DateFormatModal({
               <TouchableOpacity
                 key={fmt.token}
                 onPress={() => onSelectFormat(fmt.token)}
-                className={`p-4 rounded-xl border mb-3 flex-row justify-between items-center ${
+                className={`p-3.5 rounded-xl border mb-2.5 flex-row justify-between items-center ${
                   isSelected ? 'bg-vj-text border-vj-text' : 'bg-white/60 border-black/10'
                 }`}
               >
@@ -84,7 +74,7 @@ export function DateFormatModal({
                     {getTodayPreview(fmt.token)}
                   </Text>
                 </View>
-                {isSelected && <CheckCircle2 size={24} color="#FCFBF8" />}
+                {isSelected && <CheckCircle2 size={22} color="#FCFBF8" />}
               </TouchableOpacity>
             );
           })}

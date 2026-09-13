@@ -6,7 +6,8 @@ import { FlashList } from '@shopify/flash-list';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import { TwoToneWrapper } from '@/components/TwoToneWrapper';
-import { verifyService, phase2VerifyService, VerifyFinding } from '@/services/phase1/verifyService';
+import { verifyService, type VerifyFinding } from '@/services/phase1/verifyService';
+import { inventoryVerifyService } from '@/services/phase2/inventoryVerifyService';
 import { verifyStore } from '@/store/phase1/verifyStore';
 import { HeaderPill, GlassCard, GlassButton } from '@/components/ui/Glass'; 
 import { appSettingsStore } from '@/store/phase1/appSettingsStore';
@@ -143,8 +144,8 @@ export default function VerifyDataScreen() {
       }
 
       // Phase 2: Inventory Ledger, Masters, Weights, URD & Vault Truth Checks
-      if (phase2VerifyService && typeof phase2VerifyService.runVerify === 'function') {
-        const phase2Result = await phase2VerifyService.runVerify(activeFirmId);
+      if (inventoryVerifyService && typeof inventoryVerifyService.runInventoryChecks === 'function') {
+        const phase2Result = await inventoryVerifyService.runInventoryChecks(activeFirmId);
         const p2Issues = Array.isArray(phase2Result) 
           ? phase2Result 
           : (phase2Result as any)?.issues || (phase2Result as any)?.findings || [];

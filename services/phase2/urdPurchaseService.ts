@@ -1,13 +1,13 @@
-// services/phase2/urdPurchaseService.ts — Phase 2 v2.30 Canonical Service
-// Aligned with FIX-URD-1 (v1.49), FIX-URD-COST-1 (v1.62), FIX-PURITYROUND-SCOPE-EXPAND-1 (v2.26),
-// FIX-OLDGOLD-METAL-1 (v2.26) & FIX-FYREPO-SYNC-CONTRACT-1 (v1.84)
+// services/phase2/urdPurchaseService.ts — Phase 2 v2.34 Canonical Service
+// Implements FIX-URD-1 (v1.49), FIX-URD-COST-1 (v1.62), FIX-PURITYROUND-SCOPE-EXPAND-1 (v2.26),
+// FIX-OLDGOLD-TXNLINK-1 (v2.31), FIX-OLDMETAL-RENAME-1 (v2.32), FIX-FYREPO-SYNC-CONTRACT-1 (v1.84)
 
 import { ERR } from '@/constants/errorCodes';
 import { db } from '@/db/client';
 import { auditRepository } from '@/repositories/phase1/auditRepository';
 import { fyRepository, financialYearRepository } from '@/repositories/phase1/fyRepository';
 import { sequenceCounterRepository } from '@/repositories/phase1/sequenceCounterRepository';
-import { oldGoldLotRepository } from '@/repositories/phase2/oldGoldLotRepository';
+import { oldMetalLotRepository } from '@/repositories/phase2/oldGoldLotRepository';
 import { urdPurchaseRepository } from '@/repositories/phase2/urdPurchaseRepository';
 import { fyService } from '@/services/phase1/fyService';
 import { leaseService } from '@/services/phase1/leaseService';
@@ -16,7 +16,7 @@ import { urdPrintService } from '@/services/phase2/urdPrintService';
 import type { CreateURDPurchaseInput, URDPurchase } from '@/types/phase2/phase2.types';
 import { getDeviceId } from '@/utils/deviceId';
 import { now } from '@/utils/now';
-import { resolveFineWeightMg, computeURDTotalValuePaise } from '@/utils/calculations';
+import { resolveFineWeightMg, computeURDTotalValuePaise } from '@/utils/purity.constants';
 import { sanitizeText } from '@/utils/sanitize';
 import * as Crypto from 'expo-crypto';
 
@@ -30,7 +30,7 @@ export async function getById(
   return urdPurchaseRepository.getById(id, firmId);
 }
 
-// --- createURDPurchase (Step 12.11 / FIX-URD-1 v1.49 & FIX-URD-COST-1 v1.62 / FIX-PURITYROUND-SCOPE-EXPAND-1 v2.26) ---
+// --- createURDPurchase (Step 12.11 / FIX-URD-1 v1.49, FIX-OLDGOLD-TXNLINK-1 v2.31, FIX-PURITYROUND-SCOPE-EXPAND-1 v2.26) ---
 export async function createURDPurchase(
   input: CreateURDPurchaseInput,
   firmId: string
@@ -71,9 +71,13 @@ export async function createURDPurchase(
   const fyId = await fyService.resolveTransactionFyId(firmId, input.purchaseDate);
   const deviceId = await getDeviceId();
 
+  // FIX-OLDGOLD-TXNLINK-1 (v2.31): pre-generate urdId BEFORE db.transaction()
+  // Enables setting urdPurchaseId on the lot at creation time
+  const urdId = Crypto.randomUUID();
+
   return db.transaction((tx) => {
-    // 1. Create linked old_gold_lots row with canonical metalSource: 'PURCHASE'
-    const lot = oldGoldLotRepository.insert(tx, {
+    // 1. Create linked old_metal_lots row with urdPurchaseId set directly
+    const lot = oldMetalLotRepository.insert(tx, {
       id: Crypto.randomUUID(),
       firmId,
       metal: input.metalType, // FIX-OLDGOLD-METAL-1 (v2.26)
@@ -82,20 +86,22 @@ export async function createURDPurchase(
       receivedDate: input.purchaseDate,
       grossWeightMg: input.grossWeightMg,
       purityPercent: input.purityPercent,
-      metalSource: 'PURCHASE', // Canonical old_gold_lots metalSource for URD intake
+      metalSource: 'PURCHASE', // Canonical old_metal_lots metalSource for URD intake
       fineWeightMg,
       purityRoundingDeltaMg, // FIX-PURITYROUND-SCOPE-EXPAND-1 (v2.26)
       purchaseRatePaise: input.ratePerGramPaise ?? null,
       totalAmountPaise,
+      saleInvoiceId: null,
+      urdPurchaseId: urdId, // FIX-OLDGOLD-TXNLINK-1 (v2.31)
       notes: sanitizedNotes,
       status: 'RECEIVED',
       createdAt: now(),
       updatedAt: now(),
     });
 
-    // 2. Create urd_purchases row (DRAFT — urdNumber assigned upon confirmation)
+    // 2. Create urd_purchases row using the pre-generated urdId
     const urd = urdPurchaseRepository.insert(tx, {
-      id: Crypto.randomUUID(),
+      id: urdId,
       firmId,
       fyId,
       urdNumber: null,
@@ -115,7 +121,7 @@ export async function createURDPurchase(
       totalValuePaise,
       paymentMode: input.paymentMode,
       bankAccountId: input.bankAccountId ?? null,
-      oldGoldLotId: lot.id,
+      oldMetalLotId: lot.id, // FIX-OLDMETAL-RENAME-1 (v2.32)
       status: 'DRAFT',
       notes: sanitizedNotes,
       createdAt: now(),
@@ -197,8 +203,9 @@ export async function updateURDPurchase(
     const totalAmountPaise = totalValuePaise;
     if (totalValuePaise > 999999999) throw new Error(ERR.URD_AMOUNT_EXCEEDS_MAX);
 
-    if (urd.oldGoldLotId) {
-      oldGoldLotRepository.update(tx, firmId, urd.oldGoldLotId, {
+    const lotId = (urd as any).oldMetalLotId ?? (urd as any).oldGoldLotId;
+    if (lotId) {
+      oldMetalLotRepository.update(tx, firmId, lotId, {
         metal: (input.metalType ?? urd.metalType) as 'GOLD' | 'SILVER',
         receivedFrom: customerName,
         customerId: input.customerId ?? urd.customerId,
@@ -269,11 +276,12 @@ export async function deleteURDPurchase(urdId: string, firmId: string): Promise<
     if (!urd || urd.firmId !== firmId) throw new Error(ERR.URD_NOT_FOUND_OR_WRONG_FIRM);
     if (urd.status !== 'DRAFT') throw new Error(ERR.URD_ALREADY_CONFIRMED);
 
-    // Child must be deleted before parent old_gold_lots to prevent SQLITE_CONSTRAINT_FOREIGNKEY
+    // Child must be deleted before parent old_metal_lots to prevent SQLITE_CONSTRAINT_FOREIGNKEY
     urdPurchaseRepository.delete(tx, firmId, urdId);
 
-    if (urd.oldGoldLotId) {
-      oldGoldLotRepository.delete(tx, firmId, urd.oldGoldLotId);
+    const lotId = (urd as any).oldMetalLotId ?? (urd as any).oldGoldLotId;
+    if (lotId) {
+      oldMetalLotRepository.delete(tx, firmId, lotId);
     }
 
     auditRepository.log(tx, {
@@ -304,11 +312,10 @@ export async function confirmURDPurchase(
 
     // FIX-FYREPO-SYNC-CONTRACT-1 (v1.84): synchronous execution inside active tx
     const seq = sequenceCounterRepository.nextVal(tx, firmId, urd.fyId, 'URD');
-    const fy = resolvedFyRepository.getById(tx, firmId, urd.fyId) ?? resolvedFyRepository.getById(tx, urd.fyId);
-    if (!fy) throw new Error(ERR.FY_NOT_FOUND);
-    const fyLabel = fy.label;
+    const fy = resolvedFyRepository.getById(tx, urd.fyId);
+    if (!fy || fy.firmId !== firmId) throw new Error(ERR.FY_NOT_FOUND);
 
-    const urdNumber = `URD/${fyLabel}/${String(seq).padStart(4, '0')}`;
+    const urdNumber = `URD/${fy.label}/${String(seq).padStart(4, '0')}`;
 
     urdPurchaseRepository.update(tx, firmId, urdId, {
       status: 'CONFIRMED',

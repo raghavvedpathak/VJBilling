@@ -1,4 +1,7 @@
-// utils/purity.constants.ts — Phase 2 v2.30 Canonical Purity & Math Utilities
+// utils/purity.constants.ts — Phase 2 v2.34 Canonical Purity & Math Utilities
+// Implements STEP 6.1, RULE-1A-WEIGHT-DISPLAY (v1.54), FIX-24K-PURITY-1 (v1.57),
+// FIX-24KS-DISPLAY-1 (v2.25), FIX-EFFPRICE-PURITYROUND-1 (v2.14), FIX-WAST-NETBASIS-1 (v2.04),
+// and FIX-SILVER-PURITY-1 (v1.46 / purityKarat=0 invariant)
 
 import { ERR } from '@/constants/errorCodes';
 
@@ -46,14 +49,15 @@ export const GOLD_PURITY_PRESETS: PurityPreset[] = [
   { id: 'gold_9k_375', label: '9K (37.5%)', val: '37.5', karat: 9, metal: 'GOLD' },
 ];
 
+// FIX-SILVER-PURITY-1 (v1.46 / Step 6.1): Silver items ALWAYS stored with purityKarat=0
 export const SILVER_PURITY_PRESETS: PurityPreset[] = [
-  { id: 'silver_999', label: '99.9% Fine', val: '99.9', karat: null, metal: 'SILVER' },
-  { id: 'silver_990', label: '99.0%', val: '99.0', karat: null, metal: 'SILVER' },
-  { id: 'silver_970', label: '97.0%', val: '97.0', karat: null, metal: 'SILVER' },
-  { id: 'silver_958', label: '95.8% Britannia', val: '95.8', karat: null, metal: 'SILVER' },
-  { id: 'silver_925', label: '92.5% Sterling', val: '92.5', karat: null, metal: 'SILVER' },
-  { id: 'silver_835', label: '83.5%', val: '83.5', karat: null, metal: 'SILVER' },
-  { id: 'silver_800', label: '80.0%', val: '80.0', karat: null, metal: 'SILVER' },
+  { id: 'silver_999', label: '99.9% Fine', val: '99.9', karat: 0, metal: 'SILVER' },
+  { id: 'silver_990', label: '99.0%', val: '99.0', karat: 0, metal: 'SILVER' },
+  { id: 'silver_970', label: '97.0%', val: '97.0', karat: 0, metal: 'SILVER' },
+  { id: 'silver_958', label: '95.8% Britannia', val: '95.8', karat: 0, metal: 'SILVER' },
+  { id: 'silver_925', label: '92.5% Sterling', val: '92.5', karat: 0, metal: 'SILVER' },
+  { id: 'silver_835', label: '83.5%', val: '83.5', karat: 0, metal: 'SILVER' },
+  { id: 'silver_800', label: '80.0%', val: '80.0', karat: 0, metal: 'SILVER' },
 ];
 
 // Reference lists for informational UI display ONLY (v1.94 FEAT-SILVER-PURITY-GRADES-1)
@@ -113,7 +117,7 @@ export function resolveEffectivePurityPercent(
   return PURITY_ROUND_TO_100[metal].includes(purityPercent) ? 100 : purityPercent;
 }
 
-// SOLE fine-weight entry point for regular stock, all old-gold lots, and URD purchases (Step 6.1)
+// SOLE fine-weight entry point for regular stock, all old-metal lots, and URD purchases (Step 6.1)
 export function resolveFineWeightMg(
   netWeightMg: number,
   purityPercent: number,
@@ -390,3 +394,6 @@ export function computeURDCostBreakdown(
     formattedFineGrams: fineWeightGrams.toFixed(3) + ' g',
   };
 }
+
+// Re-export getCurrencySymbol for Phase 2 components importing from purity.constants
+export { getCurrencySymbol } from './currency';

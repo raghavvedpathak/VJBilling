@@ -1,5 +1,5 @@
-// components/InventoryStockSummary.tsx — Phase 2 v2.24 Canonical Implementation
-// Enforces Phantom Debt visibility, Phase 3 Rate Engine boundary, and Net Weight display rules.
+// components/InventoryStockSummary.tsx — Phase 2 v2.34 Canonical Implementation
+// Aligned with STEP 9-Lite (v1.63), RULE-1A-WEIGHT-DISPLAY (v1.54), FEAT-PHANTOM-INVENTORY-1 (v1.67)
 
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
@@ -7,18 +7,10 @@ import * as Haptics from 'expo-haptics';
 import { GlassCard } from '@/components/ui/Glass';
 import { itemRepository } from '@/repositories/phase2/itemRepository';
 import { appSettingsStore } from '@/store/phase1/appSettingsStore';
-import { getCurrencySymbol, formatWeightMg } from '@/utils/calculations';
+import { getCurrencySymbol, formatWeightMg } from '@/utils/purity.constants';
 import { Scale, AlertCircle, Wallet, TrendingUp, ShieldCheck } from 'lucide-react-native';
 import { COLORS, getThemeColors } from '@/constants/theme';
-
-interface StockWeightSummary {
-  goldNetWeightMg: number;
-  goldPhantomDebtMg: number;
-  goldBalanceMg: number;
-  silverNetWeightMg: number;
-  silverPhantomDebtMg: number;
-  silverBalanceMg: number;
-}
+import type { StockWeightSummary } from '@/types/phase2/phase2.types';
 
 export interface InventoryStockSummaryProps {
   firmId: string;
@@ -74,7 +66,6 @@ const BullionBar3D = ({ isGold }: { isGold: boolean }) => {
         position: 'relative',
       }}
     >
-      {/* Glossy Metallic Light Reflective Highlight */}
       <View 
         style={{
           position: 'absolute',
@@ -86,7 +77,6 @@ const BullionBar3D = ({ isGold }: { isGold: boolean }) => {
           transform: [{ skewY: '-15deg' }],
         }}
       />
-      {/* Inner Bevel Border */}
       <View 
         style={{
           width: 36,

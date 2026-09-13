@@ -1,6 +1,7 @@
-// app/inventory/add-gemstone.tsx — Phase 2 v2.24 Canonical Screen
+// app/inventory/add-gemstone.tsx — Phase 2 v2.34 Canonical Screen
+// Aligned with Step 4.5 / GEMSTONE-1 (v1.21), FIX-V1-2 (v1.23), and MastersSyncStore
 
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import { View, Text, Alert, Modal, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import { useRouter, useFocusEffect } from 'expo-router';
@@ -9,6 +10,8 @@ import { TwoToneWrapper } from '@/components/TwoToneWrapper';
 import { GlassCard, GlassInput, GlassButton, GlassPickerInput, FixedGlassBar, fixedBarStyles } from '@/components/ui/Glass';
 import { GlassPickerModal, GlassPickerOption } from '@/components/ui/GlassPickerModal';
 import { useFirmStore } from '@/store/phase1/useFirmStore';
+import { useMastersSyncStore } from '@/store/phase2/mastersSyncStore';
+import { appSettingsStore } from '@/store/phase1/appSettingsStore';
 import { gemstoneLotService } from '@/services/phase2/gemstoneLotService';
 import { stoneRepository } from '@/repositories/phase2/stoneRepository';
 import { 
@@ -18,13 +21,15 @@ import {
   getCurrencySymbol,
   rupeesToPaise,
 } from '@/utils/calculations';
-import { Gem, Diamond, Banknote, CheckCircle, Plus } from 'lucide-react-native';
+import { Gem, Diamond, Banknote, CheckCircle, Plus, FileText } from 'lucide-react-native';
 import type { Stone } from '@/types/phase2/phase2.types';
-import { COLORS } from '@/constants/theme';
+import { getThemeColors } from '@/constants/theme';
 
 export default function AddGemstoneScreen() {
   const router = useRouter();
   const { activeFirmId } = useFirmStore();
+  const activeTheme = appSettingsStore((s: any) => s.theme);
+  const colors = getThemeColors(activeTheme);
 
   const [stones, setStones] = useState<Stone[]>([]);
   const [selectedStone, setSelectedStone] = useState<Stone | null>(null);
@@ -35,6 +40,7 @@ export default function AddGemstoneScreen() {
   const [ratePerCarat, setRatePerCarat] = useState('');
   const [supplierName, setSupplierName] = useState('');
   const [certRef, setCertRef] = useState('');
+  const [notes, setNotes] = useState('');
 
   const [loading, setLoading] = useState(false);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
@@ -54,28 +60,26 @@ export default function AddGemstoneScreen() {
     onSelect: () => {},
   });
 
+  const stoneVersion = useMastersSyncStore((s) => s.stoneVersion);
+
+  const fetchStones = useCallback(async () => {
+    if (!activeFirmId) return;
+    try {
+      const results = await stoneRepository.findByFirmId(activeFirmId);
+      setStones((results || []).filter((s) => s.isActive === 1));
+    } catch (e) {
+      console.error('[AddGemstoneScreen] Failed to fetch stones:', e);
+    }
+  }, [activeFirmId]);
+
+  useEffect(() => {
+    fetchStones();
+  }, [fetchStones, stoneVersion]);
+
   useFocusEffect(
     useCallback(() => {
-      if (!activeFirmId) return;
-      let isMounted = true;
-
-      const fetchStones = async () => {
-        try {
-          const results = await stoneRepository.findByFirmId(activeFirmId);
-          if (isMounted) {
-            // Filter only active stone definitions for intake
-            setStones(results.filter((s) => s.isActive === 1));
-          }
-        } catch (e) {
-          console.error('[AddGemstoneScreen] Failed to fetch stones:', e);
-        }
-      };
-
       fetchStones();
-      return () => {
-        isMounted = false;
-      };
-    }, [activeFirmId])
+    }, [fetchStones])
   );
 
   const previewData = useMemo(() => {
@@ -105,15 +109,19 @@ export default function AddGemstoneScreen() {
       Alert.alert('Validation Error', 'Please enter a valid Carat Weight greater than 0.'); 
       return; 
     }
+
+    const weightCaratX100 = caratsToCaratX100(caratVal);
+    if (weightCaratX100 <= 0) {
+      Alert.alert('Validation Error', 'Carat weight is too small. Minimum weight is 0.01 ct.');
+      return;
+    }
+
     if (!/^\d+$/.test(quantity.trim()) || parseInt(quantity.trim(), 10) <= 0) {
       Alert.alert('Validation Error', 'Quantity must be a valid whole number of at least 1.');
       return;
     }
     const qtyVal = parseInt(quantity.trim(), 10);
 
-    const weightCaratX100 = caratsToCaratX100(caratVal);
-
-    // Parse optional purchase rate; retain null if omitted
     let ratePaise: number | null = null;
     let totalPaise: number | null = null;
 
@@ -139,6 +147,7 @@ export default function AddGemstoneScreen() {
           totalPurchaseAmountPaise: totalPaise,
           supplierName: supplierName.trim() || null,
           certificationRef: certRef.trim() || null,
+          notes: notes.trim() || null,
         },
         activeFirmId
       );
@@ -166,7 +175,7 @@ export default function AddGemstoneScreen() {
         <GlassCard style={{ marginBottom: 16 }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 16 }}>
             <Gem size={20} color="#D4AF37" />
-            <Text style={{ fontSize: 18, fontWeight: '700', color: COLORS.vjText }}>Stone Definition</Text>
+            <Text style={{ fontSize: 18, fontWeight: '700', color: colors.vjText }}>Stone Definition</Text>
           </View>
 
           <GlassPickerInput
@@ -175,6 +184,10 @@ export default function AddGemstoneScreen() {
             selectedLabel={selectedStone ? selectedStone.name : null}
             selectedSublabel={selectedStone ? selectedStone.type : null}
             onPress={() => {
+              if (stones.length === 0) {
+                Alert.alert('No Stones Configured', 'Please add stone definitions in Stone Masters first.');
+                return;
+              }
               setPickerModal({
                 visible: true,
                 title: 'Select Stone Master Type',
@@ -218,7 +231,7 @@ export default function AddGemstoneScreen() {
         <GlassCard style={{ marginBottom: 16 }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 16 }}>
             <Diamond size={20} color="#D4AF37" />
-            <Text style={{ fontSize: 18, fontWeight: '700', color: COLORS.vjText }}>Physical Stock</Text>
+            <Text style={{ fontSize: 18, fontWeight: '700', color: colors.vjText }}>Physical Stock</Text>
           </View>
 
           <View style={{ flexDirection: 'row', gap: 12 }}>
@@ -243,10 +256,10 @@ export default function AddGemstoneScreen() {
           </View>
         </GlassCard>
 
-        <GlassCard style={{ marginBottom: 24 }}>
+        <GlassCard style={{ marginBottom: 16 }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 16 }}>
             <Banknote size={20} color="#D4AF37" />
-            <Text style={{ fontSize: 18, fontWeight: '700', color: COLORS.vjText }}>Purchase Value (Optional)</Text>
+            <Text style={{ fontSize: 18, fontWeight: '700', color: colors.vjText }}>Purchase Value (Optional)</Text>
           </View>
 
           <GlassInput
@@ -257,7 +270,7 @@ export default function AddGemstoneScreen() {
             onChangeText={setRatePerCarat}
           />
 
-          <View style={{ backgroundColor: COLORS.vjText, padding: 16, borderRadius: 12, marginTop: 8 }}>
+          <View style={{ backgroundColor: colors.vjText, padding: 16, borderRadius: 12, marginTop: 8 }}>
             <Text style={{ fontSize: 12, color: 'rgba(255,255,255,0.7)', textTransform: 'uppercase', fontWeight: '700', marginBottom: 4 }}>
               Estimated Lot Value
             </Text>
@@ -265,6 +278,20 @@ export default function AddGemstoneScreen() {
               {getCurrencySymbol()}{previewData.total.toLocaleString('en-IN')}
             </Text>
           </View>
+        </GlassCard>
+
+        <GlassCard style={{ marginBottom: 24 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 16 }}>
+            <FileText size={20} color="#D4AF37" />
+            <Text style={{ fontSize: 18, fontWeight: '700', color: colors.vjText }}>Notes & Provenance (Optional)</Text>
+          </View>
+
+          <GlassInput
+            label="Notes / Remarks"
+            placeholder="Cut, color, clarity grades or tray location"
+            value={notes}
+            onChangeText={setNotes}
+          />
         </GlassCard>
 
         <View style={{ height: 40 }} />
@@ -361,7 +388,6 @@ const s = StyleSheet.create({
   successTitle: {
     fontSize: 24,
     fontWeight: '800',
-    color: COLORS.vjText,
     marginBottom: 8,
   },
   successSubtitle: {

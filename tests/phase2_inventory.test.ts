@@ -1,4 +1,6 @@
-// tests/phase2_inventory.test.ts — Phase 2 v2.24 Full Verification Test Suite
+// tests/phase2_inventory.test.ts — Phase 2 v2.34 Full Verification Test Suite
+// Aligned with v2.31 (FIX-OLDGOLD-TXNLINK-1), v2.32 (FIX-OLDMETAL-RENAME-1),
+// v2.33 (FIX-OLDMETAL-VOID-1), v2.34 (FIX-OLDMETAL-MIGRATION-GAP-1)
 
 // ─── MOCK db/client FIRST ──────────────────────────
 jest.mock('@/db/client', () => {
@@ -8,7 +10,6 @@ jest.mock('@/db/client', () => {
   const schema = require('@/db/schema');
   const dbInstance = drizzle(sqlite, { schema });
 
-  // Patch transaction to prevent better-sqlite3 from swallowing Promise rejections
   dbInstance.transaction = (cb: any) => {
     return cb(dbInstance);
   };
@@ -43,21 +44,20 @@ jest.mock('@/services/phase1/safeModeService', () => ({
 import { db } from '@/db/client';
 import { eq, and } from 'drizzle-orm';
 import { 
-  categories, designs, items, itemEvents, sequenceCounters, oldGoldLots,
+  categories, designs, items, itemEvents, sequenceCounters, oldMetalLots,
   gemstoneLots, stones, hsnCodes, auditLogs, auditArchiveIndex, designCategoryMap,
   financialYears, firms, appSettings, safeModeState, bisLogos, auditDeleteGate,
   designPurityThresholds, looseStockLots, looseStockEvents, urdPurchases, schemaVersion, writerLeases
 } from '@/db/schema';
-import { generateDesignPrefix } from '@/services/phase2/skuEngine';
-import { formatSKUDisplay } from '@/utils/skuDisplay';
+import { generateDesignPrefix, formatSKUDisplay } from '@/services/phase2/skuEngine';
 import { ERR } from '@/constants/errorCodes';
 import { 
   computeEffectivePricePaisePerGram, 
   computeEstTotalCostPaise,
   resolveFineWeightMg,
-} from '@/utils/calculations';
+} from '@/utils/purity.constants';
 import { gemstoneLotService } from '@/services/phase2/gemstoneLotService';
-import { oldGoldLotService } from '@/services/phase2/oldGoldLotService';
+import { oldMetalLotService } from '@/services/phase2/oldGoldLotService';
 import { inventorySearchService } from '@/services/phase2/inventorySearchService';
 import { inventoryDrillDownService } from '@/services/phase2/inventoryDrillDownService';
 import { itemService } from '@/services/phase2/itemService';
@@ -65,7 +65,7 @@ import { designService } from '@/services/phase2/designService';
 import { karigarService } from '@/services/phase2/karigarService';
 import { barcodeLabelService } from '@/services/phase2/barcodeLabelService';
 import { itemRepository } from '@/repositories/phase2/itemRepository';
-import { oldGoldLotRepository } from '@/repositories/phase2/oldGoldLotRepository';
+import { oldMetalLotRepository } from '@/repositories/phase2/oldGoldLotRepository';
 import { fyService } from '@/services/phase1/fyService';
 import { urdPurchaseService } from '@/services/phase2/urdPurchaseService';
 import { urdPurchaseRepository } from '@/repositories/phase2/urdPurchaseRepository';
@@ -110,7 +110,7 @@ beforeAll(async () => {
     id INTEGER PRIMARY KEY DEFAULT 1, current_version INTEGER NOT NULL DEFAULT 2
   )`);
 
-  // Phase 2 tables (v2.24 canonical schema)
+  // Phase 2 tables (v2.34 canonical schema)
   await _rawClient.execute(`CREATE TABLE IF NOT EXISTS categories (
     id TEXT PRIMARY KEY, firm_id TEXT NOT NULL, name TEXT NOT NULL, code TEXT NOT NULL DEFAULT '', description TEXT, is_active INTEGER NOT NULL DEFAULT 1, created_at TEXT NOT NULL, updated_at TEXT NOT NULL
   )`);
@@ -122,7 +122,7 @@ beforeAll(async () => {
   )`);
   await _rawClient.execute(`CREATE TABLE IF NOT EXISTS items (
     id TEXT PRIMARY KEY, firm_id TEXT NOT NULL, sku TEXT NOT NULL, barcode TEXT NOT NULL, huid TEXT, design_id TEXT NOT NULL, category_id TEXT NOT NULL DEFAULT '', hsn_code TEXT NOT NULL DEFAULT '',
-    metal TEXT NOT NULL, purity_percent REAL NOT NULL, purity_karat INTEGER NOT NULL,
+    metal TEXT NOT NULL, purity_percent REAL NOT NULL, purity_karat REAL NOT NULL,
     gross_weight_mg INTEGER NOT NULL, stone_weight_mg INTEGER NOT NULL DEFAULT 0, beads_weight_mg INTEGER NOT NULL DEFAULT 0, net_weight_mg INTEGER NOT NULL,
     fine_weight_mg INTEGER NOT NULL, wastage_percent REAL NOT NULL DEFAULT 0, fine_gold_charged_mg INTEGER, purchase_rate_paise INTEGER, making_charge_paise INTEGER, stone_cost_paise INTEGER, purity_rounding_delta_mg INTEGER NOT NULL DEFAULT 0,
     status TEXT NOT NULL, metal_source TEXT NOT NULL, primary_stone_id TEXT, location TEXT, sale_invoice_id TEXT, purchase_invoice_id TEXT, phantom_stock_id TEXT DEFAULT NULL, barcode_reprint_required INTEGER NOT NULL DEFAULT 0,
@@ -141,16 +141,18 @@ beforeAll(async () => {
   await _rawClient.execute(`CREATE TABLE IF NOT EXISTS gemstone_lots (
     id TEXT PRIMARY KEY, firm_id TEXT NOT NULL, stone_id TEXT NOT NULL, name TEXT NOT NULL, weight_carat_x100 INTEGER NOT NULL, quantity INTEGER NOT NULL, purchase_rate_paise_per_carat INTEGER, total_purchase_amount_paise INTEGER, supplier_name TEXT, certification_ref TEXT, notes TEXT, status TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL
   )`);
-  await _rawClient.execute(`CREATE TABLE IF NOT EXISTS old_gold_lots (
-    id TEXT PRIMARY KEY, firm_id TEXT NOT NULL, received_from TEXT NOT NULL, received_date TEXT NOT NULL, customer_id TEXT, gross_weight_mg INTEGER NOT NULL, metal TEXT NOT NULL DEFAULT 'GOLD', purity_percent REAL NOT NULL, fine_weight_mg INTEGER NOT NULL DEFAULT 0, purity_rounding_delta_mg INTEGER NOT NULL DEFAULT 0, purchase_rate_paise INTEGER, total_amount_paise INTEGER, metal_source TEXT NOT NULL, notes TEXT, status TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+  // FIX-OLDMETAL-RENAME-1 (v2.32) + FIX-OLDGOLD-TXNLINK-1 (v2.31) + FIX-OLDMETAL-MIGRATION-GAP-1 (v2.34)
+  await _rawClient.execute(`CREATE TABLE IF NOT EXISTS old_metal_lots (
+    id TEXT PRIMARY KEY, firm_id TEXT NOT NULL, received_from TEXT NOT NULL, received_date TEXT NOT NULL, customer_id TEXT, sale_invoice_id TEXT, urd_purchase_id TEXT, gross_weight_mg INTEGER NOT NULL, metal TEXT NOT NULL DEFAULT 'GOLD', purity_percent REAL NOT NULL, fine_weight_mg INTEGER NOT NULL DEFAULT 0, purity_rounding_delta_mg INTEGER NOT NULL DEFAULT 0, purchase_rate_paise INTEGER, total_amount_paise INTEGER, metal_source TEXT NOT NULL, notes TEXT, status TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL
   )`);
+  await _rawClient.execute(`CREATE VIEW IF NOT EXISTS old_gold_lots AS SELECT * FROM old_metal_lots`);
   await _rawClient.execute(`CREATE TABLE IF NOT EXISTS urd_purchases (
     id TEXT PRIMARY KEY, firm_id TEXT NOT NULL, fy_id TEXT NOT NULL, urd_number TEXT, purchase_date TEXT NOT NULL,
     customer_id TEXT, customer_name TEXT NOT NULL, customer_address TEXT, customer_mobile TEXT, customer_aadhaar TEXT, customer_pan TEXT,
     metal_type TEXT NOT NULL, gross_weight_mg INTEGER NOT NULL, purity_percent REAL NOT NULL, fine_weight_mg INTEGER NOT NULL,
     purity_rounding_delta_mg INTEGER NOT NULL DEFAULT 0,
     rate_per_gram_paise INTEGER NOT NULL, total_value_paise INTEGER NOT NULL, payment_mode TEXT NOT NULL, bank_account_id TEXT,
-    old_gold_lot_id TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'DRAFT', notes TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+    old_metal_lot_id TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'DRAFT', notes TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL
   )`);
   await _rawClient.execute(`CREATE TABLE IF NOT EXISTS loose_stock_lots (
     id TEXT PRIMARY KEY, firm_id TEXT NOT NULL, design_id TEXT NOT NULL, purity_percent REAL NOT NULL, purity_karat REAL NOT NULL, metal TEXT NOT NULL, piece_count INTEGER NOT NULL DEFAULT 0, total_weight_mg INTEGER NOT NULL DEFAULT 0, hsn_code TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'ACTIVE', created_at TEXT NOT NULL, updated_at TEXT NOT NULL
@@ -185,7 +187,7 @@ beforeEach(async () => {
   await db.delete(sequenceCounters);
   await db.delete(stones);
   await db.delete(gemstoneLots);
-  await db.delete(oldGoldLots);
+  await db.delete(oldMetalLots);
   await db.delete(urdPurchases);
   await db.delete(looseStockLots);
   await db.delete(looseStockEvents);
@@ -236,7 +238,7 @@ beforeEach(async () => {
 
   // Insert mock category and HSN
   await db.insert(categories).values({
-    id: 'CAT_1', firmId: FIRM_ID, name: 'Test Category', code: 'CAT',
+    id: 'CAT_1', firmId: FIRM_ID, name: 'Test Category', code: 'CAT0001',
     isActive: 1, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString()
   });
   await db.insert(hsnCodes).values({
@@ -256,7 +258,7 @@ let designCounter = 1;
 async function createTestDesign(metal: 'GOLD' | 'SILVER' = 'GOLD') {
   const designId = 'mock_design_' + designCounter++;
   const name = metal === 'GOLD' ? 'Test Ring' : 'Silver Anklet';
-  const code = metal === 'GOLD' ? 'RNG' : 'ANK';
+  const code = metal === 'GOLD' ? 'DES0001' : 'DES0002';
   await db.insert(designs).values({
     id: designId,
     firmId: FIRM_ID,
@@ -544,10 +546,76 @@ describe('Phantom Inventory', () => {
 });
 
 // ============================================================================
+// TEST 15 & 16: Old Metal Lots, Traceability & VOIDED Lifecycle (v2.31–v2.34)
+// ============================================================================
+describe('Old Metal Lots & VOIDED Lifecycle (v2.31–v2.34)', () => {
+  it('creates old metal lot with transaction link and finds by saleInvoiceId (v2.31/v2.33)', async () => {
+    const lot = await oldMetalLotService.createOldMetalLot({
+      receivedFrom: 'Customer Exchange',
+      receivedDate: '2026-07-14',
+      metal: 'GOLD',
+      grossWeightMg: 8000,
+      purityPercent: 91.6,
+      saleInvoiceId: 'INV_1001',
+    }, FIRM_ID);
+
+    expect(lot.status).toBe('RECEIVED');
+    expect(lot.saleInvoiceId).toBe('INV_1001');
+
+    const found = await oldMetalLotRepository.findBySaleInvoiceId(FIRM_ID, 'INV_1001');
+    expect(found).toBeDefined();
+    expect(found?.id).toBe(lot.id);
+  });
+
+  it('allows transition to VOIDED from RECEIVED and PENDING only (v2.33 FIX-OLDMETAL-VOID-1)', async () => {
+    const lot = await oldMetalLotService.createOldMetalLot({
+      receivedFrom: 'Test Seller',
+      receivedDate: '2026-07-14',
+      metal: 'GOLD',
+      grossWeightMg: 5000,
+      purityPercent: 91.6,
+    }, FIRM_ID);
+
+    // RECEIVED -> VOIDED
+    await expect(oldMetalLotService.updateOldMetalLotStatus(lot.id, FIRM_ID, 'VOIDED', 'Sale cancelled'))
+      .resolves.not.toThrow();
+
+    const lotPending = await oldMetalLotService.createOldMetalLot({
+      receivedFrom: 'Test Seller 2',
+      receivedDate: '2026-07-14',
+      metal: 'GOLD',
+      grossWeightMg: 5000,
+      purityPercent: 91.6,
+    }, FIRM_ID);
+
+    await oldMetalLotService.updateOldMetalLotStatus(lotPending.id, FIRM_ID, 'PENDING');
+    // PENDING -> VOIDED
+    await expect(oldMetalLotService.updateOldMetalLotStatus(lotPending.id, FIRM_ID, 'VOIDED', 'Exchange reversed'))
+      .resolves.not.toThrow();
+  });
+
+  it('rejects VOIDED transition from SENT_TO_REFINERY or SETTLED', async () => {
+    const lot = await oldMetalLotService.createOldMetalLot({
+      receivedFrom: 'Test Seller 3',
+      receivedDate: '2026-07-14',
+      metal: 'GOLD',
+      grossWeightMg: 5000,
+      purityPercent: 91.6,
+    }, FIRM_ID);
+
+    await oldMetalLotService.updateOldMetalLotStatus(lot.id, FIRM_ID, 'PENDING');
+    await oldMetalLotService.updateOldMetalLotStatus(lot.id, FIRM_ID, 'SENT_TO_REFINERY');
+
+    await expect(oldMetalLotService.updateOldMetalLotStatus(lot.id, FIRM_ID, 'VOIDED'))
+      .rejects.toThrow(ERR.INVALID_LOT_TRANSITION);
+  });
+});
+
+// ============================================================================
 // TEST 17: URD Purchases
 // ============================================================================
 describe('URD Purchases', () => {
-  it('creates and confirms URD purchase with correct sequence numbering', async () => {
+  it('creates and confirms URD purchase with correct sequence numbering & lot link (v2.31)', async () => {
     const urd = await urdPurchaseService.createURDPurchase({
       customerName: 'Customer Test',
       purchaseDate: '2026-07-14',
@@ -561,11 +629,13 @@ describe('URD Purchases', () => {
     expect(urd.status).toBe('DRAFT');
     expect(urd.urdNumber).toBeNull();
     
-    const oldGoldLot = await oldGoldLotRepository.getById(db as any, FIRM_ID, urd.oldGoldLotId);
-    expect(oldGoldLot).toBeDefined();
-    expect(oldGoldLot?.receivedFrom).toBe('Customer Test');
-    expect(oldGoldLot?.grossWeightMg).toBe(10000);
-    expect(oldGoldLot?.status).toBe('RECEIVED');
+    const lotId = (urd as any).oldMetalLotId ?? (urd as any).oldGoldLotId;
+    const oldMetalLot = await oldMetalLotRepository.getById(db as any, FIRM_ID, lotId);
+    expect(oldMetalLot).toBeDefined();
+    expect(oldMetalLot?.receivedFrom).toBe('Customer Test');
+    expect(oldMetalLot?.grossWeightMg).toBe(10000);
+    expect(oldMetalLot?.status).toBe('RECEIVED');
+    expect(oldMetalLot?.urdPurchaseId).toBe(urd.id); // FIX-OLDGOLD-TXNLINK-1 (v2.31)
 
     const confirmed = await urdPurchaseService.confirmURDPurchase(urd.id, FIRM_ID);
     expect(confirmed.status).toBe('CONFIRMED');
@@ -573,7 +643,6 @@ describe('URD Purchases', () => {
   });
 
   it('correctly calculates 100% fine weight for 99.5% and 99.9% URD purchases per trade convention', async () => {
-    // 99.5% Gold (24KS)
     const urd995 = await urdPurchaseService.createURDPurchase({
       customerName: 'Bullion Seller',
       purchaseDate: '2026-07-15',
@@ -586,7 +655,6 @@ describe('URD Purchases', () => {
 
     expect(urd995.fineWeightMg).toBe(10000); // 100% of 10.000g gross weight
 
-    // 99.9% Silver (Fine Silver)
     const urdSilver999 = await urdPurchaseService.createURDPurchase({
       customerName: 'Silver Bullion Seller',
       purchaseDate: '2026-07-15',
@@ -761,7 +829,7 @@ describe('TEST 20: URD Print Page Specifications & Template Registry', () => {
       totalRupees: '65952.00',
       formattedDate: '04/09/2026',
       idProofType: 'आधार कार्ड',
-      idProofNumber: 'XXXX-XXXX-9012',
+      idProofNumber: '[Aadhaar Redacted]',
     });
     expect(decHtml).toContain('size: 210mm 297mm');
     expect(decHtml).toContain('size: A4 portrait');

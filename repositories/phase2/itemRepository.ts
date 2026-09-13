@@ -1,63 +1,53 @@
-// repositories/phase2/itemRepository.ts — Phase 2 v2.24 Canonical Repository
+// repositories/phase2/itemRepository.ts — Phase 2 v2.34 Canonical Repository
+// Aligned with SEARCH-1 (v1.13), RED-7 (LIMIT 20), FEAT-STOCK-SUMMARY-1 (v1.63),
+// FEAT-PHANTOM-INVENTORY-1 (v1.67), Step P2-BACKDATE-SIZE (v1.76)
 
 import { eq, and, sql, inArray, like, or, asc } from 'drizzle-orm';
 import { db } from '@/db/client';
 import { items, designs, categories } from '@/db/schema';
 import type {
   DrizzleTransaction, Item, NewItem, UpdateableItemFields,
-  StockStatus, ItemSearchResult
+  StockStatus, ItemSearchResult, StockWeightSummary
 } from '@/types/phase2/phase2.types';
 import { now } from '@/utils/now';
 
 export interface ItemRepository {
-  // --- getById (FIX-GETBYID-TX-1 v1.56 & FIX-P2-SYNC-CONTRACT-1 v1.81) ---
   getById(id: string): Promise<Item | null>;
   getById(firmId: string, id: string): Promise<Item | null>;
   getById(tx: DrizzleTransaction, id: string): Item | null;
   getById(tx: DrizzleTransaction, firmId: string, id: string): Item | null;
   getById(tx: DrizzleTransaction, id: string, firmId: string): Item | null;
 
-  // --- findBySku (RED-9: firmId required) ---
   findBySku(firmId: string, sku: string): Promise<Item | null>;
   findBySku(tx: DrizzleTransaction, firmId: string, sku: string): Item | null;
 
-  // --- findByHUID (v1.85 / v1.86 FIX-HUID-DEDUP-SYNC-1: global cross-firm check) ---
   findByHUID(huid: string): Promise<Item | null>;
   findByHUID(tx: DrizzleTransaction, huid: string): Item | null;
 
-  // --- findByStatus ---
   findByStatus(firmId: string, status: StockStatus): Promise<Item[]>;
   findByStatus(tx: DrizzleTransaction, firmId: string, status: StockStatus): Item[];
   findByStatusTx(tx: DrizzleTransaction, firmId: string, status: StockStatus): Item[];
 
-  // --- findByCategoryId (FIX-CAT-ITEM-FK v1.42 & FIX-CAT-DELETE-GUARD-1 v1.44) ---
   findByCategoryId(categoryId: string, firmId: string): Promise<Item[]>;
   findByCategoryId(tx: DrizzleTransaction, categoryId: string, firmId: string): Item[];
 
-  // --- findByDesignId (FIX-FIRM-1 v1.25 / RED-9: firmId required) ---
   findByDesignId(designId: string, firmId: string): Promise<Item[]>;
   findByDesignId(tx: DrizzleTransaction, designId: string, firmId: string): Item[];
   findByDesignIdTx(tx: DrizzleTransaction, designId: string, firmId: string): Item[];
 
-  // --- findByFirmId ---
   findByFirmId(firmId: string): Promise<Item[]>;
 
-  // --- insert ---
   insert(tx: DrizzleTransaction, data: NewItem): Item;
 
-  // --- update ---
   update(tx: DrizzleTransaction, id: string, data: UpdateableItemFields | Partial<Item>): void;
   update(tx: DrizzleTransaction, firmId: string, id: string, data: UpdateableItemFields | Partial<Item>): void;
 
-  // --- updateStatus ---
   updateStatus(tx: DrizzleTransaction, id: string, status: StockStatus): void;
   updateStatus(tx: DrizzleTransaction, firmId: string, id: string, status: StockStatus): void;
 
-  // --- updateBarcodeReprintFlag ---
   updateBarcodeReprintFlag(tx: DrizzleTransaction, itemId: string, required: boolean): void;
   updateBarcodeReprintFlag(tx: DrizzleTransaction, firmId: string, itemId: string, required: boolean): void;
 
-  // --- updateCreatedAt & updateSkuAndDate (GAP-P2-DATE-SKU-EDIT-1 v1.79) ---
   updateCreatedAt(tx: DrizzleTransaction, itemId: string, createdAt: string): void;
   updateSkuAndDate(
     tx: DrizzleTransaction,
@@ -65,24 +55,13 @@ export interface ItemRepository {
     fields: { sku: string; barcode: string; createdAt: string; barcodeReprintRequired: boolean }
   ): void;
 
-  // --- delete (FEAT-ITEM-CORRECTION-1 v1.88) ---
   delete(tx: DrizzleTransaction, id: string): void;
   delete(tx: DrizzleTransaction, firmId: string, id: string): void;
 
-  // --- getAvailableStockForDesign ---
   getAvailableStockForDesign(designId: string, firmId: string): Promise<{ totalNetWeightMg: number; count: number }>;
 
-  // --- getStockWeightSummary (FEAT-STOCK-SUMMARY-1 v1.63 & FEAT-PHANTOM-INVENTORY-1 v1.67) ---
-  getStockWeightSummary(firmId: string): Promise<{
-    goldNetWeightMg: number;
-    goldPhantomDebtMg: number;
-    goldBalanceMg: number;
-    silverNetWeightMg: number;
-    silverPhantomDebtMg: number;
-    silverBalanceMg: number;
-  }>;
+  getStockWeightSummary(firmId: string): Promise<StockWeightSummary>;
 
-  // --- search (SEARCH-1 v1.13 / RED-7 LIMIT 20) ---
   search(firmId: string, query: string): Promise<ItemSearchResult[]>;
 }
 
@@ -235,7 +214,6 @@ export const itemRepository: ItemRepository = {
 
   updateStatus(tx: DrizzleTransaction, second: string, third: string | StockStatus, fourth?: StockStatus): void {
     if (fourth === undefined) {
-      // 3-arg call: updateStatus(tx, id, status)
       const id = second;
       const status = third as StockStatus;
       tx.update(items)
@@ -243,7 +221,6 @@ export const itemRepository: ItemRepository = {
         .where(eq(items.id, id))
         .run();
     } else {
-      // 4-arg call: updateStatus(tx, firmId, id, status) or (tx, id, firmId, status)
       const a = second;
       const b = third as string;
       const status = fourth;
@@ -382,11 +359,14 @@ export const itemRepository: ItemRepository = {
     return summary;
   },
 
-  // SEARCH-1 (v1.13): Item-level search with deterministic sort and LIMIT 20 (RED-7)
+  // SEARCH-1 (v1.13) / RED-7 (LIMIT 20) / Step P2-BACKDATE-SIZE (v1.76)
+  // Supports compound search (e.g. "Ring 7") and pure numeric scans (e.g. "0001", "7")
   async search(firmId: string, query: string): Promise<ItemSearchResult[]> {
-    const tokens = query.trim().split(/\s+/).filter((t) => t.length > 0);
+    const trimmedQuery = query.trim();
+    const tokens = trimmedQuery.split(/\s+/).filter((t) => t.length > 0);
     const sizeToken = tokens.find((t) => /^\d+(\.\d+)?$/.test(t));
-    const textQuery = tokens.filter((t) => t !== sizeToken).join(' ');
+    const textTokens = tokens.filter((t) => t !== sizeToken);
+    const textQuery = textTokens.join(' ');
 
     const conditions: any[] = [
       eq(items.firmId, firmId),
@@ -394,20 +374,34 @@ export const itemRepository: ItemRepository = {
     ];
 
     if (textQuery.length > 0) {
-      const safeQuery = `%${textQuery}%`;
+      // Compound search (e.g. "Ring 7" -> text "Ring" AND size 7)
+      const safeText = `%${textQuery}%`;
       conditions.push(
         or(
-          like(items.sku, safeQuery),
-          like(items.barcode, safeQuery),
-          like(items.huid, safeQuery),
-          like(designs.name, safeQuery),
-          like(categories.name, safeQuery)
+          like(items.sku, safeText),
+          like(items.barcode, safeText),
+          like(items.huid, safeText),
+          like(designs.name, safeText),
+          like(categories.name, safeText)
         )
       );
-    }
 
-    if (sizeToken) {
-      conditions.push(eq(items.sizeValue, Number(sizeToken)));
+      if (sizeToken) {
+        conditions.push(eq(items.sizeValue, Number(sizeToken)));
+      }
+    } else if (sizeToken) {
+      // Pure numeric query (e.g. barcode scan "0001" or ring size "7")
+      // Simultaneously matches barcode, SKU, HUID, design name, OR exact numeric size
+      const safeToken = `%${sizeToken}%`;
+      conditions.push(
+        or(
+          like(items.sku, safeToken),
+          like(items.barcode, safeToken),
+          like(items.huid, safeToken),
+          like(designs.name, safeToken),
+          eq(items.sizeValue, Number(sizeToken))
+        )
+      );
     }
 
     const results = await db

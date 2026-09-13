@@ -1,14 +1,15 @@
-// services/phase2/skuEngine.ts — Phase 2 v2.24 Canonical Implementation
-// FIX-SKU-PREFIX-1 (v1.34/v1.41), SKU-DEDUP-1 (v1.43), FIX-SKU-DISPLAY-2 (v1.51) & FIX-GAP-P2-BACKDATE-1 (v1.76)
+// services/phase2/skuEngine.ts — Phase 2 v2.34 Canonical Implementation
+// Implements FIX-SKU-PREFIX-1 (v1.34/v1.41), SKU-DEDUP-1 (v1.43), FIX-SKU-DISPLAY-2 (v1.51), FIX-GAP-P2-BACKDATE-1 (v1.76)
 
 import { format, parseISO } from 'date-fns';
-import { eq } from 'drizzle-orm';
+import { eq, and } from 'drizzle-orm';
 import { sequenceCounters, items } from '@/db/schema';
 import type { DrizzleTransaction, Design, SequenceCounter, Metal } from '@/types/phase2/phase2.types';
 import { now } from '@/utils/now';
 import { ERR } from '@/constants/errorCodes';
 
 // FIX-SKU-PREFIX-1 (v1.34) UPDATED (v1.41) & STEP 3 Alignment
+// 1-word: first 3 characters. 2-word: word1[0] + word2[0:3]. No metal-word skip.
 export function generateDesignPrefix(designName: string, _metal?: Metal): string {
   const words = designName.trim().toUpperCase().split(/\s+/).filter((w) => w.length > 0);
   if (words.length === 0 || words.length > 2) throw new Error(ERR.DESIGN_NAME_INVALID);
@@ -25,7 +26,8 @@ export function generateDesignPrefix(designName: string, _metal?: Metal): string
   return word1[0] + word2Prefix;
 }
 
-// FIX-SKU-ENGINE-1 (v1.34), SKU-DEDUP-1 (v1.43) & FIX-GAP-P2-BACKDATE-1 (v1.76)
+// FIX-SKU-ENGINE-1 (v1.34), SKU-DEDUP-1 (v1.43), FIX-GAP-P2-BACKDATE-1 (v1.76) & RED-9
+// Sequence: Global per firm per month. Key = '{firmId}_{MMYY}'. 4-digit zero-padded.
 export function generateSKU(
   tx: DrizzleTransaction,
   design: Design,
@@ -35,7 +37,7 @@ export function generateSKU(
   const metalCode = design.metal === 'GOLD' ? 'G' : 'S';
   const desPrefix = generateDesignPrefix(design.name, design.metal);
 
-  // Backdated stock entry calculates MMYY from entryDate (v1.76) with invalid-date protection
+  // Backdated stock entry calculates MMYY from entryDate (v1.76)
   let targetDate = new Date();
   if (entryDate) {
     const parsed = parseISO(entryDate);
@@ -80,7 +82,7 @@ export function generateSKU(
   const sku = `${metalCode}${desPrefix}${mmyy}${seq}`;
 
   // Pre-generation duplicate check with up to 3 retries (SKU-DEDUP-1 v1.43)
-  // Queries items.sku globally matching the items_sku_unique index
+  // Scoped strictly to firmId per RED-9 matching idx_items_sku(sku, firm_id)
   const MAX_SKU_RETRIES = 3;
   let candidate = sku;
   let retrySeq = nextSeq;
@@ -89,7 +91,7 @@ export function generateSKU(
     const collision = tx
       .select({ id: items.id })
       .from(items)
-      .where(eq(items.sku, candidate))
+      .where(and(eq(items.sku, candidate), eq(items.firmId, firmId)))
       .get();
 
     if (!collision) break;
@@ -107,7 +109,7 @@ export function generateSKU(
   const stillExists = tx
     .select({ id: items.id })
     .from(items)
-    .where(eq(items.sku, candidate))
+    .where(and(eq(items.sku, candidate), eq(items.firmId, firmId)))
     .get();
 
   if (stillExists) throw new Error(ERR.SKU_GENERATION_FAILED);
@@ -115,7 +117,21 @@ export function generateSKU(
   return candidate;
 }
 
+// SKU-DISPLAY-1 (v1.43) & FIX-SKU-DISPLAY-2 (v1.51)
+// UI-ONLY display helper. Minimum 2 digits for seq 1–9 (01–09).
+// NEVER call on raw SKU before database storage (corrupts sequence counter).
+export function formatSKUDisplay(sku: string): string {
+  if (sku.length < 4) return sku;
+  const prefix = sku.slice(0, -4);
+  const seqPart = sku.slice(-4);
+  const seqNum = parseInt(seqPart, 10);
+  if (isNaN(seqNum)) return sku;
+  const displaySeq = seqNum < 10 ? `0${seqNum}` : String(seqNum);
+  return `${prefix}${displaySeq}`;
+}
+
 export const skuEngine = {
   generateDesignPrefix,
   generateSKU,
+  formatSKUDisplay,
 };

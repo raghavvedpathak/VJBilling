@@ -10,7 +10,7 @@ export {
   GOLD_PURITY_GRADES,
   SILVER_PURITY_GRADES,
   isStandardPurityGrade,
-  PurityPreset,
+  type PurityPreset,
   GOLD_PURITY_PRESETS,
   SILVER_PURITY_PRESETS,
   PURITY_PRESETS,

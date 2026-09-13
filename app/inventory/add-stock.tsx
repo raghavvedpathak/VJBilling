@@ -1,5 +1,7 @@
-/* eslint-disable no-restricted-imports */
-// app/inventory/add-stock.tsx — Phase 2 v2.24 Canonical Screen
+// app/inventory/add-stock.tsx — Phase 2 v2.34 Canonical Screen
+// Aligned with PURITY-INTAKE-1 (v1.21), FIX-24KS-DISPLAY-1 (v2.25), FIX-SILVER-PURITY-1 (v1.46),
+// FEAT-EFFECTIVE-PRICE-1 (v2.00), FIX-EFFPRICE-GATE-1 (v2.01), FIX-EFFPRICE-PURITYROUND-1 (v2.14),
+// FEAT-HUID-CREATE-1 (v1.87), FEAT-BACKDATED-STOCK-1 (v1.76), and GAP-P2-SIZE-EDIT-1 (v1.78)
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { View, Text, Alert, Modal, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
@@ -12,6 +14,7 @@ import { GlassPickerModal, GlassPickerOption } from '@/components/ui/GlassPicker
 import { GlassDatePickerModal } from '@/components/ui/GlassDatePickerModal';
 import { useFirmStore } from '@/store/phase1/useFirmStore';
 import { useMastersSyncStore } from '@/store/phase2/mastersSyncStore';
+import { appSettingsStore } from '@/store/phase1/appSettingsStore';
 import { itemService } from '@/services/phase2/itemService';
 import { designRepository } from '@/repositories/phase2/designRepository';
 import { categoryRepository } from '@/repositories/phase2/categoryRepository';
@@ -31,6 +34,7 @@ import {
   computeEffectivePricePerGram,
   computeVaultTruthGrams,
   computeCostTruthGrams,
+  computeWastageGoldGrams,
   computeAbsoluteTotalCostRupees,
   rupeesToPaise,
   formatSKUDisplay,
@@ -39,11 +43,13 @@ import {
   isPresetMatchingPurity,
   parseCleanFloat,
 } from '@/utils/calculations';
-import { COLORS } from '@/constants/theme';
+import { getThemeColors } from '@/constants/theme';
 
 export default function AddStockScreen() {
   const router = useRouter();
   const { activeFirmId } = useFirmStore();
+  const activeTheme = appSettingsStore((s: any) => s.theme);
+  const colors = getThemeColors(activeTheme);
 
   const [designs, setDesigns] = useState<Design[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -187,6 +193,7 @@ export default function AddStockScreen() {
 
     const fineGoldChargedMg = computeFineGoldChargedMg(netWeightMg, p, w);
     const costTruth = computeCostTruthGrams(fineGoldChargedMg, fineWeightMg);
+    const wastageGold = computeWastageGoldGrams(costTruth, vaultTruth);
     
     const effectivePricePerGram = computeEffectivePricePerGram(rate, p, w, metal);
     const absoluteTotalCost = computeAbsoluteTotalCostRupees(netWeightG, effectivePricePerGram, making, stoneC);
@@ -214,8 +221,9 @@ export default function AddStockScreen() {
       wastageRaw: w,
       totalTouch: (p + w).toFixed(2) + '%',
       vaultTruth: vaultTruth.toFixed(3) + ' g',
-      wastageGold: (costTruth - vaultTruth).toFixed(3) + ' g',
+      wastageGold: wastageGold.toFixed(3) + ' g',
       costTruth: costTruth.toFixed(3) + ' g',
+      hasRateData: rate > 0 && netWeightG > 0,
       hasCostData: (rate > 0 || making > 0 || stoneC > 0) && netWeightG > 0,
       financialBreakdown: financialBreakdownText,
       pricePerGram: effectivePricePerGram,
@@ -230,6 +238,11 @@ export default function AddStockScreen() {
     }
     if (!selectedDesign || !selectedCategory || !selectedHsn) {
       Alert.alert('Missing Fields', 'Please select Design, Category, and HSN Code.');
+      return;
+    }
+
+    if (entryDate > todayIso) {
+      Alert.alert('Invalid Date', 'Stock entry date cannot be in the future.');
       return;
     }
     
@@ -251,11 +264,15 @@ export default function AddStockScreen() {
       return;
     }
 
-    // Strict Size Pairing Check (GAP-P2-SIZE-EDIT-1 / SQLite CHECK constraint)
+    // Strict Size Pairing & Bounds Check (GAP-P2-SIZE-EDIT-1 / SQLite CHECK constraint)
     const parsedSizeValue = sizeValue.trim() ? parseCleanFloat(sizeValue) : null;
     const parsedSizeUnit = sizeUnit ? sizeUnit : null;
     if ((parsedSizeValue !== null && !parsedSizeUnit) || (parsedSizeValue === null && parsedSizeUnit)) {
       Alert.alert('Invalid Size', 'Both Size Value and Size Unit must be provided together, or both left blank.');
+      return;
+    }
+    if (parsedSizeValue !== null && parsedSizeValue <= 0) {
+      Alert.alert('Invalid Size', 'Size value must be greater than 0.');
       return;
     }
 
@@ -272,7 +289,9 @@ export default function AddStockScreen() {
     const pRatePaise = purchaseRate.trim() ? rupeesToPaise(parseCleanFloat(purchaseRate)) : null;
     const mChargePaise = makingCharge.trim() ? rupeesToPaise(parseCleanFloat(makingCharge)) : null;
     const sCostPaise = stoneCost.trim() ? rupeesToPaise(parseCleanFloat(stoneCost)) : null;
-    const kVal = percentToKarat(purity) || 0; 
+    
+    // FIX-SILVER-PURITY-1 (v1.46 / Step 6.1): Silver items ALWAYS stored with purityKarat = 0
+    const kVal = selectedDesign.metal === 'GOLD' ? (percentToKarat(purity) || 0) : 0;
 
     const itemPayload: CreateItemInput = {
       designId: selectedDesign.id,
@@ -322,15 +341,15 @@ export default function AddStockScreen() {
           contentContainerStyle={{ paddingBottom: 190 }}
         >
           <GlassCard>
-            <View className="flex-row items-center justify-between mb-4">
-              <View className="flex-row items-center gap-2">
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                 <Package size={20} color="#D4AF37" />
-                <Text className="text-lg font-bold text-vj-text">Classification</Text>
+                <Text style={{ fontSize: 18, fontWeight: '700', color: colors.vjText }}>Classification</Text>
               </View>
             </View>
 
             {/* Stock Entry Date Field */}
-            <View className="mb-4">
+            <View style={{ marginBottom: 16 }}>
               <GlassPickerInput
                 label="Stock Entry Date"
                 placeholder="Select date..."
@@ -342,14 +361,16 @@ export default function AddStockScreen() {
             </View>
             
             {designs.length === 0 && (
-              <View className="mb-4 bg-white/40 p-3 rounded-xl border border-white/20">
-                <Text className="text-xs text-vj-text/60 font-bold text-center">No Serialized Designs Found. Please add a serialized design first.</Text>
+              <View style={{ marginBottom: 16, backgroundColor: 'rgba(255,255,255,0.4)', padding: 12, borderRadius: 12, borderWidth: 1, borderColor: 'rgba(255,255,255,0.2)' }}>
+                <Text style={{ fontSize: 12, color: `${colors.vjText}99`, fontWeight: '700', textAlign: 'center' }}>
+                  No Serialized Designs Found. Please add a serialized design first.
+                </Text>
               </View>
             )}
 
-            <View>
+            <View style={{ marginBottom: 16 }}>
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-                <Text style={{ fontSize: 12, fontWeight: '700', color: 'rgba(92,22,35,0.6)', textTransform: 'uppercase' }}>Design *</Text>
+                <Text style={{ fontSize: 12, fontWeight: '700', color: `${colors.vjText}99`, textTransform: 'uppercase' }}>Design *</Text>
                 {designStock && designStock.count > 0 && (
                   <View style={{ backgroundColor: 'rgba(16, 185, 129, 0.15)', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 12, borderWidth: 1, borderColor: 'rgba(16, 185, 129, 0.3)' }}>
                     <Text style={{ fontSize: 10, fontWeight: '800', color: '#047857' }}>
@@ -392,13 +413,11 @@ export default function AddStockScreen() {
                       }
                       setSelectedDesign(selDesign);
 
-                      // Auto-select Default HSN if configured on design
                       if (selDesign.defaultHsn) {
                         const matchedHsn = hsnCodes.find((h) => h.code === selDesign.defaultHsn);
                         if (matchedHsn) setSelectedHsn(matchedHsn);
                       }
 
-                      // Auto-select primary linked category
                       if (activeFirmId) {
                         try {
                           const mappings = await designCategoryMapRepository.findByDesignId(selDesign.id, activeFirmId);
@@ -425,39 +444,41 @@ export default function AddStockScreen() {
               />
             </View>
 
-            <GlassPickerInput
-              label="Category *"
-              placeholder="Search & select category..."
-              selectedLabel={selectedCategory ? selectedCategory.name : null}
-              onPress={async () => {
-                let cList = categories;
-                if (activeFirmId) {
-                  const fetched = await categoryRepository.findByFirmId(activeFirmId);
-                  cList = (fetched || [])
-                    .filter((item) => item.isActive === 1)
-                    .sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base', numeric: true }));
-                  setCategories(cList);
-                }
-                setPickerModal({
-                  visible: true,
-                  title: 'Select Category',
-                  placeholder: 'Search category...',
-                  selectedId: selectedCategory?.id || null,
-                  options: cList.map(c => ({
-                    id: c.id,
-                    label: c.name || 'Unnamed Category',
-                  })),
-                  onSelect: (opt) => {
-                    if (!opt) {
-                      setSelectedCategory(null);
-                      return;
-                    }
-                    const selCat = cList.find(c => c.id === opt.id);
-                    if (selCat) setSelectedCategory(selCat);
-                  },
-                });
-              }}
-            />
+            <View style={{ marginBottom: 16 }}>
+              <GlassPickerInput
+                label="Category *"
+                placeholder="Search & select category..."
+                selectedLabel={selectedCategory ? selectedCategory.name : null}
+                onPress={async () => {
+                  let cList = categories;
+                  if (activeFirmId) {
+                    const fetched = await categoryRepository.findByFirmId(activeFirmId);
+                    cList = (fetched || [])
+                      .filter((item) => item.isActive === 1)
+                      .sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base', numeric: true }));
+                    setCategories(cList);
+                  }
+                  setPickerModal({
+                    visible: true,
+                    title: 'Select Category',
+                    placeholder: 'Search category...',
+                    selectedId: selectedCategory?.id || null,
+                    options: cList.map(c => ({
+                      id: c.id,
+                      label: c.name || 'Unnamed Category',
+                    })),
+                    onSelect: (opt) => {
+                      if (!opt) {
+                        setSelectedCategory(null);
+                        return;
+                      }
+                      const selCat = cList.find(c => c.id === opt.id);
+                      if (selCat) setSelectedCategory(selCat);
+                    },
+                  });
+                }}
+              />
+            </View>
 
             <GlassPickerInput
               label="HSN Code *"
@@ -488,10 +509,10 @@ export default function AddStockScreen() {
           </GlassCard>
 
           {/* Weights */}
-          <GlassCard style={{ zIndex: 40 }}>
-            <View className="flex-row items-center gap-2 mb-4">
+          <GlassCard style={{ zIndex: 40, marginBottom: 16 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 16 }}>
               <Scale size={20} color="#D4AF37" />
-              <Text className="text-lg font-bold text-vj-text">Weights (Grams)</Text>
+              <Text style={{ fontSize: 18, fontWeight: '700', color: colors.vjText }}>Weights (Grams)</Text>
             </View>
 
             <GlassInput 
@@ -524,16 +545,16 @@ export default function AddStockScreen() {
           </GlassCard>
 
           {/* Purity & Wastage */}
-          <GlassCard>
-            <View className="flex-row items-center gap-2 mb-4">
+          <GlassCard style={{ marginBottom: 16 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 16 }}>
               <Percent size={20} color="#D4AF37" />
-              <Text className="text-lg font-bold text-vj-text">Purity & Wastage</Text>
+              <Text style={{ fontSize: 18, fontWeight: '700', color: colors.vjText }}>Purity & Wastage</Text>
             </View>
 
             <View style={{ flexDirection: 'row', gap: 12, alignItems: 'flex-start' }}>
               <View style={{ flex: 1 }}>
-                <View className="flex-row justify-between items-center mb-1">
-                  <Text style={{ fontSize: 12, fontWeight: '700', color: 'rgba(92,22,35,0.6)', textTransform: 'uppercase' }}>Purity % *</Text>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                  <Text style={{ fontSize: 12, fontWeight: '700', color: `${colors.vjText}99`, textTransform: 'uppercase' }}>Purity % *</Text>
                   {computedKarat ? (
                     <View style={{ backgroundColor: 'rgba(212,175,55,0.2)', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 }}>
                       <Text style={{ fontSize: 11, fontWeight: '800', color: '#D4AF37' }}>{computedKarat}</Text>
@@ -579,7 +600,7 @@ export default function AddStockScreen() {
                     <Text style={{
                       fontSize: 11,
                       fontWeight: '700',
-                      color: isSelected ? '#FFF' : COLORS.vjText
+                      color: isSelected ? '#FFF' : colors.vjText
                     }}>
                       {preset.label}
                     </Text>
@@ -590,43 +611,45 @@ export default function AddStockScreen() {
           </GlassCard>
 
           {/* Tracking & Stones */}
-          <GlassCard>
-            <View className="flex-row items-center gap-2 mb-4">
+          <GlassCard style={{ marginBottom: 16 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 16 }}>
               <MapPin size={20} color="#D4AF37" />
-              <Text className="text-lg font-bold text-vj-text">Tracking & Stones</Text>
+              <Text style={{ fontSize: 18, fontWeight: '700', color: colors.vjText }}>Tracking & Stones</Text>
             </View>
 
-            <GlassPickerInput
-              label="Primary Stone (Optional)"
-              placeholder="Select Stone..."
-              selectedLabel={selectedStone ? selectedStone.name : null}
-              selectedSublabel={selectedStone ? selectedStone.type : null}
-              onPress={() => {
-                setPickerModal({
-                  visible: true,
-                  title: 'Select Primary Stone',
-                  placeholder: 'Search stone...',
-                  selectedId: selectedStone?.id || null,
-                  options: stones.map(s => ({
-                    id: s.id,
-                    label: s.name || 'Unnamed Stone',
-                    sublabel: s.type || '',
-                  })),
-                  onSelect: (opt) => {
-                    if (!opt) return setSelectedStone(null);
-                    const selStone = stones.find(s => s.id === opt.id);
-                    if (selStone) setSelectedStone(selStone);
-                  },
-                });
-              }}
-            />
+            <View style={{ marginBottom: 16 }}>
+              <GlassPickerInput
+                label="Primary Stone (Optional)"
+                placeholder="Select Stone..."
+                selectedLabel={selectedStone ? selectedStone.name : null}
+                selectedSublabel={selectedStone ? selectedStone.type : null}
+                onPress={() => {
+                  setPickerModal({
+                    visible: true,
+                    title: 'Select Primary Stone',
+                    placeholder: 'Search stone...',
+                    selectedId: selectedStone?.id || null,
+                    options: stones.map(s => ({
+                      id: s.id,
+                      label: s.name || 'Unnamed Stone',
+                      sublabel: s.type || '',
+                    })),
+                    onSelect: (opt) => {
+                      if (!opt) return setSelectedStone(null);
+                      const selStone = stones.find(s => s.id === opt.id);
+                      if (selStone) setSelectedStone(selStone);
+                    },
+                  });
+                }}
+              />
+            </View>
 
             <View style={{ flexDirection: 'row', gap: 12 }}>
               <View style={{ flex: 1 }}>
-                 <GlassInput label="Location" placeholder="Tray / Location" autoCapitalize="characters" value={location} onChangeText={setLocation} />
+                <GlassInput label="Location" placeholder="Tray / Location" autoCapitalize="characters" value={location} onChangeText={setLocation} />
               </View>
               <View style={{ flex: 1 }}>
-                 <GlassInput label="BIS HUID" placeholder="6-char HUID" autoCapitalize="characters" value={huid} onChangeText={setHuid} maxLength={6} />
+                <GlassInput label="BIS HUID" placeholder="6-char HUID" autoCapitalize="characters" value={huid} onChangeText={(t) => setHuid(t.toUpperCase())} maxLength={6} />
               </View>
             </View>
             
@@ -673,14 +696,14 @@ export default function AddStockScreen() {
           </GlassCard>
 
           {/* Costs */}
-          <GlassCard style={{ zIndex: 20 }}>
-            <View className="flex-row items-center gap-2 mb-4">
+          <GlassCard style={{ zIndex: 20, marginBottom: 16 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 16 }}>
               <Wallet size={20} color="#D4AF37" />
-              <Text className="text-lg font-bold text-vj-text">Purchase Costs ({getCurrencySymbol()})</Text>
+              <Text style={{ fontSize: 18, fontWeight: '700', color: colors.vjText }}>Purchase Costs ({getCurrencySymbol()})</Text>
             </View>
 
             <GlassInput 
-              label={`Purchase Rate (${getCurrencySymbol()})`} 
+              label={`Purchase Rate (${getCurrencySymbol()}/g)`} 
               placeholder="0.00" 
               keyboardType="decimal-pad" 
               value={purchaseRate} 
@@ -708,96 +731,96 @@ export default function AddStockScreen() {
             </View>
           </GlassCard>
 
-          {/* Mandated UI Display — Live Cost Preview */}
+          {/* Live Cost Preview (FEAT-EFFECTIVE-PRICE-1 v2.00 / FIX-EFFPRICE-GATE-1 v2.01) */}
           {liveWastageSeparation.isValid && (
-            <View className="px-1 mb-4 mt-2" style={{ zIndex: 10 }}>
+            <View style={{ paddingHorizontal: 4, marginBottom: 16, marginTop: 8, zIndex: 10 }}>
               <GlassCard style={{ backgroundColor: 'rgba(252,251,248, 0.98)', borderColor: '#D4AF37', borderWidth: 1.5, padding: 16 }}>
-                <View className="flex-row items-center justify-between mb-3 pb-2.5 border-b border-black/5">
-                  <View className="flex-row items-center gap-2">
-                    <View className="w-7 h-7 rounded-lg items-center justify-center bg-amber-500/15 border border-amber-500/30">
+                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12, paddingBottom: 10, borderBottomWidth: 1, borderBottomColor: 'rgba(0,0,0,0.05)' }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                    <View style={{ width: 28, height: 28, borderRadius: 8, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(245, 158, 11, 0.15)', borderWidth: 1, borderColor: 'rgba(245, 158, 11, 0.3)' }}>
                       <Calculator size={16} color="#D4AF37" />
                     </View>
                     <View>
-                      <Text className="text-xs font-black uppercase tracking-wider text-vj-accent">Live Cost Breakdown</Text>
-                      <Text className="text-[10px] text-vj-text/50 font-semibold">Real-Time Inventory Accounting</Text>
+                      <Text style={{ fontSize: 12, fontWeight: '900', textTransform: 'uppercase', letterSpacing: 0.8, color: colors.vjAccent }}>Live Cost Breakdown</Text>
+                      <Text style={{ fontSize: 10, color: `${colors.vjText}80`, fontWeight: '600' }}>Real-Time Inventory Accounting</Text>
                     </View>
                   </View>
-                  <View className="flex-row items-center gap-1.5 px-2 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20">
-                    <View className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                    <Text className="text-[9px] font-black text-emerald-800 uppercase tracking-widest">LIVE</Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 999, backgroundColor: 'rgba(16, 185, 129, 0.1)', borderWidth: 1, borderColor: 'rgba(16, 185, 129, 0.2)' }}>
+                    <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: '#10B981' }} />
+                    <Text style={{ fontSize: 9, fontWeight: '900', color: '#047857', letterSpacing: 0.8 }}>LIVE</Text>
                   </View>
                 </View>
 
-                <View className="flex-row gap-2.5 mb-3">
-                  <View className="flex-1 p-2.5 rounded-xl bg-black/[0.02] border border-black/5">
-                    <Text className="text-[10px] font-bold text-vj-text/50 uppercase tracking-wider">Net Weight</Text>
-                    <Text className="text-base font-black text-vj-text font-mono mt-0.5">{liveWastageSeparation.netWeight}</Text>
-                    <Text className="text-[9px] text-vj-text/55 font-semibold mt-0.5" numberOfLines={1}>
+                <View style={{ flexDirection: 'row', gap: 10, marginBottom: 12 }}>
+                  <View style={{ flex: 1, padding: 10, borderRadius: 12, backgroundColor: 'rgba(0,0,0,0.02)', borderWidth: 1, borderColor: 'rgba(0,0,0,0.05)' }}>
+                    <Text style={{ fontSize: 10, fontWeight: '700', color: `${colors.vjText}80`, textTransform: 'uppercase', letterSpacing: 0.5 }}>Net Weight</Text>
+                    <Text style={{ fontSize: 16, fontWeight: '900', color: colors.vjText, fontFamily: 'monospace', marginTop: 2 }}>{liveWastageSeparation.netWeight}</Text>
+                    <Text style={{ fontSize: 9, color: `${colors.vjText}90`, fontWeight: '600', marginTop: 2 }} numberOfLines={1}>
                       {liveWastageSeparation.weightBreakdown}
                     </Text>
                   </View>
 
-                  <View className="flex-1 p-2.5 rounded-xl bg-black/[0.02] border border-black/5">
-                    <View className="flex-row items-center justify-between">
-                      <Text className="text-[10px] font-bold text-vj-text/50 uppercase tracking-wider">Total Touch</Text>
-                      <Text className="text-xs font-black text-vj-accent font-mono">{liveWastageSeparation.totalTouch}</Text>
+                  <View style={{ flex: 1, padding: 10, borderRadius: 12, backgroundColor: 'rgba(0,0,0,0.02)', borderWidth: 1, borderColor: 'rgba(0,0,0,0.05)' }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <Text style={{ fontSize: 10, fontWeight: '700', color: `${colors.vjText}80`, textTransform: 'uppercase', letterSpacing: 0.5 }}>Total Touch</Text>
+                      <Text style={{ fontSize: 12, fontWeight: '900', color: colors.vjAccent, fontFamily: 'monospace' }}>{liveWastageSeparation.totalTouch}</Text>
                     </View>
-                    <View className="mt-1 bg-vj-accent/10 px-1.5 py-0.5 rounded self-start">
-                      <Text className="text-[9px] font-black text-vj-accent font-mono">
+                    <View style={{ marginTop: 4, backgroundColor: `${colors.vjAccent}15`, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4, alignSelf: 'flex-start' }}>
+                      <Text style={{ fontSize: 9, fontWeight: '900', color: colors.vjAccent, fontFamily: 'monospace' }}>
                         {liveWastageSeparation.purityRaw}% Purity + {liveWastageSeparation.wastageRaw}% Wastage
                       </Text>
                     </View>
                   </View>
                 </View>
 
-                <View className="mb-3 p-3 rounded-2xl bg-black/[0.02] border border-black/5">
-                  <Text className="text-[10px] font-black uppercase tracking-widest text-vj-text/60 mb-2">
+                <View style={{ marginBottom: 12, padding: 12, borderRadius: 16, backgroundColor: 'rgba(0,0,0,0.02)', borderWidth: 1, borderColor: 'rgba(0,0,0,0.05)' }}>
+                  <Text style={{ fontSize: 10, fontWeight: '900', textTransform: 'uppercase', letterSpacing: 0.8, color: `${colors.vjText}99`, marginBottom: 8 }}>
                     Fine Metal Accounting ({selectedDesign?.metal || 'GOLD'})
                   </Text>
                   
-                  <View className="flex-row items-center justify-between gap-1">
-                    <View className="flex-1 p-2 rounded-xl bg-emerald-500/10 border border-emerald-500/20 items-center">
-                      <Text className="text-[9px] font-black text-emerald-800 uppercase tracking-tight">Vault Fine</Text>
-                      <Text className="text-xs font-black text-emerald-700 font-mono mt-0.5">{liveWastageSeparation.vaultTruth}</Text>
-                      <Text className="text-[8px] font-semibold text-emerald-800/70 mt-0.5">Physical</Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 4 }}>
+                    <View style={{ flex: 1, padding: 8, borderRadius: 12, backgroundColor: 'rgba(16, 185, 129, 0.1)', borderWidth: 1, borderColor: 'rgba(16, 185, 129, 0.2)', alignItems: 'center' }}>
+                      <Text style={{ fontSize: 9, fontWeight: '900', color: '#047857', textTransform: 'uppercase' }}>Vault Fine</Text>
+                      <Text style={{ fontSize: 12, fontWeight: '900', color: '#047857', fontFamily: 'monospace', marginTop: 2 }}>{liveWastageSeparation.vaultTruth}</Text>
+                      <Text style={{ fontSize: 8, fontWeight: '600', color: 'rgba(4, 120, 87, 0.7)', marginTop: 2 }}>Physical</Text>
                     </View>
 
-                    <Text className="text-xs font-black text-vj-text/40">+</Text>
+                    <Text style={{ fontSize: 12, fontWeight: '900', color: `${colors.vjText}60` }}>+</Text>
 
-                    <View className="flex-1 p-2 rounded-xl bg-rose-500/10 border border-rose-500/20 items-center">
-                      <Text className="text-[9px] font-black text-rose-800 uppercase tracking-tight">
-                        Wastage
-                      </Text>
-                      <Text className="text-xs font-black text-rose-700 font-mono mt-0.5">{liveWastageSeparation.wastageGold}</Text>
-                      <Text className="text-[8px] font-semibold text-rose-800/70 mt-0.5">Supplier</Text>
+                    <View style={{ flex: 1, padding: 8, borderRadius: 12, backgroundColor: 'rgba(239, 68, 68, 0.1)', borderWidth: 1, borderColor: 'rgba(239, 68, 68, 0.2)', alignItems: 'center' }}>
+                      <Text style={{ fontSize: 9, fontWeight: '900', color: '#B91C1C', textTransform: 'uppercase' }}>Wastage</Text>
+                      <Text style={{ fontSize: 12, fontWeight: '900', color: '#B91C1C', fontFamily: 'monospace', marginTop: 2 }}>{liveWastageSeparation.wastageGold}</Text>
+                      <Text style={{ fontSize: 8, fontWeight: '600', color: 'rgba(185, 28, 28, 0.7)', marginTop: 2 }}>Supplier</Text>
                     </View>
 
-                    <Text className="text-xs font-black text-vj-text/40">=</Text>
+                    <Text style={{ fontSize: 12, fontWeight: '900', color: `${colors.vjText}60` }}>=</Text>
 
-                    <View className="flex-1 p-2 rounded-xl bg-amber-500/15 border border-amber-500/30 items-center">
-                      <Text className="text-[9px] font-black text-amber-900 uppercase tracking-tight">Billed Fine</Text>
-                      <Text className="text-xs font-black text-amber-800 font-mono mt-0.5">{liveWastageSeparation.costTruth}</Text>
-                      <Text className="text-[8px] font-semibold text-amber-800/70 mt-0.5">Cost Truth</Text>
+                    <View style={{ flex: 1, padding: 8, borderRadius: 12, backgroundColor: 'rgba(212, 175, 55, 0.15)', borderWidth: 1, borderColor: 'rgba(212, 175, 55, 0.3)', alignItems: 'center' }}>
+                      <Text style={{ fontSize: 9, fontWeight: '900', color: '#92400E', textTransform: 'uppercase' }}>Billed Fine</Text>
+                      <Text style={{ fontSize: 12, fontWeight: '900', color: '#92400E', fontFamily: 'monospace', marginTop: 2 }}>{liveWastageSeparation.costTruth}</Text>
+                      <Text style={{ fontSize: 8, fontWeight: '600', color: 'rgba(146, 64, 14, 0.7)', marginTop: 2 }}>Cost Truth</Text>
                     </View>
                   </View>
                 </View>
 
                 {liveWastageSeparation.hasCostData && (
-                  <View className="p-3 rounded-2xl bg-amber-500/10 border border-amber-500/30">
-                    <View className="flex-row justify-between items-center pb-1.5 border-b border-amber-500/15">
-                      <Text className="text-[11px] text-vj-text/70 font-bold">Effective Price / g:</Text>
-                      <Text className="text-xs font-black text-vj-text font-mono">
-                        {getCurrencySymbol()} {liveWastageSeparation.pricePerGram.toLocaleString('en-IN', { maximumFractionDigits: 2 })}
-                      </Text>
-                    </View>
-                    <View className="flex-row justify-between items-center pt-2">
-                      <View className="flex-1 pr-2">
-                        <Text className="text-xs font-black text-vj-text uppercase tracking-wider">EST. Total</Text>
-                        <Text className="text-[10px] text-vj-text/60 font-semibold mt-0.5">
+                  <View style={{ padding: 12, borderRadius: 16, backgroundColor: 'rgba(212, 175, 55, 0.1)', borderWidth: 1, borderColor: 'rgba(212, 175, 55, 0.3)' }}>
+                    {liveWastageSeparation.hasRateData && (
+                      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingBottom: 6, borderBottomWidth: 1, borderBottomColor: 'rgba(212, 175, 55, 0.15)' }}>
+                        <Text style={{ fontSize: 11, color: `${colors.vjText}B0`, fontWeight: '700' }}>Effective Price / g:</Text>
+                        <Text style={{ fontSize: 12, fontWeight: '900', color: colors.vjText, fontFamily: 'monospace' }}>
+                          {getCurrencySymbol()} {liveWastageSeparation.pricePerGram.toLocaleString('en-IN', { maximumFractionDigits: 2 })}
+                        </Text>
+                      </View>
+                    )}
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingTop: 8 }}>
+                      <View style={{ flex: 1, paddingRight: 8 }}>
+                        <Text style={{ fontSize: 12, fontWeight: '900', color: colors.vjText, textTransform: 'uppercase', letterSpacing: 0.5 }}>EST. Total Cost</Text>
+                        <Text style={{ fontSize: 10, color: `${colors.vjText}99`, fontWeight: '600', marginTop: 2 }}>
                           {liveWastageSeparation.financialBreakdown}
                         </Text>
                       </View>
-                      <Text className="text-base font-black font-mono text-amber-950">
+                      <Text style={{ fontSize: 18, fontWeight: '900', fontFamily: 'monospace', color: '#92400E' }}>
                         {getCurrencySymbol()} {liveWastageSeparation.totalAmount.toLocaleString('en-IN', { maximumFractionDigits: 2 })}
                       </Text>
                     </View>
@@ -809,7 +832,7 @@ export default function AddStockScreen() {
 
         </KeyboardAwareScrollView>
 
-        {/* Fixed Sticky Action Bar */}
+        {/* Fixed Action Bar */}
         <FixedGlassBar>
           <TouchableOpacity
             style={fixedBarStyles.pillSecondaryBtn}
@@ -835,7 +858,7 @@ export default function AddStockScreen() {
             }}
             activeOpacity={0.7}
           >
-            <RotateCcw size={16} color={COLORS.vjText} />
+            <RotateCcw size={16} color={colors.vjText} />
             <Text style={fixedBarStyles.pillSecondaryText}>Clear</Text>
           </TouchableOpacity>
 
@@ -916,7 +939,7 @@ const styles = StyleSheet.create({
     padding: 24,
   },
   successModalContent: {
-    backgroundColor: COLORS.vjBg,
+    backgroundColor: '#FCFBF8',
     width: '100%',
     maxWidth: 400,
     borderRadius: 24,
@@ -939,7 +962,6 @@ const styles = StyleSheet.create({
   successTitle: {
     fontSize: 24,
     fontWeight: '800',
-    color: COLORS.vjText,
     marginBottom: 8,
   },
   successSubtitle: {
@@ -969,7 +991,6 @@ const styles = StyleSheet.create({
   skuBadgeText: {
     fontSize: 28,
     fontWeight: '900',
-    color: COLORS.vjText,
     fontFamily: 'monospace',
   },
 });

@@ -1,6 +1,9 @@
-// app/inventory/item-detail.tsx — Phase 2 v2.24 Canonical Screen with Luxury Hero Glance, 3-Way Segmented Tabs, Full Inline Editing & Swiss Valuation
+// app/inventory/item-detail.tsx — Phase 2 v2.34 Canonical Screen
+// Implements FEAT-DRILL-DOWN-1 (v1.65), FEAT-ITEM-ID-CONFIRM-1 (v1.77), FEAT-SCREEN-D-EDIT-1 (v1.97),
+// FEAT-SCREEN-D-DELETE-1 (v2.07), FIX-METALSOURCE-POSTPUBLISH-1 (v2.11), FIX-DATEFORMAT-1 (v1.97),
+// FIX-ITEM-SALELINK-RENAME-1 (v2.17), FIX-ITEM-PURCHASELINK-1 (v2.16), FIX-OLDMETAL-VOID-1 (v2.33)
 
-import React, { useState, useCallback, memo, useMemo, useEffect } from 'react';
+import React, { useState, useCallback, memo, useMemo } from 'react';
 import {
   View, Text, StyleSheet, ActivityIndicator, ScrollView,
   TouchableOpacity, Modal, TextInput, Alert, KeyboardAvoidingView, Platform
@@ -16,6 +19,7 @@ import { GlassCard, FixedGlassBar } from '@/components/ui/Glass';
 import { GlassDatePickerModal } from '@/components/ui/GlassDatePickerModal';
 import { inventoryDrillDownService } from '@/services/phase2/inventoryDrillDownService';
 import { itemService } from '@/services/phase2/itemService';
+import { skuEngine } from '@/services/phase2/skuEngine';
 import { COLORS, getThemeColors } from '@/constants/theme';
 import {
   getDisplayPurity,
@@ -26,26 +30,25 @@ import {
   computeCostTruthGrams,
   computeWastageGoldGrams,
   computeAbsoluteTotalCostRupees,
-  getCurrencySymbol,
-  formatSKUDisplay,
   formatWeightMg as formatWeight,
   resolveFineWeightMg,
   computeFineGoldChargedMg,
   getPurityPresets,
   isPresetMatchingPurity,
   parseCleanFloat,
-  rupeesToPaise,
-} from '@/utils/calculations';
+} from '@/utils/purity.constants';
 import { format, parseISO } from 'date-fns';
 import { formatDate } from '@/utils/formatDate';
 import {
   Tag, Scale, Gem, Clock, AlertTriangle, Info, AlertCircle,
   Shield, MapPin, Calculator, Trash2, Coins, Percent,
   Edit3, Check, X, ChevronDown, Calendar, Package, Sparkles,
-  ShieldCheck, ShieldAlert, ChevronRight, Layers, History
+  ShieldCheck, ShieldAlert, History, Printer, FileText, Hash
 } from 'lucide-react-native';
 import type { ItemDetail, ItemTimelineEvent, UpdateableItemDraftFields, MetalSource } from '@/types/phase2/phase2.types';
 import { TERMINAL_ITEM_STATUSES } from '@/types/phase2/phase2.types';
+
+const getCurrencySymbol = (): string => '₹';
 
 const formatCurrency = (paise: number | null): string => {
   if (paise === null || paise === undefined) return '—';
@@ -71,7 +74,6 @@ const getEventLabel = (event: ItemTimelineEvent): string => {
       else if (out === 'PARTIALLY_REPAIRED') out = 'Partially Repaired';
       return `Returned from Karigar · ${out}`;
     }
-    case 'ITEM_SOLD' as any: return `Sold · Invoice #${event.newValue || 'Unknown'}`;
     case 'PHANTOM_CREATED': return 'Phantom Created';
     case 'PHANTOM_RECONCILED': return 'Phantom Reconciled';
     case 'SKU_CHANGED': return 'SKU Regenerated';
@@ -158,19 +160,9 @@ export default function ItemDetailScreen() {
   const dateFormatToken = useStore(appSettingsStore, (st) => st.dateFormatToken) || 'dd/MM/yyyy';
   const colors = getThemeColors(activeTheme);
 
-  // Segmented Tab State: SPECS | COSTING | TIMELINE
   const [activeTab, setActiveTab] = useState<'SPECS' | 'COSTING' | 'TIMELINE'>('SPECS');
 
-  const [item, setItem] = useState<ItemDetail | null>(() => {
-    if (activeFirmId && itemId) {
-      try {
-        return inventoryDrillDownService.getItemDetailSync(activeFirmId, itemId);
-      } catch {
-        return null;
-      }
-    }
-    return null;
-  });
+  const [item, setItem] = useState<ItemDetail | null>(null);
 
   const [isEditing, setIsEditing] = useState(false);
   const [editGrossGrams, setEditGrossGrams] = useState('');
@@ -294,9 +286,9 @@ export default function ItemDetailScreen() {
         purityPercent: purPct,
         purityKarat: newPurityKarat,
         location: editLocation.trim() || null,
-        makingChargePaise: editMakingChargeRupees.trim() !== '' ? rupeesToPaise(parseCleanFloat(editMakingChargeRupees)) : null,
-        stoneCostPaise: editStoneCostRupees.trim() !== '' ? rupeesToPaise(parseCleanFloat(editStoneCostRupees)) : null,
-        purchaseRatePaise: editPurchaseRateRupees.trim() !== '' ? rupeesToPaise(parseCleanFloat(editPurchaseRateRupees)) : null,
+        makingChargePaise: editMakingChargeRupees.trim() !== '' ? Math.round(parseCleanFloat(editMakingChargeRupees) * 100) : null,
+        stoneCostPaise: editStoneCostRupees.trim() !== '' ? Math.round(parseCleanFloat(editStoneCostRupees) * 100) : null,
+        purchaseRatePaise: editPurchaseRateRupees.trim() !== '' ? Math.round(parseCleanFloat(editPurchaseRateRupees) * 100) : null,
         sizeValue: parsedSizeVal,
         sizeUnit: parsedSizeUnit,
       };
@@ -456,14 +448,6 @@ export default function ItemDetailScreen() {
     if (stoneC > 0) finParts.push(`Stone: ${getCurrencySymbol()}${stoneC.toLocaleString('en-IN')}`);
     const financialBreakdownText = finParts.length > 0 ? finParts.join(' + ') : 'Base Metal Cost';
 
-    let weightBreakdownText = `Gross: ${gGrams.toFixed(3)}g`;
-    if (sGrams > 0 || bGrams > 0) {
-      const deductions: string[] = [];
-      if (sGrams > 0) deductions.push(`Stone: ${sGrams.toFixed(3)}g`);
-      if (bGrams > 0) deductions.push(`Beads: ${bGrams.toFixed(3)}g`);
-      weightBreakdownText = `Gross: ${gGrams.toFixed(3)}g - ${deductions.join(' - ')}`;
-    }
-
     return {
       grossMg: Math.round(gGrams * 1000),
       grossGrams: gGrams,
@@ -474,11 +458,7 @@ export default function ItemDetailScreen() {
       netMg: netWeightMg,
       netGrams: netWeightG,
       fineMg: fineWeightMg,
-      weightBreakdown: weightBreakdownText,
       purityPercent: livePurityPercent,
-      purityRaw: livePurityPercent,
-      wastageRaw: wastagePercent,
-      totalTouch: (livePurityPercent + wastagePercent).toFixed(2) + '%',
       purityKarat: livePurityKarat,
       purityDisplay: purityDisplayStr,
       wastagePercent,
@@ -513,6 +493,7 @@ export default function ItemDetailScreen() {
 
   const metalColor = item.metal === 'GOLD' ? COLORS.bullionGold : COLORS.bullionSilver;
   const isEditable = !TERMINAL_ITEM_STATUSES.includes(item.status);
+  const isReprintRequired = Boolean(item.barcodeReprintRequired);
 
   return (
     <TwoToneWrapper title="Item Detail" showBack>
@@ -527,6 +508,29 @@ export default function ItemDetailScreen() {
           extraHeight={140}
           contentContainerStyle={{ paddingTop: 16, paddingBottom: 190 }}
         >
+          {/* Amber Reprint Notice Banner (Step 5.1 / FEAT-BARCODE-LABEL-1) */}
+          {isReprintRequired && (
+            <GlassCard style={s.reprintAmberBanner}>
+              <View style={s.reprintBannerInner}>
+                <View style={s.reprintLeft}>
+                  <AlertTriangle size={18} color="#B45309" />
+                  <View>
+                    <Text style={s.reprintBannerTitle}>Barcode Reprint Required</Text>
+                    <Text style={s.reprintBannerSub}>Item parameters changed. Print an updated tag.</Text>
+                  </View>
+                </View>
+                <TouchableOpacity
+                  style={s.reprintActionBtn}
+                  onPress={() => router.push({ pathname: '/inventory/barcode-print', params: { itemId: item.id } })}
+                  activeOpacity={0.8}
+                >
+                  <Printer size={13} color="#ffffff" />
+                  <Text style={s.reprintActionBtnText}>Print Tag</Text>
+                </TouchableOpacity>
+              </View>
+            </GlassCard>
+          )}
+
           {isEditable && isEditing && (
             <GlassCard style={s.topEditingBannerCard}>
               <View style={s.topEditingBannerHeader}>
@@ -545,11 +549,9 @@ export default function ItemDetailScreen() {
           {/* 1. LUXURY HERO CARD (THE JEWELER'S GLANCE)                                */}
           {/* ========================================================================= */}
           <GlassCard style={[s.heroCard, { borderColor: `${metalColor}40` }]}>
-            {/* Top Metallic Inlay Indicator */}
             <View style={[s.heroStripe, { backgroundColor: metalColor }]} />
 
             <View style={s.heroCardInner}>
-              {/* Row 1: Design Name, Category & Bullion Purity Badge */}
               <View style={s.heroTopRow}>
                 <View style={{ flex: 1, paddingRight: 8 }}>
                   <Text style={[s.heroDesignName, { color: colors.vjText }]} numberOfLines={2}>
@@ -598,11 +600,11 @@ export default function ItemDetailScreen() {
                 </View>
               </View>
 
-              {/* Quick Identity Pills Row (SKU, HUID, Status) */}
+              {/* Identity Pills Row (SKU, HUID, Status, Print Button) */}
               <View style={s.heroIdentityRow}>
                 <View style={[s.heroSkuCapsule, { backgroundColor: `${colors.vjAccent}10`, borderColor: `${colors.vjAccent}25` }]}>
                   <Tag size={11} color={colors.vjAccent} />
-                  <Text style={[s.heroSkuText, { color: colors.vjAccent }]}>{formatSKUDisplay(item.sku)}</Text>
+                  <Text style={[s.heroSkuText, { color: colors.vjAccent }]}>{skuEngine.formatSKUDisplay(item.sku)}</Text>
                 </View>
 
                 {item.huid?.trim() ? (
@@ -630,6 +632,15 @@ export default function ItemDetailScreen() {
                     {item.status}
                   </Text>
                 </View>
+
+                <TouchableOpacity
+                  style={[s.printTagMiniBtn, { backgroundColor: `${colors.vjAccent}12` }]}
+                  onPress={() => router.push({ pathname: '/inventory/barcode-print', params: { itemId: item.id } })}
+                  activeOpacity={0.7}
+                >
+                  <Printer size={12} color={colors.vjAccent} />
+                  <Text style={[s.printTagMiniText, { color: colors.vjAccent }]}>Tag</Text>
+                </TouchableOpacity>
               </View>
             </View>
           </GlassCard>
@@ -639,7 +650,6 @@ export default function ItemDetailScreen() {
           {/* ========================================================================= */}
           <View style={[s.tabContainer, { backgroundColor: `${colors.vjAccent}14` }]}>
             <TouchableOpacity
-              testID="tab-specs-btn"
               activeOpacity={0.8}
               onPress={() => {
                 try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
@@ -654,7 +664,6 @@ export default function ItemDetailScreen() {
             </TouchableOpacity>
 
             <TouchableOpacity
-              testID="tab-costing-btn"
               activeOpacity={0.8}
               onPress={() => {
                 try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
@@ -669,7 +678,6 @@ export default function ItemDetailScreen() {
             </TouchableOpacity>
 
             <TouchableOpacity
-              testID="tab-timeline-btn"
               activeOpacity={0.8}
               onPress={() => {
                 try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
@@ -691,9 +699,8 @@ export default function ItemDetailScreen() {
           {/* TAB 1: SPECIFICATIONS */}
           {activeTab === 'SPECS' && (
             <View>
-              {/* Quick 2x2 Glass Specs Grid */}
+              {/* 2x2 Specs Grid */}
               <View style={s.specsGridRow}>
-                {/* Tile 1: Size */}
                 <View style={[s.specTile, { backgroundColor: '#ffffff', borderColor: `${colors.vjAccent}22` }]}>
                   <View style={s.specTileHeader}>
                     <Tag size={13} color={colors.vjAccent} />
@@ -704,7 +711,6 @@ export default function ItemDetailScreen() {
                   </Text>
                 </View>
 
-                {/* Tile 2: Location */}
                 <View style={[s.specTile, { backgroundColor: '#ffffff', borderColor: `${colors.vjAccent}22` }]}>
                   <View style={s.specTileHeader}>
                     <MapPin size={13} color={colors.vjAccent} />
@@ -717,7 +723,6 @@ export default function ItemDetailScreen() {
               </View>
 
               <View style={s.specsGridRow}>
-                {/* Tile 3: Metal Source */}
                 <View style={[s.specTile, { backgroundColor: '#ffffff', borderColor: `${colors.vjAccent}22` }]}>
                   <View style={s.specTileHeader}>
                     <Coins size={13} color={colors.vjAccent} />
@@ -726,6 +731,8 @@ export default function ItemDetailScreen() {
                   <Text style={[s.specTileValue, { color: colors.vjText }]} numberOfLines={1}>
                     {item.metalSource === 'SUPPLIER_PURCHASE'
                       ? 'Supplier Purchase'
+                      : item.metalSource === 'CUSTOMER_OLD_ORNAMENTS'
+                      ? 'Old Ornaments'
                       : item.metalSource === 'CUSTOMER_OLD_GOLD'
                       ? 'Old Gold Scrap'
                       : item.metalSource === 'CUSTOMER'
@@ -740,7 +747,6 @@ export default function ItemDetailScreen() {
                   </Text>
                 </View>
 
-                {/* Tile 4: Inward Date */}
                 <View style={[s.specTile, { backgroundColor: '#ffffff', borderColor: `${colors.vjAccent}22` }]}>
                   <View style={s.specTileHeader}>
                     <Clock size={13} color={colors.vjAccent} />
@@ -752,11 +758,28 @@ export default function ItemDetailScreen() {
                 </View>
               </View>
 
+              {/* Master Data, Identifiers & Audit Invariants (Step 16 & FEAT-ITEM-ID-CONFIRM-1 v1.77) */}
+              <View style={s.section}>
+                <Text style={s.sectionTitle}>System Identity & Traceability</Text>
+                <View style={[s.sectionCard, { borderColor: `${colors.vjAccent}25` }]}>
+                  {/* Canonical Permanent Item ID (FEAT-ITEM-ID-CONFIRM-1 v1.77) */}
+                  <DetailRow label="Item ID (UUID)" value={item.id} icon={<Hash size={14} color={colors.vjAccent} />} />
+                  <View style={s.divider} />
+
+                  <DetailRow label="GST HSN Code" value={item.hsnCode} icon={<FileText size={14} color={colors.vjAccent} />} />
+                  <View style={s.divider} />
+
+                  <DetailRow label="Sale Invoice Link" value={item.saleInvoiceId || '—'} icon={<FileText size={14} color={colors.vjAccent} />} />
+                  <View style={s.divider} />
+
+                  <DetailRow label="Purchase Invoice Link" value={item.purchaseInvoiceId || '—'} icon={<FileText size={14} color={colors.vjAccent} />} />
+                </View>
+              </View>
+
               {/* Physical Weight & Fineness Breakdown Card */}
               <View style={s.section}>
                 <Text style={s.sectionTitle}>Physical Weight & Fineness</Text>
                 <View style={[s.sectionCard, { borderColor: `${colors.vjAccent}25` }]}>
-                  {/* GROSS WEIGHT */}
                   <View style={s.detailRow}>
                     <View style={s.detailLabelRow}>
                       <Scale size={14} color={colors.vjAccent} />
@@ -776,7 +799,6 @@ export default function ItemDetailScreen() {
                     )}
                   </View>
 
-                  {/* STONE WEIGHT */}
                   <View style={s.detailRow}>
                     <View style={s.detailLabelRow}>
                       <Gem size={14} color={colors.vjAccent} />
@@ -796,7 +818,6 @@ export default function ItemDetailScreen() {
                     )}
                   </View>
 
-                  {/* BEADS WEIGHT */}
                   <View style={s.detailRow}>
                     <View style={s.detailLabelRow}>
                       <Package size={14} color={colors.vjAccent} />
@@ -816,12 +837,10 @@ export default function ItemDetailScreen() {
                     )}
                   </View>
 
-                  {/* NET WEIGHT */}
                   <DetailRow label="Net Weight" value={formatWeight(liveCalculations.netMg)} icon={<Scale size={14} color={colors.vjAccent} />} />
 
                   <View style={s.divider} />
 
-                  {/* PURITY GRADE */}
                   <View style={[s.detailRow, isEditing && { flexDirection: 'column', alignItems: 'flex-start', gap: 8 }]}>
                     <View style={s.detailLabelRow}>
                       <Percent size={14} color={colors.vjAccent} />
@@ -883,7 +902,6 @@ export default function ItemDetailScreen() {
                     )}
                   </View>
 
-                  {/* WASTAGE PERCENT */}
                   <View style={s.detailRow}>
                     <View style={s.detailLabelRow}>
                       <Percent size={14} color={colors.vjAccent} />
@@ -905,12 +923,11 @@ export default function ItemDetailScreen() {
                 </View>
               </View>
 
-              {/* Editing Attributes Card (Active when in edit mode) */}
+              {/* Editing Attributes Card (Active in edit mode) */}
               {isEditing && (
                 <View style={s.section}>
                   <Text style={s.sectionTitle}>Editable Identification & Audit</Text>
                   <View style={[s.sectionCard, { borderColor: `${colors.vjAccent}25` }]}>
-                    {/* Size & Unit Editing */}
                     <View style={[s.detailRow, { flexDirection: 'column', alignItems: 'flex-start', gap: 8 }]}>
                       <View style={s.detailLabelRow}>
                         <Tag size={14} color={colors.vjAccent} />
@@ -941,7 +958,6 @@ export default function ItemDetailScreen() {
                       </View>
                     </View>
 
-                    {/* HUID Editing */}
                     <View style={[s.detailRow, { flexDirection: 'column', alignItems: 'flex-start', gap: 8 }]}>
                       <View style={s.detailLabelRow}>
                         <Shield size={14} color={colors.vjAccent} />
@@ -959,28 +975,41 @@ export default function ItemDetailScreen() {
                       />
                     </View>
 
-                    {/* Metal Source Editing */}
+                    {/* Metal Source Selection (v2.33 FIX-OLDMETAL-VOID-1 aligned) */}
                     <View style={[s.detailRow, { flexDirection: 'column', alignItems: 'flex-start', gap: 8 }]}>
                       <View style={s.detailLabelRow}>
                         <Coins size={14} color={colors.vjAccent} />
                         <Text style={s.detailLabel}>Metal Source</Text>
                       </View>
                       <View style={s.unitSelectorRow}>
-                        {(['SUPPLIER_PURCHASE', 'CUSTOMER_OLD_GOLD', 'CUSTOMER', 'KARIGAR', 'EXCHANGE', 'OPENING_BALANCE'] as const).map((source) => (
+                        {([
+                          'SUPPLIER_PURCHASE',
+                          'CUSTOMER_OLD_ORNAMENTS',
+                          'CUSTOMER_OLD_GOLD',
+                          'CUSTOMER',
+                          'KARIGAR',
+                          'EXCHANGE',
+                          'OPENING_BALANCE'
+                        ] as const).map((source) => (
                           <TouchableOpacity
                             key={source}
                             style={[s.unitChip, editMetalSource === source && s.unitChipSelected]}
                             onPress={() => setEditMetalSource(source)}
                           >
                             <Text style={[s.unitChipText, editMetalSource === source && s.unitChipTextSelected]}>
-                              {source === 'SUPPLIER_PURCHASE' ? 'Supplier' : source === 'CUSTOMER_OLD_GOLD' ? 'Old Gold' : source === 'CUSTOMER' ? 'Customer' : source === 'KARIGAR' ? 'Karigar' : source === 'EXCHANGE' ? 'Exchange' : 'Opening Bal'}
+                              {source === 'SUPPLIER_PURCHASE' ? 'Supplier'
+                                : source === 'CUSTOMER_OLD_ORNAMENTS' ? 'Old Ornaments'
+                                : source === 'CUSTOMER_OLD_GOLD' ? 'Old Gold'
+                                : source === 'CUSTOMER' ? 'Customer'
+                                : source === 'KARIGAR' ? 'Karigar'
+                                : source === 'EXCHANGE' ? 'Exchange'
+                                : 'Opening Bal'}
                             </Text>
                           </TouchableOpacity>
                         ))}
                       </View>
                     </View>
 
-                    {/* Location Editing */}
                     <View style={s.detailRow}>
                       <View style={s.detailLabelRow}>
                         <MapPin size={14} color={colors.vjAccent} />
@@ -995,7 +1024,6 @@ export default function ItemDetailScreen() {
                       />
                     </View>
 
-                    {/* Date Correction */}
                     <View style={s.detailRow}>
                       <View style={s.detailLabelRow}>
                         <Clock size={14} color={colors.vjAccent} />
@@ -1014,7 +1042,6 @@ export default function ItemDetailScreen() {
                       </TouchableOpacity>
                     </View>
 
-                    {/* Audit Reason */}
                     <View style={[s.inlineReasonContainer, { borderColor: `${colors.vjAccent}35` }]}>
                       <Text style={[s.inlineReasonLabel, { color: colors.vjText }]}>Audit Reason for Changes (Required for Weights/Purity/HUID)</Text>
                       <TextInput
@@ -1031,10 +1058,9 @@ export default function ItemDetailScreen() {
             </View>
           )}
 
-          {/* TAB 2: COSTING & LIVE VALUATION */}
+          {/* TAB 2: COSTING & VALUATION */}
           {activeTab === 'COSTING' && (
             <View>
-              {/* Luxury Financial Summary Card */}
               {liveCalculations.isValid && (
                 <GlassCard style={[s.valuationHeroCard, { borderColor: `${COLORS.bullionGold}50` }]}>
                   <View style={s.valuationHeader}>
@@ -1053,7 +1079,6 @@ export default function ItemDetailScreen() {
                     </View>
                   </View>
 
-                  {/* Big Total Valuation Amount */}
                   <View style={[s.valuationAmountBox, { backgroundColor: '#ffffff', borderColor: 'rgba(212,175,55,0.25)' }]}>
                     <Text style={[s.valuationAmountLabel, { color: colors.vjText, opacity: 0.6 }]}>ESTIMATED TOTAL INVENTORY VALUE</Text>
                     <Text style={[s.valuationAmountDigits, { color: colors.vjText }]}>
@@ -1064,7 +1089,6 @@ export default function ItemDetailScreen() {
                     </Text>
                   </View>
 
-                  {/* Effective Rate Pill */}
                   <View style={s.effectiveRateRow}>
                     <Text style={[s.effectiveRateLabel, { color: colors.vjText, opacity: 0.7 }]}>Effective Price per Gram:</Text>
                     <Text style={[s.effectiveRateVal, { color: colors.vjAccent }]}>
@@ -1072,7 +1096,6 @@ export default function ItemDetailScreen() {
                     </Text>
                   </View>
 
-                  {/* 3-Way Fine Metal Reconciliation Flow */}
                   <View style={s.metalAccountingContainer}>
                     <Text style={[s.metalAccountingTitle, { color: colors.vjText, opacity: 0.7 }]}>
                       FINE METAL ACCOUNTING ({item.metal || 'GOLD'})
@@ -1109,7 +1132,6 @@ export default function ItemDetailScreen() {
               <View style={s.section}>
                 <Text style={s.sectionTitle}>Commercial & Labor Costs</Text>
                 <View style={[s.sectionCard, { borderColor: `${colors.vjAccent}25` }]}>
-                  {/* PURCHASE RATE */}
                   <View style={s.detailRow}>
                     <View style={s.detailLabelRow}>
                       <Coins size={14} color={colors.vjAccent} />
@@ -1131,7 +1153,6 @@ export default function ItemDetailScreen() {
                     )}
                   </View>
 
-                  {/* MAKING CHARGES */}
                   <View style={s.detailRow}>
                     <View style={s.detailLabelRow}>
                       <Coins size={14} color={colors.vjAccent} />
@@ -1151,7 +1172,6 @@ export default function ItemDetailScreen() {
                     )}
                   </View>
 
-                  {/* STONE COST */}
                   <View style={s.detailRow}>
                     <View style={s.detailLabelRow}>
                       <Gem size={14} color={colors.vjAccent} />
@@ -1208,7 +1228,7 @@ export default function ItemDetailScreen() {
         </KeyboardAwareScrollView>
 
         {/* ========================================================================= */}
-        {/* 4. FIXED STICKY ACTION BAR                                                */}
+        {/* 4. FIXED ACTION BAR                                                       */}
         {/* ========================================================================= */}
         {isEditable && (
           <FixedGlassBar>
@@ -1276,7 +1296,7 @@ export default function ItemDetailScreen() {
               <Text style={[s.modalTitle, { color: COLORS.error }]}>Delete Item</Text>
               
               <Text style={{ fontSize: 13, color: '#4B5563', marginBottom: 16 }}>
-                Are you sure you want to delete SKU <Text style={{ fontWeight: 'bold' }}>{formatSKUDisplay(item.sku)}</Text>? This action is permanent and will remove the item from inventory.
+                Are you sure you want to delete SKU <Text style={{ fontWeight: 'bold' }}>{skuEngine.formatSKUDisplay(item.sku)}</Text>? This action is permanent and will remove the item from inventory.
               </Text>
 
               <Text style={s.modalLabel}>Reason for Deletion *</Text>
@@ -1316,7 +1336,54 @@ const s = StyleSheet.create({
   loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 12 },
   loadingText: { fontSize: 14, fontWeight: '600' },
 
-  // Top Hero Card
+  // Top Amber Banner
+  reprintAmberBanner: {
+    backgroundColor: 'rgba(254, 243, 199, 0.98)',
+    borderColor: '#F59E0B',
+    borderWidth: 1.5,
+    padding: 12,
+    borderRadius: 16,
+    marginBottom: 14,
+  },
+  reprintBannerInner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
+  },
+  reprintLeft: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  reprintBannerTitle: {
+    fontSize: 12.5,
+    fontWeight: '800',
+    color: '#92400E',
+  },
+  reprintBannerSub: {
+    fontSize: 10.5,
+    fontWeight: '600',
+    color: '#B45309',
+    marginTop: 1,
+  },
+  reprintActionBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: '#D97706',
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 10,
+  },
+  reprintActionBtnText: {
+    color: '#ffffff',
+    fontSize: 11.5,
+    fontWeight: '800',
+  },
+
+  // Hero Card
   heroCard: {
     padding: 0,
     borderRadius: 22,
@@ -1471,8 +1538,20 @@ const s = StyleSheet.create({
     fontWeight: '800',
     letterSpacing: 0.5,
   },
+  printTagMiniBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 9,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  printTagMiniText: {
+    fontSize: 10.5,
+    fontWeight: '800',
+  },
 
-  // 3-Way Segmented Tabs
+  // 3-Way Tabs
   tabContainer: {
     flexDirection: 'row',
     borderRadius: 14,
@@ -1698,7 +1777,7 @@ const s = StyleSheet.create({
     fontWeight: '800',
   },
 
-  // Bottom Fixed Bar Buttons
+  // Bottom Action Bar
   bottomEditBtn: {
     flex: 1,
     flexDirection: 'row',

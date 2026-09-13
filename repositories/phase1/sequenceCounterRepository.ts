@@ -1,7 +1,7 @@
-// repositories/phase1/sequenceCounterRepository.ts — Phase 2 v2.11 Canonical Repository
+// repositories/phase1/sequenceCounterRepository.ts — Phase 2 v2.34 Canonical Repository
+// Implements Step 5 & Step 12.11 (FIX-URD-SEQ-ARCH-1 v1.53, FIX-FYREPO-SYNC-CONTRACT-1 v1.84, RED-9)
 
-import { eq, and } from 'drizzle-orm';
-import { db } from '@/db/client';
+import { eq } from 'drizzle-orm';
 import { sequenceCounters } from '@/db/schema';
 import { fyRepository } from '@/repositories/phase1/fyRepository';
 import type { DrizzleTransaction, SequenceCounter, SequenceCounterType } from '@/types/phase2/phase2.types';
@@ -9,10 +9,7 @@ import { now } from '@/utils/now';
 import { ERR } from '@/constants/errorCodes';
 
 export interface SequenceCounterRepository {
-  // --- getById (Inspect counter row by id) ---
   getById(tx: DrizzleTransaction, id: string): SequenceCounter | null;
-
-  // --- nextVal (Step 5 & Step 12.11 / FIX-URD-SEQ-ARCH-1 v1.53) ---
   nextVal(
     tx: DrizzleTransaction,
     firmId: string,
@@ -22,26 +19,24 @@ export interface SequenceCounterRepository {
 }
 
 export const sequenceCounterRepository: SequenceCounterRepository = {
-  // --- getById (Inspect counter row by id) ---
   getById(tx: DrizzleTransaction, id: string): SequenceCounter | null {
     const res = tx.select().from(sequenceCounters).where(eq(sequenceCounters.id, id)).get();
     return (res as SequenceCounter) || null;
   },
 
-  // --- nextVal (Step 5 & Step 12.11 / FIX-URD-SEQ-ARCH-1 v1.53) ---
-  // Generates document sequence numbers for FY-scoped counters: key = '{firmId}_{type}_{fyLabel}'
+  // FY-scoped document sequence generation: key = '{firmId}_{type}_{fyLabel}'
+  // Synchronous execution inside active db.transaction per REPOSITORY SYNC CONTRACT
   nextVal(
     tx: DrizzleTransaction,
     firmId: string,
     fyId: string,
     type: SequenceCounterType | string
   ): number {
-    // Lookup FY label using fyRepository (supports (tx, firmId, fyId) or (tx, fyId))
-    const fy = fyRepository.getById(tx, firmId, fyId) ?? fyRepository.getById(tx, fyId);
-    if (!fy) throw new Error(ERR.FY_NOT_FOUND);
-    const fyLabel = fy.label;
+    // Lookup financial year using canonical synchronous overload (tx, fyId)
+    const fy = fyRepository.getById(tx, fyId);
+    if (!fy || fy.firmId !== firmId) throw new Error(ERR.FY_NOT_FOUND);
 
-    const counterId = `${firmId}_${type}_${fyLabel}`;
+    const counterId = `${firmId}_${type}_${fy.label}`;
     const existing = tx.select().from(sequenceCounters).where(eq(sequenceCounters.id, counterId)).get();
 
     let nextSeq = 1;
@@ -56,8 +51,8 @@ export const sequenceCounterRepository: SequenceCounterRepository = {
         .values({
           id: counterId,
           firmId,
-          month: 'DOC', // Placeholder for FY-scoped document counters
-          year: 'DOC',  // Placeholder for FY-scoped document counters
+          month: type,      // Stores sequence type (e.g. 'URD')
+          year: fy.label,   // Stores FY label for human readability
           currentSeq: nextSeq,
           lastUsedAt: now(),
         })
@@ -65,5 +60,5 @@ export const sequenceCounterRepository: SequenceCounterRepository = {
     }
 
     return nextSeq;
-  }
+  },
 };

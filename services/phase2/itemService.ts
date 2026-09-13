@@ -1,6 +1,6 @@
-// services/phase2/itemService.ts — Phase 2 v2.30 Canonical Service
+// services/phase2/itemService.ts — Phase 2 v2.34 Canonical Service
 // Aligned with FEAT-LOOSE-STOCK-1 (v2.23 / v2.24), FIX-ITEM-SALELINK-RENAME-1 (v2.17),
-// FIX-ITEM-PURCHASELINK-1 (v2.16), FIX-P2-SYNC-CONTRACT-1 (v1.81) & GAP-P2-DATE-SKU-EDIT-1 (v1.79)
+// FIX-ITEM-PURCHASELINK-1 (v2.16), FIX-P2-SYNC-CONTRACT-1 (v1.81), GAP-P2-DATE-SKU-EDIT-1 (v1.79) & RED-5
 
 import { db } from '@/db/client';
 import { itemRepository } from '@/repositories/phase2/itemRepository';
@@ -21,7 +21,7 @@ import { now } from '@/utils/now';
 import {
   resolveFineWeightMg,
   computeFineGoldChargedMg,
-} from '@/utils/calculations';
+} from '@/utils/purity.constants';
 import * as Crypto from 'expo-crypto';
 import { ERR } from '@/constants/errorCodes';
 import type {
@@ -344,6 +344,7 @@ export async function createItem(input: CreateItemInput, firmId: string): Promis
 }
 
 // --- adjustWeight (Step 6 / FIX-WA-1 v1.24 & v1.88) ---
+// Sole permitted fine-weight recalculation path in the system (RED-5)
 export async function adjustWeight(
   itemId: string,
   firmId: string,
@@ -421,6 +422,7 @@ export async function adjustWeight(
 }
 
 // --- updateItem (Step 6.5 / FIX-UPDATE-ITEM-BODY-1 v1.46 & FEAT-ITEM-POSTPUBLISH-EDIT-1 v1.77) ---
+// Strictly enforces RED-5: Weight and fine weight fields are excluded and never recalculated here
 export async function updateItem(
   itemId: string,
   firmId: string,
@@ -470,15 +472,6 @@ export async function updateItem(
         changes[key] = { old: oldVal, new: newVal };
         updateData[key] = newVal;
       }
-    }
-
-    // Keep fine weights aligned if purityPercent changed
-    if (input.purityPercent !== undefined && input.purityPercent !== item.purityPercent) {
-      const { fineWeightMg, purityRoundingDeltaMg } = resolveFineWeightMg(item.netWeightMg, input.purityPercent, item.metal);
-      const fineGoldChargedMg = computeFineGoldChargedMg(item.netWeightMg, input.purityPercent, item.wastagePercent);
-      updateData.fineWeightMg = fineWeightMg;
-      updateData.purityRoundingDeltaMg = purityRoundingDeltaMg;
-      updateData.fineGoldChargedMg = fineGoldChargedMg;
     }
 
     if (Object.keys(changes).length === 0) return;

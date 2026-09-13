@@ -1,4 +1,5 @@
-// app/inventory/add-urd.tsx — Phase 2 v2.24 Canonical Screen
+// app/inventory/add-urd.tsx — Phase 2 v2.34 Canonical Screen
+// Aligned with Step 12.9, Step 12.12, URD-BILL-DECIMAL-SPEC, and URD-AMOUNT-WORDS (v1.54)
 
 import React, { useState, useMemo } from 'react';
 import { View, Text, Alert, TouchableOpacity, Modal, StyleSheet, ActivityIndicator } from 'react-native';
@@ -9,13 +10,13 @@ import { TwoToneWrapper } from '@/components/TwoToneWrapper';
 import { GlassCard, GlassInput, GlassButton, GlassPickerInput, FixedGlassBar, fixedBarStyles } from '@/components/ui/Glass';
 import { GlassDatePickerModal } from '@/components/ui/GlassDatePickerModal';
 import { useFirmStore } from '@/store/phase1/useFirmStore';
+import { appSettingsStore } from '@/store/phase1/appSettingsStore';
 import { urdPurchaseService } from '@/services/phase2/urdPurchaseService';
 import { 
   getCurrencySymbol, 
   formatRupees, 
   computeURDCostBreakdown, 
   parseCleanFloat, 
-  percentToKarat, 
   formatKaratBadge,
   getPurityPresets,
   isPresetMatchingPurity,
@@ -24,7 +25,7 @@ import {
 import { User, Scale, Banknote, CheckCircle, Trash2, Plus, Calendar as CalendarIcon, Building2 } from 'lucide-react-native';
 import { formatDate } from '@/utils/formatDate';
 import type { URDMetalType, CreateURDPurchaseInput } from '@/types/phase2/phase2.types';
-import { COLORS } from '@/constants/theme';
+import { getThemeColors } from '@/constants/theme';
 
 export interface URDItemRow {
   id: string;
@@ -49,6 +50,8 @@ const getEmptyRow = (): URDItemRow => ({
 export default function AddURDScreen() {
   const router = useRouter();
   const { activeFirmId } = useFirmStore();
+  const activeTheme = appSettingsStore((s: any) => s.theme);
+  const colors = getThemeColors(activeTheme);
 
   const todayIso = useMemo(() => {
     const t = new Date();
@@ -117,7 +120,6 @@ export default function AddURDScreen() {
     );
   };
 
-  // Calculations for all items
   const itemCalculations = useMemo(() => {
     return items.map((row) => {
       const grossG = parseCleanFloat(row.grossWeight);
@@ -138,7 +140,6 @@ export default function AddURDScreen() {
     });
   }, [items]);
 
-  // Total summary across all items
   const batchSummary = useMemo(() => {
     let totalGrossG = 0;
     let totalFineG = 0;
@@ -169,12 +170,16 @@ export default function AddURDScreen() {
       return;
     }
 
+    if (purchaseDate > todayIso) {
+      Alert.alert('Invalid Date', 'Purchase date cannot be in the future.');
+      return;
+    }
+
     if (paymentMode !== 'CASH' && !bankAccountId.trim()) {
       Alert.alert('Validation Error', `Please provide the Bank Account ID or reference for ${paymentMode} payment.`);
       return;
     }
 
-    // Optional KYC validation
     const cleanedAadhaar = customerAadhaar.replace(/[^0-9]/g, '');
     if (cleanedAadhaar && cleanedAadhaar.length !== 12) {
       Alert.alert('Invalid Aadhaar', 'Aadhaar Number must be exactly 12 digits.');
@@ -187,12 +192,12 @@ export default function AddURDScreen() {
       return;
     }
 
-    // Validate item rows
     for (let i = 0; i < items.length; i++) {
       const row = items[i];
       const grossMg = Math.round(parseCleanFloat(row.grossWeight) * 1000);
       const purity = parseCleanFloat(row.purityPercent);
       const ratePaise = rupeesToPaise(parseCleanFloat(row.ratePerGram));
+      const calc = itemCalculations[i];
 
       if (isNaN(grossMg) || grossMg <= 0) {
         Alert.alert('Validation Error', `Item #${i + 1}: Invalid Gross Weight.`);
@@ -204,6 +209,10 @@ export default function AddURDScreen() {
       }
       if (!ratePaise || ratePaise <= 0) {
         Alert.alert('Validation Error', `Item #${i + 1}: Invalid Rate Per Gram.`);
+        return;
+      }
+      if (calc.totalValuePaise <= 0) {
+        Alert.alert('Validation Error', `Item #${i + 1}: Net valuation must be greater than zero. Deductions cannot exceed metal value.`);
         return;
       }
     }
@@ -277,10 +286,9 @@ export default function AddURDScreen() {
           <GlassCard style={{ marginBottom: 16 }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 16 }}>
               <User size={20} color="#D4AF37" />
-              <Text style={{ fontSize: 18, fontWeight: '700', color: COLORS.vjText }}>Seller Details</Text>
+              <Text style={{ fontSize: 18, fontWeight: '700', color: colors.vjText }}>Seller Details</Text>
             </View>
 
-            {/* Purchase Date Field */}
             <View style={{ marginBottom: 12 }}>
               <GlassPickerInput
                 label="Purchase Date"
@@ -342,11 +350,10 @@ export default function AddURDScreen() {
 
             return (
               <GlassCard key={row.id} style={{ marginBottom: 16 }}>
-                {/* Row Header with Delete option */}
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14, borderBottomWidth: 1, borderBottomColor: 'rgba(92,22,35,0.08)', paddingBottom: 8 }}>
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                     <Scale size={18} color="#D4AF37" />
-                    <Text style={{ fontSize: 16, fontWeight: '700', color: COLORS.vjText }}>Item #{index + 1}</Text>
+                    <Text style={{ fontSize: 16, fontWeight: '700', color: colors.vjText }}>Item #{index + 1}</Text>
                   </View>
 
                   {items.length > 1 && (
@@ -356,8 +363,7 @@ export default function AddURDScreen() {
                   )}
                 </View>
 
-                {/* Metal Selector */}
-                <Text style={{ fontSize: 12, fontWeight: '700', color: 'rgba(92,22,35,0.6)', textTransform: 'uppercase', marginBottom: 6 }}>Metal Type *</Text>
+                <Text style={{ fontSize: 12, fontWeight: '700', color: `${colors.vjText}99`, textTransform: 'uppercase', marginBottom: 6 }}>Metal Type *</Text>
                 <View style={{ flexDirection: 'row', gap: 12, marginBottom: 16 }}>
                   {(['GOLD', 'SILVER'] as URDMetalType[]).map((m) => (
                     <TouchableOpacity
@@ -368,7 +374,7 @@ export default function AddURDScreen() {
                       ]}
                       onPress={() => updateRow(index, 'metalType', m)}
                     >
-                      <Text style={[{ fontSize: 13, fontWeight: '700', color: 'rgba(92,22,35,0.6)' }, row.metalType === m && { color: '#fff' }]}>
+                      <Text style={[{ fontSize: 13, fontWeight: '700', color: `${colors.vjText}99` }, row.metalType === m && { color: '#fff' }]}>
                         {m}
                       </Text>
                     </TouchableOpacity>
@@ -385,7 +391,7 @@ export default function AddURDScreen() {
 
                 <View style={{ marginBottom: 12 }}>
                   <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-                    <Text style={{ fontSize: 12, fontWeight: '700', color: 'rgba(92,22,35,0.6)', textTransform: 'uppercase' }}>Purity (%) *</Text>
+                    <Text style={{ fontSize: 12, fontWeight: '700', color: `${colors.vjText}99`, textTransform: 'uppercase' }}>Purity (%) *</Text>
                     {formatKaratBadge(row.purityPercent, row.metalType) ? (
                       <View style={{ backgroundColor: 'rgba(212,175,55,0.2)', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 }}>
                         <Text style={{ fontSize: 11, fontWeight: '800', color: '#D4AF37' }}>
@@ -417,7 +423,7 @@ export default function AddURDScreen() {
                           borderRadius: 6,
                         }}
                       >
-                        <Text style={{ fontSize: 11, fontWeight: '700', color: isSelected ? '#FFF' : COLORS.vjText }}>
+                        <Text style={{ fontSize: 11, fontWeight: '700', color: isSelected ? '#FFF' : colors.vjText }}>
                           {preset.label}
                         </Text>
                       </TouchableOpacity>
@@ -434,7 +440,7 @@ export default function AddURDScreen() {
                 />
 
                 <View style={{ marginBottom: 12 }}>
-                  <Text style={{ fontSize: 12, fontWeight: '600', color: COLORS.vjText, marginBottom: 6 }}>
+                  <Text style={{ fontSize: 12, fontWeight: '600', color: colors.vjText, marginBottom: 6 }}>
                     Adjustment Type:
                   </Text>
                   <View style={{ flexDirection: 'row', gap: 8 }}>
@@ -444,13 +450,13 @@ export default function AddURDScreen() {
                         paddingVertical: 8,
                         borderRadius: 8,
                         alignItems: 'center',
-                        backgroundColor: (row.adjustmentType || '+') === '+' ? COLORS.vjText : 'rgba(255,255,255,0.4)',
+                        backgroundColor: (row.adjustmentType || '+') === '+' ? colors.vjText : 'rgba(255,255,255,0.4)',
                         borderWidth: 1,
-                        borderColor: (row.adjustmentType || '+') === '+' ? COLORS.vjText : 'rgba(0,0,0,0.1)',
+                        borderColor: (row.adjustmentType || '+') === '+' ? colors.vjText : 'rgba(0,0,0,0.1)',
                       }}
                       onPress={() => updateRow(index, 'adjustmentType', '+')}
                     >
-                      <Text style={{ fontSize: 12, fontWeight: 'bold', color: (row.adjustmentType || '+') === '+' ? '#fff' : COLORS.vjText }}>
+                      <Text style={{ fontSize: 12, fontWeight: 'bold', color: (row.adjustmentType || '+') === '+' ? '#fff' : colors.vjText }}>
                         + Addition (Round-Up)
                       </Text>
                     </TouchableOpacity>
@@ -461,13 +467,13 @@ export default function AddURDScreen() {
                         paddingVertical: 8,
                         borderRadius: 8,
                         alignItems: 'center',
-                        backgroundColor: row.adjustmentType === '-' ? COLORS.danger : 'rgba(255,255,255,0.4)',
+                        backgroundColor: row.adjustmentType === '-' ? '#EF4444' : 'rgba(255,255,255,0.4)',
                         borderWidth: 1,
-                        borderColor: row.adjustmentType === '-' ? COLORS.danger : 'rgba(0,0,0,0.1)',
+                        borderColor: row.adjustmentType === '-' ? '#EF4444' : 'rgba(0,0,0,0.1)',
                       }}
                       onPress={() => updateRow(index, 'adjustmentType', '-')}
                     >
-                      <Text style={{ fontSize: 12, fontWeight: 'bold', color: row.adjustmentType === '-' ? '#fff' : COLORS.vjText }}>
+                      <Text style={{ fontSize: 12, fontWeight: 'bold', color: row.adjustmentType === '-' ? '#fff' : colors.vjText }}>
                         - Deduction (Round-Down)
                       </Text>
                     </TouchableOpacity>
@@ -482,16 +488,15 @@ export default function AddURDScreen() {
                   onChangeText={(t) => updateRow(index, 'discount', t)}
                 />
 
-                {/* Item Live Calculation Preview */}
                 {calc.isValid && (
                   <View style={{ backgroundColor: 'rgba(92,22,35,0.03)', padding: 12, borderRadius: 10, marginTop: 4 }}>
                     <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 2 }}>
-                      <Text style={{ fontSize: 11, color: 'rgba(92,22,35,0.6)', fontWeight: '600' }}>Calculated Fine Wt:</Text>
+                      <Text style={{ fontSize: 11, color: `${colors.vjText}80`, fontWeight: '600' }}>Calculated Fine Wt:</Text>
                       <Text style={{ fontSize: 12, color: '#047857', fontWeight: 'bold', fontFamily: 'monospace' }}>{calc.formattedFineGrams}</Text>
                     </View>
                     <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-                      <Text style={{ fontSize: 11, color: 'rgba(92,22,35,0.6)', fontWeight: '600' }}>Item Net Valuation:</Text>
-                      <Text style={{ fontSize: 13, color: COLORS.vjText, fontWeight: '800', fontFamily: 'monospace' }}>{formatRupees(calc.totalValuePaise)}</Text>
+                      <Text style={{ fontSize: 11, color: `${colors.vjText}80`, fontWeight: '600' }}>Item Net Valuation:</Text>
+                      <Text style={{ fontSize: 13, color: colors.vjText, fontWeight: '800', fontFamily: 'monospace' }}>{formatRupees(calc.totalValuePaise)}</Text>
                     </View>
                   </View>
                 )}
@@ -517,17 +522,17 @@ export default function AddURDScreen() {
             }}
           >
             <Plus size={18} color="#D4AF37" />
-            <Text style={{ fontSize: 14, fontWeight: '700', color: COLORS.vjText }}>Add Another Item (Gold / Silver)</Text>
+            <Text style={{ fontSize: 14, fontWeight: '700', color: colors.vjText }}>Add Another Item (Gold / Silver)</Text>
           </TouchableOpacity>
 
           {/* Valuation & Payout Summary */}
           <GlassCard style={{ marginBottom: 24 }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 16 }}>
               <Banknote size={20} color="#D4AF37" />
-              <Text style={{ fontSize: 18, fontWeight: '700', color: COLORS.vjText }}>Payout & Batch Summary</Text>
+              <Text style={{ fontSize: 18, fontWeight: '700', color: colors.vjText }}>Payout & Batch Summary</Text>
             </View>
 
-            <Text style={{ fontSize: 12, fontWeight: '700', color: 'rgba(92,22,35,0.6)', textTransform: 'uppercase', marginBottom: 8 }}>Payout Mode *</Text>
+            <Text style={{ fontSize: 12, fontWeight: '700', color: `${colors.vjText}99`, textTransform: 'uppercase', marginBottom: 8 }}>Payout Mode *</Text>
             <View style={{ flexDirection: 'row', gap: 8, marginBottom: 16 }}>
               {(['CASH', 'UPI', 'BANK'] as const).map((mode) => (
                 <TouchableOpacity
@@ -538,7 +543,7 @@ export default function AddURDScreen() {
                   ]}
                   onPress={() => setPaymentMode(mode)}
                 >
-                  <Text style={[{ fontSize: 12, fontWeight: '700', color: 'rgba(92,22,35,0.6)' }, paymentMode === mode && { color: '#fff' }]}>
+                  <Text style={[{ fontSize: 12, fontWeight: '700', color: `${colors.vjText}99` }, paymentMode === mode && { color: '#fff' }]}>
                     {mode}
                   </Text>
                 </TouchableOpacity>
@@ -557,7 +562,7 @@ export default function AddURDScreen() {
               </View>
             )}
 
-            <View style={{ backgroundColor: COLORS.vjText, padding: 16, borderRadius: 14, marginTop: 4 }}>
+            <View style={{ backgroundColor: colors.vjText, padding: 16, borderRadius: 14, marginTop: 4 }}>
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
                 <Text style={{ fontSize: 12, color: 'rgba(255,255,255,0.7)', fontWeight: '600' }}>Total Items</Text>
                 <Text style={{ fontSize: 12, color: '#FCFBF8', fontWeight: 'bold' }}>
@@ -585,7 +590,6 @@ export default function AddURDScreen() {
           </GlassCard>
         </KeyboardAwareScrollView>
 
-        {/* Fixed Sticky Action Bar */}
         <FixedGlassBar>
           <View style={s.payoutBadge}>
             <Text style={s.payoutBadgeLabel}>TOTAL PAYOUT</Text>
@@ -610,7 +614,6 @@ export default function AddURDScreen() {
         </FixedGlassBar>
       </View>
 
-      {/* Success Modal */}
       <Modal visible={!!successMessage} transparent animationType="fade">
         <View style={s.modalOverlayCenter}>
           <View style={s.successModalContent}>
@@ -677,7 +680,6 @@ const s = StyleSheet.create({
   successTitle: {
     fontSize: 24,
     fontWeight: '800',
-    color: COLORS.vjText,
     marginBottom: 8,
   },
   successSubtitle: {
@@ -701,7 +703,6 @@ const s = StyleSheet.create({
   payoutBadgeVal: {
     fontSize: 15,
     fontWeight: '900',
-    color: COLORS.vjText,
     fontFamily: 'monospace',
   },
 });

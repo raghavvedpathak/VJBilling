@@ -3,7 +3,7 @@ import { isNotNull, sql } from 'drizzle-orm';
 import { firms } from './phase1_core';
 
 // =============================================================================
-// PHASE 2 — INVENTORY TRUTH LAYER (v2.30 SPECIFICATION)
+// PHASE 2 — INVENTORY TRUTH LAYER (v2.34 SPECIFICATION)
 // =============================================================================
 
 // Re-export canonical purity helpers to avoid drift
@@ -95,10 +95,10 @@ export const items = sqliteTable('items', {
   metalSource: text('metal_source', {
     enum: [
       'CUSTOMER', 'KARIGAR', 'EXCHANGE', 'PURCHASE', 'MELT_OUTPUT',
-      'CUSTOMER_OLD_GOLD', 'SUPPLIER_PURCHASE', 'REFINERY_OUTPUT',
+      'CUSTOMER_OLD_ORNAMENTS', 'CUSTOMER_OLD_GOLD', 'SUPPLIER_PURCHASE', 'REFINERY_OUTPUT',
       'JOB_WORK_RETURN', 'OPENING_BALANCE',
     ],
-  }).notNull().default('SUPPLIER_PURCHASE'),
+  }).notNull().default('SUPPLIER_PURCHASE'), // FIX-OLDMETAL-VOID-1 (v2.33): CUSTOMER_OLD_ORNAMENTS
   status: text('status', {
     enum: [
       'DRAFT', 'AVAILABLE', 'SOLD', 'SENT_TO_REFINERY', 'MELTED',
@@ -119,6 +119,7 @@ export const items = sqliteTable('items', {
   idxItemsDesignStatus: index('idx_items_design_status').on(table.designId, table.status),
   idxItemsSku: index('idx_items_sku').on(table.sku, table.firmId),
   idxItemsHuid: index('idx_items_huid').on(table.huid).where(isNotNull(table.huid)),
+  idxItemsCategory: index('idx_items_category').on(table.categoryId), // v1.42 / v2.34 ADDENDUM 3
   idxItemsCategoryStatus: index('idx_items_category_status').on(table.firmId, table.categoryId, table.status),
   idxItemsSaleInvoice: index('idx_items_sale_invoice').on(table.saleInvoiceId).where(isNotNull(table.saleInvoiceId)), // FIX-ITEM-SALELINK-RENAME-1 (v2.17)
   idxItemsPurchaseInvoice: index('idx_items_purchase_invoice').on(table.purchaseInvoiceId).where(isNotNull(table.purchaseInvoiceId)), // FIX-ITEM-PURCHASELINK-1 (v2.16)
@@ -132,7 +133,7 @@ export const itemEvents = sqliteTable('item_events', {
   id: text('id').primaryKey(),
   itemId: text('item_id').notNull(),
   firmId: text('firm_id').notNull(),
-  karigarId: text('karigar_id'), // FIX-KARIGAR-FWDCOMPAT-1 (v2.18) / FIX-KARIGAR-COMMENT-1 (v2.20): forward-declared FK to karigar.id (Phase 3)
+  karigarId: text('karigar_id'), // FIX-KARIGAR-FWDCOMPAT-1 (v2.18) / FIX-KARIGAR-COMMENT-1 (v2.20)
   eventType: text('event_type', {
     enum: [
       'CREATED', 'ITEM_STATUS_CHANGED', 'WEIGHT_ADJUSTED',
@@ -210,8 +211,8 @@ export const sequenceCounters = sqliteTable('sequence_counters', {
   idxSequenceCountersFirmMonth: index('idx_sequence_counters_firm_month').on(table.firmId, table.month),
 }));
 
-// Old Gold Lots (BLOCK-4 v1.15 / Step 12 / FIX-OLDGOLD-METAL-1 v2.26)
-export const oldGoldLots = sqliteTable('old_gold_lots', {
+// Old Metal Lots (FIX-OLDMETAL-RENAME-1 v2.32 / FIX-OLDGOLD-TXNLINK-1 v2.31 / FIX-OLDMETAL-VOID-1 v2.33 / FIX-OLDMETAL-MIGRATION-GAP-1 v2.34)
+export const oldMetalLots = sqliteTable('old_metal_lots', {
   id: text('id').primaryKey(),
   firmId: text('firm_id').notNull(),
   receivedFrom: text('received_from').notNull(),
@@ -222,22 +223,28 @@ export const oldGoldLots = sqliteTable('old_gold_lots', {
   metalSource: text('metal_source').notNull().default('CUSTOMER'),
   notes: text('notes'),
   status: text('status', {
-    enum: ['RECEIVED', 'PENDING', 'SENT_TO_REFINERY', 'SETTLED', 'SENT_TO_MELT', 'ISSUED_TO_KARIGAR'],
-  }).notNull().default('RECEIVED'),
+    enum: ['RECEIVED', 'PENDING', 'SENT_TO_REFINERY', 'SETTLED', 'SENT_TO_MELT', 'ISSUED_TO_KARIGAR', 'VOIDED'],
+  }).notNull().default('RECEIVED'), // FIX-OLDMETAL-VOID-1 (v2.33) & v2.34: VOIDED added
   createdAt: text('created_at').notNull(),
   updatedAt: text('updated_at').notNull(),
   customerId: text('customer_id'), // FIX-OLDGOLD-CUSTOMER-1 (v1.49)
+  saleInvoiceId: text('sale_invoice_id'), // FIX-OLDGOLD-TXNLINK-1 (v2.31)
+  urdPurchaseId: text('urd_purchase_id'), // FIX-OLDGOLD-TXNLINK-1 (v2.31)
   fineWeightMg: integer('fine_weight_mg').notNull().default(0), // FIX-OLDGOLD-COST-1 (v1.51)
   purityRoundingDeltaMg: integer('purity_rounding_delta_mg').notNull().default(0), // FEAT-PURITY-ROUND-1 (v1.91 / v2.26)
   purchaseRatePaise: integer('purchase_rate_paise'), // FIX-OLDGOLD-COST-1 (v1.51)
   totalAmountPaise: integer('total_amount_paise'), // FIX-OLDGOLD-COST-1 (v1.51)
 }, (table) => ({
   firmFk: foreignKey({ columns: [table.firmId], foreignColumns: [firms.id] }),
-  idxOldGoldLotsFirm: index('idx_old_gold_lots_firm').on(table.firmId, table.status, table.metalSource),
-  idxOldGoldLotsCustomer: index('idx_old_gold_lots_customer').on(table.firmId, table.customerId).where(isNotNull(table.customerId)),
+  idxOldMetalLotsFirm: index('idx_old_metal_lots_firm').on(table.firmId, table.status, table.metalSource),
+  idxOldMetalLotsCustomer: index('idx_old_metal_lots_customer').on(table.firmId, table.customerId).where(isNotNull(table.customerId)),
+  idxOldMetalLotsSaleInvoice: index('idx_old_metal_lots_sale_invoice').on(table.firmId, table.saleInvoiceId).where(isNotNull(table.saleInvoiceId)), // FIX-OLDMETAL-VOID-1 (v2.33)
 }));
 
-// URD Purchases (FIX-URD-1 v1.49 / Step 12.9 / FIX-PURITYROUND-SCOPE-EXPAND-1 v2.26)
+// Backward-compatibility alias for Phase 1 / Phase 2 callers
+export const oldGoldLots = oldMetalLots;
+
+// URD Purchases (FIX-URD-1 v1.49 / Step 12.9 / FIX-PURITYROUND-SCOPE-EXPAND-1 v2.26 / FIX-OLDMETAL-RENAME-1 v2.32)
 export const urdPurchases = sqliteTable('urd_purchases', {
   id: text('id').primaryKey(),
   firmId: text('firm_id').notNull(),
@@ -259,7 +266,7 @@ export const urdPurchases = sqliteTable('urd_purchases', {
   totalValuePaise: integer('total_value_paise').notNull(),
   paymentMode: text('payment_mode').notNull(), // 'CASH' | 'BANK' | 'UPI'
   bankAccountId: text('bank_account_id'),
-  oldGoldLotId: text('old_gold_lot_id').notNull(), // FK -> old_gold_lots.id
+  oldMetalLotId: text('old_metal_lot_id').notNull(), // FK -> old_metal_lots.id (FIX-OLDMETAL-RENAME-1 v2.32)
   status: text('status', {
     enum: ['DRAFT', 'CONFIRMED'],
   }).notNull().default('DRAFT'),
@@ -268,7 +275,7 @@ export const urdPurchases = sqliteTable('urd_purchases', {
   updatedAt: text('updated_at').notNull(),
 }, (table) => ({
   firmFk: foreignKey({ columns: [table.firmId], foreignColumns: [firms.id] }),
-  lotFk: foreignKey({ columns: [table.oldGoldLotId], foreignColumns: [oldGoldLots.id] }),
+  lotFk: foreignKey({ columns: [table.oldMetalLotId], foreignColumns: [oldMetalLots.id] }),
   idxUrdPurchasesFirm: index('idx_urd_purchases_firm').on(table.firmId, table.status, table.purchaseDate),
   idxUrdPurchasesCustomer: index('idx_urd_purchases_customer').on(table.firmId, table.customerId).where(isNotNull(table.customerId)),
   idxUrdPurchasesFy: index('idx_urd_purchases_fy').on(table.firmId, table.fyId),
@@ -366,8 +373,10 @@ export type NewLooseStockEvent = typeof looseStockEvents.$inferInsert;
 export type SequenceCounter = typeof sequenceCounters.$inferSelect;
 export type NewSequenceCounter = typeof sequenceCounters.$inferInsert;
 
-export type OldGoldLot = typeof oldGoldLots.$inferSelect;
-export type NewOldGoldLot = typeof oldGoldLots.$inferInsert;
+export type OldMetalLot = typeof oldMetalLots.$inferSelect;
+export type NewOldMetalLot = typeof oldMetalLots.$inferInsert;
+export type OldGoldLot = OldMetalLot;
+export type NewOldGoldLot = NewOldMetalLot;
 
 export type URDPurchase = typeof urdPurchases.$inferSelect;
 export type NewURDPurchase = typeof urdPurchases.$inferInsert;

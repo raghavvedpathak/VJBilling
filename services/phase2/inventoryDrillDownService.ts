@@ -1,5 +1,5 @@
-// services/phase2/inventoryDrillDownService.ts — Phase 2 v2.24 Canonical Service
-// FEAT-DRILL-DOWN-1 (v1.65) / FIX-LOWSTOCK-PURITYGRAIN-1 (v2.13) / FEAT-SCREEN-C-SIZE-1 (v2.13)
+// services/phase2/inventoryDrillDownService.ts — Phase 2 v2.34 Canonical Service
+// FEAT-DRILL-DOWN-1 (v1.65) / FIX-LOWSTOCK-PURITYGRAIN-1 (v2.13) / FEAT-SCREEN-C-SIZE-1 (v2.13) / FIX-OLDMETAL-RENAME-1 (v2.32)
 
 import { expoDb } from '@/db/client';
 import { inventoryDrillDownRepository } from '@/repositories/phase2/inventoryDrillDownRepository';
@@ -11,6 +11,7 @@ import type {
   ItemDetail,
   LowStockDesignPurityVariant,
   KarigarIssuedItem,
+  OldMetalLot,
   OldGoldLot
 } from '@/types/phase2/phase2.types';
 import { ERR } from '@/constants/errorCodes';
@@ -205,8 +206,8 @@ export async function getStockByMetalSource(firmId: string): Promise<MetalSource
   return inventoryDrillDownRepository.getStockByMetalSource(firmId);
 }
 
-// --- Refinery Pending Lots (FEAT-GAP5-REFINERYPENDING-1 v1.66) ---
-export async function getPendingRefineryLots(firmId: string): Promise<OldGoldLot[]> {
+// --- Refinery Pending Lots (FEAT-GAP5-REFINERYPENDING-1 v1.66 / FIX-OLDMETAL-RENAME-1 v2.32) ---
+export async function getPendingRefineryLots(firmId: string): Promise<OldMetalLot[]> {
   if (!firmId) throw new Error(ERR.FIRM_ID_REQUIRED);
   return inventoryDrillDownRepository.getPendingRefineryLots(firmId);
 }

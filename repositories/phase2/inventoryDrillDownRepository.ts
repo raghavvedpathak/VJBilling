@@ -1,10 +1,10 @@
-// repositories/phase2/inventoryDrillDownRepository.ts — Phase 2 v2.24 Canonical Repository
-// FEAT-DRILL-DOWN-1 (v1.65) / FIX-LOWSTOCK-PURITYGRAIN-1 (v2.13) / FEAT-SCREEN-C-SIZE-1 (v2.13)
+// repositories/phase2/inventoryDrillDownRepository.ts — Phase 2 v2.34 Canonical Repository
+// FEAT-DRILL-DOWN-1 (v1.65) / FIX-LOWSTOCK-PURITYGRAIN-1 (v2.13) / FEAT-SCREEN-C-SIZE-1 (v2.13) / FIX-OLDMETAL-RENAME-1 (v2.32)
 // All methods read-only. No DrizzleTransaction param.
 
 import { sql, eq, and, or, desc, asc, inArray } from 'drizzle-orm';
 import { db } from '@/db/client';
-import { categories, items, designs, designPurityThresholds, itemEvents, auditLogs, oldGoldLots, looseStockLots } from '@/db/schema';
+import { categories, items, designs, designPurityThresholds, itemEvents, auditLogs, oldMetalLots, looseStockLots } from '@/db/schema';
 import type { 
   ItemSearchResult, 
   DesignCategoryStockResult, 
@@ -14,7 +14,7 @@ import type {
   StockStatus, 
   LowStockDesignPurityVariant,
   KarigarIssuedItem,
-  OldGoldLot,
+  OldMetalLot,
   Metal
 } from '@/types/phase2/phase2.types';
 
@@ -50,7 +50,6 @@ export const inventoryDrillDownRepository = {
   },
 
   // FIX-LOWSTOCK-PURITYGRAIN-1 (v2.13) / STEP 6.9 (FEAT-LOOSE-STOCK-1): Grouped by (designId, purityPercent)
-  // Supports both serialized and loose pooled stock accurately
   async getLowStockDesignPurityVariants(firmId: string): Promise<LowStockDesignPurityVariant[]> {
     const results = await db
       .select({
@@ -101,7 +100,6 @@ export const inventoryDrillDownRepository = {
     }));
   },
 
-  // Backward-compatibility alias for services referencing getLowStockDesigns
   async getLowStockDesigns(firmId: string): Promise<LowStockDesignPurityVariant[]> {
     return this.getLowStockDesignPurityVariants(firmId);
   },
@@ -133,21 +131,21 @@ export const inventoryDrillDownRepository = {
     }));
   },
 
-  // FEAT-GAP5-REFINERYPENDING-1 (v1.66): STEP 9-Lite GAP-5
-  async getPendingRefineryLots(firmId: string): Promise<OldGoldLot[]> {
+  // FEAT-GAP5-REFINERYPENDING-1 (v1.66) / FIX-OLDMETAL-RENAME-1 (v2.32)
+  async getPendingRefineryLots(firmId: string): Promise<OldMetalLot[]> {
     return db
       .select()
-      .from(oldGoldLots)
+      .from(oldMetalLots)
       .where(
         and(
-          eq(oldGoldLots.firmId, firmId),
-          inArray(oldGoldLots.status, ['RECEIVED', 'PENDING', 'SENT_TO_REFINERY'])
+          eq(oldMetalLots.firmId, firmId),
+          inArray(oldMetalLots.status, ['RECEIVED', 'PENDING', 'SENT_TO_REFINERY'])
         )
       )
-      .orderBy(desc(oldGoldLots.receivedDate));
+      .orderBy(desc(oldMetalLots.receivedDate));
   },
 
-  // FEAT-GAP6-KARIGAR-SUMMARY-1 (v1.66) / FIX-KARIGAR-DUPES-1 (v1.71): STEP 9-Lite GAP-6
+  // FEAT-GAP6-KARIGAR-SUMMARY-1 (v1.66) / FIX-KARIGAR-DUPES-1 (v1.71)
   async getKarigarIssuedItems(firmId: string): Promise<KarigarIssuedItem[]> {
     const rows = await db
       .select({
@@ -183,7 +181,11 @@ export const inventoryDrillDownRepository = {
         and(
           eq(itemEvents.itemId, items.id),
           eq(itemEvents.eventType, 'ITEM_SENT_TO_KARIGAR'),
-          eq(itemEvents.firmId, items.firmId)
+          eq(itemEvents.firmId, items.firmId),
+          eq(
+            itemEvents.timestamp,
+            sql`(SELECT MAX(ie2.timestamp) FROM item_events ie2 WHERE ie2.item_id = ${items.id} AND ie2.event_type = 'ITEM_SENT_TO_KARIGAR' AND ie2.firm_id = ${items.firmId})`
+          )
         )
       )
       .where(and(eq(items.firmId, firmId), eq(items.status, 'SENT_TO_KARIGAR')))
@@ -270,6 +272,7 @@ export const inventoryDrillDownRepository = {
   },
 
   // Screen C (Individual Items Under Design — getItemsByDesign)
+  // FIX-SCREENC-PHANTOM-DOC-1 (v1.70): Strictly filters status = 'AVAILABLE', excluding phantom stock
   // FEAT-SCREEN-C-SIZE-1 (v2.13): Sort order purityPercent DESC, sizeValue ASC, created_at DESC
   async getItemsByDesign(first: string, second: string, purityPercent?: number): Promise<ItemSearchResult[]> {
     const conditions = [
