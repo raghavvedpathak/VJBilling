@@ -1,7 +1,9 @@
-// app/inventory/edit-draft.tsx — Phase 2 v2.24 Canonical Screen
+// app/inventory/edit-draft.tsx — Phase 2 v2.34 Canonical Screen
+// Aligned with Step 6.5, FIX-EFFPRICE-GATE-1 (v2.01), FIX-SILVER-PURITY-1 (v1.46),
+// GAP-P2-SIZE-EDIT-1 (v1.78), and FEAT-ITEM-CORRECTION-1 (v1.88)
 
-import React, { useState, useEffect, useMemo } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator, Modal } from 'react-native';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator, Modal, Alert } from 'react-native';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
@@ -18,6 +20,7 @@ import {
   computeEffectivePricePerGram,
   computeVaultTruthGrams,
   computeCostTruthGrams,
+  computeWastageGoldGrams,
   computeAbsoluteTotalCostRupees,
   rupeesToPaise,
   getCurrencySymbol,
@@ -25,11 +28,12 @@ import {
   isPresetMatchingPurity,
   parseCleanFloat,
 } from '@/utils/calculations';
-import { Edit3, Save, Calculator, CheckCircle, Package } from 'lucide-react-native';
+import { Edit3, Save, Calculator, CheckCircle, Package, Trash2 } from 'lucide-react-native';
 import { GlassButton, GlassPickerInput, FixedGlassBar, fixedBarStyles, HeaderPill, GlassCard } from '@/components/ui/Glass';
 import { GlassPickerModal, GlassPickerOption } from '@/components/ui/GlassPickerModal';
 import { appSettingsStore } from '@/store/phase1/appSettingsStore';
-import { COLORS, getThemeColors } from '@/constants/theme';
+import { getThemeColors } from '@/constants/theme';
+import type { Item } from '@/types/phase2/phase2.types';
 
 export default function EditDraftScreen() {
   const router = useRouter();
@@ -40,6 +44,7 @@ export default function EditDraftScreen() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [sku, setSku] = useState('');
+  const [initialItem, setInitialItem] = useState<Item | null>(null);
   const [initialHuid, setInitialHuid] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -62,7 +67,7 @@ export default function EditDraftScreen() {
   const [location, setLocation] = useState('');
   const [huid, setHuid] = useState('');
   const [metal, setMetal] = useState<'GOLD' | 'SILVER'>('GOLD');
-  const [reason, setReason] = useState('Typo correction before activation');
+  const [reason, setReason] = useState('Draft modification before activation');
 
   const activeTheme = appSettingsStore((s: any) => s.theme);
   const colors = getThemeColors(activeTheme);
@@ -88,7 +93,6 @@ export default function EditDraftScreen() {
       if (!activeFirmId || !itemId) return;
       setLoading(true);
       try {
-        // FIX: Scope getById with activeFirmId per RED-9
         const item = await itemRepository.getById(activeFirmId, itemId);
         
         if (active && item) {
@@ -96,6 +100,7 @@ export default function EditDraftScreen() {
             setErrorMessage('Only DRAFT items can be edited here.');
             return;
           }
+          setInitialItem(item);
           setSku(formatSKUDisplay(item.sku));
           setInitialHuid(item.huid || null);
           
@@ -143,10 +148,14 @@ export default function EditDraftScreen() {
 
     const fineGoldChargedMg = computeFineGoldChargedMg(netWeightMg, purity, wastage);
     const costTruth = computeCostTruthGrams(fineGoldChargedMg, fineWeightMg);
+    const wastageMetal = computeWastageGoldGrams(costTruth, vaultTruth);
     
     const effectivePricePerGram = computeEffectivePricePerGram(rate, purity, wastage, metal);
     const absoluteTotalCost = computeAbsoluteTotalCostRupees(netWeightG, effectivePricePerGram, making, stoneC);
     const metalCostRupees = netWeightG * effectivePricePerGram;
+
+    const hasRateData = rate > 0 && netWeightG > 0;
+    const hasCostData = (rate > 0 || making > 0 || stoneC > 0) && netWeightG > 0;
 
     const finParts: string[] = [];
     if (rate > 0) finParts.push(`Metal: ${getCurrencySymbol()}${metalCostRupees.toLocaleString('en-IN', { maximumFractionDigits: 0 })}`);
@@ -170,9 +179,10 @@ export default function EditDraftScreen() {
       wastageRaw: wastage,
       totalTouch: (purity + wastage).toFixed(2) + '%',
       vaultTruth: vaultTruth.toFixed(3) + ' g',
-      wastageMetal: (costTruth - vaultTruth).toFixed(3) + ' g',
+      wastageMetal: wastageMetal.toFixed(3) + ' g',
       costTruth: costTruth.toFixed(3) + ' g',
-      hasCostData: (rate > 0 || making > 0 || stoneC > 0) && netWeightG > 0,
+      hasRateData,
+      hasCostData,
       financialBreakdown: financialBreakdownText,
       pricePerGram: effectivePricePerGram,
       totalAmount: absoluteTotalCost,
@@ -180,14 +190,35 @@ export default function EditDraftScreen() {
   }, [grossG, stoneG, beadsG, purityPercent, wastagePercent, purchaseRate, makingCharge, stoneCost, metal]);
 
   const computedKarat = useMemo(() => {
-    const p = parseCleanFloat(purityPercent);
-    if (isNaN(p) || p <= 0) return '';
-    if (metal === 'SILVER') return `${p.toFixed(1)}%`;
-    return formatKaratBadge(p, metal || 'GOLD') || '';
+    return formatKaratBadge(purityPercent, metal || 'GOLD') || '';
   }, [purityPercent, metal]);
 
-  const handleSave = async () => {
+  const handleDiscard = useCallback(() => {
     if (!activeFirmId || !itemId) return;
+    Alert.alert(
+      'Discard Draft',
+      `Permanently discard draft ${sku}? This cannot be undone.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Discard',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); } catch {}
+              await itemService.discardDraftItem(itemId, activeFirmId);
+              router.back();
+            } catch (err: any) {
+              setErrorMessage(err.message || 'Failed to discard draft.');
+            }
+          },
+        },
+      ]
+    );
+  }, [activeFirmId, itemId, sku, router]);
+
+  const handleSave = async () => {
+    if (!activeFirmId || !itemId || !initialItem) return;
 
     const parsedGross = parseCleanFloat(grossG);
     const parsedStone = parseCleanFloat(stoneG);
@@ -208,11 +239,16 @@ export default function EditDraftScreen() {
       return;
     }
 
-    // GAP-P2-SIZE-EDIT-1: Client-side size pairing validation
     const hasSizeVal = sizeValue.trim() !== '';
     const hasSizeUnit = sizeUnit.trim() !== '';
     if ((hasSizeVal && !hasSizeUnit) || (!hasSizeVal && hasSizeUnit)) {
       setErrorMessage('Size Value and Size Unit must both be specified together, or both left blank.');
+      return;
+    }
+
+    const parsedSizeVal = hasSizeVal ? parseCleanFloat(sizeValue) : null;
+    if (parsedSizeVal !== null && parsedSizeVal <= 0) {
+      setErrorMessage('Size value must be greater than 0.');
       return;
     }
 
@@ -236,12 +272,18 @@ export default function EditDraftScreen() {
       const newRatePaise = purchaseRate.trim() ? rupeesToPaise(parseCleanFloat(purchaseRate)) : null;
       const newMakingPaise = makingCharge.trim() ? rupeesToPaise(parseCleanFloat(makingCharge)) : null;
       const newStoneCostPaise = stoneCost.trim() ? rupeesToPaise(parseCleanFloat(stoneCost)) : null;
-
-      const parsedSizeVal = hasSizeVal ? parseCleanFloat(sizeValue) : null;
       const parsedSizeUnit: 'INCH' | 'MM' | 'CM' | 'RING_SIZE' | null = 
         hasSizeUnit && sizeUnit !== '' ? (sizeUnit as 'INCH' | 'MM' | 'CM' | 'RING_SIZE') : null;
 
-      // 1. Update non-weight attributes (purity, financials, location, sizes) first
+      const weightsChanged =
+        newGrossMg !== initialItem.grossWeightMg ||
+        newStoneMg !== initialItem.stoneWeightMg ||
+        newBeadsMg !== initialItem.beadsWeightMg ||
+        parsedWastage !== (initialItem.wastagePercent || 0);
+
+      const purityChanged = parsedPurity !== initialItem.purityPercent;
+
+      // 1. Update non-weight attributes (purity, financials, location, sizes)
       await itemService.updateItem(
         itemId, 
         activeFirmId, 
@@ -258,16 +300,18 @@ export default function EditDraftScreen() {
         reason
       );
 
-      // 2. Adjust physical weight so fineWeightMg is computed against the freshly updated purity
-      await itemService.adjustWeight(
-        itemId,
-        activeFirmId,
-        newGrossMg,
-        newStoneMg,
-        newBeadsMg,
-        reason,
-        parsedWastage
-      );
+      // 2. Adjust physical weight only if physical weights, wastage, or purity changed
+      if (weightsChanged || purityChanged) {
+        await itemService.adjustWeight(
+          itemId,
+          activeFirmId,
+          newGrossMg,
+          newStoneMg,
+          newBeadsMg,
+          reason,
+          parsedWastage
+        );
+      }
 
       // 3. HUID assignment / correction branch (FEAT-ITEM-CORRECTION-1 v1.88)
       if (huidUpper && huidUpper !== initialHuid) {
@@ -311,12 +355,11 @@ export default function EditDraftScreen() {
             extraHeight={140}
             contentContainerStyle={{ paddingBottom: 220, paddingTop: 6 }}
           >
-            
             <View style={[s.card, { borderColor: `${colors.vjAccent}25`, zIndex: 50 }]}>
               <Text style={[s.sectionTitle, { color: colors.vjText }]}>Weights (Grams)</Text>
               <View style={s.row}>
                 <View style={[s.inputGroup, { flex: 1, paddingRight: 6 }]}>
-                  <Text style={s.label}>Gross Wt *</Text>
+                  <Text style={[s.label, { color: `${colors.vjText}99` }]}>Gross Wt *</Text>
                   <TextInput 
                     style={[s.input, { color: colors.vjText, borderColor: colors.border }]} 
                     value={grossG} 
@@ -325,7 +368,7 @@ export default function EditDraftScreen() {
                   />
                 </View>
                 <View style={[s.inputGroup, { flex: 1, paddingHorizontal: 6 }]}>
-                  <Text style={s.label}>Stone Wt</Text>
+                  <Text style={[s.label, { color: `${colors.vjText}99` }]}>Stone Wt</Text>
                   <TextInput 
                     style={[s.input, { color: colors.vjText, borderColor: colors.border }]} 
                     value={stoneG} 
@@ -334,7 +377,7 @@ export default function EditDraftScreen() {
                   />
                 </View>
                 <View style={[s.inputGroup, { flex: 1, paddingLeft: 6 }]}>
-                  <Text style={s.label}>Beads Wt</Text>
+                  <Text style={[s.label, { color: `${colors.vjText}99` }]}>Beads Wt</Text>
                   <TextInput 
                     style={[s.input, { color: colors.vjText, borderColor: colors.border }]} 
                     value={beadsG} 
@@ -350,7 +393,7 @@ export default function EditDraftScreen() {
               <View style={s.row}>
                 <View style={[s.inputGroup, { flex: 1, paddingRight: 6 }]}>
                   <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-                    <Text style={[s.label, { marginBottom: 0 }]}>Purity % *</Text>
+                    <Text style={[s.label, { color: `${colors.vjText}99`, marginBottom: 0 }]}>Purity % *</Text>
                     {computedKarat ? (
                       <View style={{ backgroundColor: 'rgba(212,175,55,0.2)', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 }}>
                         <Text style={{ fontSize: 11, fontWeight: '800', color: '#D4AF37' }}>{computedKarat}</Text>
@@ -365,7 +408,7 @@ export default function EditDraftScreen() {
                   />
                 </View>
                 <View style={[s.inputGroup, { flex: 1, paddingLeft: 6 }]}>
-                  <Text style={s.label}>Wastage %</Text>
+                  <Text style={[s.label, { color: `${colors.vjText}99` }]}>Wastage %</Text>
                   <TextInput 
                     style={[s.input, { color: colors.vjText, borderColor: colors.border }]} 
                     value={wastagePercent} 
@@ -406,7 +449,7 @@ export default function EditDraftScreen() {
 
               <View style={s.row}>
                 <View style={[s.inputGroup, { flex: 1, paddingRight: 6 }]}>
-                  <Text style={s.label}>Rate ({getCurrencySymbol()})</Text>
+                  <Text style={[s.label, { color: `${colors.vjText}99` }]}>Rate ({getCurrencySymbol()}/g)</Text>
                   <TextInput 
                     style={[s.input, { color: colors.vjText, borderColor: colors.border }]} 
                     value={purchaseRate} 
@@ -415,7 +458,7 @@ export default function EditDraftScreen() {
                   />
                 </View>
                 <View style={[s.inputGroup, { flex: 1, paddingHorizontal: 6 }]}>
-                  <Text style={s.label}>Making ({getCurrencySymbol()})</Text>
+                  <Text style={[s.label, { color: `${colors.vjText}99` }]}>Making ({getCurrencySymbol()})</Text>
                   <TextInput 
                     style={[s.input, { color: colors.vjText, borderColor: colors.border }]} 
                     value={makingCharge} 
@@ -424,7 +467,7 @@ export default function EditDraftScreen() {
                   />
                 </View>
                 <View style={[s.inputGroup, { flex: 1, paddingLeft: 6 }]}>
-                  <Text style={s.label}>Stn Cost ({getCurrencySymbol()})</Text>
+                  <Text style={[s.label, { color: `${colors.vjText}99` }]}>Stn Cost ({getCurrencySymbol()})</Text>
                   <TextInput 
                     style={[s.input, { color: colors.vjText, borderColor: colors.border }]} 
                     value={stoneCost} 
@@ -439,7 +482,7 @@ export default function EditDraftScreen() {
               <Text style={[s.sectionTitle, { color: colors.vjText }]}>Tracking & Sizing</Text>
               <View style={s.row}>
                 <View style={[s.inputGroup, { flex: 1, paddingRight: 6 }]}>
-                  <Text style={s.label}>Location</Text>
+                  <Text style={[s.label, { color: `${colors.vjText}99` }]}>Location</Text>
                   <TextInput 
                     style={[s.input, { color: colors.vjText, borderColor: colors.border }]} 
                     value={location} 
@@ -448,11 +491,11 @@ export default function EditDraftScreen() {
                   />
                 </View>
                 <View style={[s.inputGroup, { flex: 1, paddingLeft: 6 }]}>
-                  <Text style={s.label}>BIS HUID</Text>
+                  <Text style={[s.label, { color: `${colors.vjText}99` }]}>BIS HUID</Text>
                   <TextInput 
                     style={[s.input, { color: colors.vjText, borderColor: colors.border }]} 
                     value={huid} 
-                    onChangeText={setHuid} 
+                    onChangeText={(t) => setHuid(t.toUpperCase())} 
                     autoCapitalize="characters" 
                     maxLength={6} 
                   />
@@ -460,7 +503,7 @@ export default function EditDraftScreen() {
               </View>
               <View style={[s.row, { marginTop: 4, zIndex: 10 }]}>
                 <View style={[s.inputGroup, { flex: 1, paddingRight: 6 }]}>
-                  <Text style={s.label}>Size Value</Text>
+                  <Text style={[s.label, { color: `${colors.vjText}99` }]}>Size Value</Text>
                   <TextInput 
                     style={[s.input, { color: colors.vjText, borderColor: colors.border }]} 
                     value={sizeValue} 
@@ -501,96 +544,96 @@ export default function EditDraftScreen() {
               </View>
             </View>
 
-            {/* Mandated UI Display — Live Cost Preview (FEAT-EFFECTIVE-PRICE-1 / FIX-EFFPRICE-PURITYROUND-1 v2.14) */}
+            {/* Live Cost Preview (FEAT-EFFECTIVE-PRICE-1 v2.00 / FIX-EFFPRICE-GATE-1 v2.01) */}
             {liveWastageSeparation.isValid && (
-              <View className="px-1 mb-4 mt-2" style={{ zIndex: 10 }}>
+              <View style={{ paddingHorizontal: 4, marginBottom: 16, marginTop: 8, zIndex: 10 }}>
                 <GlassCard style={{ backgroundColor: 'rgba(252,251,248, 0.98)', borderColor: '#D4AF37', borderWidth: 1.5, padding: 16 }}>
-                  <View className="flex-row items-center justify-between mb-3 pb-2.5 border-b border-black/5">
-                    <View className="flex-row items-center gap-2">
-                      <View className="w-7 h-7 rounded-lg items-center justify-center bg-amber-500/15 border border-amber-500/30">
+                  <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12, paddingBottom: 10, borderBottomWidth: 1, borderBottomColor: 'rgba(0,0,0,0.05)' }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                      <View style={{ width: 28, height: 28, borderRadius: 8, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(245, 158, 11, 0.15)', borderWidth: 1, borderColor: 'rgba(245, 158, 11, 0.3)' }}>
                         <Calculator size={16} color="#D4AF37" />
                       </View>
                       <View>
-                        <Text className="text-xs font-black uppercase tracking-wider text-vj-accent">Live Cost Breakdown</Text>
-                        <Text className="text-[10px] text-vj-text/50 font-semibold">Real-Time Inventory Accounting</Text>
+                        <Text style={{ fontSize: 12, fontWeight: '900', textTransform: 'uppercase', letterSpacing: 0.8, color: colors.vjAccent }}>Live Cost Breakdown</Text>
+                        <Text style={{ fontSize: 10, color: `${colors.vjText}80`, fontWeight: '600' }}>Real-Time Inventory Accounting</Text>
                       </View>
                     </View>
-                    <View className="flex-row items-center gap-1.5 px-2 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20">
-                      <View className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                      <Text className="text-[9px] font-black text-emerald-800 uppercase tracking-widest">LIVE</Text>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 999, backgroundColor: 'rgba(16, 185, 129, 0.1)', borderWidth: 1, borderColor: 'rgba(16, 185, 129, 0.2)' }}>
+                      <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: '#10B981' }} />
+                      <Text style={{ fontSize: 9, fontWeight: '900', color: '#047857', letterSpacing: 0.8 }}>LIVE</Text>
                     </View>
                   </View>
 
-                  <View className="flex-row gap-2.5 mb-3">
-                    <View className="flex-1 p-2.5 rounded-xl bg-black/[0.02] border border-black/5">
-                      <Text className="text-[10px] font-bold text-vj-text/50 uppercase tracking-wider">Net Weight</Text>
-                      <Text className="text-base font-black text-vj-text font-mono mt-0.5">{liveWastageSeparation.netWeight}</Text>
-                      <Text className="text-[9px] text-vj-text/55 font-semibold mt-0.5" numberOfLines={1}>
+                  <View style={{ flexDirection: 'row', gap: 10, marginBottom: 12 }}>
+                    <View style={{ flex: 1, padding: 10, borderRadius: 12, backgroundColor: 'rgba(0,0,0,0.02)', borderWidth: 1, borderColor: 'rgba(0,0,0,0.05)' }}>
+                      <Text style={{ fontSize: 10, fontWeight: '700', color: `${colors.vjText}80`, textTransform: 'uppercase', letterSpacing: 0.5 }}>Net Weight</Text>
+                      <Text style={{ fontSize: 16, fontWeight: '900', color: colors.vjText, fontFamily: 'monospace', marginTop: 2 }}>{liveWastageSeparation.netWeight}</Text>
+                      <Text style={{ fontSize: 9, color: `${colors.vjText}90`, fontWeight: '600', marginTop: 2 }} numberOfLines={1}>
                         {liveWastageSeparation.weightBreakdown}
                       </Text>
                     </View>
 
-                    <View className="flex-1 p-2.5 rounded-xl bg-black/[0.02] border border-black/5">
-                      <View className="flex-row items-center justify-between">
-                        <Text className="text-[10px] font-bold text-vj-text/50 uppercase tracking-wider">Total Touch</Text>
-                        <Text className="text-xs font-black text-vj-accent font-mono">{liveWastageSeparation.totalTouch}</Text>
+                    <View style={{ flex: 1, padding: 10, borderRadius: 12, backgroundColor: 'rgba(0,0,0,0.02)', borderWidth: 1, borderColor: 'rgba(0,0,0,0.05)' }}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                        <Text style={{ fontSize: 10, fontWeight: '700', color: `${colors.vjText}80`, textTransform: 'uppercase', letterSpacing: 0.5 }}>Total Touch</Text>
+                        <Text style={{ fontSize: 12, fontWeight: '900', color: colors.vjAccent, fontFamily: 'monospace' }}>{liveWastageSeparation.totalTouch}</Text>
                       </View>
-                      <View className="mt-1 bg-vj-accent/10 px-1.5 py-0.5 rounded self-start">
-                        <Text className="text-[9px] font-black text-vj-accent font-mono">
+                      <View style={{ marginTop: 4, backgroundColor: `${colors.vjAccent}15`, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4, alignSelf: 'flex-start' }}>
+                        <Text style={{ fontSize: 9, fontWeight: '900', color: colors.vjAccent, fontFamily: 'monospace' }}>
                           {liveWastageSeparation.purityRaw}% Purity + {liveWastageSeparation.wastageRaw}% Wastage
                         </Text>
                       </View>
                     </View>
                   </View>
 
-                  <View className="mb-3 p-3 rounded-2xl bg-black/[0.02] border border-black/5">
-                    <Text className="text-[10px] font-black uppercase tracking-widest text-vj-text/60 mb-2">
+                  <View style={{ marginBottom: 12, padding: 12, borderRadius: 16, backgroundColor: 'rgba(0,0,0,0.02)', borderWidth: 1, borderColor: 'rgba(0,0,0,0.05)' }}>
+                    <Text style={{ fontSize: 10, fontWeight: '900', textTransform: 'uppercase', letterSpacing: 0.8, color: `${colors.vjText}99`, marginBottom: 8 }}>
                       Fine Metal Accounting ({metal})
                     </Text>
                     
-                    <View className="flex-row items-center justify-between gap-1">
-                      <View className="flex-1 p-2 rounded-xl bg-emerald-500/10 border border-emerald-500/20 items-center">
-                        <Text className="text-[9px] font-black text-emerald-800 uppercase tracking-tight">Vault Fine</Text>
-                        <Text className="text-xs font-black text-emerald-700 font-mono mt-0.5">{liveWastageSeparation.vaultTruth}</Text>
-                        <Text className="text-[8px] font-semibold text-emerald-800/70 mt-0.5">Physical</Text>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 4 }}>
+                      <View style={{ flex: 1, padding: 8, borderRadius: 12, backgroundColor: 'rgba(16, 185, 129, 0.1)', borderWidth: 1, borderColor: 'rgba(16, 185, 129, 0.2)', alignItems: 'center' }}>
+                        <Text style={{ fontSize: 9, fontWeight: '900', color: '#047857', textTransform: 'uppercase' }}>Vault Fine</Text>
+                        <Text style={{ fontSize: 12, fontWeight: '900', color: '#047857', fontFamily: 'monospace', marginTop: 2 }}>{liveWastageSeparation.vaultTruth}</Text>
+                        <Text style={{ fontSize: 8, fontWeight: '600', color: 'rgba(4, 120, 87, 0.7)', marginTop: 2 }}>Physical</Text>
                       </View>
 
-                      <Text className="text-xs font-black text-vj-text/40">+</Text>
+                      <Text style={{ fontSize: 12, fontWeight: '900', color: `${colors.vjText}60` }}>+</Text>
 
-                      <View className="flex-1 p-2 rounded-xl bg-rose-500/10 border border-rose-500/20 items-center">
-                        <Text className="text-[9px] font-black text-rose-800 uppercase tracking-tight">
-                          Wastage
-                        </Text>
-                        <Text className="text-xs font-black text-rose-700 font-mono mt-0.5">{liveWastageSeparation.wastageMetal}</Text>
-                        <Text className="text-[8px] font-semibold text-rose-800/70 mt-0.5">Supplier</Text>
+                      <View style={{ flex: 1, padding: 8, borderRadius: 12, backgroundColor: 'rgba(239, 68, 68, 0.1)', borderWidth: 1, borderColor: 'rgba(239, 68, 68, 0.2)', alignItems: 'center' }}>
+                        <Text style={{ fontSize: 9, fontWeight: '900', color: '#B91C1C', textTransform: 'uppercase' }}>Wastage</Text>
+                        <Text style={{ fontSize: 12, fontWeight: '900', color: '#B91C1C', fontFamily: 'monospace', marginTop: 2 }}>{liveWastageSeparation.wastageMetal}</Text>
+                        <Text style={{ fontSize: 8, fontWeight: '600', color: 'rgba(185, 28, 28, 0.7)', marginTop: 2 }}>Supplier</Text>
                       </View>
 
-                      <Text className="text-xs font-black text-vj-text/40">=</Text>
+                      <Text style={{ fontSize: 12, fontWeight: '900', color: `${colors.vjText}60` }}>=</Text>
 
-                      <View className="flex-1 p-2 rounded-xl bg-amber-500/15 border border-amber-500/30 items-center">
-                        <Text className="text-[9px] font-black text-amber-900 uppercase tracking-tight">Billed Fine</Text>
-                        <Text className="text-xs font-black text-amber-800 font-mono mt-0.5">{liveWastageSeparation.costTruth}</Text>
-                        <Text className="text-[8px] font-semibold text-amber-800/70 mt-0.5">Cost Truth</Text>
+                      <View style={{ flex: 1, padding: 8, borderRadius: 12, backgroundColor: 'rgba(212, 175, 55, 0.15)', borderWidth: 1, borderColor: 'rgba(212, 175, 55, 0.3)', alignItems: 'center' }}>
+                        <Text style={{ fontSize: 9, fontWeight: '900', color: '#92400E', textTransform: 'uppercase' }}>Billed Fine</Text>
+                        <Text style={{ fontSize: 12, fontWeight: '900', color: '#92400E', fontFamily: 'monospace', marginTop: 2 }}>{liveWastageSeparation.costTruth}</Text>
+                        <Text style={{ fontSize: 8, fontWeight: '600', color: 'rgba(146, 64, 14, 0.7)', marginTop: 2 }}>Cost Truth</Text>
                       </View>
                     </View>
                   </View>
 
                   {liveWastageSeparation.hasCostData && (
-                    <View className="p-3 rounded-2xl bg-amber-500/10 border border-amber-500/30">
-                      <View className="flex-row justify-between items-center pb-1.5 border-b border-amber-500/15">
-                        <Text className="text-[11px] text-vj-text/70 font-bold">Effective Price / g:</Text>
-                        <Text className="text-xs font-black text-vj-text font-mono">
-                          {getCurrencySymbol()} {liveWastageSeparation.pricePerGram.toLocaleString('en-IN', { maximumFractionDigits: 2 })}
-                        </Text>
-                      </View>
-                      <View className="flex-row justify-between items-center pt-2">
-                        <View className="flex-1 pr-2">
-                          <Text className="text-xs font-black text-vj-text uppercase tracking-wider">EST. Total</Text>
-                          <Text className="text-[10px] text-vj-text/60 font-semibold mt-0.5">
+                    <View style={{ padding: 12, borderRadius: 16, backgroundColor: 'rgba(212, 175, 55, 0.1)', borderWidth: 1, borderColor: 'rgba(212, 175, 55, 0.3)' }}>
+                      {liveWastageSeparation.hasRateData && (
+                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingBottom: 6, borderBottomWidth: 1, borderBottomColor: 'rgba(212, 175, 55, 0.15)' }}>
+                          <Text style={{ fontSize: 11, color: `${colors.vjText}B0`, fontWeight: '700' }}>Effective Price / g:</Text>
+                          <Text style={{ fontSize: 12, fontWeight: '900', color: colors.vjText, fontFamily: 'monospace' }}>
+                            {getCurrencySymbol()} {liveWastageSeparation.pricePerGram.toLocaleString('en-IN', { maximumFractionDigits: 2 })}
+                          </Text>
+                        </View>
+                      )}
+                      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingTop: 8 }}>
+                        <View style={{ flex: 1, paddingRight: 8 }}>
+                          <Text style={{ fontSize: 12, fontWeight: '900', color: colors.vjText, textTransform: 'uppercase', letterSpacing: 0.5 }}>EST. Total Cost</Text>
+                          <Text style={{ fontSize: 10, color: `${colors.vjText}99`, fontWeight: '600', marginTop: 2 }}>
                             {liveWastageSeparation.financialBreakdown}
                           </Text>
                         </View>
-                        <Text className="text-base font-black font-mono text-amber-950">
+                        <Text style={{ fontSize: 18, fontWeight: '900', fontFamily: 'monospace', color: '#92400E' }}>
                           {getCurrencySymbol()} {liveWastageSeparation.totalAmount.toLocaleString('en-IN', { maximumFractionDigits: 2 })}
                         </Text>
                       </View>
@@ -606,15 +649,17 @@ export default function EditDraftScreen() {
         {!loading && !errorMessage && (
           <FixedGlassBar>
             <TouchableOpacity 
-              style={fixedBarStyles.pillSecondaryBtn} 
-              onPress={() => router.back()}
+              style={[fixedBarStyles.pillSecondaryBtn, { backgroundColor: 'rgba(239, 68, 68, 0.08)', borderColor: 'rgba(239, 68, 68, 0.25)', flex: 0.8 }]} 
+              onPress={handleDiscard}
               disabled={saving}
             >
-              <Text style={fixedBarStyles.pillSecondaryText}>Cancel</Text>
+              <Trash2 size={16} color="#EF4444" />
+              <Text style={[fixedBarStyles.pillSecondaryText, { color: '#EF4444' }]}>Discard</Text>
             </TouchableOpacity>
+
             <TouchableOpacity 
               testID="save-correction-btn"
-              style={fixedBarStyles.pillPrimaryBtn} 
+              style={[fixedBarStyles.pillPrimaryBtn, { flex: 1.4 }]} 
               onPress={handleSave}
               disabled={saving}
             >
@@ -642,7 +687,7 @@ export default function EditDraftScreen() {
           }}
         >
           <TouchableOpacity 
-            activeOpacity={1}
+            activeOpacity={1} 
             style={[s.successModalContent, { backgroundColor: colors.vjBg, borderColor: colors.border }]}
           >
             <View style={s.successIconContainer}>
@@ -667,8 +712,8 @@ export default function EditDraftScreen() {
       {/* ERROR MODAL */}
       <Modal visible={!!errorMessage} transparent animationType="fade">
         <TouchableOpacity 
-          style={s.modalOverlayCenter}
-          activeOpacity={1}
+          style={s.modalOverlayCenter} 
+          activeOpacity={1} 
           onPress={() => {
             setErrorMessage(null);
             if (errorMessage === 'Only DRAFT items can be edited here.' || errorMessage === 'Failed to load item details.') {
@@ -677,7 +722,7 @@ export default function EditDraftScreen() {
           }}
         >
           <TouchableOpacity 
-            activeOpacity={1}
+            activeOpacity={1} 
             style={[s.successModalContent, { backgroundColor: colors.vjBg, borderColor: colors.border }]}
           >
             <View style={[s.successIconContainer, { backgroundColor: 'rgba(239, 68, 68, 0.1)' }]}>
@@ -731,14 +776,13 @@ const s = StyleSheet.create({
   inputGroup: { marginBottom: 12 },
   row: { flexDirection: 'row' },
   label: {
-    color: 'rgba(92,22,35,0.6)',
     fontSize: 10,
     fontWeight: '700',
     marginBottom: 6,
     textTransform: 'uppercase',
   },
   input: {
-    backgroundColor: COLORS.inputBg,
+    backgroundColor: '#F3F4F6',
     borderWidth: 1,
     borderRadius: 10,
     paddingHorizontal: 10,

@@ -1,6 +1,4 @@
-// types/phase1/audit.ts — Phase 1 (v7.38) & Phase 2 Canonical Audit Types (FIX-VSEC-9, FIX-V724-4, FIX-V730-1)
-
-import type { Phase2AuditPayload } from '@/types/phase2/phase2.types';
+// types/phase1/audit.ts — Phase 1 (v7.38) Canonical Audit Types (FIX-VSEC-9, FIX-V724-4, FIX-V730-1)
 
 export type Phase1AuditPayload =
   // --- 22 Canonical Phase 1 Event Types (Strictly Typed) ---
@@ -29,20 +27,9 @@ export type Phase1AuditPayload =
 
   // --- Supplementary & Diagnostic Phase 1 Events ---
   | { eventType: 'RESTORE_FAILED'; reason?: string }
-  | {
-      eventType: 'FY_CLOSE_FINE_BALANCE';
-      fyId?: string;
-      closedAt?: string;
-      fineBalanceComponents?: {
-        karigarOutstandingFineMg?: number;
-        refineryOutstandingFineMg?: number;
-        openGoldLotFineMg?: number;
-        totalOpeningFineMg?: number;
-      };
-    }
   | { eventType: 'FY_ARCHIVE_INDEXED'; fyId?: string; fyLabel?: string; rowCount?: number }
   | { eventType: 'FY_CLOCK_SKEW'; detectedYear?: number; message?: string }
   | { eventType: 'PRE_MIGRATION_SNAPSHOT_CREATED'; snapshotPath?: string; timestamp?: string }
   | { eventType: 'PRE_MIGRATION_SNAPSHOT_PURGED'; purgedAt?: string };
 
-export type AuditPayload = Phase1AuditPayload | Phase2AuditPayload;
+export type AuditPayload = Phase1AuditPayload;

@@ -14,6 +14,7 @@ import { useSession } from '@/hooks/useSession';
 import { useFyBannerStore } from '@/store/phase1/fyBannerStore';
 import { fyInventoryService } from '@/services/phase2/fyInventoryService';
 import { backupService } from '@/services/phase1/backupService';
+import '@/services/phase2/inventoryBackupService';
 import { Lock, ShieldAlert, ShieldCheck, HardDriveDownload, AlertTriangle, CheckCircle2 } from 'lucide-react-native';
 import type { VerifyIssue } from '@/types/phase2/phase2.types';
 import { COLORS, getThemeColors } from '@/constants/theme';

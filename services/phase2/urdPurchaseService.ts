@@ -221,6 +221,7 @@ export async function updateURDPurchase(
     }
 
     urdPurchaseRepository.update(tx, firmId, urdId, {
+      purchaseDate: input.purchaseDate ?? urd.purchaseDate,
       customerName,
       customerAddress,
       customerMobile: input.customerMobile !== undefined ? input.customerMobile : urd.customerMobile,
@@ -249,6 +250,7 @@ export async function updateURDPurchase(
 
     return {
       ...urd,
+      purchaseDate: input.purchaseDate ?? urd.purchaseDate,
       customerName,
       customerAddress,
       grossWeightMg,

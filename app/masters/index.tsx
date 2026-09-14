@@ -1,26 +1,67 @@
-// app/masters/index.tsx — Phase 2 v2.24 Canonical Screen
+// app/masters/index.tsx — Phase 2 v2.34 Canonical Screen
+// Aligned with Step 16, live master item counts, and MastersSyncStore
 
-import React from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, StyleSheet } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import { TwoToneWrapper } from '@/components/TwoToneWrapper';
 import { GlassCard, HeaderPill } from '@/components/ui/Glass';
 import { Layers, Tag, ChevronRight, Gem, ShieldCheck, LayoutGrid } from 'lucide-react-native';
 import { appSettingsStore } from '@/store/phase1/appSettingsStore';
-import { COLORS, getThemeColors } from '@/constants/theme';
+import { useFirmStore } from '@/store/phase1/useFirmStore';
+import { useMastersSyncStore } from '@/store/phase2/mastersSyncStore';
+import { categoryRepository } from '@/repositories/phase2/categoryRepository';
+import { designRepository } from '@/repositories/phase2/designRepository';
+import { stoneRepository } from '@/repositories/phase2/stoneRepository';
+import { getThemeColors } from '@/constants/theme';
 
 export default function MastersIndexScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { activeFirmId } = useFirmStore();
   const activeTheme = appSettingsStore((s: any) => s.theme);
   const colors = getThemeColors(activeTheme);
+
+  const [categoryCount, setCategoryCount] = useState<number>(0);
+  const [designCount, setDesignCount] = useState<number>(0);
+  const [stoneCount, setStoneCount] = useState<number>(0);
+
+  const categoryVersion = useMastersSyncStore((s) => s.categoryVersion);
+  const designVersion = useMastersSyncStore((s) => s.designVersion);
+  const stoneVersion = useMastersSyncStore((s) => s.stoneVersion);
+
+  const loadCounts = useCallback(async () => {
+    if (!activeFirmId) return;
+    try {
+      const [cats, des, stns] = await Promise.all([
+        categoryRepository.findByFirmId(activeFirmId),
+        designRepository.findByFirmId(activeFirmId),
+        stoneRepository.findByFirmId(activeFirmId),
+      ]);
+      setCategoryCount((cats || []).filter((c) => c.isActive === 1).length);
+      setDesignCount((des || []).filter((d) => d.isActive === 1).length);
+      setStoneCount((stns || []).filter((s) => s.isActive !== 0).length);
+    } catch (e) {
+      console.error('[MastersIndexScreen] Failed to load catalog counts:', e);
+    }
+  }, [activeFirmId]);
+
+  useEffect(() => {
+    loadCounts();
+  }, [loadCounts, categoryVersion, designVersion, stoneVersion]);
+
+  useFocusEffect(
+    useCallback(() => {
+      loadCounts();
+    }, [loadCounts])
+  );
 
   const mastersHeaderPills = (
     <View style={s.headerPillsContainer}>
       <HeaderPill icon={<LayoutGrid size={12} color={colors.vjBg} />} label="Catalog Masters" />
-      <HeaderPill icon={<ShieldCheck size={12} color="#4ADE80" />} label="HSN Scoped" variant="success" />
+      <HeaderPill icon={<ShieldCheck size={12} color="#4ADE80" />} label="Firm Scoped" variant="success" />
     </View>
   );
 
@@ -45,7 +86,7 @@ export default function MastersIndexScreen() {
           onPress={() => {
             try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
             router.push('/masters/categories');
-          }}
+          }} 
           style={{ marginBottom: 16 }}
         >
           <GlassCard style={{ padding: 0, borderColor: 'rgba(5, 150, 105, 0.25)' }}>
@@ -57,7 +98,9 @@ export default function MastersIndexScreen() {
                 <View style={s.titleRow}>
                   <Text style={[s.cardTitle, { color: colors.vjText }]}>Categories</Text>
                   <View style={s.badgeEmerald}>
-                    <Text style={s.badgeEmeraldText}>PRODUCT CATS</Text>
+                    <Text style={s.badgeEmeraldText}>
+                      {categoryCount} {categoryCount === 1 ? 'CATEGORY' : 'CATEGORIES'}
+                    </Text>
                   </View>
                 </View>
                 <Text style={[s.cardSubtitle, { color: colors.vjText, opacity: 0.65 }]}>
@@ -78,7 +121,7 @@ export default function MastersIndexScreen() {
           onPress={() => {
             try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
             router.push('/masters/designs');
-          }}
+          }} 
           style={{ marginBottom: 16 }}
         >
           <GlassCard style={{ padding: 0, borderColor: 'rgba(124, 58, 237, 0.25)' }}>
@@ -90,11 +133,13 @@ export default function MastersIndexScreen() {
                 <View style={s.titleRow}>
                   <Text style={[s.cardTitle, { color: colors.vjText }]}>Designs</Text>
                   <View style={s.badgePurple}>
-                    <Text style={s.badgePurpleText}>DESIGN MATRIX</Text>
+                    <Text style={s.badgePurpleText}>
+                      {designCount} {designCount === 1 ? 'DESIGN' : 'DESIGNS'}
+                    </Text>
                   </View>
                 </View>
                 <Text style={[s.cardSubtitle, { color: colors.vjText, opacity: 0.65 }]}>
-                  Manage design names under each category
+                  Manage design patterns under each category
                 </Text>
               </View>
               <View style={[s.chevronBox, { backgroundColor: `${colors.vjAccent}10`, borderColor: `${colors.vjAccent}25` }]}>
@@ -115,7 +160,7 @@ export default function MastersIndexScreen() {
           onPress={() => {
             try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
             router.push('/masters/stones');
-          }}
+          }} 
           style={{ marginBottom: 16 }}
         >
           <GlassCard style={{ padding: 0, borderColor: 'rgba(8, 145, 178, 0.25)' }}>
@@ -127,7 +172,9 @@ export default function MastersIndexScreen() {
                 <View style={s.titleRow}>
                   <Text style={[s.cardTitle, { color: colors.vjText }]}>Stone Master</Text>
                   <View style={s.badgeCyan}>
-                    <Text style={s.badgeCyanText}>GEMSTONES</Text>
+                    <Text style={s.badgeCyanText}>
+                      {stoneCount} {stoneCount === 1 ? 'MATERIAL' : 'MATERIALS'}
+                    </Text>
                   </View>
                 </View>
                 <Text style={[s.cardSubtitle, { color: colors.vjText, opacity: 0.65 }]}>

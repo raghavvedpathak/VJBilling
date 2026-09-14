@@ -252,10 +252,3 @@ export const verifyService = {
     }
   },
 };
-
-// Backward compatibility re-exports for Phase 2 Verification
-export {
-  inventoryVerifyService as phase2VerifyService,
-  inventoryVerifyService,
-  runVerify,
-} from '@/services/phase2/inventoryVerifyService';

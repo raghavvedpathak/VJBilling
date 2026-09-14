@@ -115,6 +115,7 @@ export interface MenuTileProps {
   onPress?: () => void;
   disabled?: boolean;
   variant?: 'default' | 'dashboard';
+  testID?: string;
 }
 
 export function MenuTile({
@@ -130,6 +131,7 @@ export function MenuTile({
   onPress,
   disabled,
   variant = 'default',
+  testID,
 }: MenuTileProps) {
   const activeTheme = appSettingsStore((s: any) => s.theme);
   const colors = getThemeColors(activeTheme);
@@ -139,6 +141,7 @@ export function MenuTile({
   return (
     <View style={{ width: '48%' }}>
       <TouchableOpacity
+        testID={testID}
         disabled={disabled}
         onPress={() => {
           try {

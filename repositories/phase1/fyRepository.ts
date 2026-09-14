@@ -10,7 +10,7 @@ import * as Crypto from 'expo-crypto';
 import { eq, and, or, lte, gte } from 'drizzle-orm';
 import db, { db as dbNamed } from '@/db/client';
 import { financialYears, FYStatus } from '@/db/schema';
-import type { DrizzleTransaction, FinancialYear } from '@/types/phase2/phase2.types';
+import type { DrizzleTransaction, FinancialYear } from '@/types/phase1/fy.types';
 import { now } from '@/utils/now';
 import { ERR } from '@/constants/errorCodes';
 

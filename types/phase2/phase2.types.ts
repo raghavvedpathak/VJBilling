@@ -9,7 +9,6 @@ import {
   designs,
   designPurityThresholds,
   oldMetalLots,
-  financialYears,
   sequenceCounters,
   itemEvents,
   stones,
@@ -74,7 +73,6 @@ export type OldMetalLotStatus =
 export type OldGoldLotStatus = OldMetalLotStatus;
 export type OldGoldStatus = OldMetalLotStatus;
 
-export type FYStatus = 'ACTIVE' | 'CLOSED';
 export type Metal = 'GOLD' | 'SILVER';
 export type GemstoneStatus = 'AVAILABLE' | 'SOLD' | 'DAMAGED'; // GEMSTONE-1 v1.21
 
@@ -216,7 +214,7 @@ export type AddLooseStockInput = {
   wastagePercent?: number;
 };
 
-export type DrizzleTransaction = Parameters<Parameters<typeof db.transaction>[0]>[0];
+export type { DrizzleTransaction } from '@/types/phase1/fy.types';
 
 export interface VerifyIssue {
   code: string;
@@ -281,7 +279,6 @@ export const VALID_LOT_TRANSITIONS: Record<OldMetalLotStatus, OldMetalLotStatus[
   VOIDED:              [],
 };
 
-export type FinancialYear = typeof financialYears.$inferSelect;
 export type SequenceCounter = typeof sequenceCounters.$inferSelect;
 
 // SequenceCounterType — compile-time guard for all sequence counter type strings

@@ -1,4 +1,5 @@
-// app/inventory/category-items.tsx — Phase 2 v2.24 Canonical Screen (Screen B)
+// app/inventory/category-items.tsx — Phase 2 v2.34 Canonical Screen (Screen B)
+// Aligned with FEAT-DRILL-DOWN-1 (v1.65), FIX-LOWSTOCK-PURITYGRAIN-1 (v2.13), and MastersSyncStore
 
 import React, { useState, useCallback, useEffect, useMemo, memo } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, Modal, TextInput } from 'react-native';
@@ -72,11 +73,10 @@ const DesignRow = memo(({ item, categoryName, isLowStock, currentThreshold, colo
             <Text style={[s.weightText, { color: colors.vjText }]}>Net: {formatWeight(item.totalNetWeightMg)}</Text>
           </View>
 
-          {/* Bell Icon & Low Stock Pill Keyed by (designId, purityPercent) variant */}
           <TouchableOpacity
             testID={`low-stock-bell-${item.designId}-${item.purityPercent}`}
             onPress={(e) => {
-              e.stopPropagation();
+              e?.stopPropagation?.();
               try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
               onOpenLowStockModal(item.designId, item.designName, item.purityPercent, currentThreshold);
             }}
@@ -134,6 +134,7 @@ export default function CategoryItemsScreen() {
 
   const activeTheme = appSettingsStore((s: any) => s.theme);
   const colors = getThemeColors(activeTheme);
+  const isDark = activeTheme === 'dark';
 
   const categoryVersion = useMastersSyncStore((s) => s.categoryVersion);
   const designVersion = useMastersSyncStore((s) => s.designVersion);
@@ -154,14 +155,17 @@ export default function CategoryItemsScreen() {
 
       setData(sorted);
 
-      // Keyed strictly by (designId, purityPercent) variant
-      const lowKeys = new Set<string>();
-      const threshMap: Record<string, number | null> = {};
+      // Fetch all configured thresholds for this firm so healthy items display their threshold
+      const thresholdRows = await inventoryDrillDownService.getFirmThresholds(activeFirmId);
 
+      const threshMap: Record<string, number | null> = {};
+      thresholdRows.forEach((r) => {
+        threshMap[`${r.designId}_${r.purityPercent}`] = r.lowStockThreshold;
+      });
+
+      const lowKeys = new Set<string>();
       lowStockList.forEach((v) => {
-        const key = `${v.designId}_${v.purityPercent}`;
-        lowKeys.add(key);
-        threshMap[key] = v.lowStockThreshold;
+        lowKeys.add(`${v.designId}_${v.purityPercent}`);
       });
 
       setLowStockVariantKeys(lowKeys);
@@ -382,7 +386,7 @@ export default function CategoryItemsScreen() {
                 setInputError(null);
               }}
               placeholder="e.g. 5 (Leave blank for no alert)"
-              placeholderTextColor="rgba(92,22,35,0.3)"
+              placeholderTextColor={isDark ? 'rgba(255, 255, 255, 0.35)' : 'rgba(92, 22, 35, 0.35)'}
               keyboardType="number-pad"
               autoFocus
             />
@@ -758,4 +762,3 @@ const s = StyleSheet.create({
     fontWeight: '700',
   },
 });
-

@@ -172,11 +172,20 @@ export async function closeFY(fyId: string, firmId: string): Promise<void> {
   }
 }
 
+export const registerFYCloseHook = fyCoreService.registerFYCloseHook;
+export const resolveTransactionFyId = fyCoreService.resolveTransactionFyId;
+export const getActiveFY = fyCoreService.getActiveFY;
+export const createInitialFY = fyCoreService.createInitialFY;
+
 export const fyInventoryService = {
   preCloseChecks,
   canCloseFY: preCloseChecks,
   computeFYInventoryBalances,
   closeFY,
+  registerFYCloseHook,
+  resolveTransactionFyId,
+  getActiveFY,
+  createInitialFY,
 };
 
 export default fyInventoryService;

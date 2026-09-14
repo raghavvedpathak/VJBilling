@@ -1,4 +1,5 @@
-// app/inventory/gemstones.tsx — Phase 2 v2.24 Canonical Screen
+// app/inventory/gemstones.tsx — Phase 2 v2.34 Canonical Screen
+// Aligned with Step 4.5, GEMSTONE-1 (v1.21), and RULE-1A-WEIGHT-DISPLAY (v1.54)
 
 import React, { useState, useCallback, memo, useMemo } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
@@ -12,7 +13,8 @@ import { appSettingsStore } from '@/store/phase1/appSettingsStore';
 import { useFirmStore } from '@/store/phase1/useFirmStore';
 import { gemstoneLotRepository } from '@/repositories/phase2/gemstoneLotRepository';
 import { formatRupees, formatCarats } from '@/utils/calculations';
-import { Gem, Plus, Diamond, Banknote, ShieldAlert, CheckCircle, Sparkles, Scale } from 'lucide-react-native';
+import { formatDate } from '@/utils/formatDate';
+import { Gem, Plus, Diamond, Banknote, ShieldAlert, CheckCircle, Clock, Scale } from 'lucide-react-native';
 import type { GemstoneLot } from '@/types/phase2/phase2.types';
 import { COLORS, getThemeColors } from '@/constants/theme';
 
@@ -27,37 +29,72 @@ const LotRow = memo(({
   colors: ReturnType<typeof getThemeColors>; 
 }) => {
   const isAvailable = item.status === 'AVAILABLE';
+  const isSold = item.status === 'SOLD';
+
+  const statusConfig = useMemo(() => {
+    if (isAvailable) {
+      return {
+        bg: 'rgba(16, 185, 129, 0.12)',
+        border: 'rgba(16, 185, 129, 0.28)',
+        textColor: '#047857',
+        icon: <CheckCircle size={12} color="#10B981" />,
+      };
+    }
+    if (isSold) {
+      return {
+        bg: `${colors.vjText}10`,
+        border: `${colors.vjText}20`,
+        textColor: colors.vjText,
+        icon: <CheckCircle size={12} color={colors.vjText} style={{ opacity: 0.6 }} />,
+      };
+    }
+    return {
+      bg: 'rgba(239, 68, 68, 0.12)',
+      border: 'rgba(239, 68, 68, 0.28)',
+      textColor: '#DC2626',
+      icon: <ShieldAlert size={12} color="#EF4444" />,
+    };
+  }, [isAvailable, isSold, colors.vjText]);
 
   return (
-    <GlassCard testID={`gemstone-lot-card-${item.id}`} style={s.card}>
+    <GlassCard testID={`gemstone-lot-card-${item.id}`} style={[s.card, { borderColor: `${colors.vjAccent}25` }]}>
       <View style={s.cardTop}>
         <View style={{ flex: 1, paddingRight: 8 }}>
           <Text style={[s.lotName, { color: colors.vjText }]} numberOfLines={1}>
             {item.name}
           </Text>
-          <Text style={[s.supplierName, { color: colors.vjText, opacity: 0.55 }]}>
-            {item.supplierName || 'Self / Direct Lot'}
-          </Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 2 }}>
+            <Text style={[s.supplierName, { color: colors.vjText, opacity: 0.6 }]}>
+              {item.supplierName || 'Self / Direct Lot'}
+            </Text>
+            {item.createdAt && (
+              <>
+                <Text style={{ fontSize: 10, color: `${colors.vjText}4D` }}>•</Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
+                  <Clock size={10} color={`${colors.vjText}66`} />
+                  <Text style={{ fontSize: 10.5, color: `${colors.vjText}80`, fontWeight: '600' }}>
+                    {formatDate(item.createdAt)}
+                  </Text>
+                </View>
+              </>
+            )}
+          </View>
         </View>
 
         <View 
           style={[
             s.statusBadge, 
             { 
-              backgroundColor: isAvailable ? 'rgba(16,185,129,0.12)' : 'rgba(239,68,68,0.12)',
-              borderColor: isAvailable ? 'rgba(16,185,129,0.25)' : 'rgba(239,68,68,0.25)',
+              backgroundColor: statusConfig.bg,
+              borderColor: statusConfig.border,
             }
           ]}
         >
-          {isAvailable ? (
-            <CheckCircle size={12} color="#10B981" />
-          ) : (
-            <ShieldAlert size={12} color="#EF4444" />
-          )}
+          {statusConfig.icon}
           <Text 
             style={[
               s.statusText, 
-              { color: isAvailable ? '#047857' : '#DC2626' }
+              { color: statusConfig.textColor }
             ]}
           >
             {item.status}
@@ -98,7 +135,7 @@ const LotRow = memo(({
       
       {item.certificationRef ? (
         <View style={[s.certRow, { borderTopColor: `${colors.vjAccent}18` }]}>
-          <Text style={[s.certLabel, { color: colors.vjText, opacity: 0.5 }]}>Cert Ref:</Text>
+          <Text style={[s.certLabel, { color: colors.vjText, opacity: 0.55 }]}>Cert Ref:</Text>
           <Text style={[s.certValue, { color: colors.vjAccent }]} selectable>
             {item.certificationRef}
           </Text>
@@ -219,28 +256,26 @@ const s = StyleSheet.create({
     flex: 1, 
     justifyContent: 'center', 
     alignItems: 'center', 
-    gap: 12,
+    gap: 12, 
     marginTop: 60,
   },
   loadingText: { 
     fontSize: 14, 
-    fontWeight: '600', 
-    opacity: 0.6 
+    fontWeight: '600' 
   },
   emptyContainer: { 
     alignItems: 'center', 
     marginTop: 60, 
-    gap: 8,
+    gap: 8, 
     paddingHorizontal: 24,
   },
   emptyTitle: { 
     fontSize: 18, 
-    fontWeight: '700',
-    opacity: 0.7, 
+    fontWeight: '700' 
   },
   emptySubtitle: { 
     fontSize: 13, 
-    textAlign: 'center',
+    textAlign: 'center' 
   },
   fab: { 
     position: 'absolute', 
@@ -258,9 +293,9 @@ const s = StyleSheet.create({
   },
   card: { 
     padding: 16, 
-    marginBottom: 12,
-    borderRadius: 18,
-    borderWidth: 1,
+    marginBottom: 12, 
+    borderRadius: 18, 
+    borderWidth: 1, 
   },
   cardTop: { 
     flexDirection: 'row', 
@@ -275,7 +310,7 @@ const s = StyleSheet.create({
   },
   supplierName: { 
     fontSize: 12, 
-    fontWeight: '500',
+    fontWeight: '500' 
   },
   statusBadge: { 
     flexDirection: 'row', 
@@ -283,14 +318,14 @@ const s = StyleSheet.create({
     gap: 4, 
     paddingHorizontal: 8, 
     paddingVertical: 3.5, 
-    borderRadius: 6,
-    borderWidth: 1,
+    borderRadius: 6, 
+    borderWidth: 1, 
   },
   statusText: { 
     fontSize: 10, 
     fontWeight: '800', 
-    letterSpacing: 0.5,
-    textTransform: 'uppercase',
+    letterSpacing: 0.5, 
+    textTransform: 'uppercase' 
   },
   cardMiddle: { 
     flexDirection: 'row', 
@@ -310,9 +345,9 @@ const s = StyleSheet.create({
   detailLabel: { 
     fontSize: 10.5, 
     fontWeight: '700', 
-    textTransform: 'uppercase',
-    letterSpacing: 0.3,
-    opacity: 0.6,
+    textTransform: 'uppercase', 
+    letterSpacing: 0.3, 
+    opacity: 0.6, 
   },
   detailValue: { 
     fontSize: 13.5, 
@@ -330,13 +365,13 @@ const s = StyleSheet.create({
   certLabel: { 
     fontSize: 11, 
     fontWeight: '700', 
-    textTransform: 'uppercase',
-    letterSpacing: 0.3,
+    textTransform: 'uppercase', 
+    letterSpacing: 0.3, 
   },
   certValue: { 
     fontSize: 12, 
     fontWeight: '800', 
-    fontFamily: 'monospace',
+    fontFamily: 'monospace', 
     letterSpacing: 0.5, 
   },
 });

@@ -7,6 +7,7 @@ import * as FileSystem from 'expo-file-system/legacy';
 import { ScreenWrapper } from '@/components/ScreenWrapper';
 import { GlassCard } from '@/components/ui/Glass';
 import { restoreService } from '@/services/phase1/restoreService';
+import '@/services/phase2/inventoryRestoreService';
 import { useSession } from '@/hooks/useSession';
 import { RestorePreviewModal } from '@/components/RestorePreviewModal';
 import { BackupEnvelope } from '@/services/phase1/backupService';

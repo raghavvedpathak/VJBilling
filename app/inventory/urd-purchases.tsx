@@ -1,4 +1,5 @@
-// app/inventory/urd-purchases.tsx — Phase 2 v2.24 Canonical Screen
+// app/inventory/urd-purchases.tsx — Phase 2 v2.34 Canonical Screen
+// Aligned with Step 12.9, Step 12.12, URD-BILL-DECIMAL-SPEC, and URD-AMOUNT-WORDS (v1.54)
 
 import React, { useState, useCallback, useMemo, memo } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Alert, Modal, useWindowDimensions } from 'react-native';
@@ -10,7 +11,7 @@ import * as Sharing from 'expo-sharing';
 import * as Haptics from 'expo-haptics';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { TwoToneWrapper } from '@/components/TwoToneWrapper';
-import { GlassCard, GlassButton, HeaderPill, FixedGlassBar } from '@/components/ui/Glass';
+import { GlassCard, HeaderPill, FixedGlassBar } from '@/components/ui/Glass';
 import { useFirmStore } from '@/store/phase1/useFirmStore';
 import { appSettingsStore } from '@/store/phase1/appSettingsStore';
 import { urdPurchaseRepository } from '@/repositories/phase2/urdPurchaseRepository';
@@ -26,8 +27,7 @@ import {
   getFirmURDDeclarationTemplateId, 
   setFirmURDDeclarationTemplateId, 
   URD_PRINT_FORMATS,
-  type URDDeclarationTemplateId, 
-  type URDBillTemplateId 
+  type URDDeclarationTemplateId 
 } from '@/templates/urd';
 import { COLORS, getThemeColors } from '@/constants/theme';
 
@@ -164,7 +164,7 @@ export default function URDPurchasesScreen() {
   const isTablet = width >= 768;
   const { activeFirmId } = useFirmStore();
   const [data, setData] = useState<URDPurchase[]>([]);
-  const [firm, setFirm] = useState<Firm | null>(null);
+  const [, setFirm] = useState<Firm | null>(null);
   const [loading, setLoading] = useState(true);
 
   // Modern Confirmation & Success Modal States
@@ -197,7 +197,6 @@ export default function URDPurchasesScreen() {
       const firmData = await firmRepository.getById(activeFirmId);
       setFirm(firmData);
 
-      // Auto-select latest draft if none selected
       const drafts = (results || []).filter((r) => r.status === 'DRAFT');
       if (drafts.length > 0) {
         setSelectedId((prev) => (prev && results?.some((r) => r.id === prev) ? prev : drafts[0].id));
@@ -245,7 +244,7 @@ export default function URDPurchasesScreen() {
     setSelectedId((prev) => (prev === item.id ? null : item.id));
   }, []);
 
-  const handleConfirm = useCallback((id: string, name: string) => {
+  const handleConfirm = useCallback((id: string) => {
     try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
     const purchase = data.find((p) => p.id === id);
     if (purchase) {
@@ -342,6 +341,10 @@ export default function URDPurchasesScreen() {
   const handleShareFromPreview = async () => {
     if (!previewHtml) return;
     try {
+      if (!(await Sharing.isAvailableAsync())) {
+        Alert.alert('Sharing Unavailable', 'Sharing is not available on this device.');
+        return;
+      }
       const isBill = previewType === 'BILL';
       const printConfig = isBill ? URD_PRINT_FORMATS.BILL : URD_PRINT_FORMATS.DECLARATION;
       const { uri } = await Print.printToFileAsync({
@@ -372,6 +375,7 @@ export default function URDPurchasesScreen() {
             try {
               if (!activeFirmId) return;
               await urdPurchaseService.deleteURDPurchase(id, activeFirmId);
+              if (selectedId === id) setSelectedId(null);
               loadData();
             } catch (error: any) {
               Alert.alert('Error', error.message || 'Failed to delete draft purchase.');
@@ -380,7 +384,7 @@ export default function URDPurchasesScreen() {
         }
       ]
     );
-  }, [activeFirmId, loadData]);
+  }, [activeFirmId, selectedId, loadData]);
 
   const { totalFineWeightMg, totalPayoutPaise } = useMemo(() => {
     let fineMg = 0;
@@ -443,14 +447,13 @@ export default function URDPurchasesScreen() {
         )}
       </View>
 
-      {/* MODERN FLOATING STICKY ACTION BAR */}
+      {/* Floating Sticky Action Bar */}
       <FixedGlassBar
         cardStyle={{ borderRadius: 22 }}
         contentStyle={{ paddingHorizontal: 16, paddingVertical: 13, borderRadius: 22 }}
       >
         {selectedPurchase ? (
           selectedPurchase.status === 'CONFIRMED' ? (
-            // CONFIRMED PURCHASE DOCKED CONTROLS
             <View style={s.dockedContainer}>
               <View style={s.dockedHeader}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flex: 1 }}>
@@ -464,7 +467,7 @@ export default function URDPurchasesScreen() {
                 </View>
                 <TouchableOpacity 
                   onPress={() => setSelectedId(null)}
-                  style={s.dockedCloseBtn}
+                  style={[s.dockedCloseBtn, { backgroundColor: `${colors.vjText}10` }]}
                   hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                 >
                   <X size={14} color={colors.vjText} />
@@ -494,7 +497,6 @@ export default function URDPurchasesScreen() {
               </View>
             </View>
           ) : (
-            // DRAFT PURCHASE DOCKED CONTROLS
             <View style={s.dockedContainer}>
               <View style={s.dockedHeader}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flex: 1 }}>
@@ -508,20 +510,19 @@ export default function URDPurchasesScreen() {
                 </View>
                 <TouchableOpacity 
                   onPress={() => setSelectedId(null)}
-                  style={s.dockedCloseBtn}
+                  style={[s.dockedCloseBtn, { backgroundColor: `${colors.vjText}10` }]}
                   hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                 >
                   <X size={14} color={colors.vjText} />
                 </TouchableOpacity>
               </View>
 
-              {/* Responsive actions: single row on tablet, stacked on phone */}
               {isTablet ? (
                 <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>
                   <TouchableOpacity
                     testID={`confirm-urd-btn-${selectedPurchase.id}`}
                     style={[s.glassPillSuccess, { flex: 1.8 }]}
-                    onPress={() => handleConfirm(selectedPurchase.id, selectedPurchase.customerName)}
+                    onPress={() => handleConfirm(selectedPurchase.id)}
                     activeOpacity={0.85}
                   >
                     <CheckCircle size={16} color="#ffffff" />
@@ -573,7 +574,7 @@ export default function URDPurchasesScreen() {
                   <TouchableOpacity
                     testID={`confirm-urd-btn-${selectedPurchase.id}`}
                     style={s.glassPillSuccess}
-                    onPress={() => handleConfirm(selectedPurchase.id, selectedPurchase.customerName)}
+                    onPress={() => handleConfirm(selectedPurchase.id)}
                     activeOpacity={0.85}
                   >
                     <CheckCircle size={15} color="#ffffff" />
@@ -626,7 +627,6 @@ export default function URDPurchasesScreen() {
             </View>
           )
         ) : (
-          // DEFAULT: NO SELECTION -> SUMMARY METRICS + NEW PURCHASE BUTTON
           <View style={s.defaultBarContainer}>
             <View style={{ flex: 1 }}>
               <Text style={[s.defaultSummaryCount, { color: colors.vjText }]}>
@@ -650,7 +650,7 @@ export default function URDPurchasesScreen() {
         )}
       </FixedGlassBar>
 
-      {/* 1. MODERN FROSTED PRE-CONFIRMATION MODAL */}
+      {/* Confirmation Modal */}
       <Modal visible={!!confirmingPurchase} transparent animationType="fade">
         <TouchableOpacity 
           style={s.modalOverlayCenter}
@@ -658,7 +658,7 @@ export default function URDPurchasesScreen() {
           onPress={() => !isConfirming && setConfirmingPurchase(null)}
         >
           <TouchableOpacity 
-            activeOpacity={1}
+            activeOpacity={1} 
             style={[
               s.modernModalContent, 
               { 
@@ -668,7 +668,6 @@ export default function URDPurchasesScreen() {
               }
             ]}
           >
-            {/* Modal Glow Header Icon */}
             <View style={[s.modalIconCircle, { backgroundColor: 'rgba(16,185,129,0.12)', borderColor: 'rgba(16,185,129,0.3)' }]}>
               <ShieldCheck size={32} color="#10B981" />
             </View>
@@ -678,7 +677,6 @@ export default function URDPurchasesScreen() {
               Finalize unrefined purchase from {confirmingPurchase?.customerName} and generate an official URD voucher.
             </Text>
 
-            {/* Purchase Details Summary Card */}
             {confirmingPurchase && (
               <View style={[s.modalSummaryCard, { backgroundColor: `${colors.vjAccent}0A`, borderColor: `${colors.vjAccent}25` }]}>
                 <View style={s.modalSummaryRow}>
@@ -740,7 +738,7 @@ export default function URDPurchasesScreen() {
         </TouchableOpacity>
       </Modal>
 
-      {/* 2. MODERN SUCCESS VOUCHER MODAL WITH DIRECT PRINT ACTIONS */}
+      {/* Success Voucher Modal */}
       <Modal visible={!!confirmedPurchase} transparent animationType="fade">
         <TouchableOpacity 
           style={s.modalOverlayCenter}
@@ -748,7 +746,7 @@ export default function URDPurchasesScreen() {
           onPress={() => setConfirmedPurchase(null)}
         >
           <TouchableOpacity 
-            activeOpacity={1}
+            activeOpacity={1} 
             style={[
               s.modernModalContent, 
               { 
@@ -758,7 +756,6 @@ export default function URDPurchasesScreen() {
               }
             ]}
           >
-            {/* Glowing Success Badge */}
             <View style={[s.modalIconCircle, { backgroundColor: 'rgba(16,185,129,0.15)', borderColor: 'rgba(16,185,129,0.35)' }]}>
               <Sparkles size={32} color="#10B981" />
             </View>
@@ -767,7 +764,6 @@ export default function URDPurchasesScreen() {
             
             {confirmedPurchase && (
               <>
-                {/* URD Voucher Number Banner */}
                 <View style={[s.urdNumberBanner, { backgroundColor: `${colors.vjAccent}18`, borderColor: colors.vjAccent }]}>
                   <Text style={[s.urdNumberLabel, { color: colors.vjAccent }]}>OFFICIAL VOUCHER NO.</Text>
                   <Text style={[s.urdNumberValue, { color: colors.vjText }]}>{confirmedPurchase.urdNumber}</Text>
@@ -777,7 +773,6 @@ export default function URDPurchasesScreen() {
                   Purchase finalized from <Text style={{ fontWeight: '800' }}>{confirmedPurchase.customerName}</Text> for payout of <Text style={{ fontWeight: '800', color: colors.vjAccent }}>{formatRupees(confirmedPurchase.totalValuePaise)}</Text>.
                 </Text>
 
-                {/* Instant Actions Stack */}
                 <View style={{ width: '100%', gap: 10, marginTop: 18 }}>
                   <TouchableOpacity
                     style={[s.modalActionPrimaryBtn, { backgroundColor: colors.vjAccent }]}
@@ -822,7 +817,7 @@ export default function URDPurchasesScreen() {
       {/* Preview Modal for Bill & Declaration */}
       <Modal visible={previewVisible} animationType="slide" onRequestClose={() => setPreviewVisible(false)}>
         <View style={[s.previewModalContainer, { backgroundColor: colors.vjBg }]}>
-          <View style={[s.previewHeader, { backgroundColor: colors.vjAccent, paddingTop: Math.max(insets.top + 12, 44) }]}>
+          <View style={[s.previewHeader, { backgroundColor: colors.vjHeaderBg, paddingTop: Math.max(insets.top + 12, 44) }]}>
             <Text style={s.previewHeaderTitle} numberOfLines={1}>{previewTitle}</Text>
             <TouchableOpacity onPress={() => setPreviewVisible(false)} style={s.closeIconBtn}>
               <X size={22} color="#fff" />
@@ -830,7 +825,7 @@ export default function URDPurchasesScreen() {
           </View>
 
           {previewType === 'DECLARATION' && (
-            <View style={[s.templateBar, { backgroundColor: `${colors.vjAccent}EE` }]}>
+            <View style={[s.templateBar, { backgroundColor: colors.vjHeaderBg }]}>
               <Text style={s.templateBarLabel}>Format / Language:</Text>
               <View style={s.templateSegmentGroup}>
                 <TouchableOpacity
@@ -919,13 +914,12 @@ const s = StyleSheet.create({
   cardFooterHint: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', borderTopWidth: 1, paddingTop: 8 },
   cardFooterHintText: { fontSize: 11, fontWeight: '600' },
 
-  // Docked FixedGlassBar styles
   dockedContainer: { width: '100%', gap: 8, paddingHorizontal: 2 },
   dockedHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 2, paddingHorizontal: 2 },
   dockedCustomerName: { fontSize: 13, fontWeight: '800', maxWidth: 200 },
   dockedBillNum: { fontSize: 12, fontWeight: '700', fontFamily: 'monospace' },
   dockedAmount: { fontSize: 12, fontWeight: '800', fontFamily: 'monospace' },
-  dockedCloseBtn: { padding: 4, borderRadius: 10, backgroundColor: 'rgba(0,0,0,0.06)' },
+  dockedCloseBtn: { padding: 4, borderRadius: 10 },
 
   glassPillPrimary: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 11, borderRadius: 12 },
   glassPillPrimaryText: { color: '#ffffff', fontSize: 13, fontWeight: '800' },

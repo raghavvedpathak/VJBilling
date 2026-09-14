@@ -3,4 +3,6 @@
 export * from './phase1/firm';
 export * from './phase1/audit';
 export * from './phase1/settings';
+export type { FinancialYear, NewFinancialYear, FYStatus } from './phase1/fy.types';
 export * from './phase2/phase2.types';
+

@@ -1,4 +1,5 @@
-// app/masters/create-design.tsx — Phase 2 v2.24 Canonical Screen
+// app/masters/create-design.tsx — Phase 2 v2.34 Canonical Screen
+// Aligned with FEAT-LOOSE-STOCK-1 (v2.24), FIX-LOWSTOCK-PURITYGRAIN-1 (v2.13), and MastersSyncStore
 
 import React, { useState, useCallback, useEffect } from 'react';
 import { View, Text, StyleSheet, Alert, Modal, TouchableOpacity, ActivityIndicator } from 'react-native';
@@ -7,16 +8,16 @@ import { useRouter, useFocusEffect } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import { TwoToneWrapper } from '@/components/TwoToneWrapper';
-import { HeaderPill, GlassButton, GlassInput, GlassPickerInput, GlassMetalSelector, FixedGlassBar, fixedBarStyles } from '@/components/ui/Glass';
+import { HeaderPill, GlassCard, GlassButton, GlassInput, GlassPickerInput, GlassMetalSelector, FixedGlassBar, fixedBarStyles } from '@/components/ui/Glass';
 import { GlassPickerModal, GlassPickerOption } from '@/components/ui/GlassPickerModal';
 import { appSettingsStore } from '@/store/phase1/appSettingsStore';
-import { Tag, CheckCircle, ShieldCheck, Plus, Barcode, Layers } from 'lucide-react-native';
+import { Tag, CheckCircle, ShieldCheck, Plus, Barcode, Layers, Boxes } from 'lucide-react-native';
 import { useFirmStore } from '@/store/phase1/useFirmStore';
 import { useMastersSyncStore } from '@/store/phase2/mastersSyncStore';
 import { categoryRepository } from '@/repositories/phase2/categoryRepository';
 import { designService } from '@/services/phase2/designService';
 import type { Category } from '@/types/phase2/phase2.types';
-import { COLORS, getThemeColors } from '@/constants/theme';
+import { getThemeColors } from '@/constants/theme';
 
 export default function CreateDesignScreen() {
   const router = useRouter();
@@ -35,6 +36,7 @@ export default function CreateDesignScreen() {
 
   const activeTheme = appSettingsStore((s: any) => s.theme);
   const colors = getThemeColors(activeTheme);
+  const isDark = activeTheme === 'dark';
 
   const [pickerModal, setPickerModal] = useState<{
     visible: boolean;
@@ -101,6 +103,7 @@ export default function CreateDesignScreen() {
         metal: newMetal,
         categoryId: selectedCategoryId,
         stockType,
+        defaultHsn: '7113',
       }, activeFirmId);
       
       setSuccessMessage(`Design "${trimmedName}" (${stockType === 'LOOSE' ? 'Loose Stock' : 'Serialized'}) created successfully.`);
@@ -135,7 +138,7 @@ export default function CreateDesignScreen() {
           style={s.container} 
           showsVerticalScrollIndicator={false} 
           contentContainerStyle={{ 
-            paddingTop: 32, 
+            paddingTop: 24, 
             paddingBottom: Math.max(insets.bottom + 120, 160) 
           }} 
           keyboardShouldPersistTaps="handled"
@@ -145,7 +148,7 @@ export default function CreateDesignScreen() {
           extraScrollHeight={120}
           extraHeight={140}
         >
-          <View style={[s.card, { borderColor: `${colors.vjAccent}25` }]}>
+          <GlassCard style={{ padding: 20, marginBottom: 16, borderColor: `${colors.vjAccent}25` }}>
             <View style={s.formGroup}>
               <GlassInput 
                 label="Design Name * (1 or 2 words only)"
@@ -164,7 +167,7 @@ export default function CreateDesignScreen() {
               }}
             />
 
-            {/* STOCK TYPE SELECTOR (FEAT-LOOSE-STOCK-1 v2.24) */}
+            {/* Stock Type Selector */}
             <View style={s.formGroup}>
               <View style={s.labelRow}>
                 <Text style={[s.label, { color: colors.vjText, opacity: 0.7 }]}>
@@ -186,11 +189,13 @@ export default function CreateDesignScreen() {
                   }}
                   style={[
                     s.stockTypeCard,
-                    { borderColor: `${colors.vjAccent}25` },
-                    stockType === 'SERIALIZED' && [
-                      s.stockTypeCardActive,
-                      { backgroundColor: `${colors.vjAccent}14`, borderColor: colors.vjAccent },
-                    ],
+                    {
+                      backgroundColor: stockType === 'SERIALIZED'
+                        ? (isDark ? `${colors.vjAccent}25` : `${colors.vjAccent}14`)
+                        : (isDark ? 'rgba(255, 255, 255, 0.05)' : '#ffffff'),
+                      borderColor: stockType === 'SERIALIZED' ? colors.vjAccent : `${colors.vjAccent}25`,
+                      borderWidth: stockType === 'SERIALIZED' ? 1.8 : 1,
+                    },
                   ]}
                 >
                   <View style={[s.stockTypeIconBox, { backgroundColor: `${colors.vjAccent}15` }]}>
@@ -212,15 +217,17 @@ export default function CreateDesignScreen() {
                   }}
                   style={[
                     s.stockTypeCard,
-                    { borderColor: `${colors.vjAccent}25` },
-                    stockType === 'LOOSE' && [
-                      s.stockTypeCardActive,
-                      { backgroundColor: `${colors.vjAccent}14`, borderColor: colors.vjAccent },
-                    ],
+                    {
+                      backgroundColor: stockType === 'LOOSE'
+                        ? (isDark ? `${colors.vjAccent}25` : `${colors.vjAccent}14`)
+                        : (isDark ? 'rgba(255, 255, 255, 0.05)' : '#ffffff'),
+                      borderColor: stockType === 'LOOSE' ? colors.vjAccent : `${colors.vjAccent}25`,
+                      borderWidth: stockType === 'LOOSE' ? 1.8 : 1,
+                    },
                   ]}
                 >
                   <View style={[s.stockTypeIconBox, { backgroundColor: `${colors.vjAccent}15` }]}>
-                    <Layers size={18} color={colors.vjAccent} />
+                    <Boxes size={18} color={colors.vjAccent} />
                   </View>
                   <Text style={[s.stockTypeTitle, { color: colors.vjText }]}>Loose Stock</Text>
                   <Text style={[s.stockTypeSubtitle, { color: colors.vjText, opacity: 0.65 }]}>
@@ -240,6 +247,10 @@ export default function CreateDesignScreen() {
                   : null
               }
               onPress={() => {
+                if (categories.length === 0) {
+                  Alert.alert('No Categories Found', 'Please create at least one category before adding a design.');
+                  return;
+                }
                 setPickerModal({
                   visible: true,
                   title: 'Select Category',
@@ -256,7 +267,7 @@ export default function CreateDesignScreen() {
                 });
               }}
             />
-          </View>
+          </GlassCard>
         </KeyboardAwareScrollView>
 
         <FixedGlassBar>
@@ -293,7 +304,7 @@ export default function CreateDesignScreen() {
         </FixedGlassBar>
       </View>
 
-      {/* SUCCESS MODAL */}
+      {/* Success Modal */}
       <Modal visible={!!successMessage} transparent animationType="fade" onRequestClose={handleSuccessDone}>
         <TouchableOpacity 
           style={s.modalOverlayCenter}
@@ -301,7 +312,7 @@ export default function CreateDesignScreen() {
           onPress={handleSuccessDone}
         >
           <TouchableOpacity 
-            activeOpacity={1}
+            activeOpacity={1} 
             style={[s.successModalContent, { backgroundColor: colors.vjBg, borderColor: colors.border }]}
           >
             <View style={s.successIconContainer}>
@@ -334,13 +345,7 @@ export default function CreateDesignScreen() {
 }
 
 const s = StyleSheet.create({
-  container: { flex: 1, paddingTop: 16 },
-  card: {
-    backgroundColor: 'rgba(255,255,255,0.6)',
-    borderRadius: 24,
-    padding: 24,
-    borderWidth: 1,
-  },
+  container: { flex: 1 },
   formGroup: { marginBottom: 20 },
   labelRow: {
     flexDirection: 'row',
@@ -368,12 +373,7 @@ const s = StyleSheet.create({
     flex: 1,
     padding: 12,
     borderRadius: 14,
-    borderWidth: 1,
-    backgroundColor: '#fff',
     alignItems: 'flex-start',
-  },
-  stockTypeCardActive: {
-    borderWidth: 1.5,
   },
   stockTypeIconBox: {
     padding: 6,

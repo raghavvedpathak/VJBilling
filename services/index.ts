@@ -29,7 +29,12 @@ export {
 export * from './phase2/barcodeLabelService';
 export * from './phase2/categoryService';
 export * from './phase2/designService';
-export * from './phase2/fyInventoryService';
+export {
+  fyInventoryService,
+  preCloseChecks,
+  computeFYInventoryBalances,
+  closeFY,
+} from './phase2/fyInventoryService';
 export * from './phase2/gemstoneLotService';
 export * from './phase2/inventoryDrillDownService';
 export * from './phase2/inventorySearchService';
@@ -57,3 +62,8 @@ export * from './phase2/skuEngine';
 export * from './phase2/stoneService';
 export * from './phase2/urdPrintService';
 export * from './phase2/urdPurchaseService';
+export * from './phase2/inventoryAuditService';
+export * from './phase2/inventoryBackupService';
+export * from './phase2/inventoryRestoreService';
+
+

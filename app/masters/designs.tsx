@@ -1,4 +1,5 @@
-// app/masters/designs.tsx — Phase 2 v2.24 Canonical Screen
+// app/masters/designs.tsx — Phase 2 v2.34 Canonical Screen
+// Aligned with FEAT-LOOSE-STOCK-1 (v2.24), FIX-LOWSTOCK-PURITYGRAIN-1 (v2.13), and MastersSyncStore
 
 import React, { useState, useCallback, useEffect, useMemo, useDeferredValue } from 'react';
 import {
@@ -31,6 +32,7 @@ import {
   Search,
   X,
   Sparkles,
+  Boxes,
 } from 'lucide-react-native';
 import { useFirmStore } from '@/store/phase1/useFirmStore';
 import { useMastersSyncStore } from '@/store/phase2/mastersSyncStore';
@@ -39,7 +41,7 @@ import { categoryRepository } from '@/repositories/phase2/categoryRepository';
 import { designCategoryMapRepository } from '@/repositories/phase2/designCategoryMapRepository';
 import { designService } from '@/services/phase2/designService';
 import type { Design, Category } from '@/types/phase2/phase2.types';
-import { COLORS, getThemeColors } from '@/constants/theme';
+import { getThemeColors } from '@/constants/theme';
 
 type DesignWithCategory = Design & { categoryName: string | null };
 
@@ -48,15 +50,17 @@ export default function DesignsScreen() {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
 
-  // Responsive Grid System: Always 2 Columns for Smartphones & Tablets
   const isTablet = width >= 768;
   const contentWidth = isTablet ? Math.min(width, 920) : width;
-  const availableWidth = contentWidth - 32; // TwoToneWrapper horizontal padding = 16 each side
+  const availableWidth = contentWidth - 32;
   const numColumns = 2;
   const gap = 12;
   const gridItemWidth = Math.floor((availableWidth - gap) / numColumns);
 
   const { activeFirmId } = useFirmStore();
+  const activeTheme = appSettingsStore((s: any) => s.theme);
+  const colors = getThemeColors(activeTheme);
+  const isDark = activeTheme === 'dark';
 
   const [designs, setDesigns] = useState<DesignWithCategory[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -105,6 +109,7 @@ export default function DesignsScreen() {
           try {
             const maps = await designCategoryMapRepository.findByDesignId(d.id, activeFirmId);
             if (maps.length > 0) {
+              maps.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
               const cat = activeCategories.find((c: Category) => c.id === maps[0].categoryId);
               if (cat) categoryName = cat.name;
             }
@@ -151,17 +156,17 @@ export default function DesignsScreen() {
       await loadData();
     } catch (error: any) {
       setConfirmDelete(null);
-      setErrorMessage(
-        error.message === 'DESIGN_HAS_ACTIVE_ITEMS'
-          ? 'Cannot delete: Design pattern has active inventory items linked.'
-          : error.message || 'Failed to delete design pattern.'
-      );
+      let userMsg = error.message || 'Failed to delete design pattern.';
+      if (error.message === 'DESIGN_HAS_ACTIVE_ITEMS') {
+        userMsg = 'Cannot delete: Design pattern has active inventory items linked to it.';
+      }
+      setErrorMessage(userMsg);
     } finally {
       setIsDeleting(false);
     }
   };
 
-  const openEdit = (d: Design) => {
+  const openEdit = (d: DesignWithCategory) => {
     try {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     } catch {}
@@ -172,6 +177,8 @@ export default function DesignsScreen() {
         initialName: d.name,
         initialCode: d.code || '',
         initialMetal: d.metal,
+        initialStockType: d.stockType || 'SERIALIZED',
+        initialDefaultHsn: d.defaultHsn || '',
       },
     });
   };
@@ -187,16 +194,14 @@ export default function DesignsScreen() {
           d.name.toLowerCase().includes(q) ||
           (d.code && d.code.toLowerCase().includes(q)) ||
           (d.metal && d.metal.toLowerCase().includes(q)) ||
-          (d.categoryName && d.categoryName.toLowerCase().includes(q))
+          (d.categoryName && d.categoryName.toLowerCase().includes(q)) ||
+          (d.stockType && d.stockType.toLowerCase().includes(q))
       );
     }
     return [...list].sort((a, b) =>
       a.name.localeCompare(b.name, undefined, { sensitivity: 'base', numeric: true })
     );
   }, [designs, deferredQuery]);
-
-  const activeTheme = appSettingsStore((s: any) => s.theme);
-  const colors = getThemeColors(activeTheme);
 
   const designHeaderPills = (
     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginTop: 4 }}>
@@ -211,7 +216,7 @@ export default function DesignsScreen() {
   return (
     <TwoToneWrapper title="Design Master" showBack headerContent={designHeaderPills}>
       <View style={s.container}>
-        {/* TOP CONTROLS ROW: SEARCH & VIEW SWITCHER */}
+        {/* Top Search & View Switcher */}
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 12 }}>
           <View style={[s.searchBarContainer, { flex: 1, borderColor: `${colors.vjAccent}35`, marginBottom: 0 }]}>
             <Search size={16} color={colors.vjAccent} style={{ marginRight: 8, opacity: 0.8 }} />
@@ -219,8 +224,8 @@ export default function DesignsScreen() {
               testID="design-search-input"
               value={searchQuery}
               onChangeText={setSearchQuery}
-              placeholder="Search design, code, metal, or category..."
-              placeholderTextColor="rgba(92, 22, 35, 0.4)"
+              placeholder="Search design, code, metal, category, or stock type..."
+              placeholderTextColor={isDark ? 'rgba(255, 255, 255, 0.38)' : 'rgba(92, 22, 35, 0.38)'}
               style={[s.searchInput, { color: colors.vjText }]}
               autoCorrect={false}
               autoCapitalize="none"
@@ -238,7 +243,6 @@ export default function DesignsScreen() {
             )}
           </View>
 
-          {/* VIEW SWITCHER */}
           <View style={[s.toggleContainer, { backgroundColor: `${colors.vjAccent}14` }]}>
             <TouchableOpacity
               testID="view-mode-list-btn"
@@ -311,6 +315,8 @@ export default function DesignsScreen() {
             ]}
           >
             {filteredDesigns.map((d) => {
+              const isLoose = d.stockType === 'LOOSE';
+
               if (viewMode === 'grid') {
                 return (
                   <GlassCard
@@ -323,29 +329,33 @@ export default function DesignsScreen() {
                     }}
                   >
                     <View style={s.gridCardInner}>
-                      {/* TOP BADGE ROW */}
                       <View style={s.gridHeaderRow}>
                         <GlassMetalBadge metal={d.metal} />
-                        <View style={[s.codeBadge, { backgroundColor: `${colors.vjAccent}10`, borderColor: `${colors.vjAccent}20` }]}>
-                          <Text style={[s.codeBadgeText, { color: colors.vjText }]} numberOfLines={1}>
-                            {d.code}
-                          </Text>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                          {isLoose && (
+                            <View style={[s.looseBadge, { backgroundColor: 'rgba(217, 119, 6, 0.15)', borderColor: 'rgba(217, 119, 6, 0.35)' }]}>
+                              <Boxes size={9} color="#D97706" />
+                              <Text style={s.looseBadgeText}>LOOSE</Text>
+                            </View>
+                          )}
+                          <View style={[s.codeBadge, { backgroundColor: `${colors.vjAccent}10`, borderColor: `${colors.vjAccent}20` }]}>
+                            <Text style={[s.codeBadgeText, { color: colors.vjText }]} numberOfLines={1}>
+                              {d.code}
+                            </Text>
+                          </View>
                         </View>
                       </View>
 
-                      {/* DESIGN NAME */}
                       <Text style={[s.gridTitle, { color: colors.vjText }]} numberOfLines={2}>
                         {d.name}
                       </Text>
 
-                      {/* CATEGORY SCOPE */}
                       <View style={[s.categoryScopeBadge, { backgroundColor: `${colors.vjAccent}14`, borderColor: `${colors.vjAccent}30` }]}>
                         <Text style={[s.categoryScopeText, { color: colors.vjAccent }]} numberOfLines={1}>
                           {d.categoryName ? `Cat: ${d.categoryName}` : 'Unassigned Category'}
                         </Text>
                       </View>
 
-                      {/* ACTION BUTTONS */}
                       <View style={[s.gridActionRow, { borderTopColor: `${colors.vjAccent}15` }]}>
                         <TouchableOpacity
                           testID={`edit-design-btn-${d.id}`}
@@ -370,7 +380,6 @@ export default function DesignsScreen() {
                 );
               }
 
-              // LIST VIEW ITEM
               return (
                 <GlassCard 
                   testID={`design-card-${d.id}`}
@@ -378,16 +387,22 @@ export default function DesignsScreen() {
                   style={{ marginBottom: 10, width: '100%', borderColor: `${colors.vjAccent}25` }}
                 >
                   <View style={s.listCardInner}>
-                    {/* LEFT BADGE */}
                     <View style={{ marginRight: 12 }}>
                       <GlassMetalBadge metal={d.metal} />
                     </View>
 
-                    {/* CENTER DETAILS */}
                     <View style={s.listTextContainer}>
-                      <Text style={[s.listTitle, { color: colors.vjText }]} numberOfLines={2}>
-                        {d.name}
-                      </Text>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                        <Text style={[s.listTitle, { color: colors.vjText, flex: 1 }]} numberOfLines={1}>
+                          {d.name}
+                        </Text>
+                        {isLoose && (
+                          <View style={[s.looseBadge, { backgroundColor: 'rgba(217, 119, 6, 0.15)', borderColor: 'rgba(217, 119, 6, 0.35)' }]}>
+                            <Boxes size={9} color="#D97706" />
+                            <Text style={s.looseBadgeText}>LOOSE</Text>
+                          </View>
+                        )}
+                      </View>
                       <View style={s.listSubRow}>
                         <View style={[s.codeBadge, { backgroundColor: `${colors.vjAccent}10`, borderColor: `${colors.vjAccent}20` }]}>
                           <Text style={[s.codeBadgeText, { color: colors.vjText }]}>{d.code}</Text>
@@ -398,7 +413,6 @@ export default function DesignsScreen() {
                       </View>
                     </View>
 
-                    {/* RIGHT ACTIONS */}
                     <View style={s.listActionRow}>
                       <TouchableOpacity
                         testID={`edit-design-btn-${d.id}`}
@@ -440,7 +454,7 @@ export default function DesignsScreen() {
         </FixedGlassBar>
       </View>
 
-      {/* SUCCESS MODAL */}
+      {/* Success Modal */}
       <Modal visible={!!successMessage} transparent animationType="fade" onRequestClose={() => setSuccessMessage(null)}>
         <TouchableOpacity 
           style={s.modalOverlayCenter}
@@ -448,7 +462,7 @@ export default function DesignsScreen() {
           onPress={() => setSuccessMessage(null)}
         >
           <TouchableOpacity 
-            activeOpacity={1}
+            activeOpacity={1} 
             style={[s.successModalContent, { backgroundColor: colors.vjBg, borderColor: colors.border }]}
           >
             <View style={s.successIconContainer}>
@@ -463,7 +477,7 @@ export default function DesignsScreen() {
         </TouchableOpacity>
       </Modal>
 
-      {/* CONFIRM DELETE MODAL */}
+      {/* Confirm Delete Modal */}
       <Modal visible={!!confirmDelete} transparent animationType="fade" onRequestClose={() => !isDeleting && setConfirmDelete(null)}>
         <TouchableOpacity 
           style={s.modalOverlayCenter}
@@ -471,7 +485,7 @@ export default function DesignsScreen() {
           onPress={() => !isDeleting && setConfirmDelete(null)}
         >
           <TouchableOpacity 
-            activeOpacity={1}
+            activeOpacity={1} 
             style={[s.successModalContent, { backgroundColor: colors.vjBg, borderColor: colors.border }]}
           >
             <View style={[s.successIconContainer, { backgroundColor: 'rgba(239, 68, 68, 0.1)' }]}>
@@ -503,7 +517,7 @@ export default function DesignsScreen() {
         </TouchableOpacity>
       </Modal>
 
-      {/* ERROR MODAL */}
+      {/* Error Modal */}
       <Modal visible={!!errorMessage} transparent animationType="fade" onRequestClose={() => setErrorMessage(null)}>
         <TouchableOpacity 
           style={s.modalOverlayCenter}
@@ -511,7 +525,7 @@ export default function DesignsScreen() {
           onPress={() => setErrorMessage(null)}
         >
           <TouchableOpacity 
-            activeOpacity={1}
+            activeOpacity={1} 
             style={[s.successModalContent, { backgroundColor: colors.vjBg, borderColor: colors.border }]}
           >
             <View style={[s.successIconContainer, { backgroundColor: 'rgba(239, 68, 68, 0.1)' }]}>
@@ -582,6 +596,21 @@ const s = StyleSheet.create({
   codeBadgeText: {
     fontSize: 11,
     fontWeight: '800',
+    letterSpacing: 0.5,
+  },
+  looseBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+    borderWidth: 1,
+  },
+  looseBadgeText: {
+    fontSize: 9,
+    fontWeight: '900',
+    color: '#D97706',
     letterSpacing: 0.5,
   },
   gridTitle: {

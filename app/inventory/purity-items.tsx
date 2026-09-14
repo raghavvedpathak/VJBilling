@@ -1,4 +1,5 @@
-// app/inventory/purity-items.tsx — Phase 2 v2.24 Canonical Screen
+// app/inventory/purity-items.tsx — Phase 2 v2.34 Canonical Screen
+// Aligned with FEAT-DRILL-DOWN-1 (v1.65), FIX-24KS-DISPLAY-1 (v2.25), and MastersSyncStore
 
 import React, { useState, useCallback, useMemo } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
@@ -73,8 +74,8 @@ const SkuRow = React.memo(({
                 <Text style={s.huidText}>{item.huid}</Text>
               </View>
             ) : (
-              <View style={s.noHuidBadge}>
-                <Text style={s.noHuidText}>No HUID</Text>
+              <View style={[s.noHuidBadge, { backgroundColor: `${colors.vjText}0A` }]}>
+                <Text style={[s.noHuidText, { color: `${colors.vjText}66` }]}>No HUID</Text>
               </View>
             )}
           </View>
@@ -86,24 +87,24 @@ const SkuRow = React.memo(({
 
         <View style={s.itemMetaRow}>
           <View style={s.itemMetaBlock}>
-            <Text style={s.itemMetaLabel}>Gross</Text>
+            <Text style={[s.itemMetaLabel, { color: `${colors.vjText}66` }]}>Gross</Text>
             <Text style={[s.itemMetaValue, { color: colors.vjText }]}>{formatWeight(item.grossWeightMg)}</Text>
           </View>
-          <View style={s.metaDivider} />
+          <View style={[s.metaDivider, { backgroundColor: `${colors.vjText}14` }]} />
           <View style={s.itemMetaBlock}>
-            <Text style={s.itemMetaLabel}>Net</Text>
+            <Text style={[s.itemMetaLabel, { color: `${colors.vjText}66` }]}>Net</Text>
             <Text style={[s.itemMetaValue, { color: colors.vjAccent }]}>{netWeightDisplay}</Text>
           </View>
-          <View style={s.metaDivider} />
+          <View style={[s.metaDivider, { backgroundColor: `${colors.vjText}14` }]} />
           <View style={s.itemMetaBlock}>
-            <Text style={s.itemMetaLabel}>Purity</Text>
+            <Text style={[s.itemMetaLabel, { color: `${colors.vjText}66` }]}>Purity</Text>
             <Text style={[s.itemMetaValue, { color: metalColor }]}>{purityDisplay}</Text>
           </View>
           {item.sizeValue != null && (
             <>
-              <View style={s.metaDivider} />
+              <View style={[s.metaDivider, { backgroundColor: `${colors.vjText}14` }]} />
               <View style={s.itemMetaBlock}>
-                <Text style={s.itemMetaLabel}>Size</Text>
+                <Text style={[s.itemMetaLabel, { color: `${colors.vjText}66` }]}>Size</Text>
                 <Text style={[s.itemMetaValue, { color: colors.vjText }]}>
                   {item.sizeValue} {item.sizeUnit ? item.sizeUnit : ''}
                 </Text>
@@ -124,7 +125,7 @@ const SkuRow = React.memo(({
           style={[s.printBtn, { backgroundColor: `${colors.vjAccent}14`, borderColor: `${colors.vjAccent}30` }]}
           activeOpacity={0.7}
           onPress={(e) => {
-            e.stopPropagation();
+            e?.stopPropagation?.();
             try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
             onPrint(item.itemId);
           }}
@@ -161,7 +162,6 @@ export default function PurityItemsScreen() {
         setLoading(true);
         try {
           const targetPurity = parseCleanFloat(purityPercent);
-          // Query directly with target purity filter at the repository/service layer
           const results = await inventoryDrillDownService.getItemsByDesign(activeFirmId, designId, targetPurity);
           if (active) {
             const filtered = (results || []).filter((r: ItemSearchResult) => 
@@ -230,13 +230,13 @@ export default function PurityItemsScreen() {
             renderItem={({ item }) => (
               <SkuRow 
                 item={item} 
-                colors={colors}
+                colors={colors} 
                 onPress={handleItemPress} 
                 onPrint={handlePrint} 
               />
             )}
             // @ts-ignore: estimatedItemSize required by FlashList
-            estimatedItemSize={100}
+            estimatedItemSize={115}
             contentContainerStyle={{
               paddingBottom: Math.max(insets.bottom + 40, 80),
               paddingTop: 24,
@@ -302,9 +302,9 @@ const s = StyleSheet.create({
     gap: 6 
   },
   huidBadge: { 
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 3,
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    gap: 3, 
     backgroundColor: 'rgba(22, 163, 74, 0.08)', 
     paddingHorizontal: 7, 
     paddingVertical: 2.5, 
@@ -316,17 +316,15 @@ const s = StyleSheet.create({
     color: '#15803d', 
     fontSize: 10, 
     fontWeight: '800', 
-    letterSpacing: 0.5,
+    letterSpacing: 0.5, 
     fontFamily: 'monospace' 
   },
   noHuidBadge: { 
-    backgroundColor: 'rgba(92,22,35,0.04)', 
     paddingHorizontal: 7, 
     paddingVertical: 2.5, 
     borderRadius: 6 
   },
   noHuidText: { 
-    color: 'rgba(92,22,35,0.4)', 
     fontSize: 10, 
     fontWeight: '700' 
   },
@@ -338,9 +336,9 @@ const s = StyleSheet.create({
   itemMetaRow: { 
     flexDirection: 'row', 
     alignItems: 'center', 
-    marginBottom: 8,
-    flexWrap: 'wrap',
-    gap: 4,
+    marginBottom: 8, 
+    flexWrap: 'wrap', 
+    gap: 4 
   },
   itemMetaBlock: { 
     paddingRight: 8 
@@ -348,11 +346,9 @@ const s = StyleSheet.create({
   metaDivider: { 
     width: 1, 
     height: 16, 
-    backgroundColor: 'rgba(92,22,35,0.08)', 
     marginRight: 8 
   },
   itemMetaLabel: { 
-    color: 'rgba(92,22,35,0.4)', 
     fontSize: 9, 
     fontWeight: '700', 
     textTransform: 'uppercase', 
@@ -375,8 +371,8 @@ const s = StyleSheet.create({
   locationText: { 
     fontSize: 10.5, 
     fontWeight: '600', 
-    textTransform: 'uppercase',
-    opacity: 0.7,
+    textTransform: 'uppercase', 
+    opacity: 0.7 
   },
   actionContainer: { 
     flexDirection: 'row', 
@@ -388,8 +384,8 @@ const s = StyleSheet.create({
     height: 38, 
     borderRadius: 11, 
     justifyContent: 'center', 
-    alignItems: 'center',
-    borderWidth: 1,
+    alignItems: 'center', 
+    borderWidth: 1 
   },
   loadingContainer: { 
     flex: 1, 
@@ -405,12 +401,12 @@ const s = StyleSheet.create({
   emptyContainer: { 
     alignItems: 'center', 
     marginTop: 60, 
-    gap: 8,
+    gap: 8, 
     paddingHorizontal: 24 
   },
   emptyTitle: { 
     fontSize: 18, 
-    fontWeight: '700',
+    fontWeight: '700', 
     opacity: 0.7 
   },
   emptySubtitle: { 

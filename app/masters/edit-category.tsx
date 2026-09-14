@@ -1,4 +1,5 @@
-// app/masters/edit-category.tsx — Phase 2 v2.24 Canonical Screen
+// app/masters/edit-category.tsx — Phase 2 v2.34 Canonical Screen
+// Aligned with Step 3.5, Step 16, and MastersSyncStore
 
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, Alert, Modal, TouchableOpacity, ActivityIndicator } from 'react-native';
@@ -7,13 +8,13 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import { TwoToneWrapper } from '@/components/TwoToneWrapper';
-import { HeaderPill, GlassButton, GlassInput, FixedGlassBar, fixedBarStyles } from '@/components/ui/Glass';
+import { HeaderPill, GlassCard, GlassButton, GlassInput, FixedGlassBar, fixedBarStyles } from '@/components/ui/Glass';
 import { appSettingsStore } from '@/store/phase1/appSettingsStore';
 import { Edit2, CheckCircle, ShieldCheck, Tag, Save } from 'lucide-react-native';
 import { useFirmStore } from '@/store/phase1/useFirmStore';
 import { categoryService } from '@/services/phase2/categoryService';
 import { categoryRepository } from '@/repositories/phase2/categoryRepository';
-import { COLORS, getThemeColors } from '@/constants/theme';
+import { getThemeColors } from '@/constants/theme';
 
 export default function EditCategoryScreen() {
   const router = useRouter();
@@ -34,6 +35,9 @@ export default function EditCategoryScreen() {
   const [categoryCode, setCategoryCode] = useState(initialCode || '');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+
+  const activeTheme = appSettingsStore((s: any) => s.theme);
+  const colors = getThemeColors(activeTheme);
 
   // ID-Driven Database Sync on Mount
   useEffect(() => {
@@ -85,9 +89,6 @@ export default function EditCategoryScreen() {
     router.back();
   };
 
-  const activeTheme = appSettingsStore((s: any) => s.theme);
-  const colors = getThemeColors(activeTheme);
-
   const editCategoryHeaderPills = (
     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginTop: 4 }}>
       {categoryCode ? (
@@ -105,7 +106,7 @@ export default function EditCategoryScreen() {
           style={s.container} 
           showsVerticalScrollIndicator={false} 
           contentContainerStyle={{ 
-            paddingTop: 32, 
+            paddingTop: 24, 
             paddingBottom: Math.max(insets.bottom + 120, 160) 
           }} 
           keyboardShouldPersistTaps="handled"
@@ -115,7 +116,7 @@ export default function EditCategoryScreen() {
           extraScrollHeight={120}
           extraHeight={140}
         >
-          <View style={[s.card, { borderColor: `${colors.vjAccent}25` }]}>
+          <GlassCard style={{ padding: 20, marginBottom: 16, borderColor: `${colors.vjAccent}25` }}>
             {categoryCode ? (
               <View style={s.formGroup}>
                 <Text style={[s.label, { color: colors.vjText, opacity: 0.6 }]}>Category Code (System ID)</Text>
@@ -136,7 +137,7 @@ export default function EditCategoryScreen() {
                 maxLength={50}
               />
             </View>
-          </View>
+          </GlassCard>
         </KeyboardAwareScrollView>
 
         <FixedGlassBar>
@@ -153,9 +154,13 @@ export default function EditCategoryScreen() {
           </TouchableOpacity>
           <TouchableOpacity
             testID="save-edit-category-btn"
-            style={[fixedBarStyles.pillPrimaryBtn, { backgroundColor: colors.vjAccent }]}
+            style={[
+              fixedBarStyles.pillPrimaryBtn, 
+              { backgroundColor: colors.vjAccent },
+              (!newName.trim() || isSubmitting) && { opacity: 0.5 }
+            ]}
             onPress={handleEditSubmit}
-            disabled={isSubmitting}
+            disabled={isSubmitting || !newName.trim()}
           >
             {isSubmitting ? (
               <ActivityIndicator color="#fff" size="small" />
@@ -169,7 +174,7 @@ export default function EditCategoryScreen() {
         </FixedGlassBar>
       </View>
 
-      {/* SUCCESS MODAL */}
+      {/* Success Modal */}
       <Modal visible={!!successMessage} transparent animationType="fade" onRequestClose={handleSuccessDone}>
         <TouchableOpacity 
           style={s.modalOverlayCenter}
@@ -177,7 +182,7 @@ export default function EditCategoryScreen() {
           onPress={handleSuccessDone}
         >
           <TouchableOpacity 
-            activeOpacity={1}
+            activeOpacity={1} 
             style={[s.successModalContent, { backgroundColor: colors.vjBg, borderColor: colors.border }]}
           >
             <View style={s.successIconContainer}>
@@ -200,14 +205,8 @@ export default function EditCategoryScreen() {
 }
 
 const s = StyleSheet.create({
-  container: { flex: 1, paddingTop: 16 },
-  card: {
-    backgroundColor: 'rgba(255,255,255,0.6)',
-    borderRadius: 24,
-    padding: 24,
-    borderWidth: 1,
-  },
-  formGroup: { marginBottom: 24 },
+  container: { flex: 1 },
+  formGroup: { marginBottom: 18 },
   label: { fontSize: 12, fontWeight: '700', textTransform: 'uppercase', marginBottom: 8 },
   modalOverlayCenter: {
     flex: 1,

@@ -200,6 +200,12 @@ export async function getLowStockDesigns(firmId: string): Promise<LowStockDesign
   return getLowStockDesignPurityVariants(firmId);
 }
 
+// --- Configured Thresholds across Firm Designs ---
+export async function getFirmThresholds(firmId: string): Promise<Array<{ designId: string; purityPercent: number; lowStockThreshold: number }>> {
+  if (!firmId) return [];
+  return inventoryDrillDownRepository.getFirmThresholds(firmId);
+}
+
 // --- Metal Source Breakdown (FEAT-GAP4-METALSOURCE-1) ---
 export async function getStockByMetalSource(firmId: string): Promise<MetalSourceStockResult[]> {
   if (!firmId) throw new Error(ERR.FIRM_ID_REQUIRED);
@@ -230,6 +236,7 @@ export const inventoryDrillDownService = {
   getDraftItems,
   getLowStockDesignPurityVariants,
   getLowStockDesigns,
+  getFirmThresholds,
   getStockByMetalSource,
   getPendingRefineryLots,
   getKarigarIssuedItems,

@@ -14,7 +14,6 @@ import { eq, desc, isNull, and, gte, lte } from 'drizzle-orm';
 import db, { db as dbNamed } from '@/db/client';
 import { auditLogs, financialYears } from '@/db/schema';
 import { now } from '@/utils/now';
-import type { AuditPayload } from '@/types/phase1/audit';
 
 type DbOrTx = any;
 

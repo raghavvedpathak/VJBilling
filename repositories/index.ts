@@ -26,3 +26,4 @@ export * from './phase2/looseStockLotRepository';
 export * from './phase2/looseStockEventRepository';
 export * from './phase2/fyInventoryRepository';
 export * from './phase2/inventoryVerifyRepository';
+export * from './phase2/inventoryAuditRepository';

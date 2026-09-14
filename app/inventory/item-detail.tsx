@@ -19,7 +19,7 @@ import { GlassCard, FixedGlassBar } from '@/components/ui/Glass';
 import { GlassDatePickerModal } from '@/components/ui/GlassDatePickerModal';
 import { inventoryDrillDownService } from '@/services/phase2/inventoryDrillDownService';
 import { itemService } from '@/services/phase2/itemService';
-import { skuEngine } from '@/services/phase2/skuEngine';
+import { formatSKUDisplay } from '@/services/phase2/skuEngine';
 import { COLORS, getThemeColors } from '@/constants/theme';
 import {
   getDisplayPurity,
@@ -39,6 +39,7 @@ import {
 } from '@/utils/purity.constants';
 import { format, parseISO } from 'date-fns';
 import { formatDate } from '@/utils/formatDate';
+import { getCurrencySymbol } from '@/utils/currency';
 import {
   Tag, Scale, Gem, Clock, AlertTriangle, Info, AlertCircle,
   Shield, MapPin, Calculator, Trash2, Coins, Percent,
@@ -47,8 +48,6 @@ import {
 } from 'lucide-react-native';
 import type { ItemDetail, ItemTimelineEvent, UpdateableItemDraftFields, MetalSource } from '@/types/phase2/phase2.types';
 import { TERMINAL_ITEM_STATUSES } from '@/types/phase2/phase2.types';
-
-const getCurrencySymbol = (): string => '₹';
 
 const formatCurrency = (paise: number | null): string => {
   if (paise === null || paise === undefined) return '—';
@@ -159,6 +158,15 @@ export default function ItemDetailScreen() {
   const activeTheme = useStore(appSettingsStore, (st) => st.theme);
   const dateFormatToken = useStore(appSettingsStore, (st) => st.dateFormatToken) || 'dd/MM/yyyy';
   const colors = getThemeColors(activeTheme);
+  const isDark = activeTheme === 'dark';
+
+  const todayIso = useMemo(() => {
+    const t = new Date();
+    const y = t.getFullYear();
+    const m = String(t.getMonth() + 1).padStart(2, '0');
+    const d = String(t.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  }, []);
 
   const [activeTab, setActiveTab] = useState<'SPECS' | 'COSTING' | 'TIMELINE'>('SPECS');
 
@@ -178,7 +186,7 @@ export default function ItemDetailScreen() {
   const [editPurchaseRateRupees, setEditPurchaseRateRupees] = useState('');
   const [editSizeValue, setEditSizeValue] = useState('');
   const [editSizeUnit, setEditSizeUnit] = useState<'INCH' | 'MM' | 'CM' | 'RING_SIZE' | ''>('');
-  const [editDateIso, setEditDateIso] = useState<string>('');
+  const [editDateIso, setEditDateIso] = useState<string>(todayIso);
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [editHuid, setEditHuid] = useState('');
   const [editReason, setEditReason] = useState('');
@@ -205,10 +213,10 @@ export default function ItemDetailScreen() {
     setEditSizeValue(item.sizeValue !== null && item.sizeValue !== undefined ? item.sizeValue.toString() : '');
     setEditSizeUnit((item.sizeUnit as 'INCH' | 'MM' | 'CM' | 'RING_SIZE') || '');
     setEditHuid(item.huid || '');
-    setEditDateIso(item.createdAt ? item.createdAt.slice(0, 10) : new Date().toISOString().slice(0, 10));
+    setEditDateIso(item.createdAt ? item.createdAt.slice(0, 10) : todayIso);
     setEditReason('');
     setIsEditing(true);
-  }, [item]);
+  }, [item, todayIso]);
 
   const handleCancelEditing = useCallback(() => {
     try { Haptics.selectionAsync(); } catch {}
@@ -222,6 +230,12 @@ export default function ItemDetailScreen() {
     const hasSizeUnit = editSizeUnit !== '';
     if (hasSizeValue !== hasSizeUnit) {
       Alert.alert('Invalid Size', 'Size value and Size unit must either both be provided or both left blank.');
+      return;
+    }
+
+    const parsedSizeVal = hasSizeValue ? parseCleanFloat(editSizeValue) : null;
+    if (parsedSizeVal !== null && parsedSizeVal <= 0) {
+      Alert.alert('Invalid Size', 'Size value must be greater than 0.');
       return;
     }
 
@@ -247,6 +261,11 @@ export default function ItemDetailScreen() {
     const trimmedHuid = editHuid.trim().toUpperCase();
     if (trimmedHuid !== '' && !/^[A-Z0-9]{6}$/.test(trimmedHuid)) {
       Alert.alert('Invalid HUID', 'HUID must be exactly 6 uppercase alphanumeric characters (or left blank).');
+      return;
+    }
+
+    if (editDateIso > todayIso) {
+      Alert.alert('Invalid Date', 'Inward entry date cannot be in the future.');
       return;
     }
 
@@ -277,11 +296,10 @@ export default function ItemDetailScreen() {
     setSavingInline(true);
     try {
       const reasonText = editReason.trim() || 'Inline editing update';
-      const parsedSizeVal = hasSizeValue ? parseCleanFloat(editSizeValue) : null;
       const parsedSizeUnit: 'INCH' | 'MM' | 'CM' | 'RING_SIZE' | null = editSizeUnit ? editSizeUnit : null;
       const newPurityKarat = item.metal === 'GOLD' ? (percentToKarat(purPct) || 0) : 0;
 
-      // 1. Update non-weight & classification fields first
+      // 1. Update non-weight attributes
       const payload: UpdateableItemDraftFields = {
         purityPercent: purPct,
         purityKarat: newPurityKarat,
@@ -295,7 +313,7 @@ export default function ItemDetailScreen() {
 
       await itemService.updateItem(item.id, activeFirmId, payload, reasonText);
 
-      // 2. Adjust Weights if physical weights or purity changed
+      // 2. Adjust physical weight only if physical weights, wastage, or purity changed
       if (weightsChanged || purityChanged) {
         await itemService.adjustWeight(
           item.id,
@@ -432,6 +450,7 @@ export default function ItemDetailScreen() {
       : (item.stoneCostPaise ? item.stoneCostPaise / 100 : 0);
 
     const effectivePricePerGram = computeEffectivePricePerGram(rate, livePurityPercent, wastagePercent, item.metal);
+    const hasRateData = rate > 0 && netWeightMg > 0;
     const hasCostData = (rate > 0 || making > 0 || stoneC > 0) && netWeightMg > 0;
     const netWeightG = netWeightMg / 1000;
     const totalAmount = computeAbsoluteTotalCostRupees(netWeightG, effectivePricePerGram, making, stoneC);
@@ -469,6 +488,7 @@ export default function ItemDetailScreen() {
       making,
       stoneC,
       effectivePricePerGram,
+      hasRateData,
       hasCostData,
       financialBreakdown: financialBreakdownText,
       totalAmount,
@@ -508,7 +528,6 @@ export default function ItemDetailScreen() {
           extraHeight={140}
           contentContainerStyle={{ paddingTop: 16, paddingBottom: 190 }}
         >
-          {/* Amber Reprint Notice Banner (Step 5.1 / FEAT-BARCODE-LABEL-1) */}
           {isReprintRequired && (
             <GlassCard style={s.reprintAmberBanner}>
               <View style={s.reprintBannerInner}>
@@ -538,16 +557,14 @@ export default function ItemDetailScreen() {
                   <Edit3 size={16} color={colors.vjAccent} />
                   <Text style={[s.topEditingTitle, { color: colors.vjText }]}>Editing All Fields & HUID</Text>
                 </View>
-                <Text style={{ fontSize: 11, fontWeight: '700', color: '#92400E' }}>
+                <Text style={{ fontSize: 11, fontWeight: '700', color: colors.vjAccent }}>
                   Tap Save at the bottom
                 </Text>
               </View>
             </GlassCard>
           )}
 
-          {/* ========================================================================= */}
-          {/* 1. LUXURY HERO CARD (THE JEWELER'S GLANCE)                                */}
-          {/* ========================================================================= */}
+          {/* Luxury Hero Card */}
           <GlassCard style={[s.heroCard, { borderColor: `${metalColor}40` }]}>
             <View style={[s.heroStripe, { backgroundColor: metalColor }]} />
 
@@ -582,29 +599,29 @@ export default function ItemDetailScreen() {
                   </Text>
                 </View>
 
-                <View style={s.heroScaleDivider} />
+                <View style={[s.heroScaleDivider, { backgroundColor: `${colors.vjText}14` }]} />
 
                 <View style={s.heroScaleRight}>
                   <View style={s.heroMiniMetricRow}>
-                    <Text style={s.heroMiniMetricLabel}>GROSS:</Text>
-                    <Text style={s.heroMiniMetricVal}>{formatWeight(liveCalculations.grossMg)}</Text>
+                    <Text style={[s.heroMiniMetricLabel, { color: `${colors.vjText}80` }]}>GROSS:</Text>
+                    <Text style={[s.heroMiniMetricVal, { color: colors.vjText }]}>{formatWeight(liveCalculations.grossMg)}</Text>
                   </View>
                   <View style={s.heroMiniMetricRow}>
-                    <Text style={s.heroMiniMetricLabel}>STONE:</Text>
-                    <Text style={s.heroMiniMetricVal}>{formatWeight(liveCalculations.stoneMg)}</Text>
+                    <Text style={[s.heroMiniMetricLabel, { color: `${colors.vjText}80` }]}>STONE:</Text>
+                    <Text style={[s.heroMiniMetricVal, { color: colors.vjText }]}>{formatWeight(liveCalculations.stoneMg)}</Text>
                   </View>
                   <View style={s.heroMiniMetricRow}>
-                    <Text style={s.heroMiniMetricLabel}>BEADS:</Text>
-                    <Text style={s.heroMiniMetricVal}>{formatWeight(liveCalculations.beadsMg)}</Text>
+                    <Text style={[s.heroMiniMetricLabel, { color: `${colors.vjText}80` }]}>BEADS:</Text>
+                    <Text style={[s.heroMiniMetricVal, { color: colors.vjText }]}>{formatWeight(liveCalculations.beadsMg)}</Text>
                   </View>
                 </View>
               </View>
 
-              {/* Identity Pills Row (SKU, HUID, Status, Print Button) */}
+              {/* Identity Pills Row */}
               <View style={s.heroIdentityRow}>
                 <View style={[s.heroSkuCapsule, { backgroundColor: `${colors.vjAccent}10`, borderColor: `${colors.vjAccent}25` }]}>
                   <Tag size={11} color={colors.vjAccent} />
-                  <Text style={[s.heroSkuText, { color: colors.vjAccent }]}>{skuEngine.formatSKUDisplay(item.sku)}</Text>
+                  <Text style={[s.heroSkuText, { color: colors.vjAccent }]}>{formatSKUDisplay(item.sku)}</Text>
                 </View>
 
                 {item.huid?.trim() ? (
@@ -613,9 +630,9 @@ export default function ItemDetailScreen() {
                     <Text style={s.heroHuidVerifiedText}>HUID: {item.huid.trim()}</Text>
                   </View>
                 ) : (
-                  <View style={s.heroHuidMissing}>
-                    <ShieldAlert size={12} color="rgba(92, 22, 35, 0.45)" />
-                    <Text style={s.heroHuidMissingText}>No HUID</Text>
+                  <View style={[s.heroHuidMissing, { backgroundColor: `${colors.vjText}08`, borderColor: `${colors.vjText}18` }]}>
+                    <ShieldAlert size={12} color={`${colors.vjText}66`} />
+                    <Text style={[s.heroHuidMissingText, { color: `${colors.vjText}80` }]}>No HUID</Text>
                   </View>
                 )}
 
@@ -623,7 +640,7 @@ export default function ItemDetailScreen() {
                   s.heroStatusCapsule, 
                   item.status === 'AVAILABLE' 
                     ? { backgroundColor: 'rgba(16,185,129,0.12)', borderColor: 'rgba(16,185,129,0.3)' } 
-                    : { backgroundColor: 'rgba(92,22,35,0.06)', borderColor: 'rgba(92,22,35,0.15)' }
+                    : { backgroundColor: `${colors.vjText}08`, borderColor: `${colors.vjText}18` }
                 ]}>
                   <Text style={[
                     s.heroStatusText,
@@ -645,9 +662,7 @@ export default function ItemDetailScreen() {
             </View>
           </GlassCard>
 
-          {/* ========================================================================= */}
-          {/* 2. THREE-WAY SEGMENTED PILL SELECTOR                                      */}
-          {/* ========================================================================= */}
+          {/* Three-Way Segmented Selector */}
           <View style={[s.tabContainer, { backgroundColor: `${colors.vjAccent}14` }]}>
             <TouchableOpacity
               activeOpacity={0.8}
@@ -692,19 +707,14 @@ export default function ItemDetailScreen() {
             </TouchableOpacity>
           </View>
 
-          {/* ========================================================================= */}
-          {/* 3. TAB CONTENT                                                            */}
-          {/* ========================================================================= */}
-
           {/* TAB 1: SPECIFICATIONS */}
           {activeTab === 'SPECS' && (
             <View>
-              {/* 2x2 Specs Grid */}
               <View style={s.specsGridRow}>
                 <View style={[s.specTile, { backgroundColor: '#ffffff', borderColor: `${colors.vjAccent}22` }]}>
                   <View style={s.specTileHeader}>
                     <Tag size={13} color={colors.vjAccent} />
-                    <Text style={s.specTileLabel}>SIZE / DIMENSION</Text>
+                    <Text style={[s.specTileLabel, { color: `${colors.vjText}80` }]}>SIZE / DIMENSION</Text>
                   </View>
                   <Text style={[s.specTileValue, { color: colors.vjText }]} numberOfLines={1}>
                     {item.sizeValue !== null && item.sizeValue !== undefined ? `${item.sizeValue} ${item.sizeUnit || ''}` : 'Not Specified'}
@@ -714,7 +724,7 @@ export default function ItemDetailScreen() {
                 <View style={[s.specTile, { backgroundColor: '#ffffff', borderColor: `${colors.vjAccent}22` }]}>
                   <View style={s.specTileHeader}>
                     <MapPin size={13} color={colors.vjAccent} />
-                    <Text style={s.specTileLabel}>STORAGE LOCATION</Text>
+                    <Text style={[s.specTileLabel, { color: `${colors.vjText}80` }]}>STORAGE LOCATION</Text>
                   </View>
                   <Text style={[s.specTileValue, { color: colors.vjText }]} numberOfLines={1}>
                     {item.location ? item.location : 'No Location Assigned'}
@@ -726,7 +736,7 @@ export default function ItemDetailScreen() {
                 <View style={[s.specTile, { backgroundColor: '#ffffff', borderColor: `${colors.vjAccent}22` }]}>
                   <View style={s.specTileHeader}>
                     <Coins size={13} color={colors.vjAccent} />
-                    <Text style={s.specTileLabel}>METAL SOURCE</Text>
+                    <Text style={[s.specTileLabel, { color: `${colors.vjText}80` }]}>METAL SOURCE</Text>
                   </View>
                   <Text style={[s.specTileValue, { color: colors.vjText }]} numberOfLines={1}>
                     {item.metalSource === 'SUPPLIER_PURCHASE'
@@ -750,7 +760,7 @@ export default function ItemDetailScreen() {
                 <View style={[s.specTile, { backgroundColor: '#ffffff', borderColor: `${colors.vjAccent}22` }]}>
                   <View style={s.specTileHeader}>
                     <Clock size={13} color={colors.vjAccent} />
-                    <Text style={s.specTileLabel}>INWARD DATE</Text>
+                    <Text style={[s.specTileLabel, { color: `${colors.vjText}80` }]}>INWARD DATE</Text>
                   </View>
                   <Text style={[s.specTileValue, { color: colors.vjText }]} numberOfLines={1}>
                     {formatDate(item.createdAt)}
@@ -758,27 +768,21 @@ export default function ItemDetailScreen() {
                 </View>
               </View>
 
-              {/* Master Data, Identifiers & Audit Invariants (Step 16 & FEAT-ITEM-ID-CONFIRM-1 v1.77) */}
               <View style={s.section}>
-                <Text style={s.sectionTitle}>System Identity & Traceability</Text>
+                <Text style={[s.sectionTitle, { color: `${colors.vjText}80` }]}>System Identity & Traceability</Text>
                 <View style={[s.sectionCard, { borderColor: `${colors.vjAccent}25` }]}>
-                  {/* Canonical Permanent Item ID (FEAT-ITEM-ID-CONFIRM-1 v1.77) */}
                   <DetailRow label="Item ID (UUID)" value={item.id} icon={<Hash size={14} color={colors.vjAccent} />} />
-                  <View style={s.divider} />
-
+                  <View style={[s.divider, { backgroundColor: `${colors.vjText}10` }]} />
                   <DetailRow label="GST HSN Code" value={item.hsnCode} icon={<FileText size={14} color={colors.vjAccent} />} />
-                  <View style={s.divider} />
-
+                  <View style={[s.divider, { backgroundColor: `${colors.vjText}10` }]} />
                   <DetailRow label="Sale Invoice Link" value={item.saleInvoiceId || '—'} icon={<FileText size={14} color={colors.vjAccent} />} />
-                  <View style={s.divider} />
-
+                  <View style={[s.divider, { backgroundColor: `${colors.vjText}10` }]} />
                   <DetailRow label="Purchase Invoice Link" value={item.purchaseInvoiceId || '—'} icon={<FileText size={14} color={colors.vjAccent} />} />
                 </View>
               </View>
 
-              {/* Physical Weight & Fineness Breakdown Card */}
               <View style={s.section}>
-                <Text style={s.sectionTitle}>Physical Weight & Fineness</Text>
+                <Text style={[s.sectionTitle, { color: `${colors.vjText}80` }]}>Physical Weight & Fineness</Text>
                 <View style={[s.sectionCard, { borderColor: `${colors.vjAccent}25` }]}>
                   <View style={s.detailRow}>
                     <View style={s.detailLabelRow}>
@@ -792,7 +796,7 @@ export default function ItemDetailScreen() {
                         onChangeText={setEditGrossGrams}
                         placeholder="0.000"
                         keyboardType="decimal-pad"
-                        placeholderTextColor="rgba(92,22,35,0.35)"
+                        placeholderTextColor={isDark ? 'rgba(255, 255, 255, 0.35)' : 'rgba(92, 22, 35, 0.35)'}
                       />
                     ) : (
                       <Text style={[s.detailValue, { color: colors.vjText }]}>{formatWeight(liveCalculations.grossMg)}</Text>
@@ -811,7 +815,7 @@ export default function ItemDetailScreen() {
                         onChangeText={setEditStoneGrams}
                         placeholder="0.000"
                         keyboardType="decimal-pad"
-                        placeholderTextColor="rgba(92,22,35,0.35)"
+                        placeholderTextColor={isDark ? 'rgba(255, 255, 255, 0.35)' : 'rgba(92, 22, 35, 0.35)'}
                       />
                     ) : (
                       <Text style={[s.detailValue, { color: colors.vjText }]}>{formatWeight(liveCalculations.stoneMg)}</Text>
@@ -830,7 +834,7 @@ export default function ItemDetailScreen() {
                         onChangeText={setEditBeadsGrams}
                         placeholder="0.000"
                         keyboardType="decimal-pad"
-                        placeholderTextColor="rgba(92,22,35,0.35)"
+                        placeholderTextColor={isDark ? 'rgba(255, 255, 255, 0.35)' : 'rgba(92, 22, 35, 0.35)'}
                       />
                     ) : (
                       <Text style={[s.detailValue, { color: colors.vjText }]}>{formatWeight(liveCalculations.beadsMg)}</Text>
@@ -839,7 +843,7 @@ export default function ItemDetailScreen() {
 
                   <DetailRow label="Net Weight" value={formatWeight(liveCalculations.netMg)} icon={<Scale size={14} color={colors.vjAccent} />} />
 
-                  <View style={s.divider} />
+                  <View style={[s.divider, { backgroundColor: `${colors.vjText}10` }]} />
 
                   <View style={[s.detailRow, isEditing && { flexDirection: 'column', alignItems: 'flex-start', gap: 8 }]}>
                     <View style={s.detailLabelRow}>
@@ -867,7 +871,7 @@ export default function ItemDetailScreen() {
                           }}
                           placeholder="Purity %"
                           keyboardType="decimal-pad"
-                          placeholderTextColor="rgba(92,22,35,0.35)"
+                          placeholderTextColor={isDark ? 'rgba(255, 255, 255, 0.35)' : 'rgba(92, 22, 35, 0.35)'}
                         />
                         <View style={s.unitSelectorRow}>
                           {getPurityPresets(item.metal || 'GOLD').map((preset) => {
@@ -914,7 +918,7 @@ export default function ItemDetailScreen() {
                         onChangeText={setEditWastagePercent}
                         placeholder="0.00"
                         keyboardType="decimal-pad"
-                        placeholderTextColor="rgba(92,22,35,0.35)"
+                        placeholderTextColor={isDark ? 'rgba(255, 255, 255, 0.35)' : 'rgba(92, 22, 35, 0.35)'}
                       />
                     ) : (
                       <Text style={[s.detailValue, { color: colors.vjText }]}>{liveCalculations.wastagePercent.toFixed(2) + '%'}</Text>
@@ -923,10 +927,10 @@ export default function ItemDetailScreen() {
                 </View>
               </View>
 
-              {/* Editing Attributes Card (Active in edit mode) */}
+              {/* Editing Attributes Card */}
               {isEditing && (
                 <View style={s.section}>
-                  <Text style={s.sectionTitle}>Editable Identification & Audit</Text>
+                  <Text style={[s.sectionTitle, { color: `${colors.vjText}80` }]}>Editable Identification & Audit</Text>
                   <View style={[s.sectionCard, { borderColor: `${colors.vjAccent}25` }]}>
                     <View style={[s.detailRow, { flexDirection: 'column', alignItems: 'flex-start', gap: 8 }]}>
                       <View style={s.detailLabelRow}>
@@ -940,7 +944,7 @@ export default function ItemDetailScreen() {
                           onChangeText={setEditSizeValue}
                           placeholder="Size (e.g. 16, 2.4)"
                           keyboardType="decimal-pad"
-                          placeholderTextColor="rgba(92,22,35,0.35)"
+                          placeholderTextColor={isDark ? 'rgba(255, 255, 255, 0.35)' : 'rgba(92, 22, 35, 0.35)'}
                         />
                         <View style={s.unitSelectorRow}>
                           {(['INCH', 'MM', 'CM', 'RING_SIZE', ''] as const).map((unit) => (
@@ -971,11 +975,10 @@ export default function ItemDetailScreen() {
                         maxLength={6}
                         autoCapitalize="characters"
                         autoCorrect={false}
-                        placeholderTextColor="rgba(92,22,35,0.35)"
+                        placeholderTextColor={isDark ? 'rgba(255, 255, 255, 0.35)' : 'rgba(92, 22, 35, 0.35)'}
                       />
                     </View>
 
-                    {/* Metal Source Selection (v2.33 FIX-OLDMETAL-VOID-1 aligned) */}
                     <View style={[s.detailRow, { flexDirection: 'column', alignItems: 'flex-start', gap: 8 }]}>
                       <View style={s.detailLabelRow}>
                         <Coins size={14} color={colors.vjAccent} />
@@ -1020,7 +1023,7 @@ export default function ItemDetailScreen() {
                         value={editLocation}
                         onChangeText={setEditLocation}
                         placeholder="Location / Tray"
-                        placeholderTextColor="rgba(92,22,35,0.35)"
+                        placeholderTextColor={isDark ? 'rgba(255, 255, 255, 0.35)' : 'rgba(92, 22, 35, 0.35)'}
                       />
                     </View>
 
@@ -1049,7 +1052,7 @@ export default function ItemDetailScreen() {
                         value={editReason}
                         onChangeText={setEditReason}
                         placeholder="Reason for change..."
-                        placeholderTextColor="rgba(92,22,35,0.35)"
+                        placeholderTextColor={isDark ? 'rgba(255, 255, 255, 0.35)' : 'rgba(92, 22, 35, 0.35)'}
                       />
                     </View>
                   </View>
@@ -1089,12 +1092,14 @@ export default function ItemDetailScreen() {
                     </Text>
                   </View>
 
-                  <View style={s.effectiveRateRow}>
-                    <Text style={[s.effectiveRateLabel, { color: colors.vjText, opacity: 0.7 }]}>Effective Price per Gram:</Text>
-                    <Text style={[s.effectiveRateVal, { color: colors.vjAccent }]}>
-                      {getCurrencySymbol()} {liveCalculations.effectivePricePerGram.toLocaleString('en-IN', { maximumFractionDigits: 2 })} / g
-                    </Text>
-                  </View>
+                  {liveCalculations.hasRateData && (
+                    <View style={[s.effectiveRateRow, { borderBottomColor: `${colors.vjText}14` }]}>
+                      <Text style={[s.effectiveRateLabel, { color: colors.vjText, opacity: 0.7 }]}>Effective Price per Gram:</Text>
+                      <Text style={[s.effectiveRateVal, { color: colors.vjAccent }]}>
+                        {getCurrencySymbol()} {liveCalculations.effectivePricePerGram.toLocaleString('en-IN', { maximumFractionDigits: 2 })} / g
+                      </Text>
+                    </View>
+                  )}
 
                   <View style={s.metalAccountingContainer}>
                     <Text style={[s.metalAccountingTitle, { color: colors.vjText, opacity: 0.7 }]}>
@@ -1108,7 +1113,7 @@ export default function ItemDetailScreen() {
                         <Text style={[s.reconSub, { color: '#047857', opacity: 0.75 }]}>Physical Vault</Text>
                       </View>
 
-                      <Text style={s.reconOp}>+</Text>
+                      <Text style={[s.reconOp, { color: `${colors.vjText}50` }]}>+</Text>
 
                       <View style={[s.reconCol, { backgroundColor: 'rgba(239,68,68,0.1)', borderColor: 'rgba(239,68,68,0.25)' }]}>
                         <Text style={[s.reconLabel, { color: '#DC2626' }]}>WASTAGE</Text>
@@ -1116,7 +1121,7 @@ export default function ItemDetailScreen() {
                         <Text style={[s.reconSub, { color: '#DC2626', opacity: 0.75 }]}>Supplier Cut</Text>
                       </View>
 
-                      <Text style={s.reconOp}>=</Text>
+                      <Text style={[s.reconOp, { color: `${colors.vjText}50` }]}>=</Text>
 
                       <View style={[s.reconCol, { backgroundColor: 'rgba(212,175,55,0.14)', borderColor: 'rgba(212,175,55,0.35)' }]}>
                         <Text style={[s.reconLabel, { color: '#B45309' }]}>BILLED FINE</Text>
@@ -1128,9 +1133,8 @@ export default function ItemDetailScreen() {
                 </GlassCard>
               )}
 
-              {/* Pricing & Commercial Inputs Card */}
               <View style={s.section}>
-                <Text style={s.sectionTitle}>Commercial & Labor Costs</Text>
+                <Text style={[s.sectionTitle, { color: `${colors.vjText}80` }]}>Commercial & Labor Costs</Text>
                 <View style={[s.sectionCard, { borderColor: `${colors.vjAccent}25` }]}>
                   <View style={s.detailRow}>
                     <View style={s.detailLabelRow}>
@@ -1144,7 +1148,7 @@ export default function ItemDetailScreen() {
                         onChangeText={setEditPurchaseRateRupees}
                         placeholder="0.00"
                         keyboardType="decimal-pad"
-                        placeholderTextColor="rgba(92,22,35,0.35)"
+                        placeholderTextColor={isDark ? 'rgba(255, 255, 255, 0.35)' : 'rgba(92, 22, 35, 0.35)'}
                       />
                     ) : (
                       <Text style={[s.detailValue, { color: colors.vjText }]}>
@@ -1165,7 +1169,7 @@ export default function ItemDetailScreen() {
                         onChangeText={setEditMakingChargeRupees}
                         placeholder="0.00"
                         keyboardType="decimal-pad"
-                        placeholderTextColor="rgba(92,22,35,0.35)"
+                        placeholderTextColor={isDark ? 'rgba(255, 255, 255, 0.35)' : 'rgba(92, 22, 35, 0.35)'}
                       />
                     ) : (
                       <Text style={[s.detailValue, { color: colors.vjText }]}>{formatCurrency(item.makingChargePaise)}</Text>
@@ -1184,7 +1188,7 @@ export default function ItemDetailScreen() {
                         onChangeText={setEditStoneCostRupees}
                         placeholder="0.00"
                         keyboardType="decimal-pad"
-                        placeholderTextColor="rgba(92,22,35,0.35)"
+                        placeholderTextColor={isDark ? 'rgba(255, 255, 255, 0.35)' : 'rgba(92, 22, 35, 0.35)'}
                       />
                     ) : (
                       <Text style={[s.detailValue, { color: colors.vjText }]}>{formatCurrency(item.stoneCostPaise)}</Text>
@@ -1199,7 +1203,7 @@ export default function ItemDetailScreen() {
           {activeTab === 'TIMELINE' && (
             <View style={s.section}>
               <View style={s.timelineTitleRow}>
-                <Text style={s.sectionTitle}>Chronological Lifecycle History</Text>
+                <Text style={[s.sectionTitle, { color: `${colors.vjText}80` }]}>Chronological Lifecycle History</Text>
                 <View style={[s.timelineCountBadge, { backgroundColor: `${colors.vjAccent}15` }]}>
                   <Text style={[s.timelineCountText, { color: colors.vjAccent }]}>{item.timeline?.length || 0} Events</Text>
                 </View>
@@ -1207,8 +1211,8 @@ export default function ItemDetailScreen() {
 
               {(!item.timeline || item.timeline.length === 0) ? (
                 <View style={s.timelineEmpty}>
-                  <Clock size={28} color="rgba(92,22,35,0.2)" />
-                  <Text style={s.timelineEmptyText}>No timeline events recorded yet</Text>
+                  <Clock size={28} color={`${colors.vjText}33`} />
+                  <Text style={[s.timelineEmptyText, { color: `${colors.vjText}66` }]}>No timeline events recorded yet</Text>
                 </View>
               ) : (
                 <View style={{ marginTop: 8 }}>
@@ -1227,9 +1231,7 @@ export default function ItemDetailScreen() {
 
         </KeyboardAwareScrollView>
 
-        {/* ========================================================================= */}
-        {/* 4. FIXED ACTION BAR                                                       */}
-        {/* ========================================================================= */}
+        {/* Fixed Action Bar */}
         {isEditable && (
           <FixedGlassBar>
             {isEditing ? (
@@ -1292,19 +1294,20 @@ export default function ItemDetailScreen() {
       <Modal visible={isDeleteModalVisible} transparent animationType="fade">
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={s.modalOverlay}>
           <ScrollView contentContainerStyle={s.modalScrollContent} keyboardShouldPersistTaps="handled">
-            <View style={s.modalContent}>
+            <View style={[s.modalContent, { backgroundColor: colors.vjBg }]}>
               <Text style={[s.modalTitle, { color: COLORS.error }]}>Delete Item</Text>
               
-              <Text style={{ fontSize: 13, color: '#4B5563', marginBottom: 16 }}>
-                Are you sure you want to delete SKU <Text style={{ fontWeight: 'bold' }}>{skuEngine.formatSKUDisplay(item.sku)}</Text>? This action is permanent and will remove the item from inventory.
+              <Text style={{ fontSize: 13, color: colors.vjText, opacity: 0.8, marginBottom: 16 }}>
+                Are you sure you want to delete SKU <Text style={{ fontWeight: 'bold' }}>{formatSKUDisplay(item.sku)}</Text>? This action is permanent and will remove the item from inventory.
               </Text>
 
-              <Text style={s.modalLabel}>Reason for Deletion *</Text>
+              <Text style={[s.modalLabel, { color: `${colors.vjText}99` }]}>Reason for Deletion *</Text>
               <TextInput 
-                style={s.modalInput}
+                style={[s.modalInput, { color: colors.vjText, borderColor: `${colors.vjAccent}35` }]}
                 value={deleteReason}
                 onChangeText={setDeleteReason}
                 placeholder="Reason for deletion..."
+                placeholderTextColor={isDark ? 'rgba(255, 255, 255, 0.35)' : 'rgba(92, 22, 35, 0.35)'}
                 editable={!deleting}
               />
 
@@ -1325,6 +1328,7 @@ export default function ItemDetailScreen() {
         visible={showDatePicker}
         title="Correct Entry Date"
         value={editDateIso}
+        maxDate={todayIso}
         onClose={() => setShowDatePicker(false)}
         onSelect={(d) => setEditDateIso(d)}
       />
@@ -1336,7 +1340,6 @@ const s = StyleSheet.create({
   loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 12 },
   loadingText: { fontSize: 14, fontWeight: '600' },
 
-  // Top Amber Banner
   reprintAmberBanner: {
     backgroundColor: 'rgba(254, 243, 199, 0.98)',
     borderColor: '#F59E0B',
@@ -1383,7 +1386,6 @@ const s = StyleSheet.create({
     fontWeight: '800',
   },
 
-  // Hero Card
   heroCard: {
     padding: 0,
     borderRadius: 22,
@@ -1452,7 +1454,6 @@ const s = StyleSheet.create({
   heroScaleDivider: {
     width: 1,
     height: 38,
-    backgroundColor: 'rgba(92, 22, 35, 0.08)',
     marginHorizontal: 10,
   },
   heroScaleRight: {
@@ -1467,12 +1468,10 @@ const s = StyleSheet.create({
   heroMiniMetricLabel: {
     fontSize: 9.5,
     fontWeight: '700',
-    color: 'rgba(92, 22, 35, 0.45)',
   },
   heroMiniMetricVal: {
     fontSize: 11,
     fontWeight: '800',
-    color: 'rgba(92, 22, 35, 0.85)',
   },
   heroIdentityRow: {
     flexDirection: 'row',
@@ -1515,8 +1514,6 @@ const s = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    backgroundColor: 'rgba(92, 22, 35, 0.05)',
-    borderColor: 'rgba(92, 22, 35, 0.15)',
     borderWidth: 1,
     paddingHorizontal: 8,
     paddingVertical: 4,
@@ -1525,7 +1522,6 @@ const s = StyleSheet.create({
   heroHuidMissingText: {
     fontSize: 10.5,
     fontWeight: '700',
-    color: 'rgba(92, 22, 35, 0.45)',
   },
   heroStatusCapsule: {
     paddingHorizontal: 8,
@@ -1551,7 +1547,6 @@ const s = StyleSheet.create({
     fontWeight: '800',
   },
 
-  // 3-Way Tabs
   tabContainer: {
     flexDirection: 'row',
     borderRadius: 14,
@@ -1585,7 +1580,6 @@ const s = StyleSheet.create({
     opacity: 1,
   },
 
-  // 2x2 Specs Grid
   specsGridRow: {
     flexDirection: 'row',
     gap: 10,
@@ -1611,7 +1605,6 @@ const s = StyleSheet.create({
   specTileLabel: {
     fontSize: 9.5,
     fontWeight: '800',
-    color: 'rgba(92, 22, 35, 0.45)',
     letterSpacing: 0.5,
   },
   specTileValue: {
@@ -1619,7 +1612,6 @@ const s = StyleSheet.create({
     fontWeight: '800',
   },
 
-  // Valuation Tab
   valuationHeroCard: {
     padding: 16,
     borderRadius: 20,
@@ -1701,7 +1693,6 @@ const s = StyleSheet.create({
     paddingVertical: 8,
     paddingHorizontal: 4,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(92, 22, 35, 0.08)',
     marginBottom: 12,
   },
   effectiveRateLabel: {
@@ -1756,10 +1747,8 @@ const s = StyleSheet.create({
   reconOp: {
     fontSize: 14,
     fontWeight: '900',
-    color: 'rgba(92, 22, 35, 0.35)',
   },
 
-  // Edit Mode Banner
   topEditingBannerCard: {
     backgroundColor: 'rgba(255, 253, 249, 0.98)',
     borderWidth: 1.5,
@@ -1777,7 +1766,6 @@ const s = StyleSheet.create({
     fontWeight: '800',
   },
 
-  // Bottom Action Bar
   bottomEditBtn: {
     flex: 1,
     flexDirection: 'row',
@@ -1902,7 +1890,7 @@ const s = StyleSheet.create({
 
   section: { marginBottom: 20 },
   sectionTitle: {
-    color: 'rgba(92,22,35,0.5)', fontSize: 11, fontWeight: '800',
+    fontSize: 11, fontWeight: '800',
     textTransform: 'uppercase', letterSpacing: 1, marginBottom: 10, marginLeft: 2,
   },
   sectionCard: {
@@ -1914,16 +1902,16 @@ const s = StyleSheet.create({
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
     paddingVertical: 12, paddingHorizontal: 14,
   },
-  divider: { height: 1, backgroundColor: 'rgba(92,22,35,0.04)', marginHorizontal: 14 },
+  divider: { height: 1, marginHorizontal: 14 },
   detailLabelRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   detailIcon: { opacity: 0.7 },
-  detailLabel: { color: 'rgba(92,22,35,0.5)', fontSize: 13, fontWeight: '600' },
+  detailLabel: { fontSize: 13, fontWeight: '600', opacity: 0.6 },
   detailValue: { fontSize: 14, fontWeight: '700', maxWidth: '60%', textAlign: 'right' },
   detailSubLabel: {
-    color: 'rgba(92,22,35,0.4)',
     fontSize: 10,
     fontWeight: '500',
     marginTop: 2,
+    opacity: 0.5,
   },
 
   unitSelectorRow: {
@@ -1965,17 +1953,17 @@ const s = StyleSheet.create({
   },
   timelineHeader: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 },
   timelineEventType: { fontSize: 13, fontWeight: '700' },
-  timelineReason: { color: 'rgba(92,22,35,0.6)', fontSize: 12, marginBottom: 4 },
-  timelineDate: { color: 'rgba(92,22,35,0.35)', fontSize: 10, fontWeight: '600', marginTop: 4 },
+  timelineReason: { fontSize: 12, marginBottom: 4, opacity: 0.6 },
+  timelineDate: { fontSize: 10, fontWeight: '600', marginTop: 4, opacity: 0.45 },
   timelineEmpty: { alignItems: 'center', paddingVertical: 30, gap: 8 },
-  timelineEmptyText: { color: 'rgba(92,22,35,0.35)', fontSize: 13 },
+  timelineEmptyText: { fontSize: 13 },
 
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' },
   modalScrollContent: { flexGrow: 1, justifyContent: 'center', alignItems: 'center', paddingVertical: 40, width: '100%' },
-  modalContent: { width: '85%', backgroundColor: '#fff', borderRadius: 16, padding: 24 },
-  modalTitle: { fontSize: 18, fontWeight: '700', color: COLORS.vjText, marginBottom: 16 },
-  modalLabel: { fontSize: 13, fontWeight: '600', color: 'rgba(92,22,35,0.6)', marginBottom: 6 },
-  modalInput: { borderWidth: 1, borderColor: '#e5e7eb', borderRadius: 8, padding: 12, marginBottom: 16, fontSize: 15, color: '#1f2937' },
+  modalContent: { width: '85%', borderRadius: 16, padding: 24 },
+  modalTitle: { fontSize: 18, fontWeight: '700', marginBottom: 16 },
+  modalLabel: { fontSize: 13, fontWeight: '600', marginBottom: 6 },
+  modalInput: { borderWidth: 1, borderRadius: 8, padding: 12, marginBottom: 16, fontSize: 15 },
   modalActions: { flexDirection: 'row', justifyContent: 'flex-end', gap: 12, marginTop: 8 },
   modalBtnSecondary: { paddingVertical: 10, paddingHorizontal: 16, borderRadius: 8, backgroundColor: '#f3f4f6' },
   modalBtnTextSecondary: { color: '#4b5563', fontWeight: '600' },

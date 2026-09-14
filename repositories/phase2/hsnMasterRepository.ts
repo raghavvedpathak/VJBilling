@@ -5,6 +5,7 @@ import { db } from '@/db/client';
 import { hsnCodes } from '@/db/schema';
 import type { DrizzleTransaction, HsnCode } from '@/types/phase2/phase2.types';
 import { ERR } from '@/constants/errorCodes';
+import { seedHsnCodes } from '@/db/seed';
 
 export interface HsnMasterRepository {
   // --- findByCode (Step 4.75 / FIX-HSN-MASTER-1) ---
@@ -16,6 +17,9 @@ export interface HsnMasterRepository {
 
   // --- findByChapter ---
   findByChapter(chapter: string): Promise<HsnCode[]>;
+
+  // --- seedDefaults ---
+  seedDefaults(): Promise<void>;
 }
 
 // READ-ONLY repository (FIX-HSN-MASTER-1 v1.46 / Step 4.75).
@@ -58,7 +62,7 @@ export const hsnMasterRepository: HsnMasterRepository = {
 
   // --- findByChapter (Filter by GST Chapter, e.g. "71" for jewellery) ---
   async findByChapter(chapter: string): Promise<HsnCode[]> {
-    return db
+    let rows = await db
       .select()
       .from(hsnCodes)
       .where(
@@ -68,5 +72,25 @@ export const hsnMasterRepository: HsnMasterRepository = {
         )
       )
       .orderBy(hsnCodes.code);
+
+    if (rows.length === 0 && chapter === '71') {
+      await this.seedDefaults();
+      rows = await db
+        .select()
+        .from(hsnCodes)
+        .where(
+          and(
+            eq(hsnCodes.chapter, chapter),
+            eq(hsnCodes.isActive, 1)
+          )
+        )
+        .orderBy(hsnCodes.code);
+    }
+    return rows as HsnCode[];
+  },
+
+  // --- seedDefaults ---
+  async seedDefaults(): Promise<void> {
+    await seedHsnCodes();
   },
 };

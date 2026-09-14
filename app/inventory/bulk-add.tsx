@@ -1,4 +1,6 @@
-// app/inventory/bulk-add.tsx — Phase 2 v2.24 Canonical Screen
+// app/inventory/bulk-add.tsx — Phase 2 v2.34 Canonical Screen
+// Aligned with FEAT-BACKDATED-STOCK-1 (v1.76), GAP-P2-SIZE-EDIT-1 (v1.78),
+// FIX-EFFPRICE-GATE-1 (v2.01), FIX-SILVER-PURITY-1 (v1.46), and React.memo row performance
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { View, Text, Alert, Modal, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
@@ -12,6 +14,7 @@ import { GlassPickerModal, GlassPickerOption } from '@/components/ui/GlassPicker
 import { GlassDatePickerModal } from '@/components/ui/GlassDatePickerModal';
 import { useFirmStore } from '@/store/phase1/useFirmStore';
 import { useMastersSyncStore } from '@/store/phase2/mastersSyncStore';
+import { appSettingsStore } from '@/store/phase1/appSettingsStore';
 import { itemService } from '@/services/phase2/itemService';
 import { designRepository } from '@/repositories/phase2/designRepository';
 import { categoryRepository } from '@/repositories/phase2/categoryRepository';
@@ -30,6 +33,7 @@ import {
   computeEffectivePricePerGram,
   computeVaultTruthGrams,
   computeCostTruthGrams,
+  computeWastageGoldGrams,
   computeAbsoluteTotalCostRupees,
   rupeesToPaise,
   getCurrencySymbol,
@@ -37,7 +41,7 @@ import {
   isPresetMatchingPurity,
   parseCleanFloat,
 } from '@/utils/calculations';
-import { COLORS } from '@/constants/theme';
+import { getThemeColors } from '@/constants/theme';
 
 const BULK_ITEM_MAX = 50;
 
@@ -65,10 +69,11 @@ interface BulkItemRowProps {
   removeRow: (index: number) => void;
   stones: Stone[];
   metal: Metal;
+  colors: ReturnType<typeof getThemeColors>;
   openPickerModal: (config: any) => void;
 }
 
-const BulkItemRow = ({ index, row, updateRow, removeRow, stones, metal, openPickerModal }: BulkItemRowProps) => {
+const BulkItemRow = React.memo(({ index, row, updateRow, removeRow, stones, metal, colors, openPickerModal }: BulkItemRowProps) => {
   const computedKarat = useMemo(() => {
     if (metal === 'SILVER') return '';
     return formatKaratBadge(row.purityPercent, metal || 'GOLD') || '';
@@ -91,11 +96,13 @@ const BulkItemRow = ({ index, row, updateRow, removeRow, stones, metal, openPick
 
     const fineGoldChargedMg = computeFineGoldChargedMg(netWeightMg, purity, wastage);
     const costTruth = computeCostTruthGrams(fineGoldChargedMg, fineWeightMg);
+    const wastageMetal = computeWastageGoldGrams(costTruth, vaultTruth);
     
     const effectivePricePerGram = computeEffectivePricePerGram(rate, purity, wastage, metal || 'GOLD');
     const absoluteTotalCost = computeAbsoluteTotalCostRupees(netWeightG, effectivePricePerGram, making, stoneC);
     const metalCostRupees = netWeightG * effectivePricePerGram;
 
+    const hasRateData = rate > 0 && netWeightG > 0;
     const hasCostData = (rate > 0 || making > 0 || stoneC > 0) && netWeightG > 0;
 
     const finParts: string[] = [];
@@ -119,8 +126,9 @@ const BulkItemRow = ({ index, row, updateRow, removeRow, stones, metal, openPick
       wastageRaw: wastage,
       totalTouch: purity + wastage,
       vaultTruth,
-      wastageMetal: costTruth - vaultTruth,
+      wastageMetal,
       costTruth,
+      hasRateData,
       hasCostData,
       financialBreakdown: financialBreakdownText,
       pricePerGram: effectivePricePerGram,
@@ -171,7 +179,7 @@ const BulkItemRow = ({ index, row, updateRow, removeRow, stones, metal, openPick
         <View style={s.inputGrid}>
           <View style={s.inputCol}>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-              <Text style={{ fontSize: 12, fontWeight: '700', color: 'rgba(92,22,35,0.6)', textTransform: 'uppercase', marginLeft: 4 }}>Purity %*</Text>
+              <Text style={{ fontSize: 12, fontWeight: '700', color: `${colors.vjText}99`, textTransform: 'uppercase', marginLeft: 4 }}>Purity %*</Text>
               {computedKarat && computedKarat !== 'SILVER' ? (
                 <View style={{ backgroundColor: 'rgba(212,175,55,0.2)', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 }}>
                   <Text style={{ fontSize: 11, fontWeight: '800', color: '#D4AF37' }}>{computedKarat}</Text>
@@ -215,7 +223,7 @@ const BulkItemRow = ({ index, row, updateRow, removeRow, stones, metal, openPick
                 <Text style={{
                   fontSize: 11,
                   fontWeight: '700',
-                  color: isSelected ? '#FFF' : COLORS.vjText,
+                  color: isSelected ? '#FFF' : colors.vjText,
                 }}>
                   {preset.label}
                 </Text>
@@ -332,92 +340,94 @@ const BulkItemRow = ({ index, row, updateRow, removeRow, stones, metal, openPick
         </View>
 
         {calculations.isValid && (
-          <View className="mb-2 mt-4" style={{ zIndex: 10 }}>
+          <View style={{ marginBottom: 8, marginTop: 14, zIndex: 10 }}>
             <GlassCard style={{ backgroundColor: 'rgba(252,251,248, 0.98)', borderColor: '#D4AF37', borderWidth: 1.5, padding: 16 }}>
-              <View className="flex-row items-center justify-between mb-3 pb-2.5 border-b border-black/5">
-                <View className="flex-row items-center gap-2">
-                  <View className="w-7 h-7 rounded-lg items-center justify-center bg-amber-500/15 border border-amber-500/30">
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12, paddingBottom: 10, borderBottomWidth: 1, borderBottomColor: 'rgba(0,0,0,0.05)' }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                  <View style={{ width: 28, height: 28, borderRadius: 8, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(245, 158, 11, 0.15)', borderWidth: 1, borderColor: 'rgba(245, 158, 11, 0.3)' }}>
                     <Calculator size={16} color="#D4AF37" />
                   </View>
                   <View>
-                    <Text className="text-xs font-black uppercase tracking-wider text-vj-accent">Live Cost Breakdown</Text>
-                    <Text className="text-[10px] text-vj-text/50 font-semibold">Real-Time Inventory Accounting</Text>
+                    <Text style={{ fontSize: 12, fontWeight: '900', textTransform: 'uppercase', letterSpacing: 0.8, color: colors.vjAccent }}>Live Cost Breakdown</Text>
+                    <Text style={{ fontSize: 10, color: `${colors.vjText}80`, fontWeight: '600' }}>Real-Time Inventory Accounting</Text>
                   </View>
                 </View>
-                <View className="flex-row items-center gap-1.5 px-2 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20">
-                  <View className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                  <Text className="text-[9px] font-black text-emerald-800 uppercase tracking-widest">LIVE</Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 999, backgroundColor: 'rgba(16, 185, 129, 0.1)', borderWidth: 1, borderColor: 'rgba(16, 185, 129, 0.2)' }}>
+                  <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: '#10B981' }} />
+                  <Text style={{ fontSize: 9, fontWeight: '900', color: '#047857', letterSpacing: 0.8 }}>LIVE</Text>
                 </View>
               </View>
 
-              <View className="flex-row gap-2.5 mb-3">
-                <View className="flex-1 p-2.5 rounded-xl bg-black/[0.02] border border-black/5">
-                  <Text className="text-[10px] font-bold text-vj-text/50 uppercase tracking-wider">Net Weight</Text>
-                  <Text className="text-base font-black text-vj-text font-mono mt-0.5">{calculations.netWeight.toFixed(3)} g</Text>
-                  <Text className="text-[9px] text-vj-text/55 font-semibold mt-0.5" numberOfLines={1}>
+              <View style={{ flexDirection: 'row', gap: 10, marginBottom: 12 }}>
+                <View style={{ flex: 1, padding: 10, borderRadius: 12, backgroundColor: 'rgba(0,0,0,0.02)', borderWidth: 1, borderColor: 'rgba(0,0,0,0.05)' }}>
+                  <Text style={{ fontSize: 10, fontWeight: '700', color: `${colors.vjText}80`, textTransform: 'uppercase', letterSpacing: 0.5 }}>Net Weight</Text>
+                  <Text style={{ fontSize: 16, fontWeight: '900', color: colors.vjText, fontFamily: 'monospace', marginTop: 2 }}>{calculations.netWeight.toFixed(3)} g</Text>
+                  <Text style={{ fontSize: 9, color: `${colors.vjText}90`, fontWeight: '600', marginTop: 2 }} numberOfLines={1}>
                     {calculations.weightBreakdown}
                   </Text>
                 </View>
 
-                <View className="flex-1 p-2.5 rounded-xl bg-black/[0.02] border border-black/5">
-                  <View className="flex-row items-center justify-between">
-                    <Text className="text-[10px] font-bold text-vj-text/50 uppercase tracking-wider">Total Touch</Text>
-                    <Text className="text-xs font-black text-vj-accent font-mono">{calculations.totalTouch.toFixed(2)}%</Text>
+                <View style={{ flex: 1, padding: 10, borderRadius: 12, backgroundColor: 'rgba(0,0,0,0.02)', borderWidth: 1, borderColor: 'rgba(0,0,0,0.05)' }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <Text style={{ fontSize: 10, fontWeight: '700', color: `${colors.vjText}80`, textTransform: 'uppercase', letterSpacing: 0.5 }}>Total Touch</Text>
+                    <Text style={{ fontSize: 12, fontWeight: '900', color: colors.vjAccent, fontFamily: 'monospace' }}>{calculations.totalTouch.toFixed(2)}%</Text>
                   </View>
-                  <View className="mt-1 bg-vj-accent/10 px-1.5 py-0.5 rounded self-start">
-                    <Text className="text-[9px] font-black text-vj-accent font-mono">
+                  <View style={{ marginTop: 4, backgroundColor: `${colors.vjAccent}15`, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4, alignSelf: 'flex-start' }}>
+                    <Text style={{ fontSize: 9, fontWeight: '900', color: colors.vjAccent, fontFamily: 'monospace' }}>
                       {calculations.purityRaw}% Purity + {calculations.wastageRaw}% Wastage
                     </Text>
                   </View>
                 </View>
               </View>
 
-              <View className="mb-3 p-3 rounded-2xl bg-black/[0.02] border border-black/5">
-                <Text className="text-[10px] font-black uppercase tracking-widest text-vj-text/60 mb-2">
+              <View style={{ marginBottom: 12, padding: 12, borderRadius: 16, backgroundColor: 'rgba(0,0,0,0.02)', borderWidth: 1, borderColor: 'rgba(0,0,0,0.05)' }}>
+                <Text style={{ fontSize: 10, fontWeight: '900', textTransform: 'uppercase', letterSpacing: 0.8, color: `${colors.vjText}99`, marginBottom: 8 }}>
                   Fine Metal Accounting ({metal || 'GOLD'})
                 </Text>
                 
-                <View className="flex-row items-center justify-between gap-1">
-                  <View className="flex-1 p-2 rounded-xl bg-emerald-500/10 border border-emerald-500/20 items-center">
-                    <Text className="text-[9px] font-black text-emerald-800 uppercase tracking-tight">Vault Fine</Text>
-                    <Text className="text-xs font-black text-emerald-700 font-mono mt-0.5">{calculations.vaultTruth.toFixed(3)} g</Text>
-                    <Text className="text-[8px] font-semibold text-emerald-800/70 mt-0.5">Physical</Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 4 }}>
+                  <View style={{ flex: 1, padding: 8, borderRadius: 12, backgroundColor: 'rgba(16, 185, 129, 0.1)', borderWidth: 1, borderColor: 'rgba(16, 185, 129, 0.2)', alignItems: 'center' }}>
+                    <Text style={{ fontSize: 9, fontWeight: '900', color: '#047857', textTransform: 'uppercase' }}>Vault Fine</Text>
+                    <Text style={{ fontSize: 12, fontWeight: '900', color: '#047857', fontFamily: 'monospace', marginTop: 2 }}>{calculations.vaultTruth.toFixed(3)} g</Text>
+                    <Text style={{ fontSize: 8, fontWeight: '600', color: 'rgba(4, 120, 87, 0.7)', marginTop: 2 }}>Physical</Text>
                   </View>
 
-                  <Text className="text-xs font-black text-vj-text/40">+</Text>
+                  <Text style={{ fontSize: 12, fontWeight: '900', color: `${colors.vjText}60` }}>+</Text>
 
-                  <View className="flex-1 p-2 rounded-xl bg-rose-500/10 border border-rose-500/20 items-center">
-                    <Text className="text-[9px] font-black text-rose-800 uppercase tracking-tight">Wastage</Text>
-                    <Text className="text-xs font-black text-rose-700 font-mono mt-0.5">{calculations.wastageMetal.toFixed(3)} g</Text>
-                    <Text className="text-[8px] font-semibold text-rose-800/70 mt-0.5">Supplier</Text>
+                  <View style={{ flex: 1, padding: 8, borderRadius: 12, backgroundColor: 'rgba(239, 68, 68, 0.1)', borderWidth: 1, borderColor: 'rgba(239, 68, 68, 0.2)', alignItems: 'center' }}>
+                    <Text style={{ fontSize: 9, fontWeight: '900', color: '#B91C1C', textTransform: 'uppercase' }}>Wastage</Text>
+                    <Text style={{ fontSize: 12, fontWeight: '900', color: '#B91C1C', fontFamily: 'monospace', marginTop: 2 }}>{calculations.wastageMetal.toFixed(3)} g</Text>
+                    <Text style={{ fontSize: 8, fontWeight: '600', color: 'rgba(185, 28, 28, 0.7)', marginTop: 2 }}>Supplier</Text>
                   </View>
 
-                  <Text className="text-xs font-black text-vj-text/40">=</Text>
+                  <Text style={{ fontSize: 12, fontWeight: '900', color: `${colors.vjText}60` }}>=</Text>
 
-                  <View className="flex-1 p-2 rounded-xl bg-amber-500/15 border border-amber-500/30 items-center">
-                    <Text className="text-[9px] font-black text-amber-900 uppercase tracking-tight">Billed Fine</Text>
-                    <Text className="text-xs font-black text-amber-800 font-mono mt-0.5">{calculations.costTruth.toFixed(3)} g</Text>
-                    <Text className="text-[8px] font-semibold text-amber-800/70 mt-0.5">Cost Truth</Text>
+                  <View style={{ flex: 1, padding: 8, borderRadius: 12, backgroundColor: 'rgba(212, 175, 55, 0.15)', borderWidth: 1, borderColor: 'rgba(212, 175, 55, 0.3)', alignItems: 'center' }}>
+                    <Text style={{ fontSize: 9, fontWeight: '900', color: '#92400E', textTransform: 'uppercase' }}>Billed Fine</Text>
+                    <Text style={{ fontSize: 12, fontWeight: '900', color: '#92400E', fontFamily: 'monospace', marginTop: 2 }}>{calculations.costTruth.toFixed(3)} g</Text>
+                    <Text style={{ fontSize: 8, fontWeight: '600', color: 'rgba(146, 64, 14, 0.7)', marginTop: 2 }}>Cost Truth</Text>
                   </View>
                 </View>
               </View>
 
               {calculations.hasCostData && (
-                <View className="p-3 rounded-2xl bg-amber-500/10 border border-amber-500/30">
-                  <View className="flex-row justify-between items-center pb-1.5 border-b border-amber-500/15">
-                    <Text className="text-[11px] text-vj-text/70 font-bold">Effective Price / g:</Text>
-                    <Text className="text-xs font-black text-vj-text font-mono">
-                      {getCurrencySymbol()} {calculations.pricePerGram.toLocaleString('en-IN', { maximumFractionDigits: 2 })}
-                    </Text>
-                  </View>
-                  <View className="flex-row justify-between items-center pt-2">
-                    <View className="flex-1 pr-2">
-                      <Text className="text-xs font-black text-vj-text uppercase tracking-wider">EST. Total</Text>
-                      <Text className="text-[10px] text-vj-text/60 font-semibold mt-0.5">
+                <View style={{ padding: 12, borderRadius: 16, backgroundColor: 'rgba(212, 175, 55, 0.1)', borderWidth: 1, borderColor: 'rgba(212, 175, 55, 0.3)' }}>
+                  {calculations.hasRateData && (
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingBottom: 6, borderBottomWidth: 1, borderBottomColor: 'rgba(212, 175, 55, 0.15)' }}>
+                      <Text style={{ fontSize: 11, color: `${colors.vjText}B0`, fontWeight: '700' }}>Effective Price / g:</Text>
+                      <Text style={{ fontSize: 12, fontWeight: '900', color: colors.vjText, fontFamily: 'monospace' }}>
+                        {getCurrencySymbol()} {calculations.pricePerGram.toLocaleString('en-IN', { maximumFractionDigits: 2 })}
+                      </Text>
+                    </View>
+                  )}
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingTop: 8 }}>
+                    <View style={{ flex: 1, paddingRight: 8 }}>
+                      <Text style={{ fontSize: 12, fontWeight: '900', color: colors.vjText, textTransform: 'uppercase', letterSpacing: 0.5 }}>EST. Total</Text>
+                      <Text style={{ fontSize: 10, color: `${colors.vjText}99`, fontWeight: '600', marginTop: 2 }}>
                         {calculations.financialBreakdown}
                       </Text>
                     </View>
-                    <Text className="text-base font-black font-mono text-amber-950">
+                    <Text style={{ fontSize: 18, fontWeight: '900', fontFamily: 'monospace', color: '#92400E' }}>
                       {getCurrencySymbol()} {calculations.totalAmount.toLocaleString('en-IN', { maximumFractionDigits: 2 })}
                     </Text>
                   </View>
@@ -429,11 +439,13 @@ const BulkItemRow = ({ index, row, updateRow, removeRow, stones, metal, openPick
       </GlassCard>
     </View>
   );
-};
+});
 
 export default function BulkAddScreen() {
   const router = useRouter();
   const { activeFirmId } = useFirmStore();
+  const activeTheme = appSettingsStore((s: any) => s.theme);
+  const colors = getThemeColors(activeTheme);
 
   const [designs, setDesigns] = useState<Design[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -552,11 +564,13 @@ export default function BulkAddScreen() {
     }, [loadData])
   );
 
-  const updateRow = (index: number, field: keyof BulkRowState, value: any) => {
-    const newRows = [...rows];
-    newRows[index] = { ...newRows[index], [field]: value };
-    setRows(newRows);
-  };
+  const updateRow = useCallback((index: number, field: keyof BulkRowState, value: any) => {
+    setRows((prevRows) => {
+      const newRows = [...prevRows];
+      newRows[index] = { ...newRows[index], [field]: value };
+      return newRows;
+    });
+  }, []);
 
   const addRow = () => {
     try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
@@ -584,14 +598,16 @@ export default function BulkAddScreen() {
     ]);
   };
 
-  const removeRow = (index: number) => {
+  const removeRow = useCallback((index: number) => {
     try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
-    if (rows.length <= 1) {
-      Alert.alert('Cannot Remove', 'A bulk intake must contain at least one item.');
-      return;
-    }
-    setRows(rows.filter((_, i) => i !== index));
-  };
+    setRows((prevRows) => {
+      if (prevRows.length <= 1) {
+        Alert.alert('Cannot Remove', 'A bulk intake must contain at least one item.');
+        return prevRows;
+      }
+      return prevRows.filter((_, i) => i !== index);
+    });
+  }, []);
 
   const handleSubmit = async () => {
     try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); } catch {}
@@ -601,6 +617,11 @@ export default function BulkAddScreen() {
     }
     if (!selectedDesign || !selectedCategory || !selectedHsn) {
       Alert.alert('Missing Classification', 'Please select a Design, Category, and HSN Code for this batch.');
+      return;
+    }
+
+    if (entryDate > todayIso) {
+      Alert.alert('Invalid Date', 'Batch entry date cannot be in the future.');
       return;
     }
 
@@ -633,11 +654,17 @@ export default function BulkAddScreen() {
         return;
       }
 
-      const computedKarat = selectedDesign.metal === 'GOLD' ? (percentToKarat(purity) || 0) : 0;
       const parsedSizeVal = hasSizeVal ? parseCleanFloat(r.sizeValue) : null;
+      if (parsedSizeVal !== null && parsedSizeVal <= 0) {
+        Alert.alert('Validation Error', `Item #${i + 1}: Size Value must be greater than 0.`);
+        return;
+      }
+
+      const computedKarat = selectedDesign.metal === 'GOLD' ? (percentToKarat(purity) || 0) : 0;
       const parsedSizeUnit = hasSizeUnit ? (r.sizeUnit as 'INCH' | 'MM' | 'CM' | 'RING_SIZE') : null;
 
       inputs.push({
+        clientRef: r.id,
         designId: selectedDesign.id,
         categoryId: selectedCategory.id,
         hsnCode: selectedHsn.code,
@@ -687,10 +714,10 @@ export default function BulkAddScreen() {
             <GlassCard style={{ marginBottom: 16 }}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 16 }}>
                 <Layers size={20} color="#D4AF37" />
-                <Text style={{ fontSize: 16, fontWeight: 'bold', color: COLORS.vjText }}>Batch Classification</Text>
+                <Text style={{ fontSize: 16, fontWeight: 'bold', color: colors.vjText }}>Batch Classification</Text>
               </View>
               
-              <Text style={{ fontSize: 12, color: 'rgba(92,22,35,0.6)', marginBottom: 16 }}>
+              <Text style={{ fontSize: 12, color: `${colors.vjText}99`, marginBottom: 16 }}>
                 These attributes will be applied to all items in this bulk batch.
               </Text>
 
@@ -708,7 +735,7 @@ export default function BulkAddScreen() {
 
               <View style={{ marginBottom: 16 }}>
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-                  <Text style={{ fontSize: 12, fontWeight: '700', color: 'rgba(92,22,35,0.6)', textTransform: 'uppercase' }}>Design *</Text>
+                  <Text style={{ fontSize: 12, fontWeight: '700', color: `${colors.vjText}99`, textTransform: 'uppercase' }}>Design *</Text>
                   {designStock && designStock.count > 0 && (
                     <View style={{ backgroundColor: 'rgba(16, 185, 129, 0.15)', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 12, borderWidth: 1, borderColor: 'rgba(16, 185, 129, 0.3)' }}>
                       <Text style={{ fontSize: 10, fontWeight: '800', color: '#047857' }}>
@@ -748,13 +775,11 @@ export default function BulkAddScreen() {
                         const selDesign = dList.find((d) => d.id === opt.id)!;
                         setSelectedDesign(selDesign);
 
-                        // Auto-select Default HSN
                         if (selDesign.defaultHsn) {
                           const matchedHsn = hsnCodes.find((h) => h.code === selDesign.defaultHsn);
                           if (matchedHsn) setSelectedHsn(matchedHsn);
                         }
 
-                        // Auto-select linked category
                         if (activeFirmId) {
                           try {
                             const mappings = await designCategoryMapRepository.findByDesignId(selDesign.id, activeFirmId);
@@ -781,39 +806,41 @@ export default function BulkAddScreen() {
                 />
               </View>
 
-              <GlassPickerInput
-                label="Category *"
-                placeholder="Search & select category..."
-                selectedLabel={selectedCategory?.name}
-                onPress={async () => {
-                  let cList = categories;
-                  if (activeFirmId) {
-                    const fetched = await categoryRepository.findByFirmId(activeFirmId);
-                    cList = (fetched || [])
-                      .filter((item) => item.isActive === 1)
-                      .sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base', numeric: true }));
-                    setCategories(cList);
-                  }
-                  setPickerModal({
-                    visible: true,
-                    title: 'Select Batch Category',
-                    placeholder: 'Search category...',
-                    selectedId: selectedCategory?.id || null,
-                    options: cList.map((c) => ({
-                      id: c.id,
-                      label: c.name || 'Unnamed Category',
-                    })),
-                    onSelect: (opt) => {
-                      if (!opt) {
-                        setSelectedCategory(null);
-                        return;
-                      }
-                      const selCat = cList.find((c) => c.id === opt.id);
-                      if (selCat) setSelectedCategory(selCat);
-                    },
-                  });
-                }}
-              />
+              <View style={{ marginBottom: 16 }}>
+                <GlassPickerInput
+                  label="Category *"
+                  placeholder="Search & select category..."
+                  selectedLabel={selectedCategory?.name}
+                  onPress={async () => {
+                    let cList = categories;
+                    if (activeFirmId) {
+                      const fetched = await categoryRepository.findByFirmId(activeFirmId);
+                      cList = (fetched || [])
+                        .filter((item) => item.isActive === 1)
+                        .sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base', numeric: true }));
+                      setCategories(cList);
+                    }
+                    setPickerModal({
+                      visible: true,
+                      title: 'Select Batch Category',
+                      placeholder: 'Search category...',
+                      selectedId: selectedCategory?.id || null,
+                      options: cList.map((c) => ({
+                        id: c.id,
+                        label: c.name || 'Unnamed Category',
+                      })),
+                      onSelect: (opt) => {
+                        if (!opt) {
+                          setSelectedCategory(null);
+                          return;
+                        }
+                        const selCat = cList.find((c) => c.id === opt.id);
+                        if (selCat) setSelectedCategory(selCat);
+                      },
+                    });
+                  }}
+                />
+              </View>
 
               <GlassPickerInput
                 label="HSN Code *"
@@ -850,8 +877,8 @@ export default function BulkAddScreen() {
           </View>
 
           <View style={s.itemsHeader}>
-            <Package size={20} color={COLORS.vjText} />
-            <Text style={s.itemsTitle}>Items ({rows.length} / {BULK_ITEM_MAX})</Text>
+            <Package size={20} color={colors.vjText} />
+            <Text style={[s.itemsTitle, { color: colors.vjText }]}>Items ({rows.length} / {BULK_ITEM_MAX})</Text>
           </View>
 
           {rows.map((row, index) => (
@@ -863,6 +890,7 @@ export default function BulkAddScreen() {
               removeRow={removeRow} 
               stones={stones} 
               metal={selectedDesign?.metal || 'GOLD'}
+              colors={colors}
               openPickerModal={(config: any) => setPickerModal(config)}
             />
           ))}
@@ -875,7 +903,7 @@ export default function BulkAddScreen() {
             onPress={addRow}
             activeOpacity={0.7}
           >
-            <Plus size={16} color={COLORS.vjAccent} />
+            <Plus size={16} color={colors.vjAccent} />
             <Text style={fixedBarStyles.pillSecondaryText}>+ Row</Text>
           </TouchableOpacity>
 
@@ -899,11 +927,11 @@ export default function BulkAddScreen() {
 
       <Modal visible={!!successCount} transparent animationType="fade">
         <View style={styles.modalOverlay}>
-          <View style={styles.successModalContent}>
-            <View style={styles.successIconContainer}>
+          <View style={[styles.successModalContent, { backgroundColor: colors.vjBg }]}>
+            <View style={s.successIconContainer}>
               <CheckCircle size={56} color="#10B981" />
             </View>
-            <Text style={styles.successTitle}>Batch Created!</Text>
+            <Text style={[styles.successTitle, { color: colors.vjText }]}>Batch Created!</Text>
             <Text style={styles.successSubtitle}>Successfully generated {successCount} items in drafts.</Text>
             
             <View style={{ width: '100%', marginTop: 16 }}>
@@ -943,11 +971,17 @@ export default function BulkAddScreen() {
 
 const s = StyleSheet.create({
   itemsHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12, marginTop: 8, marginLeft: 4 },
-  itemsTitle: { fontSize: 18, fontWeight: '800', color: COLORS.vjText },
+  itemsTitle: { fontSize: 18, fontWeight: '800' },
   rowHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
   rowTitle: { fontSize: 14, fontWeight: '800', color: '#D4AF37', textTransform: 'uppercase', letterSpacing: 1 },
   inputGrid: { flexDirection: 'row', gap: 8, marginBottom: 12 },
   inputCol: { flex: 1 },
+  successIconContainer: {
+    marginBottom: 16,
+    backgroundColor: 'rgba(16, 185, 129, 0.1)',
+    padding: 16,
+    borderRadius: 50,
+  },
 });
 
 const styles = StyleSheet.create({
@@ -959,7 +993,6 @@ const styles = StyleSheet.create({
     padding: 24,
   },
   successModalContent: {
-    backgroundColor: COLORS.vjBg,
     width: '100%',
     maxWidth: 400,
     borderRadius: 24,
@@ -973,16 +1006,9 @@ const styles = StyleSheet.create({
     shadowRadius: 20,
     elevation: 10,
   },
-  successIconContainer: {
-    marginBottom: 16,
-    backgroundColor: 'rgba(16, 185, 129, 0.1)',
-    padding: 16,
-    borderRadius: 50,
-  },
   successTitle: {
     fontSize: 24,
     fontWeight: '800',
-    color: COLORS.vjText,
     marginBottom: 8,
   },
   successSubtitle: {

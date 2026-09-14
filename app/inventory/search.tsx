@@ -1,4 +1,6 @@
-// app/inventory/search.tsx — Phase 2 v2.24 Canonical Screen
+// app/inventory/search.tsx — Phase 2 v2.34 Canonical Screen
+// Aligned with SEARCH-1 (v1.13), RED-7 (LIMIT 20), FEAT-ITEM-SIZE-1 (v1.76),
+// and MastersSyncStore
 
 import React, { useState, useEffect, useCallback, memo, useRef } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator, Modal, Alert, Keyboard } from 'react-native';
@@ -9,8 +11,8 @@ import * as Haptics from 'expo-haptics';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { Search, PackageSearch, Ghost, Hash, Sparkles, Coins, ScanLine, X, ShieldCheck } from 'lucide-react-native';
 import { inventorySearchService } from '@/services/phase2/inventorySearchService';
-import { formatWeightMg as formatWeight, formatKaratBadge } from '@/utils/calculations';
-import { formatSKUDisplay } from '@/utils/skuDisplay';
+import { formatWeightMg as formatWeight, formatKaratBadge } from '@/utils/purity.constants';
+import { formatSKUDisplay } from '@/services/phase2/skuEngine';
 import type { ItemSearchResult } from '@/types/phase2/phase2.types';
 import { useFirmStore } from '@/store/phase1/useFirmStore';
 import { TwoToneWrapper } from '@/components/TwoToneWrapper';
@@ -129,7 +131,7 @@ const SearchResultRow = memo(({ item, query, colors, onPress }: SearchResultRowP
             </Text>
           </View>
         ) : (
-          <Text style={[s.huidTextMuted, { color: colors.vjText }]}>No HUID</Text>
+          <Text style={[s.huidTextMuted, { color: `${colors.vjText}80` }]}>No HUID</Text>
         )}
       </View>
 
@@ -153,7 +155,7 @@ const SearchResultRow = memo(({ item, query, colors, onPress }: SearchResultRowP
           <View style={[s.inlineWeightRow, { backgroundColor: `${colors.vjAccent}08`, borderColor: `${colors.vjAccent}18` }]}>
             <Text style={[s.weightInlineLabel, { color: colors.vjText }]}>Gross: </Text>
             <Text style={[s.weightInlineVal, { color: colors.vjText }]}>{formatWeight(item.grossWeightMg)}</Text>
-            <Text style={s.weightInlineDivider}>   •   </Text>
+            <Text style={[s.weightInlineDivider, { color: `${colors.vjText}4D` }]}>   •   </Text>
             <Text style={[s.weightInlineLabel, { color: colors.vjText }]}>Net: </Text>
             <HighlightText 
               text={formatWeight(item.netWeightMg ?? item.grossWeightMg ?? 0)} 
@@ -180,11 +182,12 @@ export default function InventorySearchScreen() {
 
   const activeTheme = appSettingsStore((s: any) => s.theme);
   const colors = getThemeColors(activeTheme);
+  const isDark = activeTheme === 'dark';
 
   useEffect(() => {
     const trimmedQuery = query.trim();
     
-    if (trimmedQuery.length < 2 || !activeFirmId) {
+    if (trimmedQuery.length === 0 || !activeFirmId) {
       setResults([]);
       setIsSearching(false);
       return;
@@ -272,7 +275,7 @@ export default function InventorySearchScreen() {
             testID="inventory-search-input"
             style={[s.input, { color: colors.vjText }]}
             placeholder="Scan Barcode / Search SKU, HUID, Size..."
-            placeholderTextColor="rgba(92, 22, 35, 0.4)"
+            placeholderTextColor={isDark ? 'rgba(255, 255, 255, 0.38)' : 'rgba(92, 22, 35, 0.38)'}
             value={query}
             onChangeText={setQuery}
             onSubmitEditing={() => Keyboard.dismiss()}
@@ -334,7 +337,7 @@ export default function InventorySearchScreen() {
             <FlashList
               data={results}
               // @ts-ignore: estimatedItemSize required by FlashList
-              estimatedItemSize={95}
+              estimatedItemSize={115}
               getItemType={(item) => item.metal}
               keyExtractor={(item) => item.itemId}
               renderItem={({ item }) => (
@@ -504,7 +507,6 @@ const s = StyleSheet.create({
     fontSize: 11,
     fontWeight: '600',
     fontStyle: 'italic',
-    opacity: 0.4,
   },
   cardBody: {
     flexDirection: 'row',
@@ -557,7 +559,6 @@ const s = StyleSheet.create({
   },
   weightInlineDivider: {
     fontSize: 10,
-    color: 'rgba(92,22,35,0.25)',
   },
   emptyState: {
     flex: 1,

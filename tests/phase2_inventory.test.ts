@@ -66,7 +66,7 @@ import { karigarService } from '@/services/phase2/karigarService';
 import { barcodeLabelService } from '@/services/phase2/barcodeLabelService';
 import { itemRepository } from '@/repositories/phase2/itemRepository';
 import { oldMetalLotRepository } from '@/repositories/phase2/oldGoldLotRepository';
-import { fyService } from '@/services/phase1/fyService';
+import { fyInventoryService as fyService } from '@/services/phase2/fyInventoryService';
 import { urdPurchaseService } from '@/services/phase2/urdPurchaseService';
 import { urdPurchaseRepository } from '@/repositories/phase2/urdPurchaseRepository';
 import {

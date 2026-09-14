@@ -1,12 +1,14 @@
-// app/inventory/edit-urd.tsx — Phase 2 v2.24 Canonical Screen
+// app/inventory/edit-urd.tsx — Phase 2 v2.34 Canonical Screen
+// Aligned with Step 12.9, Step 12.12, URD-BILL-DECIMAL-SPEC, and URD-AMOUNT-WORDS (v1.54)
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { View, Text, Alert, TouchableOpacity, Modal, ActivityIndicator, StyleSheet } from 'react-native';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { TwoToneWrapper } from '@/components/TwoToneWrapper';
-import { GlassCard, GlassInput, GlassButton, FixedGlassBar } from '@/components/ui/Glass';
+import { GlassCard, GlassInput, GlassButton, GlassPickerInput, FixedGlassBar, fixedBarStyles } from '@/components/ui/Glass';
+import { GlassDatePickerModal } from '@/components/ui/GlassDatePickerModal';
 import { useFirmStore } from '@/store/phase1/useFirmStore';
 import { urdPurchaseService } from '@/services/phase2/urdPurchaseService';
 import { 
@@ -14,16 +16,16 @@ import {
   formatRupees, 
   computeURDCostBreakdown, 
   parseCleanFloat, 
-  percentToKarat, 
   formatKaratBadge,
   getPurityPresets,
   isPresetMatchingPurity,
   rupeesToPaise 
 } from '@/utils/calculations';
-import { User, Scale, Banknote, CheckCircle, Save, X, Building2 } from 'lucide-react-native';
+import { User, Scale, Banknote, CheckCircle, Save, X, Building2, Trash2, Calendar as CalendarIcon } from 'lucide-react-native';
+import { formatDate } from '@/utils/formatDate';
 import type { URDMetalType, URDPurchase, CreateURDPurchaseInput } from '@/types/phase2/phase2.types';
 import { appSettingsStore } from '@/store/phase1/appSettingsStore';
-import { COLORS, getThemeColors } from '@/constants/theme';
+import { getThemeColors } from '@/constants/theme';
 
 export default function EditURDScreen() {
   const router = useRouter();
@@ -31,8 +33,19 @@ export default function EditURDScreen() {
   const params = useLocalSearchParams<{ urdId: string }>();
   const urdId = Array.isArray(params.urdId) ? params.urdId[0] : params.urdId;
 
+  const todayIso = useMemo(() => {
+    const t = new Date();
+    const y = t.getFullYear();
+    const m = String(t.getMonth() + 1).padStart(2, '0');
+    const d = String(t.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  }, []);
+
   const [initialLoading, setInitialLoading] = useState(true);
   const [urdRecord, setUrdRecord] = useState<URDPurchase | null>(null);
+
+  const [purchaseDate, setPurchaseDate] = useState(todayIso);
+  const [showDatePicker, setShowDatePicker] = useState(false);
 
   const [customerName, setCustomerName] = useState('');
   const [customerMobile, setCustomerMobile] = useState('');
@@ -76,6 +89,7 @@ export default function EditURDScreen() {
         }
 
         setUrdRecord(urd);
+        setPurchaseDate(urd.purchaseDate || todayIso);
         setCustomerName(urd.customerName || '');
         setCustomerMobile(urd.customerMobile || '');
         setCustomerAddress(urd.customerAddress || '');
@@ -115,7 +129,7 @@ export default function EditURDScreen() {
 
     fetchURD();
     return () => { active = false; };
-  }, [activeFirmId, urdId, router]);
+  }, [activeFirmId, urdId, router, todayIso]);
 
   // Live Item Calculation
   const calculation = useMemo(() => {
@@ -135,6 +149,30 @@ export default function EditURDScreen() {
     };
   }, [grossWeight, purityPercent, ratePerGram, discount, adjustmentType, metalType]);
 
+  const handleDiscard = useCallback(() => {
+    if (!activeFirmId || !urdId) return;
+    Alert.alert(
+      'Discard Draft',
+      `Permanently discard this URD purchase draft from ${customerName || 'customer'}? This cannot be undone.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Discard',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); } catch {}
+              await urdPurchaseService.deleteURDPurchase(urdId, activeFirmId);
+              router.back();
+            } catch (err: any) {
+              Alert.alert('Error', err.message || 'Failed to discard draft.');
+            }
+          },
+        },
+      ]
+    );
+  }, [activeFirmId, urdId, customerName, router]);
+
   const handleSubmit = async () => {
     try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); } catch {}
     if (!activeFirmId || !urdId) return;
@@ -143,12 +181,16 @@ export default function EditURDScreen() {
       return; 
     }
 
+    if (purchaseDate > todayIso) {
+      Alert.alert('Invalid Date', 'Purchase date cannot be in the future.');
+      return;
+    }
+
     if (paymentMode !== 'CASH' && !bankAccountId.trim()) {
       Alert.alert('Validation Error', `Please provide the Bank Account ID or reference for ${paymentMode} payment.`);
       return;
     }
 
-    // Optional KYC validation
     const cleanedAadhaar = customerAadhaar.replace(/[^0-9]/g, '');
     if (cleanedAadhaar && cleanedAadhaar.length !== 12) {
       Alert.alert('Invalid Aadhaar', 'Aadhaar Number must be exactly 12 digits.');
@@ -178,6 +220,11 @@ export default function EditURDScreen() {
       return; 
     }
 
+    if (calculation.totalValuePaise <= 0) {
+      Alert.alert('Validation Error', 'Net valuation must be greater than zero. Deductions cannot exceed metal value.');
+      return;
+    }
+
     if (calculation.totalValuePaise > 999999999) {
       Alert.alert('Limit Exceeded', `URD Purchase valuation cannot exceed ${getCurrencySymbol()}99,99,999.99`);
       return;
@@ -196,6 +243,7 @@ export default function EditURDScreen() {
         urdId,
         activeFirmId,
         {
+          purchaseDate,
           customerName: cName,
           customerAddress: cAddr,
           customerMobile: cMob,
@@ -251,6 +299,17 @@ export default function EditURDScreen() {
               <Text style={{ fontSize: 18, fontWeight: '700', color: colors.vjText }}>Seller Details</Text>
             </View>
 
+            <View style={{ marginBottom: 12 }}>
+              <GlassPickerInput
+                label="Purchase Date"
+                placeholder="Select date..."
+                selectedLabel={formatDate(purchaseDate)}
+                selectedSublabel={purchaseDate === todayIso ? 'Today' : undefined}
+                onPress={() => setShowDatePicker(true)}
+                icon={<CalendarIcon size={18} color="#D4AF37" />}
+              />
+            </View>
+
             <GlassInput 
               label="Full Name *" 
               placeholder="Enter customer name" 
@@ -261,7 +320,7 @@ export default function EditURDScreen() {
               label="Mobile Number" 
               placeholder="10-digit mobile" 
               keyboardType="phone-pad" 
-              maxLength={10}
+              maxLength={10} 
               value={customerMobile} 
               onChangeText={setCustomerMobile} 
             />
@@ -277,7 +336,7 @@ export default function EditURDScreen() {
                   label="Aadhaar No (Optional)" 
                   placeholder="12-digit number" 
                   keyboardType="number-pad" 
-                  maxLength={12}
+                  maxLength={12} 
                   value={customerAadhaar} 
                   onChangeText={setCustomerAadhaar} 
                 />
@@ -287,7 +346,7 @@ export default function EditURDScreen() {
                   label="PAN (Optional)" 
                   placeholder="ABCDE1234F" 
                   autoCapitalize="characters" 
-                  maxLength={10}
+                  maxLength={10} 
                   value={customerPAN} 
                   onChangeText={setCustomerPAN} 
                 />
@@ -302,13 +361,13 @@ export default function EditURDScreen() {
               <Text style={{ fontSize: 18, fontWeight: '700', color: colors.vjText }}>Item Details</Text>
             </View>
 
-            <Text style={{ fontSize: 12, fontWeight: '700', color: 'rgba(92,22,35,0.6)', textTransform: 'uppercase', marginBottom: 6 }}>Metal Type *</Text>
+            <Text style={{ fontSize: 12, fontWeight: '700', color: `${colors.vjText}99`, textTransform: 'uppercase', marginBottom: 6 }}>Metal Type *</Text>
             <View style={{ flexDirection: 'row', gap: 12, marginBottom: 16 }}>
               {(['GOLD', 'SILVER'] as URDMetalType[]).map((m) => (
                 <TouchableOpacity
                   key={m}
                   style={[
-                    { flex: 1, padding: 10, borderRadius: 10, borderWidth: 1, borderColor: 'rgba(92,22,35,0.3)', alignItems: 'center' },
+                    { flex: 1, padding: 10, borderRadius: 10, borderWidth: 1, borderColor: `${colors.vjText}4D`, alignItems: 'center' },
                     metalType === m && { backgroundColor: m === 'GOLD' ? '#C8860A' : '#6B7280', borderColor: m === 'GOLD' ? '#C8860A' : '#6B7280' },
                   ]}
                   onPress={() => {
@@ -318,7 +377,7 @@ export default function EditURDScreen() {
                     }
                   }}
                 >
-                  <Text style={[{ fontSize: 13, fontWeight: '700', color: 'rgba(92,22,35,0.6)' }, metalType === m && { color: '#fff' }]}>{m}</Text>
+                  <Text style={[{ fontSize: 13, fontWeight: '700', color: `${colors.vjText}99` }, metalType === m && { color: '#fff' }]}>{m}</Text>
                 </TouchableOpacity>
               ))}
             </View>
@@ -333,7 +392,7 @@ export default function EditURDScreen() {
 
             <View style={{ marginBottom: 12 }}>
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-                <Text style={{ fontSize: 12, fontWeight: '700', color: 'rgba(92,22,35,0.6)', textTransform: 'uppercase' }}>Purity (%) *</Text>
+                <Text style={{ fontSize: 12, fontWeight: '700', color: `${colors.vjText}99`, textTransform: 'uppercase' }}>Purity (%) *</Text>
                 {formatKaratBadge(purityPercent, metalType) ? (
                   <View style={{ backgroundColor: 'rgba(212,175,55,0.2)', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 }}>
                     <Text style={{ fontSize: 11, fontWeight: '800', color: '#D4AF37' }}>
@@ -402,8 +461,8 @@ export default function EditURDScreen() {
                 <TouchableOpacity 
                   style={{
                     flex: 1, paddingVertical: 8, borderRadius: 8, alignItems: 'center',
-                    backgroundColor: adjustmentType === '-' ? COLORS.danger : 'rgba(255,255,255,0.4)',
-                    borderWidth: 1, borderColor: adjustmentType === '-' ? COLORS.danger : 'rgba(0,0,0,0.1)'
+                    backgroundColor: adjustmentType === '-' ? '#EF4444' : 'rgba(255,255,255,0.4)',
+                    borderWidth: 1, borderColor: adjustmentType === '-' ? '#EF4444' : 'rgba(0,0,0,0.1)'
                   }}
                   onPress={() => setAdjustmentType('-')}
                 >
@@ -430,18 +489,18 @@ export default function EditURDScreen() {
               <Text style={{ fontSize: 18, fontWeight: '700', color: colors.vjText }}>Payout & Valuation Summary</Text>
             </View>
 
-            <Text style={{ fontSize: 12, fontWeight: '700', color: 'rgba(92,22,35,0.6)', textTransform: 'uppercase', marginBottom: 8 }}>Payout Mode *</Text>
+            <Text style={{ fontSize: 12, fontWeight: '700', color: `${colors.vjText}99`, textTransform: 'uppercase', marginBottom: 8 }}>Payout Mode *</Text>
             <View style={{ flexDirection: 'row', gap: 8, marginBottom: 16 }}>
               {(['CASH', 'UPI', 'BANK'] as const).map((mode) => (
                 <TouchableOpacity
                   key={mode}
                   style={[
-                    { flex: 1, padding: 10, borderRadius: 8, borderWidth: 1, borderColor: 'rgba(92,22,35,0.3)', alignItems: 'center' },
+                    { flex: 1, padding: 10, borderRadius: 8, borderWidth: 1, borderColor: `${colors.vjText}4D`, alignItems: 'center' },
                     paymentMode === mode && { backgroundColor: '#D4AF37', borderColor: '#D4AF37' },
                   ]}
                   onPress={() => setPaymentMode(mode)}
                 >
-                  <Text style={[{ fontSize: 12, fontWeight: '700', color: 'rgba(92,22,35,0.6)' }, paymentMode === mode && { color: '#fff' }]}>{mode}</Text>
+                  <Text style={[{ fontSize: 12, fontWeight: '700', color: `${colors.vjText}99` }, paymentMode === mode && { color: '#fff' }]}>{mode}</Text>
                 </TouchableOpacity>
               ))}
             </View>
@@ -474,10 +533,10 @@ export default function EditURDScreen() {
           </GlassCard>
         </KeyboardAwareScrollView>
 
-        {/* Fixed Action Bar */}
+        {/* Fixed Action Bar with Cancel, Discard, and Save */}
         <FixedGlassBar>
           <TouchableOpacity
-            style={s.pillSecondaryBtn}
+            style={fixedBarStyles.pillSecondaryBtn}
             onPress={() => {
               try { Haptics.selectionAsync(); } catch {}
               router.back();
@@ -486,12 +545,22 @@ export default function EditURDScreen() {
             activeOpacity={0.7}
           >
             <X size={16} color={colors.vjText} />
-            <Text style={[s.pillSecondaryText, { color: colors.vjText }]}>Cancel</Text>
+            <Text style={fixedBarStyles.pillSecondaryText}>Cancel</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[fixedBarStyles.pillSecondaryBtn, { borderColor: 'rgba(239, 68, 68, 0.3)', backgroundColor: 'rgba(239, 68, 68, 0.08)' }]}
+            onPress={handleDiscard}
+            disabled={loading}
+            activeOpacity={0.7}
+          >
+            <Trash2 size={16} color="#EF4444" />
+            <Text style={[fixedBarStyles.pillSecondaryText, { color: '#EF4444' }]}>Discard</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
             testID="save-urd-changes-btn"
-            style={s.pillPrimaryBtn}
+            style={[fixedBarStyles.pillPrimaryBtn, { flex: 1.4 }]}
             onPress={handleSubmit}
             disabled={loading}
             activeOpacity={0.8}
@@ -501,7 +570,7 @@ export default function EditURDScreen() {
             ) : (
               <>
                 <Save size={18} color="#fff" />
-                <Text style={s.pillPrimaryText}>Save Changes</Text>
+                <Text style={fixedBarStyles.pillPrimaryText}>Save Changes</Text>
               </>
             )}
           </TouchableOpacity>
@@ -519,7 +588,7 @@ export default function EditURDScreen() {
           }}
         >
           <TouchableOpacity 
-            activeOpacity={1}
+            activeOpacity={1} 
             style={[s.successModalContent, { backgroundColor: colors.vjBg, borderColor: colors.border }]}
           >
             <View style={s.successIconContainer}>
@@ -540,6 +609,15 @@ export default function EditURDScreen() {
           </TouchableOpacity>
         </TouchableOpacity>
       </Modal>
+
+      <GlassDatePickerModal
+        visible={showDatePicker}
+        title="Purchase Date"
+        value={purchaseDate}
+        maxDate={todayIso}
+        onClose={() => setShowDatePicker(false)}
+        onSelect={(d) => setPurchaseDate(d)}
+      />
     </TwoToneWrapper>
   );
 }
@@ -581,37 +659,5 @@ const s = StyleSheet.create({
     textAlign: 'center',
     marginBottom: 24,
     opacity: 0.7,
-  },
-  pillSecondaryBtn: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-    backgroundColor: 'rgba(92, 22, 35, 0.06)',
-    borderWidth: 1,
-    borderColor: 'rgba(92, 22, 35, 0.15)',
-    paddingVertical: 14,
-    borderRadius: 28,
-  },
-  pillSecondaryText: {
-    fontSize: 14,
-    fontWeight: '700',
-  },
-  pillPrimaryBtn: {
-    flex: 2,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    backgroundColor: COLORS.vjAccent,
-    paddingVertical: 14,
-    borderRadius: 28,
-  },
-  pillPrimaryText: {
-    color: '#ffffff',
-    fontSize: 15,
-    fontWeight: '800',
-    letterSpacing: 0.3,
   },
 });

@@ -1,7 +1,8 @@
-// app/inventory/drafts.tsx — Phase 2 v2.24 Canonical Screen
+// app/inventory/drafts.tsx — Phase 2 v2.34 Canonical Screen
+// Aligned with Step 6.5, Step 10.5, and MastersSyncStore
 
 import React, { useState, useCallback, memo } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, Modal } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, Modal, Alert } from 'react-native';
 import { FlashList } from '@shopify/flash-list';
 import { useRouter, useFocusEffect } from 'expo-router';
 import * as Haptics from 'expo-haptics';
@@ -12,7 +13,7 @@ import { inventoryDrillDownService } from '@/services/phase2/inventoryDrillDownS
 import { itemService } from '@/services/phase2/itemService';
 import type { ItemSearchResult } from '@/types/phase2/phase2.types';
 import { getDisplayPurity, formatKaratBadge, formatSKUDisplay, formatWeightMg as formatWeight } from '@/utils/calculations';
-import { Check, PackageSearch, Edit3, CheckCircle, Package, Scale, ShieldCheck } from 'lucide-react-native';
+import { Check, PackageSearch, Edit3, CheckCircle, Package, Scale, ShieldCheck, Trash2 } from 'lucide-react-native';
 import { appSettingsStore } from '@/store/phase1/appSettingsStore';
 import { COLORS, getThemeColors } from '@/constants/theme';
 
@@ -21,9 +22,10 @@ type DraftRowProps = {
   colors: ReturnType<typeof getThemeColors>;
   onActivate: (itemId: string, sku: string) => void;
   onEdit: (itemId: string) => void;
+  onDiscard: (itemId: string, sku: string) => void;
 };
 
-const DraftRow = memo(({ item, colors, onActivate, onEdit }: DraftRowProps) => {
+const DraftRow = memo(({ item, colors, onActivate, onEdit, onDiscard }: DraftRowProps) => {
   const metalColor = item.metal === 'GOLD' ? COLORS.bullionGold : COLORS.bullionSilver;
   const isGold = item.metal === 'GOLD';
 
@@ -60,14 +62,14 @@ const DraftRow = memo(({ item, colors, onActivate, onEdit }: DraftRowProps) => {
 
         <View style={s.metaRow}>
           <Text style={[s.weightText, { color: colors.vjText }]}>Gross: {formatWeight(item.grossWeightMg)}</Text>
-          <Text style={s.weightDivider}>•</Text>
+          <Text style={[s.weightDivider, { color: `${colors.vjText}4D` }]}>•</Text>
           <Text style={[s.weightText, { color: colors.vjAccent }]}>
             Net: {formatWeight(item.netWeightMg ?? item.grossWeightMg)}
           </Text>
 
           {sizeDisplay && (
             <>
-              <Text style={s.weightDivider}>•</Text>
+              <Text style={[s.weightDivider, { color: `${colors.vjText}4D` }]}>•</Text>
               <View style={[s.sizeBadge, { backgroundColor: `${colors.vjAccent}14`, borderColor: `${colors.vjAccent}35` }]}>
                 <Text style={[s.sizeBadgeText, { color: colors.vjText }]}>{sizeDisplay}</Text>
               </View>
@@ -76,7 +78,7 @@ const DraftRow = memo(({ item, colors, onActivate, onEdit }: DraftRowProps) => {
 
           {item.huid ? (
             <>
-              <Text style={s.weightDivider}>•</Text>
+              <Text style={[s.weightDivider, { color: `${colors.vjText}4D` }]}>•</Text>
               <View style={s.huidBadge}>
                 <ShieldCheck size={11} color="#15803d" />
                 <Text style={s.huidBadgeText}>{item.huid}</Text>
@@ -88,6 +90,18 @@ const DraftRow = memo(({ item, colors, onActivate, onEdit }: DraftRowProps) => {
 
       <View style={s.actionRow}>
         <TouchableOpacity 
+          testID={`discard-draft-btn-${item.itemId}`}
+          style={[s.discardBtn, { backgroundColor: 'rgba(239, 68, 68, 0.08)', borderColor: 'rgba(239, 68, 68, 0.25)' }]} 
+          activeOpacity={0.7}
+          onPress={() => {
+            try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
+            onDiscard(item.itemId, displaySku);
+          }}
+        >
+          <Trash2 size={16} color="#EF4444" />
+        </TouchableOpacity>
+
+        <TouchableOpacity 
           testID={`edit-draft-btn-${item.itemId}`}
           style={[s.editBtn, { backgroundColor: `${colors.vjAccent}14`, borderColor: `${colors.vjAccent}35` }]} 
           activeOpacity={0.7}
@@ -96,19 +110,19 @@ const DraftRow = memo(({ item, colors, onActivate, onEdit }: DraftRowProps) => {
             onEdit(item.itemId);
           }}
         >
-          <Edit3 size={18} color={colors.vjAccent} />
+          <Edit3 size={17} color={colors.vjAccent} />
         </TouchableOpacity>
 
         <TouchableOpacity 
           testID={`activate-draft-btn-${item.itemId}`}
-          style={s.activateBtn} 
+          style={[s.activateBtn, { backgroundColor: COLORS.success }]} 
           activeOpacity={0.7}
           onPress={() => {
             try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); } catch {}
             onActivate(item.itemId, displaySku);
           }}
         >
-          <Check size={20} color="#fff" />
+          <Check size={19} color="#fff" />
         </TouchableOpacity>
       </View>
     </View>
@@ -157,6 +171,30 @@ export default function DraftsScreen() {
     try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); } catch {}
     setConfirmActivate({ itemId, displaySku });
   }, []);
+
+  const handleDiscard = useCallback((itemId: string, displaySku: string) => {
+    Alert.alert(
+      'Discard Draft',
+      `Are you sure you want to permanently discard draft item ${displaySku}?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Discard',
+          style: 'destructive',
+          onPress: async () => {
+            if (!activeFirmId) return;
+            try {
+              try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); } catch {}
+              await itemService.discardDraftItem(itemId, activeFirmId);
+              await loadDrafts();
+            } catch (err: any) {
+              Alert.alert('Discard Failed', err.message || 'Could not discard draft.');
+            }
+          },
+        },
+      ]
+    );
+  }, [activeFirmId, loadDrafts]);
 
   const handleConfirmActivate = async () => {
     if (!confirmActivate || !activeFirmId) return;
@@ -209,9 +247,10 @@ export default function DraftsScreen() {
             renderItem={({ item }) => (
               <DraftRow 
                 item={item} 
-                colors={colors}
+                colors={colors} 
                 onActivate={handleActivate} 
                 onEdit={handleEdit}
+                onDiscard={handleDiscard}
               />
             )}
             // @ts-ignore: estimatedItemSize required by FlashList
@@ -267,7 +306,7 @@ export default function DraftsScreen() {
             activeOpacity={1} 
             style={[s.successModalContent, { backgroundColor: colors.vjBg, borderColor: colors.border }]}
           >
-            <View style={[s.successIconContainer, { backgroundColor: 'rgba(184, 115, 51, 0.1)' }]}>
+            <View style={[s.successIconContainer, { backgroundColor: `${colors.vjAccent}18` }]}>
               <Check size={40} color={colors.vjAccent} />
             </View>
             <Text style={[s.successTitle, { color: colors.vjText }]}>Verify & Activate</Text>
@@ -399,7 +438,6 @@ const s = StyleSheet.create({
     fontWeight: '700' 
   },
   weightDivider: { 
-    color: 'rgba(92,22,35,0.3)', 
     fontSize: 10 
   },
   sizeBadge: { 
@@ -432,28 +470,35 @@ const s = StyleSheet.create({
   actionRow: { 
     flexDirection: 'row', 
     alignItems: 'center', 
-    gap: 8 
+    gap: 6 
+  },
+  discardBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
   },
   editBtn: { 
-    width: 40, 
-    height: 40, 
-    borderRadius: 12, 
+    width: 36, 
+    height: 36, 
+    borderRadius: 10, 
     justifyContent: 'center', 
     alignItems: 'center', 
     borderWidth: 1 
   },
   activateBtn: { 
-    width: 40, 
-    height: 40, 
-    borderRadius: 12, 
-    backgroundColor: COLORS.success, 
+    width: 36, 
+    height: 36, 
+    borderRadius: 10, 
     justifyContent: 'center', 
     alignItems: 'center', 
-    shadowColor: COLORS.success, 
-    shadowOffset: { width: 0, height: 4 }, 
-    shadowOpacity: 0.3, 
-    shadowRadius: 8, 
-    elevation: 4 
+    shadowColor: '#000', 
+    shadowOffset: { width: 0, height: 2 }, 
+    shadowOpacity: 0.2, 
+    shadowRadius: 4, 
+    elevation: 3 
   },
   loadingContainer: { 
     flex: 1, 

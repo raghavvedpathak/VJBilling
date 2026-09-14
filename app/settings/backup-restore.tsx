@@ -10,6 +10,8 @@ import { TwoToneWrapper } from '@/components/TwoToneWrapper';
 import { useSession } from '@/hooks/useSession';
 import { backupService, BackupEnvelope } from '@/services/phase1/backupService';
 import { restoreService } from '@/services/phase1/restoreService';
+import '@/services/phase2/inventoryBackupService';
+import '@/services/phase2/inventoryRestoreService';
 import { storage } from '@/utils/storage';
 import { GlassCard, GlassButton, GlassInput, HeaderPill } from '@/components/ui/Glass';
 import { RestorePreviewModal } from '@/components/RestorePreviewModal';

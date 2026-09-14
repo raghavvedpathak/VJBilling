@@ -1,4 +1,5 @@
-// app/inventory/drill-down.tsx — Phase 2 v2.24 Canonical Screen (Screen A)
+// app/inventory/drill-down.tsx — Phase 2 v2.34 Canonical Screen (Screen A)
+// Aligned with Step 16, FEAT-DRILL-DOWN-1 (v1.65), and MastersSyncStore
 
 import React, { useState, useCallback, useEffect, memo } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
@@ -35,7 +36,6 @@ const CategoryRow = memo(({ item, colors, onPress }: CategoryRowProps) => {
         },
       ]}
     >
-      {/* Bullion Gold Left Accent Stripe */}
       <View style={[s.metalStripe, { backgroundColor: COLORS.bullionGold }]} />
 
       <View style={[s.metalBadge, { backgroundColor: `${colors.vjAccent}12`, borderColor: `${colors.vjAccent}35` }]}>
@@ -47,7 +47,7 @@ const CategoryRow = memo(({ item, colors, onPress }: CategoryRowProps) => {
           <Text style={[s.categoryName, { color: colors.vjText }]} numberOfLines={1}>{item.name}</Text>
         </View>
         
-        <View style={[s.weightBadge, { backgroundColor: 'rgba(212, 175, 55, 0.10)', borderColor: 'rgba(212, 175, 55, 0.35)' }]}>
+        <View style={[s.weightBadge, { backgroundColor: `${colors.vjAccent}10`, borderColor: `${colors.vjAccent}35` }]}>
           <Scale size={11} color={COLORS.bullionGold} />
           <Text style={[s.weightText, { color: colors.vjText }]}>Net: {formatWeight(item.totalNetWeightMg)}</Text>
         </View>
@@ -70,7 +70,6 @@ export default function DrillDownScreen() {
   const [data, setData] = useState<{ id: string; name: string; availableCount: number; totalNetWeightMg: number }[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Reactive theme subscription ensures live background, accent, and card border updates
   const activeTheme = appSettingsStore((s: any) => s.theme);
   const colors = getThemeColors(activeTheme);
 
@@ -115,7 +114,7 @@ export default function DrillDownScreen() {
   const totalItems = data.reduce((sum, c) => sum + c.availableCount, 0);
   const totalWeightMg = data.reduce((sum, c) => sum + c.totalNetWeightMg, 0);
 
-  const headerVaultCard = (
+  const headerVaultCard = !loading && data.length > 0 ? (
     <View style={s.headerVaultCard}>
       <View style={s.heroTopRow}>
         <View style={s.headerVaultBadge}>
@@ -146,7 +145,7 @@ export default function DrillDownScreen() {
         </View>
       </View>
     </View>
-  );
+  ) : null;
 
   return (
     <TwoToneWrapper title="Stock Ledger" showBack headerContent={headerVaultCard}>
@@ -199,7 +198,6 @@ export default function DrillDownScreen() {
 const s = StyleSheet.create({
   listContainer: { flex: 1 },
 
-  // HEADER VAULT OVERVIEW CARD (DARK GLASS STYLE)
   headerVaultCard: {
     backgroundColor: 'rgba(255, 255, 255, 0.09)',
     borderRadius: 18,
@@ -282,7 +280,6 @@ const s = StyleSheet.create({
     marginTop: 2,
   },
 
-  // CATEGORY ROW CARD
   card: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -395,4 +392,3 @@ const s = StyleSheet.create({
     elevation: 8,
   },
 });
-

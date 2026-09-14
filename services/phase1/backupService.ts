@@ -10,10 +10,8 @@ import quickCrypto, { Buffer } from 'react-native-quick-crypto';
 import { storage } from '@/utils/storage';
 import { db } from '@/db/client';
 import { 
-  firms, financialYears, auditLogs, safeModeState, appSettings, bisLogos,
-  categories, designs, stones, hsnCodes, items, itemEvents,
-  gemstoneLots, designCategoryMap, sequenceCounters, oldGoldLots, urdPurchases
-} from '@/db/schema';
+  firms, financialYears, auditLogs, safeModeState, appSettings, bisLogos
+} from '@/db/schema/phase1_core';
 import { leaseService } from '@/services/phase1/leaseService';
 import { auditRepository } from '@/repositories/phase1/auditRepository';
 import { getDeviceId } from '@/utils/deviceId';
@@ -21,6 +19,31 @@ import { getDeviceDerivedKeyMaterial } from '@/utils/deviceKey';
 import { SCHEMA_VERSION, APP_VERSION } from '@/constants';
 
 export const BACKUP_DIR = (FileSystem.documentDirectory ?? '') + 'backups/';
+
+export type BackupExporter = (tx: any) => Record<string, any>;
+export type RestoreHandler = {
+  clear: (tx: any) => void;
+  restore: (tx: any, payload: Record<string, any>) => void;
+};
+
+const backupExporters = new Map<string, BackupExporter>();
+const restoreHandlers = new Map<string, RestoreHandler>();
+
+export function registerBackupExporter(id: string, exporter: BackupExporter): void {
+  backupExporters.set(id, exporter);
+}
+
+export function registerRestoreHandler(id: string, handler: RestoreHandler): void {
+  restoreHandlers.set(id, handler);
+}
+
+export function getBackupExporters(): Map<string, BackupExporter> {
+  return backupExporters;
+}
+
+export function getRestoreHandlers(): Map<string, RestoreHandler> {
+  return restoreHandlers;
+}
 
 export interface BackupResult { 
   fileName: string; 
@@ -51,17 +74,7 @@ export interface BackupEnvelope {
       firmLogos: Array<{ firmId: string; base64: string }>;
       bisLogos: Array<{ bisLogoId: string; base64: string }>;
     };
-    categories?: any[];
-    designs?: any[];
-    stones?: any[];
-    hsnCodes?: any[];
-    items?: any[];
-    itemEvents?: any[];
-    gemstoneLots?: any[];
-    designCategoryMap?: any[];
-    sequenceCounters?: any[];
-    oldGoldLots?: any[];
-    urdPurchases?: any[];
+    [key: string]: any;
   };
 }
 
@@ -91,19 +104,7 @@ export async function createBackup(password?: string): Promise<BackupResult> {
       const safeModeStateRows = tx.select().from(safeModeState).all();
       const bisLogosRows = tx.select().from(bisLogos).all();
       
-      const categoriesRows = tx.select().from(categories).all();
-      const designsRows = tx.select().from(designs).all();
-      const stonesRows = tx.select().from(stones).all();
-      const hsnCodesRows = tx.select().from(hsnCodes).all();
-      const itemsRows = tx.select().from(items).all();
-      const itemEventsRows = tx.select().from(itemEvents).all();
-      const gemstoneLotsRows = tx.select().from(gemstoneLots).all();
-      const designCategoryMapRows = tx.select().from(designCategoryMap).all();
-      const sequenceCountersRows = tx.select().from(sequenceCounters).all();
-      const oldGoldLotsRows = tx.select().from(oldGoldLots).all();
-      const urdPurchasesRows = tx.select().from(urdPurchases).all();
-
-      return {
+      const corePayload: Record<string, any> = {
         firms: firmsRows,
         financialYears: financialYearsRows,
         settings: settingsRows,
@@ -113,18 +114,19 @@ export async function createBackup(password?: string): Promise<BackupResult> {
           ? safeModeStateRows[0]
           : { id: 1, isActive: 0, reason: null, activatedAt: null, clearedAt: null },
         writerLeases: [],
-        categories: categoriesRows,
-        designs: designsRows,
-        stones: stonesRows,
-        hsnCodes: hsnCodesRows,
-        items: itemsRows,
-        itemEvents: itemEventsRows,
-        gemstoneLots: gemstoneLotsRows,
-        designCategoryMap: designCategoryMapRows,
-        sequenceCounters: sequenceCountersRows,
-        oldGoldLots: oldGoldLotsRows,
-        urdPurchases: urdPurchasesRows,
       };
+
+      // Collect registered extension data (e.g. Phase 2 inventory tables)
+      for (const [id, exporter] of backupExporters.entries()) {
+        try {
+          const extensionData = exporter(tx);
+          Object.assign(corePayload, extensionData);
+        } catch (err) {
+          console.warn(`[Backup] Extension '${id}' export failed (non-fatal):`, err);
+        }
+      }
+
+      return corePayload;
     });
 
     // 2. v7.36 FIX-V736-1: Read logo binaries outside transaction

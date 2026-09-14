@@ -104,6 +104,25 @@ export const inventoryDrillDownRepository = {
     return this.getLowStockDesignPurityVariants(firmId);
   },
 
+  // Configured low stock thresholds across firm designs
+  async getFirmThresholds(firmId: string): Promise<Array<{ designId: string; purityPercent: number; lowStockThreshold: number }>> {
+    const rows = await db
+      .select({
+        designId: designPurityThresholds.designId,
+        purityPercent: designPurityThresholds.purityPercent,
+        lowStockThreshold: designPurityThresholds.lowStockThreshold,
+      })
+      .from(designPurityThresholds)
+      .innerJoin(designs, eq(designs.id, designPurityThresholds.designId))
+      .where(eq(designs.firmId, firmId));
+
+    return rows.map(r => ({
+      designId: r.designId,
+      purityPercent: Number(r.purityPercent),
+      lowStockThreshold: Number(r.lowStockThreshold),
+    }));
+  },
+
   // FEAT-GAP4-METALSOURCE-1 (v1.66)
   async getStockByMetalSource(firmId: string): Promise<MetalSourceStockResult[]> {
     const results = await db

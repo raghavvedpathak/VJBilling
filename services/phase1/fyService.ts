@@ -12,7 +12,7 @@ import { now } from '@/utils/now';
 import * as Crypto from 'expo-crypto';
 import { auditDeleteGate as auditDeleteGateTable } from '@/db/schema';
 import { appSettingsStore } from '@/store/phase1/appSettingsStore';
-import type { DrizzleTransaction, FinancialYear } from '@/types/phase2/phase2.types';
+import type { DrizzleTransaction, FinancialYear } from '@/types/phase1/fy.types';
 import { ERR } from '@/constants/errorCodes';
 
 type DbOrTx = any;
@@ -124,17 +124,6 @@ export function createInitialFY(firmId: string, tx?: any): FinancialYear {
   return fyRepository.createInitialFY(firmId, tx);
 }
 
-// Backward-compatible delegates for callers that still import preCloseChecks/closeFY from Phase 1
-export async function preCloseChecks(fyId: string, firmId: string) {
-  const { fyInventoryService } = await import('@/services/phase2/fyInventoryService');
-  return fyInventoryService.preCloseChecks(fyId, firmId);
-}
-
-export async function closeFY(fyId: string, firmId: string) {
-  const { fyInventoryService } = await import('@/services/phase2/fyInventoryService');
-  return fyInventoryService.closeFY(fyId, firmId);
-}
-
 export const fyCoreService = {
   getActiveFY,
   createInitialFY,
@@ -143,11 +132,5 @@ export const fyCoreService = {
   closeCoreFY,
 };
 
-export const fyService = {
-  ...fyCoreService,
-  preCloseChecks,
-  canCloseFY: preCloseChecks,
-  closeFY,
-};
-
+export const fyService = fyCoreService;
 export default fyService;

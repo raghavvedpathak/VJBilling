@@ -1,4 +1,5 @@
-// app/inventory/barcode-print.tsx — Phase 2 v2.24 Canonical Screen with Inline Action Dock & Offline Tag Generation
+// app/inventory/barcode-print.tsx — Phase 2 v2.34 Canonical Screen with Inline Action Dock & Offline Tag Generation
+// Aligned with STEP 5.1 (50mm x 12mm Dumbbell Tag Specification) and RULE-1A-WEIGHT-DISPLAY (v1.54)
 
 import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, ActivityIndicator, Alert, TouchableOpacity, Modal, StyleSheet, ScrollView } from 'react-native';
@@ -14,12 +15,14 @@ import { barcodeLabelService } from '@/services/phase2/barcodeLabelService';
 import { Printer, Share, CheckCircle, RefreshCcw, Tag, Scale } from 'lucide-react-native';
 import QRCode from 'react-native-qrcode-svg';
 import type { BarcodeLabel } from '@/types/phase2/phase2.types';
-import { COLORS, getThemeColors } from '@/constants/theme';
+import { getThemeColors } from '@/constants/theme';
 
 export default function BarcodePrintScreen() {
   const router = useRouter();
   const { itemId } = useLocalSearchParams<{ itemId: string }>();
   const { activeFirmId } = useFirmStore();
+  const activeTheme = appSettingsStore((s: any) => s.theme);
+  const colors = getThemeColors(activeTheme);
   
   const [label, setLabel] = useState<BarcodeLabel | null>(null);
   const [loading, setLoading] = useState(true);
@@ -182,19 +185,16 @@ export default function BarcodePrintScreen() {
         </head>
         <body>
           <div class="dumbbell-tag">
-            <!-- LEFT WING (DETAILS LOBE: Purity After Design Name) -->
             <div class="wing left-wing">
               <div class="text-title">${label.frontSide.designName.toUpperCase()} ${label.frontSide.purityDisplay}</div>
               <div class="text-line">Gr.Wt : ${label.frontSide.grossWeightDisplay}</div>
               <div class="text-line">Nt.Wt : ${label.frontSide.netWeightDisplay}</div>
             </div>
 
-            <!-- CENTER DUMBBELL STEM (TAIL BRIDGE) -->
             <div class="center-stem">
               <div class="stem-line"></div>
             </div>
 
-            <!-- RIGHT WING (BARCODE LOBE: 3 Lines) -->
             <div class="wing right-wing">
               <div class="firm-code">${label.backSide.firmCode}</div>
               ${qrDataUri ? `<img class="qr-img" src="${qrDataUri}" alt="QR" />` : ''}
@@ -255,9 +255,6 @@ export default function BarcodePrintScreen() {
     }
   };
 
-  const activeTheme = appSettingsStore((s: any) => s.theme);
-  const colors = getThemeColors(activeTheme);
-
   const barcodeHeaderPills = label ? (
     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginTop: 4 }}>
       <HeaderPill icon={<Tag size={12} color={colors.vjBg} />} label={`${label.frontSide.designName.toUpperCase()} · ${label.frontSide.purityDisplay}`} />
@@ -268,7 +265,7 @@ export default function BarcodePrintScreen() {
   if (loading) {
     return (
       <TwoToneWrapper title="Print Barcode Tag" showBack headerContent={null}>
-        <ActivityIndicator size="large" color={COLORS.vjAccent} style={{ marginTop: 40 }} />
+        <ActivityIndicator size="large" color={colors.vjAccent} style={{ marginTop: 40 }} />
       </TwoToneWrapper>
     );
   }
@@ -282,24 +279,23 @@ export default function BarcodePrintScreen() {
         contentContainerStyle={{ paddingTop: 16, paddingBottom: 60, paddingHorizontal: 4 }}
         showsVerticalScrollIndicator={false}
       >
-        <Text style={{ fontSize: 13, fontWeight: '800', color: COLORS.vjText, opacity: 0.75, textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 12 }}>
+        <Text style={{ fontSize: 13, fontWeight: '800', color: colors.vjText, opacity: 0.75, textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 12 }}>
           Dumbbell Tag Live Preview (50mm × 12mm)
         </Text>
         
         <GlassCard style={{ padding: 16, marginBottom: 20 }}>
-          {/* DUMBBELL SHAPED JEWELRY TAG SILHOUETTE PREVIEW (STEP 5.1) */}
           <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#F8FAFC', borderRadius: 14, borderWidth: 1, borderColor: '#E2E8F0', padding: 10, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 2 }}>
             
             {/* LEFT WING (DETAILS: Purity after Design Name) */}
             <View style={{ flex: 1, backgroundColor: '#FFFFFF', borderRadius: 10, borderWidth: 1, borderColor: '#CBD5E1', padding: 10, justifyContent: 'center' }}>
-              <Text style={{ fontSize: 13, fontWeight: '900', color: COLORS.vjText, marginBottom: 4 }} numberOfLines={1}>
+              <Text style={{ fontSize: 13, fontWeight: '900', color: colors.vjText, marginBottom: 4 }} numberOfLines={1}>
                 {label.frontSide.designName.toUpperCase()}{' '}
                 <Text style={{ color: '#D4AF37' }}>{label.frontSide.purityDisplay}</Text>
               </Text>
               <Text style={{ fontSize: 11, fontWeight: '700', color: '#334155', marginBottom: 2 }}>
                 Gr.Wt : {label.frontSide.grossWeightDisplay}
               </Text>
-              <Text style={{ fontSize: 11, fontWeight: '800', color: COLORS.vjAccent }}>
+              <Text style={{ fontSize: 11, fontWeight: '800', color: colors.vjAccent }}>
                 Nt.Wt : {label.frontSide.netWeightDisplay}
               </Text>
             </View>
@@ -314,45 +310,45 @@ export default function BarcodePrintScreen() {
 
             {/* RIGHT WING (BARCODE LOBE: 3 Lines) */}
             <View style={{ flex: 1, backgroundColor: '#FFFFFF', borderRadius: 10, borderWidth: 1, borderColor: '#CBD5E1', padding: 10, alignItems: 'center', justifyContent: 'center' }}>
-              <Text style={{ fontSize: 11, fontWeight: '900', color: COLORS.vjText, marginBottom: 4 }}>{label.backSide.firmCode}</Text>
+              <Text style={{ fontSize: 11, fontWeight: '900', color: colors.vjText, marginBottom: 4 }}>{label.backSide.firmCode}</Text>
               <View style={{ marginBottom: 4, alignItems: 'center', justifyContent: 'center', backgroundColor: '#FFFFFF', padding: 2 }}>
                 <QRCode 
                   getRef={(c) => { qrRef.current = c; }}
                   value={label.backSide.barcodeValue} 
                   size={42} 
-                  color={COLORS.vjText} 
+                  color="#000000" 
                   backgroundColor="#ffffff" 
                   quietZone={2}
                 />
               </View>
-              <Text style={{ fontSize: 12, fontWeight: '900', color: COLORS.vjText, fontFamily: 'monospace' }}>{label.backSide.skuDisplay}</Text>
+              <Text style={{ fontSize: 12, fontWeight: '900', color: colors.vjText, fontFamily: 'monospace' }}>{label.backSide.skuDisplay}</Text>
             </View>
 
           </View>
         </GlassCard>
 
         {/* Audit Notification Banner */}
-        <View style={{ backgroundColor: 'rgba(92,22,35,0.05)', padding: 16, borderRadius: 14, borderWidth: 1, borderColor: 'rgba(92,22,35,0.08)', marginBottom: 24, flexDirection: 'row', gap: 12, alignItems: 'flex-start' }}>
-          <RefreshCcw size={18} color={COLORS.vjAccent} style={{ marginTop: 2 }} />
-          <Text style={{ flex: 1, fontSize: 13, color: 'rgba(92,22,35,0.75)', lineHeight: 19 }}>
-            Printing or saving this label will securely log a <Text style={{ fontWeight: '800', color: COLORS.vjText }}>BARCODE_REPRINTED</Text> event in the item's timeline for constitutional audit compliance.
+        <View style={{ backgroundColor: `${colors.vjAccent}10`, padding: 16, borderRadius: 14, borderWidth: 1, borderColor: `${colors.vjAccent}25`, marginBottom: 24, flexDirection: 'row', gap: 12, alignItems: 'flex-start' }}>
+          <RefreshCcw size={18} color={colors.vjAccent} style={{ marginTop: 2 }} />
+          <Text style={{ flex: 1, fontSize: 13, color: colors.vjText, opacity: 0.8, lineHeight: 19 }}>
+            Printing or saving this label will securely log a <Text style={{ fontWeight: '800' }}>BARCODE_REPRINTED</Text> event in the item's timeline for constitutional audit compliance.
           </Text>
         </View>
 
         {/* ACTION BUTTONS DOCK */}
         <View style={s.actionRow}>
           <TouchableOpacity
-            style={s.shareBtn}
+            style={[s.shareBtn, { borderColor: `${colors.vjAccent}35` }]}
             onPress={handleSaveToDevice}
             disabled={isProcessing}
             activeOpacity={0.75}
           >
-            <Share size={18} color={COLORS.vjText} />
-            <Text style={s.shareBtnText}>Share PDF</Text>
+            <Share size={18} color={colors.vjText} />
+            <Text style={[s.shareBtnText, { color: colors.vjText }]}>Share PDF</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
-            style={s.printBtn}
+            style={[s.printBtn, { backgroundColor: colors.vjAccent }]}
             onPress={handlePrint}
             disabled={isProcessing}
             activeOpacity={0.75}
@@ -372,11 +368,11 @@ export default function BarcodePrintScreen() {
 
       <Modal visible={!!successMessage} transparent animationType="fade">
         <View style={s.modalOverlayCenter}>
-          <View style={s.successModalContent}>
+          <View style={[s.successModalContent, { backgroundColor: colors.vjBg }]}>
             <View style={s.successIconContainer}>
               <CheckCircle size={56} color="#10B981" />
             </View>
-            <Text style={s.successTitle}>Success!</Text>
+            <Text style={[s.successTitle, { color: colors.vjText }]}>Success!</Text>
             <Text style={s.successSubtitle}>{successMessage}</Text>
             <View style={{ width: '100%', marginTop: 16 }}>
               <GlassButton 
@@ -410,7 +406,6 @@ const s = StyleSheet.create({
     gap: 8,
     backgroundColor: '#FFFFFF',
     borderWidth: 1.5,
-    borderColor: 'rgba(92, 22, 35, 0.2)',
     paddingVertical: 15,
     borderRadius: 20,
     shadowColor: '#000',
@@ -420,7 +415,6 @@ const s = StyleSheet.create({
     elevation: 2,
   },
   shareBtnText: {
-    color: COLORS.vjText,
     fontSize: 15,
     fontWeight: '800',
   },
@@ -430,12 +424,11 @@ const s = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-    backgroundColor: COLORS.vjAccent,
     paddingVertical: 15,
     borderRadius: 20,
-    shadowColor: COLORS.vjAccent,
+    shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.25,
+    shadowOpacity: 0.2,
     shadowRadius: 8,
     elevation: 4,
   },
@@ -453,7 +446,6 @@ const s = StyleSheet.create({
     padding: 24,
   },
   successModalContent: {
-    backgroundColor: COLORS.vjBg,
     width: '100%',
     maxWidth: 400,
     borderRadius: 24,
@@ -476,7 +468,6 @@ const s = StyleSheet.create({
   successTitle: {
     fontSize: 24,
     fontWeight: '800',
-    color: COLORS.vjText,
     marginBottom: 8,
   },
   successSubtitle: {

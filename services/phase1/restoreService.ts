@@ -25,10 +25,8 @@ import {
   writerLeases as writerLeasesTable,
   appSettings as appSettingsTable,
   bisLogos as bisLogosTable,
-  categories, designs, stones, hsnCodes, items, itemEvents,
-  gemstoneLots, designCategoryMap, sequenceCounters, oldGoldLots, urdPurchases,
   auditDeleteGate as auditDeleteGateTable
-} from '@/db/schema';
+} from '@/db/schema/phase1_core';
 import { eq } from 'drizzle-orm';
 import { leaseService } from '@/services/phase1/leaseService';
 import { auditRepository } from '@/repositories/phase1/auditRepository';
@@ -39,6 +37,7 @@ import { safeModeService } from '@/services/phase1/safeModeService';
 import { SCHEMA_VERSION } from '@/constants';
 import { ERR } from '@/constants/errorCodes';
 import type { BackupEnvelope } from '@/services/phase1/backupService';
+import { getRestoreHandlers } from '@/services/phase1/backupService';
 
 function getSafeDeviceId(): string {
   try {
@@ -284,17 +283,14 @@ export const restoreService = {
         tx.delete(auditLogsTable).run();
         tx.update(auditDeleteGateTable).set({ gateOpen: 0 }).where(eq(auditDeleteGateTable.id, 1)).run();
 
-        tx.delete(urdPurchases).run();
-        tx.delete(oldGoldLots).run();
-        tx.delete(sequenceCounters).run();
-        tx.delete(designCategoryMap).run();
-        tx.delete(gemstoneLots).run();
-        tx.delete(itemEvents).run();
-        tx.delete(items).run();
-        tx.delete(hsnCodes).run();
-        tx.delete(designs).run();
-        tx.delete(stones).run();
-        tx.delete(categories).run();
+        // Clear registered extensions first (e.g. Phase 2 inventory child tables before Phase 1 parent tables)
+        for (const [id, handler] of getRestoreHandlers().entries()) {
+          try {
+            handler.clear(tx);
+          } catch (err) {
+            console.warn(`[Restore] Extension '${id}' clear failed (non-fatal):`, err);
+          }
+        }
 
         tx.delete(bisLogosTable).run();
         tx.delete(financialYearsTable).run();
@@ -314,17 +310,14 @@ export const restoreService = {
             .onConflictDoUpdate({ target: safeModeStateTable.id, set: backup.payload.safeModeState }).run();
         }
 
-        if (backup.payload.categories?.length) tx.insert(categories).values(backup.payload.categories).run();
-        if (backup.payload.designs?.length) tx.insert(designs).values(backup.payload.designs).run();
-        if (backup.payload.stones?.length) tx.insert(stones).values(backup.payload.stones).run();
-        if (backup.payload.hsnCodes?.length) tx.insert(hsnCodes).values(backup.payload.hsnCodes).run();
-        if (backup.payload.items?.length) tx.insert(items).values(backup.payload.items).run();
-        if (backup.payload.itemEvents?.length) tx.insert(itemEvents).values(backup.payload.itemEvents).run();
-        if (backup.payload.gemstoneLots?.length) tx.insert(gemstoneLots).values(backup.payload.gemstoneLots).run();
-        if (backup.payload.designCategoryMap?.length) tx.insert(designCategoryMap).values(backup.payload.designCategoryMap).run();
-        if (backup.payload.sequenceCounters?.length) tx.insert(sequenceCounters).values(backup.payload.sequenceCounters).run();
-        if (backup.payload.oldGoldLots?.length) tx.insert(oldGoldLots).values(backup.payload.oldGoldLots).run();
-        if (backup.payload.urdPurchases?.length) tx.insert(urdPurchases).values(backup.payload.urdPurchases).run();
+        // Restore registered extensions (e.g. Phase 2 inventory tables)
+        for (const [id, handler] of getRestoreHandlers().entries()) {
+          try {
+            handler.restore(tx, backup.payload);
+          } catch (err) {
+            console.warn(`[Restore] Extension '${id}' restore failed:`, err);
+          }
+        }
 
         // RESTORE_COMPLETED written inside transaction after inserts[cite: 1]
         auditRepository.log(tx, { 

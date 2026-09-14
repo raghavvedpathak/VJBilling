@@ -4,7 +4,7 @@ import { eq, and, gte, lte, sql } from 'drizzle-orm';
 import db, { db as dbNamed } from '@/db/client';
 import { auditArchiveIndex, auditLogs } from '@/db/schema';
 import { fyRepository } from '@/repositories/phase1/fyRepository';
-import type { DrizzleTransaction, FinancialYear } from '@/types/phase2/phase2.types';
+import type { DrizzleTransaction, FinancialYear } from '@/types/phase1/fy.types';
 
 type DbOrTx = any;
 

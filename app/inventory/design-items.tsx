@@ -1,4 +1,5 @@
-// app/inventory/design-items.tsx — Phase 2 v2.24 Canonical Screen (Screen C) with Modern Stock Card & Interactive Sorting
+// app/inventory/design-items.tsx — Phase 2 v2.34 Canonical Screen (Screen C) with Modern Stock Card & Interactive Sorting
+// Aligned with FEAT-SCREEN-C-SIZE-1 (v2.13), FIX-SCREENC-PHANTOM-DOC-1 (v1.70), and MastersSyncStore
 
 import React, { useState, useCallback, memo, useMemo } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, ScrollView, Modal } from 'react-native';
@@ -9,6 +10,7 @@ import * as Haptics from 'expo-haptics';
 import { TwoToneWrapper } from '@/components/TwoToneWrapper';
 import { appSettingsStore } from '@/store/phase1/appSettingsStore';
 import { useFirmStore } from '@/store/phase1/useFirmStore';
+import { useMastersSyncStore } from '@/store/phase2/mastersSyncStore';
 import { inventoryDrillDownService } from '@/services/phase2/inventoryDrillDownService';
 import { getDisplayPurity, formatKaratBadge, formatSKUDisplay, formatWeightMg as formatWeight } from '@/utils/calculations';
 import { MapPin, Package, Printer, Scale, Sparkles, ArrowUpDown, Check, X, ShieldCheck, ShieldAlert, ChevronRight, Tag } from 'lucide-react-native';
@@ -74,14 +76,12 @@ const ItemRow = memo(({
         onPress(item.itemId);
       }}
     >
-      {/* Left Metallic Inlay Accent */}
       <View style={[s.metalStripe, { backgroundColor: metalColor }]} />
 
       <View style={s.cardBody}>
-        {/* TOP ROW: NAME + SIZE AFTER NAME, SKU BELOW NAME, PURITY IN CORNER */}
+        {/* Top Row: Name + Size, SKU below name, Purity Badge */}
         <View style={s.itemHeaderRow}>
           <View style={s.titleAndSkuBlock}>
-            {/* Row 1: Design Name + Size directly after name */}
             <View style={s.nameAndSizeRow}>
               {item.designName ? (
                 <Text style={[s.designNameText, { color: colors.vjText }]} numberOfLines={2}>
@@ -89,13 +89,12 @@ const ItemRow = memo(({
                 </Text>
               ) : null}
               {sizeDisplay && (
-                <View style={[s.sizeBadge, { backgroundColor: 'rgba(212, 175, 55, 0.12)', borderColor: 'rgba(212, 175, 55, 0.35)' }]}>
+                <View style={[s.sizeBadge, { backgroundColor: `${colors.vjAccent}18`, borderColor: `${colors.vjAccent}40` }]}>
                   <Text style={[s.sizeBadgeText, { color: colors.vjText }]}>{sizeDisplay}</Text>
                 </View>
               )}
             </View>
 
-            {/* Row 2: SKU below name */}
             <View style={s.skuRowBelow}>
               <View style={[s.skuCapsule, { backgroundColor: `${colors.vjHeaderBg}10`, borderColor: `${colors.vjHeaderBg}28` }]}>
                 <Tag size={11} color={colors.vjHeaderBg} style={{ opacity: 0.85 }} />
@@ -104,7 +103,6 @@ const ItemRow = memo(({
             </View>
           </View>
 
-          {/* Top Right Corner: Purity Badge + Drill-down Affordance */}
           <View style={s.headerCornerCluster}>
             <View style={[s.purityBadge, { borderColor: `${colors.vjHeaderBg}35`, backgroundColor: `${colors.vjHeaderBg}14` }]}>
               <Sparkles size={11} color={colors.vjHeaderBg} style={{ marginRight: 4 }} />
@@ -114,22 +112,20 @@ const ItemRow = memo(({
           </View>
         </View>
 
-        {/* HERO METRICS CONTAINER (Swiss Digital Scale View) */}
-        <View style={[s.heroMetricsContainer, { backgroundColor: 'rgba(255, 255, 255, 0.85)', borderColor: 'rgba(92, 22, 35, 0.09)' }]}>
-          {/* Net & Gross Weights on a Single Line */}
+        {/* Digital Swiss Scale Metrics Box */}
+        <View style={[s.heroMetricsContainer, { backgroundColor: 'rgba(255, 255, 255, 0.85)', borderColor: `${colors.vjText}18` }]}>
           <View style={s.weightSingleLine}>
-            <Text style={s.weightLabel}>NET: </Text>
+            <Text style={[s.weightLabel, { color: `${colors.vjText}99` }]}>NET: </Text>
             <Text style={[s.weightValueNet, { color: colors.vjHeaderBg }]}>
               {formatWeight(item.netWeightMg ?? item.grossWeightMg)}
             </Text>
-            <Text style={s.weightBullet}>  •  </Text>
-            <Text style={s.weightLabel}>GROSS: </Text>
-            <Text style={s.weightValueGross}>
+            <Text style={[s.weightBullet, { color: `${colors.vjText}4D` }]}>  •  </Text>
+            <Text style={[s.weightLabel, { color: `${colors.vjText}99` }]}>GROSS: </Text>
+            <Text style={[s.weightValueGross, { color: colors.vjText }]}>
               {formatWeight(item.grossWeightMg)}
             </Text>
           </View>
 
-          {/* HUID Badge: Shows HUID if available, else 'No HUID' */}
           {item.huid?.trim() ? (
             <View style={s.huidVerifiedCapsule}>
               <ShieldCheck size={11} color="#15803d" />
@@ -137,22 +133,22 @@ const ItemRow = memo(({
             </View>
           ) : (
             <View style={s.huidPendingCapsule}>
-              <ShieldAlert size={11} color="rgba(92, 22, 35, 0.45)" />
-              <Text style={s.huidPendingText}>No HUID</Text>
+              <ShieldAlert size={11} color={`${colors.vjText}66`} />
+              <Text style={[s.huidPendingText, { color: `${colors.vjText}80` }]}>No HUID</Text>
             </View>
           )}
         </View>
 
-        {/* BOTTOM ROW: LOCATION (OR 'NO LOCATION') & PRINT TAG ACTION */}
+        {/* Location & Print Tag Action */}
         <View style={s.bottomRow}>
           <View style={s.locationRow}>
-            <MapPin size={12} color={item.location?.trim() ? colors.vjAccent : 'rgba(92, 22, 35, 0.4)'} style={{ opacity: 0.65 }} />
+            <MapPin size={12} color={item.location?.trim() ? colors.vjAccent : `${colors.vjText}66`} style={{ opacity: 0.65 }} />
             <Text 
               style={[
                 s.locationText, 
                 item.location?.trim() 
                   ? { color: colors.vjText, opacity: 0.75 } 
-                  : { color: 'rgba(92, 22, 35, 0.45)', fontStyle: 'italic' }
+                  : { color: `${colors.vjText}66`, fontStyle: 'italic' }
               ]}
             >
               {item.location?.trim() ? item.location.trim() : 'No Location'}
@@ -163,7 +159,7 @@ const ItemRow = memo(({
             testID={`print-btn-${item.itemId}`}
             activeOpacity={0.75} 
             onPress={(e) => {
-              e.stopPropagation();
+              e?.stopPropagation?.();
               try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
               onPrint(item.itemId);
             }}
@@ -197,6 +193,7 @@ export default function DesignItemsScreen() {
 
   const activeTheme = appSettingsStore((s: any) => s.theme);
   const colors = getThemeColors(activeTheme);
+  const designVersion = useMastersSyncStore((s) => s.designVersion);
 
   const purityNum = purityPercent ? parseFloat(purityPercent) : undefined;
 
@@ -224,7 +221,7 @@ export default function DesignItemsScreen() {
       };
       load();
       return () => { active = false; };
-    }, [activeFirmId, designId, purityNum, designName])
+    }, [activeFirmId, designId, purityNum, designName, designVersion])
   );
 
   const handleItemPress = useCallback((itemId: string) => {
@@ -235,7 +232,6 @@ export default function DesignItemsScreen() {
     router.push({ pathname: '/inventory/barcode-print', params: { itemId } });
   }, [router]);
 
-  // Distinct sizes present in fetched batch, numerically sorted
   const distinctSizes = useMemo(() => {
     const sizeMap = new Map<string, { label: string; count: number; numericVal: number }>();
     items.forEach((i) => {
@@ -260,7 +256,6 @@ export default function DesignItemsScreen() {
       }));
   }, [items]);
 
-  // Client-side filtering and multi-criteria sorting
   const processedItems = useMemo(() => {
     let result = selectedSizeFilter === 'ALL'
       ? [...items]
@@ -364,7 +359,6 @@ export default function DesignItemsScreen() {
       {/* Interactive Toolbar: Size Filter Chips + Quick Sort Button */}
       <View style={s.filterBarContainer}>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.filterScroll}>
-          {/* Quick Sort Trigger Button */}
           <TouchableOpacity
             testID="sort-modal-trigger"
             onPress={() => {
@@ -373,7 +367,7 @@ export default function DesignItemsScreen() {
             }}
             style={[
               s.sortTriggerBtn,
-              selectedSort !== 'DEFAULT' && s.sortTriggerBtnActive
+              selectedSort !== 'DEFAULT' && [s.sortTriggerBtnActive, { backgroundColor: colors.vjAccent, borderColor: colors.vjAccent }]
             ]}
             activeOpacity={0.75}
           >
@@ -385,7 +379,6 @@ export default function DesignItemsScreen() {
 
           <View style={s.dividerVertical} />
 
-          {/* All Sizes (Select All / Reset) Chip */}
           <TouchableOpacity
             testID="filter-size-all"
             onPress={() => {
@@ -402,7 +395,6 @@ export default function DesignItemsScreen() {
             </Text>
           </TouchableOpacity>
 
-          {/* Individual Size Filter Chips with Piece Counts */}
           {distinctSizes.map((size) => {
             const isSelected = selectedSizeFilter === size.key;
             return (
@@ -461,7 +453,7 @@ export default function DesignItemsScreen() {
         />
       )}
 
-      {/* Sort Options Modal with Backdrop Tap-to-Dismiss */}
+      {/* Sort Options Modal */}
       <Modal visible={isSortModalOpen} transparent animationType="fade">
         <TouchableOpacity 
           style={s.modalOverlay} 
@@ -637,10 +629,7 @@ const s = StyleSheet.create({
     borderWidth: 1.2,
     borderColor: 'rgba(212,175,55,0.35)',
   },
-  sortTriggerBtnActive: {
-    backgroundColor: '#D4AF37',
-    borderColor: '#D4AF37',
-  },
+  sortTriggerBtnActive: {},
   sortTriggerText: {
     fontSize: 12,
     fontWeight: '800',
@@ -805,7 +794,6 @@ const s = StyleSheet.create({
   weightLabel: {
     fontSize: 10.5,
     fontWeight: '800',
-    color: 'rgba(92, 22, 35, 0.65)',
     letterSpacing: 0.5,
   },
   weightValueNet: {
@@ -815,14 +803,13 @@ const s = StyleSheet.create({
   },
   weightBullet: {
     fontSize: 12,
-    color: 'rgba(92, 22, 35, 0.3)',
     fontWeight: '700',
     marginHorizontal: 3,
   },
   weightValueGross: {
     fontSize: 13,
     fontWeight: '700',
-    color: 'rgba(92, 22, 35, 0.75)',
+    letterSpacing: 0.2,
   },
   huidVerifiedCapsule: {
     flexDirection: 'row',
@@ -853,7 +840,6 @@ const s = StyleSheet.create({
   huidPendingText: {
     fontSize: 9.5,
     fontWeight: '600',
-    color: 'rgba(92, 22, 35, 0.45)',
     fontStyle: 'italic',
   },
 

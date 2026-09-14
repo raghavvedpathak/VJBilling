@@ -1,4 +1,6 @@
-// app/inventory/index.tsx — Phase 2 v2.24 Canonical Screen
+// app/inventory/index.tsx — Phase 2 v2.34 Canonical Screen (Inventory Hub)
+// Integrates FEAT-GAP6-KARIGAR-SUMMARY-1 (/inventory/karigar-items),
+// FIX-OLDMETAL-RENAME-1 (/inventory/old-metal-lots), and live master subscriptions
 
 import React, { useState, useCallback, useEffect } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, StyleSheet } from 'react-native';
@@ -24,9 +26,11 @@ import {
   Search,
   Package,
   TrendingUp,
-  Boxes
+  Boxes,
+  Wrench,
+  FileDown
 } from 'lucide-react-native';
-import { COLORS, getThemeColors } from '@/constants/theme';
+import { getThemeColors } from '@/constants/theme';
 
 export default function InventoryHubScreen() {
   const router = useRouter();
@@ -37,6 +41,7 @@ export default function InventoryHubScreen() {
 
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [draftCount, setDraftCount] = useState(0);
+  const [karigarCount, setKarigarCount] = useState(0);
 
   const categoryVersion = useMastersSyncStore((s) => s.categoryVersion);
   const designVersion = useMastersSyncStore((s) => s.designVersion);
@@ -57,6 +62,10 @@ export default function InventoryHubScreen() {
           console.error('[InventoryHub] Failed to get draft count:', e);
           setDraftCount(0);
         }
+
+        inventoryDrillDownService.getKarigarIssuedItems(activeFirmId)
+          .then((items) => setKarigarCount(items?.length || 0))
+          .catch(() => setKarigarCount(0));
       }
     }, [activeFirmId])
   );
@@ -78,7 +87,7 @@ export default function InventoryHubScreen() {
         }}
       >
         
-        {/* The Live Jewelry Stock Display lives here natively */}
+        {/* Native Live Jewelry Stock Display */}
         {activeFirmId && (
           <View style={{ marginBottom: 24 }}>
             <InventoryStockSummary firmId={activeFirmId} refreshTrigger={refreshTrigger} />
@@ -151,7 +160,7 @@ export default function InventoryHubScreen() {
           </GlassCard>
         </TouchableOpacity>
 
-        {/* SECTION 1: STOCK OPERATIONS */}
+        {/* SECTION 1: STOCK OPERATIONS & WORKFLOW */}
         <Text style={[s.sectionHeader, { color: colors.vjText, opacity: 0.6 }]}>
           Stock Operations
         </Text>
@@ -176,6 +185,18 @@ export default function InventoryHubScreen() {
             badgeText={draftCount > 0 ? `${draftCount} PENDING` : "0 DRAFTS"}
             alertCount={draftCount}
             onPress={() => router.push('/inventory/drafts')} 
+          />
+
+          <MenuTile 
+            testID="karigar-items-menu-tile"
+            title="Items at Karigar" 
+            subtitle={karigarCount > 0 ? `${karigarCount} in workshop` : "Artisan Tracking"} 
+            icon={<Wrench size={22} color="#0284C7" />} 
+            iconBg="rgba(2, 132, 199, 0.12)"
+            borderColor="rgba(2, 132, 199, 0.25)"
+            badgeText={karigarCount > 0 ? `${karigarCount} ACTIVE` : "WORKSHOP"}
+            alertCount={karigarCount}
+            onPress={() => router.push('/inventory/karigar-items')} 
           />
         </View>
 
@@ -216,20 +237,31 @@ export default function InventoryHubScreen() {
           />
         </View>
 
-        {/* SECTION 3: UNREGISTERED & STONES */}
+        {/* SECTION 3: PROCUREMENT, SCRAP & GEMSTONES */}
         <Text style={[s.sectionHeader, { color: colors.vjText, opacity: 0.6, marginTop: 32 }]}>
-          Unregistered & Stones
+          Procurement, Scrap & Stones
         </Text>
 
         <View style={[s.menuGrid, { marginBottom: 32 }]}>
           <MenuTile 
             title="URD Purchases" 
-            subtitle="Scrap & Old Gold" 
-            icon={<Coins size={22} color="#E11D48" />} 
+            subtitle="Customer Buying" 
+            icon={<FileDown size={22} color="#E11D48" />} 
             iconBg="rgba(225, 29, 72, 0.12)"
             borderColor="rgba(225, 29, 72, 0.25)"
-            badgeText="SCRAP"
+            badgeText="PURCHASES"
             onPress={() => router.push('/inventory/urd-purchases')} 
+          />
+
+          <MenuTile 
+            testID="old-metal-lots-menu-tile"
+            title="Old Metal Vault" 
+            subtitle="Scrap & Melt Lots" 
+            icon={<Coins size={22} color="#D97706" />} 
+            iconBg="rgba(217, 119, 6, 0.12)"
+            borderColor="rgba(217, 119, 6, 0.25)"
+            badgeText="SCRAP LOTS"
+            onPress={() => router.push('/inventory/old-metal-lots')} 
           />
 
           <MenuTile 

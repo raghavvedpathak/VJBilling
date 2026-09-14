@@ -24,7 +24,6 @@ import { designCategoryMapRepository } from '@/repositories/phase2/designCategor
 import { itemRepository } from '@/repositories/phase2/itemRepository';
 import type { Design, Category, HsnCode, Stone, CreateItemInput } from '@/types/phase2/phase2.types';
 import { Package, Scale, Percent, MapPin, Calculator, Wallet, CheckCircle, RotateCcw, Calendar as CalendarIcon } from 'lucide-react-native';
-import { seedHsnCodes } from '@/db/seed';
 import { formatDate } from '@/utils/formatDate';
 import { 
   percentToKarat, 
@@ -132,7 +131,7 @@ export default function AddStockScreen() {
     try {
       let h = await hsnMasterRepository.findByChapter('71');
       if (h.length === 0) {
-        await seedHsnCodes();
+        await hsnMasterRepository.seedDefaults();
         h = await hsnMasterRepository.findByChapter('71');
       }
       const d = await designRepository.findByFirmId(activeFirmId);

@@ -1,6 +1,7 @@
-// app/masters/categories.tsx — Phase 2 v2.24 Canonical Screen
+// app/masters/categories.tsx — Phase 2 v2.34 Canonical Screen
+// Aligned with Step 3.5, Step 16, and MastersSyncStore
 
-import React, { useState, useCallback, useEffect, useMemo, useDeferredValue, memo } from 'react';
+import React, { useState, useCallback, useEffect, useMemo, useDeferredValue } from 'react';
 import {
   View,
   Text,
@@ -37,22 +38,24 @@ import { useMastersSyncStore } from '@/store/phase2/mastersSyncStore';
 import { categoryRepository } from '@/repositories/phase2/categoryRepository';
 import { categoryService } from '@/services/phase2/categoryService';
 import type { Category } from '@/types/phase2/phase2.types';
-import { COLORS, getThemeColors } from '@/constants/theme';
+import { getThemeColors } from '@/constants/theme';
 
 export default function CategoriesScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
 
-  // Responsive Grid System: Always 2 Columns for Smartphones & Tablets
   const isTablet = width >= 768;
   const contentWidth = isTablet ? Math.min(width, 920) : width;
-  const availableWidth = contentWidth - 32; // TwoToneWrapper horizontal padding = 16 each side
+  const availableWidth = contentWidth - 32;
   const numColumns = 2;
   const gap = 12;
   const gridItemWidth = Math.floor((availableWidth - gap) / numColumns);
 
   const { activeFirmId } = useFirmStore();
+  const activeTheme = appSettingsStore((s: any) => s.theme);
+  const colors = getThemeColors(activeTheme);
+  const isDark = activeTheme === 'dark';
 
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
@@ -87,7 +90,7 @@ export default function CategoriesScreen() {
     if (!activeFirmId) return;
     try {
       const results = await categoryRepository.findByFirmId(activeFirmId);
-      setCategories(results || []);
+      setCategories((results || []).filter((c) => c.isActive === 1));
     } catch (e) {
       console.error('[CategoriesScreen] loadCategories failed:', e);
     } finally {
@@ -124,7 +127,13 @@ export default function CategoriesScreen() {
       await loadCategories();
     } catch (error: any) {
       setConfirmDelete(null);
-      setErrorMessage(error.message || 'Failed to delete category.');
+      let userMsg = error.message || 'Failed to delete category.';
+      if (error.message === 'CATEGORY_HAS_ACTIVE_DESIGNS') {
+        userMsg = 'Cannot delete: Category has active design patterns linked to it.';
+      } else if (error.message === 'CATEGORY_HAS_ACTIVE_ITEMS') {
+        userMsg = 'Cannot delete: Category has active inventory items linked to it.';
+      }
+      setErrorMessage(userMsg);
     } finally {
       setIsDeleting(false);
     }
@@ -161,9 +170,6 @@ export default function CategoriesScreen() {
     );
   }, [categories, deferredQuery]);
 
-  const activeTheme = appSettingsStore((s: any) => s.theme);
-  const colors = getThemeColors(activeTheme);
-
   const categoryHeaderPills = (
     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginTop: 4 }}>
       <HeaderPill
@@ -177,7 +183,7 @@ export default function CategoriesScreen() {
   return (
     <TwoToneWrapper title="Category Master" showBack headerContent={categoryHeaderPills}>
       <View style={s.container}>
-        {/* TOP CONTROLS ROW: SEARCH & VIEW SWITCHER */}
+        {/* Top Search & View Switcher */}
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 12 }}>
           <View style={[s.searchBarContainer, { flex: 1, borderColor: `${colors.vjAccent}35`, marginBottom: 0 }]}>
             <Search size={16} color={colors.vjAccent} style={{ marginRight: 8, opacity: 0.8 }} />
@@ -186,7 +192,7 @@ export default function CategoriesScreen() {
               value={searchQuery}
               onChangeText={setSearchQuery}
               placeholder="Search category name or code..."
-              placeholderTextColor="rgba(92, 22, 35, 0.4)"
+              placeholderTextColor={isDark ? 'rgba(255, 255, 255, 0.38)' : 'rgba(92, 22, 35, 0.38)'}
               style={[s.searchInput, { color: colors.vjText }]}
               autoCorrect={false}
               autoCapitalize="none"
@@ -204,7 +210,6 @@ export default function CategoriesScreen() {
             )}
           </View>
 
-          {/* VIEW SWITCHER */}
           <View style={[s.toggleContainer, { backgroundColor: `${colors.vjAccent}14` }]}>
             <TouchableOpacity
               testID="view-mode-list-btn"
@@ -289,7 +294,6 @@ export default function CategoriesScreen() {
                     }}
                   >
                     <View style={s.gridCardInner}>
-                      {/* TOP BADGE & CODE */}
                       <View style={s.gridHeaderRow}>
                         <View style={[s.catIconBadge, { backgroundColor: `${colors.vjAccent}18`, borderColor: `${colors.vjAccent}30` }]}>
                           <Layers size={16} color={colors.vjAccent} />
@@ -301,12 +305,10 @@ export default function CategoriesScreen() {
                         </View>
                       </View>
 
-                      {/* CATEGORY NAME */}
                       <Text style={[s.gridTitle, { color: colors.vjText }]} numberOfLines={2}>
                         {c.name}
                       </Text>
 
-                      {/* ACTION BUTTONS */}
                       <View style={[s.gridActionRow, { borderTopColor: `${colors.vjAccent}15` }]}>
                         <TouchableOpacity
                           testID={`edit-category-btn-${c.id}`}
@@ -331,7 +333,6 @@ export default function CategoriesScreen() {
                 );
               }
 
-              // LIST VIEW ITEM
               return (
                 <GlassCard 
                   testID={`category-card-${c.id}`}
@@ -339,12 +340,10 @@ export default function CategoriesScreen() {
                   style={{ marginBottom: 10, width: '100%', borderColor: `${colors.vjAccent}25` }}
                 >
                   <View style={s.listCardInner}>
-                    {/* LEFT ICON */}
                     <View style={[s.catIconBadgeList, { backgroundColor: `${colors.vjAccent}18`, borderColor: `${colors.vjAccent}30` }]}>
                       <Layers size={18} color={colors.vjAccent} />
                     </View>
 
-                    {/* CENTER DETAILS */}
                     <View style={s.listTextContainer}>
                       <Text style={[s.listTitle, { color: colors.vjText }]} numberOfLines={2}>
                         {c.name}
@@ -356,7 +355,6 @@ export default function CategoriesScreen() {
                       </View>
                     </View>
 
-                    {/* RIGHT ACTIONS */}
                     <View style={s.listActionRow}>
                       <TouchableOpacity
                         testID={`edit-category-btn-${c.id}`}
@@ -398,7 +396,7 @@ export default function CategoriesScreen() {
         </FixedGlassBar>
       </View>
 
-      {/* SUCCESS MODAL */}
+      {/* Success Modal */}
       <Modal visible={!!successMessage} transparent animationType="fade" onRequestClose={() => setSuccessMessage(null)}>
         <TouchableOpacity 
           style={s.modalOverlayCenter}
@@ -406,7 +404,7 @@ export default function CategoriesScreen() {
           onPress={() => setSuccessMessage(null)}
         >
           <TouchableOpacity 
-            activeOpacity={1}
+            activeOpacity={1} 
             style={[s.successModalContent, { backgroundColor: colors.vjBg, borderColor: colors.border }]}
           >
             <View style={s.successIconContainer}>
@@ -421,7 +419,7 @@ export default function CategoriesScreen() {
         </TouchableOpacity>
       </Modal>
 
-      {/* CONFIRM DELETE MODAL */}
+      {/* Confirm Delete Modal */}
       <Modal visible={!!confirmDelete} transparent animationType="fade" onRequestClose={() => !isDeleting && setConfirmDelete(null)}>
         <TouchableOpacity 
           style={s.modalOverlayCenter}
@@ -429,7 +427,7 @@ export default function CategoriesScreen() {
           onPress={() => !isDeleting && setConfirmDelete(null)}
         >
           <TouchableOpacity 
-            activeOpacity={1}
+            activeOpacity={1} 
             style={[s.successModalContent, { backgroundColor: colors.vjBg, borderColor: colors.border }]}
           >
             <View style={[s.successIconContainer, { backgroundColor: 'rgba(239, 68, 68, 0.1)' }]}>
@@ -461,7 +459,7 @@ export default function CategoriesScreen() {
         </TouchableOpacity>
       </Modal>
 
-      {/* ERROR MODAL */}
+      {/* Error Modal */}
       <Modal visible={!!errorMessage} transparent animationType="fade" onRequestClose={() => setErrorMessage(null)}>
         <TouchableOpacity 
           style={s.modalOverlayCenter}
@@ -469,7 +467,7 @@ export default function CategoriesScreen() {
           onPress={() => setErrorMessage(null)}
         >
           <TouchableOpacity 
-            activeOpacity={1}
+            activeOpacity={1} 
             style={[s.successModalContent, { backgroundColor: colors.vjBg, borderColor: colors.border }]}
           >
             <View style={[s.successIconContainer, { backgroundColor: 'rgba(239, 68, 68, 0.1)' }]}>
