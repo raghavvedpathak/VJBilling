@@ -3,12 +3,15 @@
 import journal from './meta/_journal.json';
 import m0000 from './0000_phase1_core.sql';
 import m0001 from './0001_phase2_inventory.sql';
+import m0002 from './0002_phase3_billing.sql';
 
 export default {
   journal,
   migrations: {
     m0000,
     m0001,
+    m0002,
   },
 };
+
   

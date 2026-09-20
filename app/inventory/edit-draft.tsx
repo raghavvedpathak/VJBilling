@@ -7,7 +7,7 @@ import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator,
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
-import { TwoToneWrapper } from '@/components/TwoToneWrapper';
+import { TwoToneWrapper } from '@/components/common/TwoToneWrapper';
 import { useFirmStore } from '@/store/phase1/useFirmStore';
 import { itemRepository } from '@/repositories/phase2/itemRepository';
 import { itemService } from '@/services/phase2/itemService';

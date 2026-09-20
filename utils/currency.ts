@@ -110,3 +110,5 @@ export function formatRupees(paise: number | null | undefined): string {
   if (paise === null || paise === undefined || isNaN(paise)) return `${symbol}0.00`;
   return symbol + (paise / 100).toFixed(2);
 }
+
+export const formatPaiseToRupees = formatRupees;

@@ -10,7 +10,7 @@ import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 import * as Haptics from 'expo-haptics';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { TwoToneWrapper } from '@/components/TwoToneWrapper';
+import { TwoToneWrapper } from '@/components/common/TwoToneWrapper';
 import { GlassCard, HeaderPill, FixedGlassBar } from '@/components/ui/Glass';
 import { useFirmStore } from '@/store/phase1/useFirmStore';
 import { appSettingsStore } from '@/store/phase1/appSettingsStore';

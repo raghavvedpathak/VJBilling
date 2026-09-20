@@ -15,7 +15,7 @@ import { formatWeightMg as formatWeight, formatKaratBadge } from '@/utils/purity
 import { formatSKUDisplay } from '@/services/phase2/skuEngine';
 import type { ItemSearchResult } from '@/types/phase2/phase2.types';
 import { useFirmStore } from '@/store/phase1/useFirmStore';
-import { TwoToneWrapper } from '@/components/TwoToneWrapper';
+import { TwoToneWrapper } from '@/components/common/TwoToneWrapper';
 import { HeaderPill } from '@/components/ui/Glass';
 import { appSettingsStore } from '@/store/phase1/appSettingsStore';
 import { COLORS as CENTRAL_COLORS, getThemeColors } from '@/constants/theme';

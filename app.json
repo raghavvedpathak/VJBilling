@@ -57,7 +57,8 @@
         {
           "cameraPermission": "VJ Billing requires camera access to scan jewelry barcodes, HUID tags, and capture document photos."
         }
-      ]
+      ],
+      "expo-mail-composer"
     ],
     "extra": {
       "router": {},

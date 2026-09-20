@@ -6,7 +6,7 @@ import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, Modal, Ale
 import { FlashList } from '@shopify/flash-list';
 import { useRouter, useFocusEffect } from 'expo-router';
 import * as Haptics from 'expo-haptics';
-import { TwoToneWrapper } from '@/components/TwoToneWrapper';
+import { TwoToneWrapper } from '@/components/common/TwoToneWrapper';
 import { HeaderPill, GlassButton } from '@/components/ui/Glass';
 import { useFirmStore } from '@/store/phase1/useFirmStore';
 import { inventoryDrillDownService } from '@/services/phase2/inventoryDrillDownService';

@@ -7,9 +7,9 @@ import { View, Text, ScrollView, TouchableOpacity, StyleSheet } from 'react-nati
 import { useRouter, useFocusEffect } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
-import { TwoToneWrapper } from '@/components/TwoToneWrapper';
+import { TwoToneWrapper } from '@/components/common/TwoToneWrapper';
 import { GlassCard, HeaderPill, MenuTile } from '@/components/ui/Glass';
-import { InventoryStockSummary } from '@/components/InventoryStockSummary';
+import { InventoryStockSummary } from '@/components/phase2/InventoryStockSummary';
 import { useFirmStore } from '@/store/phase1/useFirmStore';
 import { appSettingsStore } from '@/store/phase1/appSettingsStore';
 import { inventoryDrillDownService } from '@/services/phase2/inventoryDrillDownService';

@@ -7,3 +7,4 @@ export * from './phase1/safeModeStore';
 export * from './phase1/useFirmStore';
 export * from './phase1/verifyStore';
 export * from './phase2/mastersSyncStore';
+export * from './phase3/taxGroupStore';

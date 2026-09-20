@@ -16,7 +16,7 @@ import { leaseService } from '@/services/phase1/leaseService';
 import { auditRepository } from '@/repositories/phase1/auditRepository';
 import { getDeviceId } from '@/utils/deviceId';
 import { getDeviceDerivedKeyMaterial } from '@/utils/deviceKey';
-import { SCHEMA_VERSION, APP_VERSION } from '@/constants';
+import { SCHEMA_VERSION, BACKUP_SCHEMA_VERSION, APP_VERSION } from '@/constants';
 
 export const BACKUP_DIR = (FileSystem.documentDirectory ?? '') + 'backups/';
 
@@ -162,16 +162,24 @@ export async function createBackup(password?: string): Promise<BackupResult> {
       deviceIdStr = 'DEV-DEVICE-ID';
     }
 
+    const exportedAt = new Date().toISOString();
+    const payloadStr = JSON.stringify({
+      schemaVersion: BACKUP_SCHEMA_VERSION ?? 9,
+      exportedAt,
+      ...payload,
+      logoAssets,
+    });
+    const checksum = quickCrypto.createHash('sha256').update(payloadStr).digest('hex');
+
     const envelope = {
-      schemaVersion: SCHEMA_VERSION,
+      schemaVersion: BACKUP_SCHEMA_VERSION ?? 9,
       appVersion: APP_VERSION,
-      exportedAt: new Date().toISOString(),
+      exportedAt,
       deviceId: deviceIdStr,
+      checksum,
       encryptionVersion: 1 as const,
       passwordProtected: !!password,
     };
-
-    const payloadStr = JSON.stringify({ ...payload, logoAssets });
     const keySourceMaterial = password 
       ? Buffer.from(password, 'utf8') 
       : Buffer.from(await getDeviceDerivedKeyMaterial());

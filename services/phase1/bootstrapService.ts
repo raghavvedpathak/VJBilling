@@ -20,6 +20,7 @@ import { eq, isNotNull } from 'drizzle-orm';
 import { differenceInDays, differenceInMinutes, parseISO } from 'date-fns';
 import { purgeExpiredAuditLogs } from '@/services/phase1/auditRetentionService';
 import { appSettingsStore } from '@/store/phase1/appSettingsStore';
+import { taxMasterService } from '@/services/phase3/taxMasterService';
 import quickCrypto, { Buffer } from 'react-native-quick-crypto';
 
 export const PRE_MIGRATION_SNAPSHOT_PATH = STORAGE_PATHS.PRE_MIGRATION_SNAPSHOT;
@@ -190,6 +191,20 @@ export const bootstrapService = {
       const existingFirms = db.select({ id: firms.id }).from(firms).limit(1).all();
       if (existingFirms.length === 0) {
         return 'SETUP';
+      }
+
+      // Step 9 (pre-verify): Phase 3 Tax Master Seed Defaults (FIX-V521-9)
+      try {
+        const activeFirmId = existingFirms[0].id;
+        const taxCountCheck = expoDb.getFirstSync<{ count: number }>(
+          'SELECT count(*) as count FROM tax_rates WHERE firm_id = ?',
+          [activeFirmId]
+        );
+        if (taxCountCheck && taxCountCheck.count === 0) {
+          await taxMasterService.seedDefaults(activeFirmId);
+        }
+      } catch (e) {
+        console.warn('[Bootstrap] Tax Master seedDefaults check:', e);
       }
 
       // Step 9 (pre-verify): G62 Post-Restore Logo Integrity Check

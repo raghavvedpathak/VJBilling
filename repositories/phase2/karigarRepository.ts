@@ -27,8 +27,32 @@ export interface KarigarRepository {
 }
 
 export const karigarRepository: KarigarRepository = {
-  // ARCH-NOTE (FIX-CLOSEF-1 v1.37 / Step 5.5): Stub interface returning 0 until Phase 4 registers FY close hook
-  getOutstandingFineMg(_tx: DrizzleTransaction, _firmId: string): number {
+  // ARCH-NOTE (FIX-CLOSEF-1 v1.37 / Step 5.5 / FIX-MIGRATION-CROSSFY-1 v5.18):
+  // Delegates to Phase 3 karigarLedgerRepository to compute firm-wide lifetime outstanding metal balance
+  getOutstandingFineMg(arg1: any, arg2?: any): number {
+    let firmId: string;
+    let customTx: any = undefined;
+
+    if (typeof arg1 === 'string') {
+      firmId = arg1;
+      customTx = arg2;
+    } else {
+      customTx = arg1;
+      firmId = arg2;
+    }
+
+    if (!firmId) return 0;
+
+    try {
+      const { karigarLedgerRepository } = require('@/repositories/phase3/karigarLedgerRepository');
+      if (karigarLedgerRepository?.getFirmMetalBalance) {
+        return karigarLedgerRepository.getFirmMetalBalance(firmId, customTx);
+      }
+      if (karigarLedgerRepository?.getMetalBalance) {
+        return karigarLedgerRepository.getMetalBalance(firmId, customTx);
+      }
+    } catch {}
+
     return 0;
   },
 

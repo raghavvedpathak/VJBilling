@@ -5,9 +5,10 @@ import { View, Text, StyleSheet, Alert, ActivityIndicator } from 'react-native';
 import { FlashList } from '@shopify/flash-list';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
-import { TwoToneWrapper } from '@/components/TwoToneWrapper';
+import { TwoToneWrapper } from '@/components/common/TwoToneWrapper';
 import { verifyService, type VerifyFinding } from '@/services/phase1/verifyService';
 import { inventoryVerifyService } from '@/services/phase2/inventoryVerifyService';
+import { billingVerifyService } from '@/services/phase3/billingVerifyService';
 import { verifyStore } from '@/store/phase1/verifyStore';
 import { HeaderPill, GlassCard, GlassButton } from '@/components/ui/Glass'; 
 import { appSettingsStore } from '@/store/phase1/appSettingsStore';
@@ -161,6 +162,19 @@ export default function VerifyDataScreen() {
               detail: issue.message || issue.detail || 'Phase 2 inventory discrepancy detected.',
               firmId: activeFirmId,
             });
+          }
+        });
+      }
+
+      // Phase 3: Billing, Invoices, Payments & Karigar Integrity Checks
+      if (billingVerifyService && typeof billingVerifyService.runBillingChecks === 'function') {
+        const phase3Result = await billingVerifyService.runBillingChecks(activeFirmId);
+        phase3Result.forEach((finding) => {
+          const isDuplicate = allFindings.some(
+            (f) => f.check === finding.check && f.detail === finding.detail
+          );
+          if (!isDuplicate) {
+            allFindings.push(finding);
           }
         });
       }

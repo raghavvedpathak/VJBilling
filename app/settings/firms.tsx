@@ -4,7 +4,7 @@ import React, { useState } from 'react';
 import { View, Text, TouchableOpacity, ScrollView, ActivityIndicator, Image, Modal } from 'react-native';
 import { useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
-import { TwoToneWrapper } from '@/components/TwoToneWrapper';
+import { TwoToneWrapper } from '@/components/common/TwoToneWrapper';
 import { useFirmStore } from '@/store/phase1/useFirmStore';
 import { firmService } from '@/services/phase1/firmService';
 import { GlassCard, GlassButton, HeaderPill } from '@/components/ui/Glass'; 

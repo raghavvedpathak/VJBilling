@@ -1,12 +1,12 @@
 // app/masters/index.tsx — Phase 2 v2.34 Canonical Screen
-// Aligned with Step 16, live master item counts, and MastersSyncStore
+// Inventory Master Catalog: Categories, Designs & Stone Master
 
 import React, { useState, useCallback, useEffect } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, StyleSheet } from 'react-native';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
-import { TwoToneWrapper } from '@/components/TwoToneWrapper';
+import { TwoToneWrapper } from '@/components/common/TwoToneWrapper';
 import { GlassCard, HeaderPill } from '@/components/ui/Glass';
 import { Layers, Tag, ChevronRight, Gem, ShieldCheck, LayoutGrid } from 'lucide-react-native';
 import { appSettingsStore } from '@/store/phase1/appSettingsStore';

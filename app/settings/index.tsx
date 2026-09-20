@@ -6,15 +6,15 @@ import { useRouter, useFocusEffect } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Device from 'expo-device';
 import * as Haptics from 'expo-haptics';
-import { TwoToneWrapper } from '@/components/TwoToneWrapper';
+import { TwoToneWrapper } from '@/components/common/TwoToneWrapper';
 import { useSession } from '@/hooks/useSession';
 import { storage } from '@/utils/storage';
 import { settingsService } from '@/services/phase1/settingsService'; 
 import { GlassCard, HeaderPill, GlassSettingsTile, RupeeCoin3D, BhartiyaFlagEmblem } from '@/components/ui/Glass';
 import { isPinSet, isPinSkipped } from '@/services/phase1/pinService'; 
 import { appSettingsStore } from '@/store/phase1/appSettingsStore';
-import { ThemeSelectorModal } from '@/components/ThemeSelectorModal';
-import { DateFormatModal } from '@/components/DateFormatModal';
+import { ThemeSelectorModal } from '@/components/phase1/ThemeSelectorModal';
+import { DateFormatModal } from '@/components/phase1/DateFormatModal';
 import {
   Building2,
   HardDriveDownload,
@@ -31,6 +31,7 @@ import {
   FileBox,
   KeyRound,
   ShieldCheck,
+  Coins,
 } from 'lucide-react-native';
 import { COLORS, getThemeColors } from '@/constants/theme';
 
@@ -283,11 +284,11 @@ export default function SettingsScreen() {
 
         <GlassSettingsTile
           title="Invoice Settings"
-          subtitle="Prefixes, Terms & Conditions"
+          subtitle="Paper Canvas, Prefixes & Terms"
           iconBg="rgba(8, 145, 178, 0.12)"
           borderColor="rgba(8, 145, 178, 0.25)"
           icon={<FileBox size={22} color="#0891B2" />}
-          onPress={() => Alert.alert('Coming Soon', 'Invoice customization unlocks in Phase 4.')}
+          onPress={() => router.push('/settings/invoice')}
         />
 
         <SectionHeader title="Identity & Structure" colors={colors} />
@@ -311,12 +312,20 @@ export default function SettingsScreen() {
 
         <SectionHeader title="Tax & Devices" colors={colors} />
         <GlassSettingsTile
+          title="Daily Metal Rates"
+          subtitle="Configure Gold & Silver daily rates"
+          iconBg="rgba(217, 119, 6, 0.12)"
+          borderColor="rgba(217, 119, 6, 0.25)"
+          icon={<Coins size={22} color="#D97706" />}
+          onPress={() => router.push('/settings/rates')}
+        />
+        <GlassSettingsTile
           title="GST Tax Rates"
           subtitle="Manage CGST/SGST groups"
           iconBg="rgba(124, 58, 237, 0.12)"
           borderColor="rgba(124, 58, 237, 0.25)"
           icon={<Percent size={22} color="#7C3AED" />}
-          onPress={() => Alert.alert('Phase 3 Feature', 'GST settings are configured in the full setup. Available after Phase 3.')}
+          onPress={() => router.push('/settings/gst')}
         />
         <GlassSettingsTile
           title="Paired Devices"

@@ -12,12 +12,17 @@ jest.mock('@/db/client', () => {
   // Use a shared in-memory SQLite database instance
   const sqlite = new Database(':memory:');
   const dbInstance = drizzle(sqlite);
-  
+
+  dbInstance.transaction = (cb: any) => {
+    return cb(dbInstance);
+  };
+
   // Attach the raw client so our test suite can execute DDL / raw SQL
   dbInstance.__rawClient = {
     execute: async (query: string) => {
       sqlite.exec(query);
     },
+    sqlite,
   };
 
   return {
@@ -143,6 +148,32 @@ beforeAll(async () => {
     created_at TEXT NOT NULL
   )`);
 
+  await _rawClient.execute(`CREATE TABLE IF NOT EXISTS tax_rates (
+    id TEXT PRIMARY KEY NOT NULL,
+    firm_id TEXT NOT NULL,
+    tax_name TEXT NOT NULL,
+    rate_bps INTEGER NOT NULL,
+    tax_type TEXT NOT NULL,
+    is_active INTEGER NOT NULL DEFAULT 1,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+  )`);
+
+  await _rawClient.execute(`CREATE TABLE IF NOT EXISTS tax_groups (
+    id TEXT PRIMARY KEY NOT NULL,
+    firm_id TEXT NOT NULL,
+    group_name TEXT NOT NULL,
+    is_active INTEGER NOT NULL DEFAULT 1,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+  )`);
+
+  await _rawClient.execute(`CREATE TABLE IF NOT EXISTS tax_group_components (
+    id TEXT PRIMARY KEY NOT NULL,
+    tax_group_id TEXT NOT NULL,
+    tax_rate_id TEXT NOT NULL
+  )`);
+
   // DB-level triggers
   await _rawClient.execute(`
     CREATE TRIGGER IF NOT EXISTS prevent_firm_code_update BEFORE UPDATE OF firm_code ON firms
@@ -167,7 +198,7 @@ beforeAll(async () => {
 
 beforeEach(async () => {
   const _rawClient = (db as any).__rawClient;
-  
+
   // Unblock gate to clean audit logs between test runs
   await _rawClient.execute(`UPDATE audit_delete_gate SET gate_open = 1 WHERE id = 1`);
   await db.delete(auditLogs);
@@ -176,6 +207,13 @@ beforeEach(async () => {
   await db.delete(financialYears);
   await db.delete(firms);
   await db.delete(writerLeases);
+
+  // Ensure DB-level trigger is active on firms table
+  await _rawClient.execute(`
+    DROP TRIGGER IF EXISTS prevent_firm_code_update;
+    CREATE TRIGGER prevent_firm_code_update BEFORE UPDATE OF firm_code ON firms
+    BEGIN SELECT RAISE(ABORT, 'FIRM_CODE_IMMUTABLE: firmCode cannot be changed after creation'); END;
+  `);
 
   await db.update(safeModeState)
     .set({ isActive: 0, reason: null, activatedAt: null, clearedAt: null })

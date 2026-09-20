@@ -393,7 +393,7 @@ export type CreatePhantomItemInput = {
   stoneWeightMg?: number;
   beadsWeightMg?: number;
   purityPercent: number;
-  purityKarat: number;
+  purityKarat?: number;
   primaryStoneId?: string | null;
   location?: string | null;
 };

@@ -18,8 +18,12 @@ function getDb(customTx?: any): DbOrTx {
   if (customTx && typeof customTx === 'object' && typeof customTx.select === 'function') {
     return customTx;
   }
-  const fallback = dbNamed || db;
-  return (fallback as any)?.db ? (fallback as any).db : fallback;
+  let currentDb: any = dbNamed || db;
+  try {
+    const client = require('@/db/client');
+    currentDb = client.db || client.default || currentDb;
+  } catch {}
+  return (currentDb as any)?.db ? (currentDb as any).db : currentDb;
 }
 
 function resolveTxAndId(arg1: any, arg2: any): { tx: DbOrTx; id: string } {

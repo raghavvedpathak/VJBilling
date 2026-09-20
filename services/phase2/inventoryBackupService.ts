@@ -5,6 +5,7 @@
 import {
   categories,
   designs,
+  designPurityThresholds,
   stones,
   hsnCodes,
   items,
@@ -33,6 +34,7 @@ function getDb(customTx?: any): DbOrTx {
 export interface InventoryBackupPayload {
   categories: (typeof categories.$inferSelect)[];
   designs: (typeof designs.$inferSelect)[];
+  designPurityThresholds: (typeof designPurityThresholds.$inferSelect)[];
   stones: (typeof stones.$inferSelect)[];
   hsnCodes: (typeof hsnCodes.$inferSelect)[];
   items: (typeof items.$inferSelect)[];
@@ -56,6 +58,7 @@ export function exportInventoryData(tx: DbOrTx): InventoryBackupPayload {
 
   const categoriesRows = targetTx.select().from(categories).all();
   const designsRows = targetTx.select().from(designs).all();
+  const designPurityThresholdsRows = targetTx.select().from(designPurityThresholds).all();
   const stonesRows = targetTx.select().from(stones).all();
   const hsnCodesRows = targetTx.select().from(hsnCodes).all();
   const itemsRows = targetTx.select().from(items).all();
@@ -71,6 +74,7 @@ export function exportInventoryData(tx: DbOrTx): InventoryBackupPayload {
   return {
     categories: categoriesRows,
     designs: designsRows,
+    designPurityThresholds: designPurityThresholdsRows,
     stones: stonesRows,
     hsnCodes: hsnCodesRows,
     items: itemsRows,

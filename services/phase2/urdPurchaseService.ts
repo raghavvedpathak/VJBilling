@@ -14,6 +14,7 @@ import { leaseService } from '@/services/phase1/leaseService';
 import { safeModeService } from '@/services/phase1/safeModeService';
 import { urdPrintService } from '@/services/phase2/urdPrintService';
 import type { CreateURDPurchaseInput, URDPurchase } from '@/types/phase2/phase2.types';
+import { customerRepository } from '@/repositories/phase3/customerRepository';
 import { getDeviceId } from '@/utils/deviceId';
 import { now } from '@/utils/now';
 import { resolveFineWeightMg, computeURDTotalValuePaise } from '@/utils/purity.constants';
@@ -99,6 +100,19 @@ export async function createURDPurchase(
       updatedAt: now(),
     });
 
+    // FIX-URD-SNAPSHOT-CLARIFY-1 (v5.18): Snapshot aadhaarNumber and panNumber from customer row at creation
+    let snapshotAadhaar = input.customerAadhaar ?? null;
+    let snapshotPAN = input.customerPAN ?? null;
+    if (input.customerId && (!snapshotAadhaar || !snapshotPAN)) {
+      try {
+        const cust = customerRepository.findById(tx, firmId, input.customerId);
+        if (cust) {
+          if (!snapshotAadhaar && cust.aadhaarNumber) snapshotAadhaar = cust.aadhaarNumber;
+          if (!snapshotPAN && cust.panNumber) snapshotPAN = cust.panNumber;
+        }
+      } catch {}
+    }
+
     // 2. Create urd_purchases row using the pre-generated urdId
     const urd = urdPurchaseRepository.insert(tx, {
       id: urdId,
@@ -110,8 +124,8 @@ export async function createURDPurchase(
       customerName: sanitizedCustomerName,
       customerAddress: sanitizedCustomerAddress,
       customerMobile: input.customerMobile ?? null,
-      customerAadhaar: input.customerAadhaar ?? null,
-      customerPAN: input.customerPAN ?? null,
+      customerAadhaar: snapshotAadhaar,
+      customerPAN: snapshotPAN,
       metalType: input.metalType,
       grossWeightMg: input.grossWeightMg,
       purityPercent: input.purityPercent,

@@ -34,7 +34,7 @@ import { getDeviceId, getDeviceDerivedKeyMaterial } from '@/utils/deviceId';
 import { useLeaseStore } from '@/store/phase1/leaseStore';
 import { storage } from '@/utils/storage';
 import { safeModeService } from '@/services/phase1/safeModeService';
-import { SCHEMA_VERSION } from '@/constants';
+import { SCHEMA_VERSION, BACKUP_SCHEMA_VERSION } from '@/constants';
 import { ERR } from '@/constants/errorCodes';
 import type { BackupEnvelope } from '@/services/phase1/backupService';
 import { getRestoreHandlers } from '@/services/phase1/backupService';
@@ -381,22 +381,24 @@ export const restoreService = {
       );
     }
 
-    if (schemaVersion > SCHEMA_VERSION) {
+    const currentMaxSchema = BACKUP_SCHEMA_VERSION ?? 9;
+
+    if (schemaVersion > currentMaxSchema) {
       throw new Error(
-        `RESTORE_VALIDATION_FAILED: backup schema ${schemaVersion} is newer than app ${SCHEMA_VERSION}. Update the app first.`
+        `RESTORE_VALIDATION_FAILED: backup schema ${schemaVersion} is newer than app ${currentMaxSchema}. Update the app first.`
       );
     }
 
-    if (schemaVersion < SCHEMA_VERSION) {
+    if (schemaVersion < currentMaxSchema) {
       const deviceId = getSafeDeviceId();
       await auditRepository.log(null, {
         eventType: 'RESTORE_OLD_SCHEMA',
         firmId: null,
         deviceId,
-        payload: JSON.stringify({ backupSchema: schemaVersion, currentSchema: SCHEMA_VERSION }),
+        payload: JSON.stringify({ backupSchema: schemaVersion, currentSchema: currentMaxSchema }),
       });
-      console.warn(`[Restore] RESTORE_OLD_SCHEMA: Restoring backup v${schemaVersion} into app v${SCHEMA_VERSION}.`);
-      return { warning: `RESTORE_OLD_SCHEMA: backup v${schemaVersion} < app ${SCHEMA_VERSION}. Proceed with user acknowledgement.` };
+      console.warn(`[Restore] RESTORE_OLD_SCHEMA: Restoring backup v${schemaVersion} into app v${currentMaxSchema}.`);
+      return { warning: `RESTORE_OLD_SCHEMA: backup v${schemaVersion} < app ${currentMaxSchema}. Proceed with user acknowledgement.` };
     }
   },
 };

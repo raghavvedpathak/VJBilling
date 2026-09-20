@@ -11,7 +11,8 @@ declare module '*.css' {
 // Fallback declarations for expo-print ambient module (Phase 2 Printing Engine)
 declare module 'expo-print' {
   export interface PrintOptions {
-    html: string;
+    uri?: string;
+    html?: string;
     printerUrl?: string;
     baseUrl?: string;
     width?: number;

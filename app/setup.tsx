@@ -4,12 +4,12 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { View, Text, TouchableOpacity, ActivityIndicator, Alert, ScrollView } from 'react-native';
 import { useRouter, useFocusEffect } from 'expo-router';
 import * as FileSystem from 'expo-file-system/legacy';
-import { ScreenWrapper } from '@/components/ScreenWrapper';
+import { ScreenWrapper } from '@/components/common/ScreenWrapper';
 import { GlassCard } from '@/components/ui/Glass';
 import { restoreService } from '@/services/phase1/restoreService';
 import '@/services/phase2/inventoryRestoreService';
 import { useSession } from '@/hooks/useSession';
-import { RestorePreviewModal } from '@/components/RestorePreviewModal';
+import { RestorePreviewModal } from '@/components/phase1/RestorePreviewModal';
 import { BackupEnvelope } from '@/services/phase1/backupService';
 import { 
   ArrowRight, 

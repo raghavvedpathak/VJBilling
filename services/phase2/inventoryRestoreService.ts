@@ -5,6 +5,7 @@
 import {
   categories,
   designs,
+  designPurityThresholds,
   stones,
   hsnCodes,
   items,
@@ -32,6 +33,7 @@ function getDb(customTx?: any): DbOrTx {
 
 /**
  * Clears all Phase 2 inventory tables in reverse dependency order (children first).
+ * FEAT-LOOSE-STOCK-SALE-1 (v5.35): loose_stock_events -> loose_stock_lots on delete
  */
 export function clearInventoryData(tx: DbOrTx): void {
   const targetTx = getDb(tx);
@@ -46,6 +48,7 @@ export function clearInventoryData(tx: DbOrTx): void {
   targetTx.delete(gemstoneLots).run();
   targetTx.delete(itemEvents).run();
   targetTx.delete(items).run();
+  targetTx.delete(designPurityThresholds).run();
   targetTx.delete(hsnCodes).run();
   targetTx.delete(stones).run();
   targetTx.delete(designs).run();
@@ -54,17 +57,28 @@ export function clearInventoryData(tx: DbOrTx): void {
 
 /**
  * Inserts all Phase 2 inventory tables in dependency order (parents first).
+ * loose_stock_lots after designs, loose_stock_events after items/item_events on insert.
  */
 export function restoreInventoryData(tx: DbOrTx, payload: Record<string, any>): void {
   const targetTx = getDb(tx);
 
-  // 1. Master tables
+  // 1. Categories & Designs
   if (payload.categories?.length) {
     targetTx.insert(categories).values(payload.categories).run();
   }
   if (payload.designs?.length) {
     targetTx.insert(designs).values(payload.designs).run();
   }
+  if (payload.designPurityThresholds?.length) {
+    targetTx.insert(designPurityThresholds).values(payload.designPurityThresholds).run();
+  }
+
+  // 2. Loose stock lots (after designs)
+  if (payload.looseStockLots?.length) {
+    targetTx.insert(looseStockLots).values(payload.looseStockLots).run();
+  }
+
+  // 3. Stones & HSN codes
   if (payload.stones?.length) {
     targetTx.insert(stones).values(payload.stones).run();
   }
@@ -72,15 +86,18 @@ export function restoreInventoryData(tx: DbOrTx, payload: Record<string, any>): 
     targetTx.insert(hsnCodes).values(payload.hsnCodes).run();
   }
 
-  // 2. Items & Item Events
+  // 4. Items, Item Events, and Loose Stock Events
   if (payload.items?.length) {
     targetTx.insert(items).values(payload.items).run();
   }
   if (payload.itemEvents?.length) {
     targetTx.insert(itemEvents).values(payload.itemEvents).run();
   }
+  if (payload.looseStockEvents?.length) {
+    targetTx.insert(looseStockEvents).values(payload.looseStockEvents).run();
+  }
 
-  // 3. Gemstones, Cross-references, Sequence Counters
+  // 5. Gemstones, Cross-references, Sequence Counters
   if (payload.gemstoneLots?.length) {
     targetTx.insert(gemstoneLots).values(payload.gemstoneLots).run();
   }
@@ -91,23 +108,15 @@ export function restoreInventoryData(tx: DbOrTx, payload: Record<string, any>): 
     targetTx.insert(sequenceCounters).values(payload.sequenceCounters).run();
   }
 
-  // 4. Old Metal Lots (supports backward compatibility with older 'oldGoldLots' backups)
+  // 6. Old Metal Lots (supports backward compatibility with older 'oldGoldLots' backups)
   const lots = payload.oldMetalLots?.length ? payload.oldMetalLots : payload.oldGoldLots;
   if (lots?.length) {
     targetTx.insert(oldMetalLots).values(lots).run();
   }
 
-  // 5. URD Purchases
+  // 7. URD Purchases
   if (payload.urdPurchases?.length) {
     targetTx.insert(urdPurchases).values(payload.urdPurchases).run();
-  }
-
-  // 6. Loose Stock Lots & Events (GAP-FIX v2.34)
-  if (payload.looseStockLots?.length) {
-    targetTx.insert(looseStockLots).values(payload.looseStockLots).run();
-  }
-  if (payload.looseStockEvents?.length) {
-    targetTx.insert(looseStockEvents).values(payload.looseStockEvents).run();
   }
 }
 

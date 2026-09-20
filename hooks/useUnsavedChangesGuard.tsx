@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigation } from 'expo-router';
 import { appSettingsStore } from '@/store/phase1/appSettingsStore';
-import { UnsavedChangesModal } from '@/components/UnsavedChangesModal';
+import { UnsavedChangesModal } from '@/components/phase1/UnsavedChangesModal';
 
 export function useUnsavedChangesGuard(isDirty: boolean) {
   const navigation = useNavigation();

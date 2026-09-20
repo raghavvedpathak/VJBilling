@@ -21,6 +21,7 @@ import { validatePincode } from '@/utils/validatePincode';
 import { getDeviceId } from '@/utils/deviceId';
 import { now } from '@/utils/now';
 import { sanitizeText } from '@/utils/sanitize';
+import { taxMasterService } from '@/services/phase3/taxMasterService';
 import type { CreateFirmInput, UpdateFirmInput } from '@/types/phase1/firm';
 
 export type { CreateFirmInput, UpdateFirmInput };
@@ -31,8 +32,12 @@ function getDb(customTx?: any): DbOrTx {
   if (customTx && typeof customTx === 'object' && typeof customTx.select === 'function') {
     return customTx;
   }
-  const fallback = dbNamed || db;
-  return (fallback as any)?.db ? (fallback as any).db : fallback;
+  let currentDb: any = dbNamed || db;
+  try {
+    const client = require('@/db/client');
+    currentDb = client.db || client.default || currentDb;
+  } catch {}
+  return (currentDb as any)?.db ? (currentDb as any).db : currentDb;
 }
 
 function getSafeDeviceId(): string {
@@ -164,6 +169,11 @@ export const firmService = {
     });
 
     await this.refreshStore();
+    try {
+      await taxMasterService.seedDefaults(result.id);
+    } catch (e) {
+      console.warn('[FirmService] Failed to seed tax defaults for firm:', e);
+    }
     return result;
   },
 

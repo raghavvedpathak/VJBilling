@@ -97,7 +97,21 @@ export async function preCloseChecks(
     });
   }
 
-  return { canClose: issues.length === 0, issues };
+  // FIX-MIGRATION-CROSSFY-1 (v5.18): Karigar outstanding balances carry forward across FYs.
+  // Emits WARNING (not CRITICAL) so FY close is not blocked.
+  try {
+    const karigarBal = fyInventoryRepository.getKarigarOutstandingFineWeightMg(db, firmId);
+    if (karigarBal > 0) {
+      issues.push({
+        code: 'KARIGAR_OUTSTANDING_BALANCE_CROSS_FY',
+        severity: 'WARNING',
+        message: `Karigars have ${karigarBal}mg fine metal outstanding. Balances will carry forward across FY.`,
+      });
+    }
+  } catch {}
+
+  const hasCritical = issues.some((i: VerifyIssue) => i.severity === 'CRITICAL');
+  return { canClose: !hasCritical, issues };
 }
 
 /**

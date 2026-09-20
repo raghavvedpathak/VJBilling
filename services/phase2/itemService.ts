@@ -79,7 +79,7 @@ export async function createPhantomItem(input: CreatePhantomItemInput, firmId: s
       netWeightMg,
       fineWeightMg,
       purityPercent: input.purityPercent,
-      purityKarat: input.purityKarat,
+      purityKarat: input.purityKarat ?? (input.purityPercent ? Math.round((input.purityPercent / 100) * 24 * 10) / 10 : 22),
       purityRoundingDeltaMg,
       wastagePercent: 0,
       fineGoldChargedMg: null,

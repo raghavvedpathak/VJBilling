@@ -16,7 +16,7 @@ import {
   isPinSkipped,
   setPinSkipped
 } from '@/services/phase1/pinService';
-import { TwoToneWrapper } from './TwoToneWrapper';
+import { TwoToneWrapper } from '@/components/common/TwoToneWrapper';
 import { storage } from '@/utils/storage';
 import { COLORS } from '@/constants/theme';
 

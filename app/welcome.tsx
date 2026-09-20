@@ -5,14 +5,14 @@ import { View, Text, ActivityIndicator, Alert, Image, ScrollView, TouchableOpaci
 import { useRouter, useFocusEffect } from 'expo-router';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Haptics from 'expo-haptics';
-import { TwoToneWrapper } from '@/components/TwoToneWrapper';
+import { TwoToneWrapper } from '@/components/common/TwoToneWrapper';
 import { GlassCard, GlassButton, HeaderPill } from '@/components/ui/Glass';
 import { restoreService } from '@/services/phase1/restoreService';
 import '@/services/phase2/inventoryRestoreService';
 import { useSession } from '@/hooks/useSession';
 import { useFirmStore } from '@/store/phase1/useFirmStore';
 import { firmRepository, Firm } from '@/repositories/phase1/firmRepository';
-import { RestorePreviewModal } from '@/components/RestorePreviewModal';
+import { RestorePreviewModal } from '@/components/phase1/RestorePreviewModal';
 import { BackupEnvelope } from '@/services/phase1/backupService';
 import { appSettingsStore } from '@/store/phase1/appSettingsStore';
 import { COLORS, getThemeColors } from '@/constants/theme';

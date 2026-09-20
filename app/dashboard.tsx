@@ -3,12 +3,12 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, TouchableOpacity, Image, ScrollView, Modal, BackHandler, Alert } from 'react-native';
 import { useRouter, useFocusEffect } from 'expo-router';
-import { TwoToneWrapper } from '@/components/TwoToneWrapper'; 
+import { TwoToneWrapper } from '@/components/common/TwoToneWrapper'; 
 import { useSession } from '@/hooks/useSession';
 import { useFirmStore } from '@/store/phase1/useFirmStore';
 import { GlassCard, GlassButton, HeaderPill, MenuTile, ListTileCard } from '@/components/ui/Glass'; 
-import { LeaseStatusBanner } from '@/components/LeaseStatusBanner'; 
-import { FYEndBanner } from '@/components/FYEndBanner'; 
+import { LeaseStatusBanner } from '@/components/phase1/LeaseStatusBanner'; 
+import { FYEndBanner } from '@/components/phase1/FYEndBanner'; 
 import { 
   LogOut, Settings, ShieldCheck, FileText, Package, TrendingUp, 
   ChevronRight, Gem, Landmark, CalendarClock, CheckCircle2
@@ -187,8 +187,9 @@ export default function Dashboard() {
             icon={<FileText size={22} color="#059669" />} 
             iconBg="rgba(5, 150, 105, 0.12)"
             borderColor="rgba(5, 150, 105, 0.2)"
-            badgeText="PHASE 3"
-            disabled 
+            badgeText="LIVE"
+            badgeVariant="active"
+            onPress={() => router.push('/billing')} 
           />
 
           <MenuTile 

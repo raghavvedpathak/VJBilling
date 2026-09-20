@@ -123,14 +123,15 @@ export async function updateOldMetalLotStatus(
   lotId: string,
   firmId: string,
   newStatus: OldMetalLotStatus,
-  reason?: string
+  reason?: string,
+  customTx?: any
 ): Promise<void> {
   await leaseService.assertNoActiveLease(); // GUARD 1
   safeModeService.assertNotInSafeMode();     // GUARD 2
 
   const deviceId = await getDeviceId();
 
-  return db.transaction((tx) => {
+  const runWithTx = (tx: any) => {
     const lot = oldMetalLotRepository.getById(tx, firmId, lotId);
     if (!lot || lot.firmId !== firmId) throw new Error(ERR.OLD_METAL_LOT_NOT_FOUND_OR_WRONG_FIRM);
 
@@ -154,7 +155,12 @@ export async function updateOldMetalLotStatus(
       deviceId,
       payload: { lotId, oldStatus, newStatus, reason: reason ? sanitizeText(reason) : null },
     });
-  });
+  };
+
+  if (customTx) {
+    return runWithTx(customTx);
+  }
+  return db.transaction((tx) => runWithTx(tx));
 }
 
 // Service-layer read queries

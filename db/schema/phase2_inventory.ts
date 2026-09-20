@@ -152,6 +152,10 @@ export const itemEvents = sqliteTable('item_events', {
 }, (table) => ({
   itemFk: foreignKey({ columns: [table.itemId], foreignColumns: [items.id] }).onDelete('restrict'),
   firmFk: foreignKey({ columns: [table.firmId], foreignColumns: [firms.id] }),
+  karigarFk: foreignKey((): any => ({
+    columns: [table.karigarId],
+    foreignColumns: [require('./phase3_money_truth').karigar.id],
+  })),
   idxItemEventsItem: index('idx_item_events_item').on(table.itemId, table.firmId, table.timestamp),
   idxItemEventsFirmType: index('idx_item_events_firm_type').on(table.firmId, table.eventType),
 }));

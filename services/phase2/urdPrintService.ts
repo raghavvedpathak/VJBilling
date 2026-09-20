@@ -90,6 +90,9 @@ export async function generateURDPurchaseBill(
   const totalRupees = (urd.totalValuePaise / 100).toFixed(2);
   const rateRupees = (urd.ratePerGramPaise / 100).toFixed(2);
   const words = amountToWords(urd.totalValuePaise);
+  if (!words || !words.trim()) {
+    throw new Error(ERR.AMOUNT_WORDS_EMPTY);
+  }
   const formattedDate = formatDate(urd.purchaseDate);
 
   let idProofHtml = '';

@@ -35,7 +35,7 @@ import "./global.css";
 import { AlertTriangle, Download, LifeBuoy, Trash2 } from "lucide-react-native";
 
 import { ThemeProvider, DefaultTheme } from "@react-navigation/native";
-import { PinGate } from "@/components/PinGate";
+import { PinGate } from "@/components/phase1/PinGate";
 import { isPinSet, isPinSkipped } from "@/services/phase1/pinService";
 
 import { appSettingsStore } from "@/store/phase1/appSettingsStore";

@@ -8,7 +8,7 @@ import * as Updates from 'expo-updates';
 import { STORAGE_PATHS } from '@/constants';
 import { PRE_MIGRATION_SNAPSHOT_PATH } from '@/services/phase1/bootstrapService';
 import { getDeviceDerivedKeyMaterial } from '@/utils/deviceKey';
-import { ScreenWrapper } from '@/components/ScreenWrapper';
+import { ScreenWrapper } from '@/components/common/ScreenWrapper';
 import { AlertTriangle, Database, Trash2, Mail } from 'lucide-react-native';
 import { GlassCard, GlassButton, GlassInput } from '@/components/ui/Glass';
 

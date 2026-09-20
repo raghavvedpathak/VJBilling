@@ -2,7 +2,7 @@
 
 import React from "react";
 import { View, ActivityIndicator, Text } from "react-native";
-import { TwoToneWrapper } from "@/components/TwoToneWrapper";
+import { TwoToneWrapper } from "@/components/common/TwoToneWrapper";
 import { COLORS } from "@/constants/theme";
 
 export default function Index() {

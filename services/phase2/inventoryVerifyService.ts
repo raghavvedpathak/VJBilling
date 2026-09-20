@@ -3,7 +3,6 @@
 // FIX-V192-CHECK4B-1/2 (v1.92), FEAT-PHANTOM-INVENTORY-1 (v1.67/v1.68), FIX-OLDMETAL-RENAME-1 (v2.32)
 
 import { inventoryVerifyRepository } from '@/repositories/phase2/inventoryVerifyRepository';
-import { verifyService } from '@/services/phase1/verifyService';
 import type { VerifyIssue } from '@/types/phase2/phase2.types';
 
 export const inventoryVerifyService = {
@@ -96,6 +95,46 @@ export const inventoryVerifyService = {
       });
     }
 
+    // Phase 2 Step 19: Item status integrity (CRITICAL)
+    const invalidStatusItems = await inventoryVerifyRepository.findInvalidStatusItemIds(firmId);
+    if (invalidStatusItems.length > 0) {
+      issues.push({
+        code: 'ITEM_STATUS_INTEGRITY',
+        severity: 'CRITICAL',
+        message: `${invalidStatusItems.length} item(s) are in invalid status`,
+      });
+    }
+
+    // Phase 2 Step 19: StockLot without item / orphan loose lots (WARNING)
+    const orphanLots = await inventoryVerifyRepository.findOrphanLooseLots(firmId);
+    if (orphanLots.length > 0) {
+      issues.push({
+        code: 'STOCK_LOT_WITHOUT_ITEM',
+        severity: 'WARNING',
+        message: `${orphanLots.length} loose stock lot(s) reference non-existent designs`,
+      });
+    }
+
+    // Phase 2 Step 19: Orphan StockLotEvent (WARNING)
+    const orphanEvents = await inventoryVerifyRepository.findOrphanStockLotEvents(firmId);
+    if (orphanEvents.length > 0) {
+      issues.push({
+        code: 'ORPHAN_STOCK_LOT_EVENT',
+        severity: 'WARNING',
+        message: `${orphanEvents.length} stock lot event(s) reference non-existent lots`,
+      });
+    }
+
+    // Phase 2 Step 19: HUID format violation (WARNING)
+    const huidFormatViolations = await inventoryVerifyRepository.findHuidFormatViolations(firmId);
+    if (huidFormatViolations.length > 0) {
+      issues.push({
+        code: 'HUID_FORMAT_VIOLATION',
+        severity: 'WARNING',
+        message: `${huidFormatViolations.length} item(s) have invalid HUID format within firm`,
+      });
+    }
+
     return issues;
   },
 
@@ -108,6 +147,7 @@ export const inventoryVerifyService = {
     const issues: VerifyIssue[] = [];
 
     if (options?.includeCoreChecks !== false) {
+      const { verifyService } = require('@/services/phase1/verifyService');
       const p1Result = await verifyService.runVerify(firmId);
       for (const f of p1Result.findings) {
         if (f.severity === 'HEALTHY') continue;
