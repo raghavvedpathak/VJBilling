@@ -2,6 +2,7 @@
 // Adheres strictly to STEP 1 Specification (v4.8 Cross-FY, v5.5 SEARCH-P3, v5.9 FIX-CUSTOMER-URD-1)
 // CONSTITUTIONAL RULE: Structurally prevented — NO hard delete method exists in this repository.
 
+import * as Crypto from 'expo-crypto';
 import { eq, and, or, like, asc } from 'drizzle-orm';
 import db, { db as dbNamed } from '@/db/client';
 import { customers } from '@/db/schema';
@@ -39,7 +40,7 @@ export const customerRepository = {
     const timestamp = now();
 
     const toInsert = {
-      id: customerData.id || crypto.randomUUID(),
+      id: customerData.id || Crypto.randomUUID(),
       firmId: customerData.firmId,
       fyId: customerData.fyId,
       name: customerData.name,

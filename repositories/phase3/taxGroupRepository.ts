@@ -111,4 +111,16 @@ export const taxGroupRepository = {
       .where(and(eq(taxGroups.id, id), eq(taxGroups.firmId, firmId)))
       .run();
   },
+
+  activate(id: string, firmId: string, customTx?: any): void {
+    const conn = getDb(customTx);
+    conn
+      .update(taxGroups)
+      .set({
+        isActive: 1,
+        updatedAt: now(),
+      })
+      .where(and(eq(taxGroups.id, id), eq(taxGroups.firmId, firmId)))
+      .run();
+  },
 };

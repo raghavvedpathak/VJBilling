@@ -311,8 +311,60 @@ export const taxMasterService = {
 
     taxGroupRepository.deactivate(taxGroupId, firmId);
 
+    // Option A: Cascade deactivation to component tax rates if not used by another active group
+    try {
+      const components = taxGroupComponentRepository.getByTaxGroupId(taxGroupId);
+      for (const comp of components) {
+        const otherComps = taxGroupComponentRepository.getByTaxRateId(comp.taxRateId);
+        const isUsedByOtherActiveGroup = otherComps.some((oc) => {
+          if (oc.taxGroupId === taxGroupId) return false;
+          const otherGroup = taxGroupRepository.getById(oc.taxGroupId);
+          return otherGroup && otherGroup.isActive === 1;
+        });
+        if (!isUsedByOtherActiveGroup) {
+          taxRateRepository.deactivate(comp.taxRateId, firmId);
+        }
+      }
+    } catch (err) {
+      console.warn('[taxMasterService] Cascade rate deactivation warning:', err);
+    }
+
     // FIX-V520-3: Invalidate Zustand cache immediately
     taxGroupStore.setState({ groups: null, loadedAt: null });
+  },
+
+  /**
+   * Activates a previously deactivated tax group and its component rates.
+   */
+  async activateTaxGroup(taxGroupId: string, firmId: string): Promise<void> {
+    const group = taxGroupRepository.getById(taxGroupId);
+    if (!group || group.firmId !== firmId) {
+      throw new Error('TAX_GROUP_NOT_FOUND');
+    }
+
+    // Reactivate underlying rates
+    try {
+      const components = taxGroupComponentRepository.getByTaxGroupId(taxGroupId);
+      for (const comp of components) {
+        taxRateRepository.activate(comp.taxRateId, firmId);
+      }
+    } catch (err) {
+      console.warn('[taxMasterService] Rate reactivation warning:', err);
+    }
+
+    taxGroupRepository.activate(taxGroupId, firmId);
+    taxGroupStore.setState({ groups: null, loadedAt: null });
+  },
+
+  /**
+   * Activates a previously deactivated tax rate.
+   */
+  async activateTaxRate(taxRateId: string, firmId: string): Promise<void> {
+    const rate = taxRateRepository.getById(taxRateId);
+    if (!rate || rate.firmId !== firmId) {
+      throw new Error('TAX_RATE_NOT_FOUND');
+    }
+    taxRateRepository.activate(taxRateId, firmId);
   },
 
   /**

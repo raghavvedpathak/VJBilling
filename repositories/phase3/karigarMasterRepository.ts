@@ -2,6 +2,7 @@
 // Adheres strictly to STEP 3 Specification (SEARCH-P3 v5.5, Independent job-work party)
 // CONSTITUTIONAL RULE: Hard delete is structurally prevented. No delete() method exists.
 
+import * as Crypto from 'expo-crypto';
 import { eq, and, or, like, asc } from 'drizzle-orm';
 import db, { db as dbNamed } from '@/db/client';
 import { karigar } from '@/db/schema/phase3_money_truth';
@@ -39,7 +40,7 @@ export const karigarMasterRepository = {
     const timestamp = now();
 
     const toInsert = {
-      id: karigarData.id || crypto.randomUUID(),
+      id: karigarData.id || Crypto.randomUUID(),
       firmId: karigarData.firmId,
       name: karigarData.name,
       mobile: karigarData.mobile ?? null,

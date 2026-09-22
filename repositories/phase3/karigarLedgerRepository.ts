@@ -4,6 +4,7 @@
 // FIX-KARIGAR-CROSSFY-1 (v5.17): Balances are firm-wide lifetime aggregates (no fyId filter).
 // v4.9 purityPct:0 NO-MULTIPLY RULE: METAL_SETTLED_AS_MONEY and LABOUR_IN_GOLD use weightMg directly.
 
+import * as Crypto from 'expo-crypto';
 import { eq, and, asc } from 'drizzle-orm';
 import db, { db as dbNamed } from '@/db/client';
 import { karigarLedger } from '@/db/schema/phase3_money_truth';
@@ -46,7 +47,7 @@ export const karigarLedgerRepository = {
     const timestamp = now();
 
     const toInsert = {
-      id: entryData.id || crypto.randomUUID(),
+      id: entryData.id || Crypto.randomUUID(),
       firmId: entryData.firmId,
       fyId: entryData.fyId ?? null,
       karigarId: entryData.karigarId,

@@ -113,4 +113,16 @@ export const taxRateRepository = {
       .where(and(eq(taxRates.id, id), eq(taxRates.firmId, firmId)))
       .run();
   },
+
+  activate(id: string, firmId: string, customTx?: any): void {
+    const conn = getDb(customTx);
+    conn
+      .update(taxRates)
+      .set({
+        isActive: 1,
+        updatedAt: now(),
+      })
+      .where(and(eq(taxRates.id, id), eq(taxRates.firmId, firmId)))
+      .run();
+  },
 };

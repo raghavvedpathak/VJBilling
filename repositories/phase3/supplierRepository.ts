@@ -2,6 +2,7 @@
 // Adheres strictly to STEP 2 Specification (SEARCH-P3 v5.5, External purchase parties only)
 // CONSTITUTIONAL RULE: Hard delete is structurally prevented. No delete() method exists.
 
+import * as Crypto from 'expo-crypto';
 import { eq, and, or, like, asc } from 'drizzle-orm';
 import db, { db as dbNamed } from '@/db/client';
 import { suppliers } from '@/db/schema';
@@ -39,7 +40,7 @@ export const supplierRepository = {
     const timestamp = now();
 
     const toInsert = {
-      id: supplierData.id || crypto.randomUUID(),
+      id: supplierData.id || Crypto.randomUUID(),
       firmId: supplierData.firmId,
       name: supplierData.name,
       mobile: supplierData.mobile ?? null,

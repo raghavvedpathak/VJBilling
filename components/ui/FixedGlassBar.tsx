@@ -63,6 +63,13 @@ export function FixedGlassBar({ children, style, cardStyle, contentStyle, hideOn
     return null;
   }
 
+  // Dynamic theme accent tone for floating pill container
+  const barBgColor = activeTheme === 'dark'
+    ? 'rgba(28, 20, 24, 0.88)'
+    : colors.vjAccentLight
+      ? (Platform.OS === 'ios' ? `${colors.vjAccentLight}D9` : `${colors.vjAccentLight}F2`)
+      : 'rgba(255, 255, 255, 0.88)';
+
   return (
     <View style={[s.fixedPillWrapper, { bottom: bottomOffset }, style]} pointerEvents="box-none">
       <View
@@ -70,7 +77,7 @@ export function FixedGlassBar({ children, style, cardStyle, contentStyle, hideOn
           s.fixedPillCard,
           {
             maxWidth: isTablet ? 720 : 580,
-            borderColor: colors.border ? `${colors.vjAccent}35` : 'rgba(212, 175, 55, 0.35)',
+            borderColor: colors.border ? `${colors.vjAccent}40` : 'rgba(212, 175, 55, 0.40)',
             backgroundColor: 'transparent',
             borderRadius: resolvedRadius,
           },
@@ -84,7 +91,7 @@ export function FixedGlassBar({ children, style, cardStyle, contentStyle, hideOn
           style={[
             s.fixedPillBlurContent,
             {
-              backgroundColor: activeTheme === 'dark' ? 'rgba(28, 20, 24, 0.88)' : 'rgba(255, 255, 255, 0.88)',
+              backgroundColor: barBgColor,
               borderRadius: resolvedRadius,
             },
             contentStyle,

@@ -1,6 +1,7 @@
 // services/phase3/bankAccountService.ts — Phase 3 Bank Account Master Service
 // Strictly enforces STEP 16 Specification & "One default per firm" Governance.
 
+import * as Crypto from 'expo-crypto';
 import db, { db as dbNamed } from '@/db/client';
 import { ERR } from '@/constants/errorCodes';
 import { bankAccountRepository } from '@/repositories/phase3/bankAccountRepository';
@@ -122,7 +123,7 @@ export const bankAccountService = {
       }
 
       const account = bankAccountRepository.insert(tx, {
-        id: crypto.randomUUID(),
+        id: Crypto.randomUUID(),
         firmId: input.firmId,
         bankName: sanitizedBankName,
         accountHolder: sanitizedHolder,

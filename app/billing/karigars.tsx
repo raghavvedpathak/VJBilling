@@ -17,11 +17,13 @@ import {
   RefreshControl,
   KeyboardAvoidingView,
   Platform,
+  useWindowDimensions,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import { TwoToneWrapper } from '@/components/common/TwoToneWrapper';
 import { GlassCard, GlassButton, HeaderPill } from '@/components/ui/Glass';
+import { FixedGlassBar, fixedBarStyles } from '@/components/ui/FixedGlassBar';
 import { useFirmStore } from '@/store/phase1/useFirmStore';
 import { appSettingsStore } from '@/store/phase1/appSettingsStore';
 import { karigarMasterService } from '@/services/phase3/karigarMasterService';
@@ -50,6 +52,8 @@ import {
 
 export default function KarigarsMasterScreen() {
   const insets = useSafeAreaInsets();
+  const { width, height } = useWindowDimensions();
+  const isTablet = width >= 768 || Math.min(width, height) >= 600;
   const currencySymbol = getCurrencySymbol();
   const { activeFirmId } = useFirmStore();
   const activeTheme = appSettingsStore((s: any) => s.theme);
@@ -242,12 +246,18 @@ export default function KarigarsMasterScreen() {
       <GlassCard style={styles.karigarCard}>
         {/* Top Info */}
         <View style={styles.cardHeader}>
-          <View style={styles.avatarContainer}>
-            <Hammer size={20} color={colors.primary} />
+          <View style={[styles.avatarContainer, { backgroundColor: colors.primary + '18', borderColor: colors.primary + '30' }]}>
+            <Hammer size={18} color={colors.primary} />
           </View>
           <View style={styles.headerDetails}>
             <View style={styles.titleRow}>
               <Text style={[styles.karigarName, { color: colors.text }]}>{item.name}</Text>
+              {item.mobile && (
+                <View style={styles.inlineContact}>
+                  <Phone size={11} color={colors.textSecondary} />
+                  <Text style={[styles.metaText, { color: colors.textSecondary }]}>{item.mobile}</Text>
+                </View>
+              )}
               {item.speciality && (
                 <View style={[styles.badge, { backgroundColor: colors.primary + '20' }]}>
                   <Sparkles size={11} color={colors.primary} style={{ marginRight: 3 }} />
@@ -256,15 +266,9 @@ export default function KarigarsMasterScreen() {
               )}
             </View>
 
-            {item.mobile && (
-              <View style={styles.metaRow}>
-                <Phone size={12} color={colors.textSecondary} />
-                <Text style={[styles.metaText, { color: colors.textSecondary }]}>{item.mobile}</Text>
-              </View>
-            )}
             {item.address && (
-              <View style={styles.metaRow}>
-                <MapPin size={12} color={colors.textSecondary} />
+              <View style={styles.addressRow}>
+                <MapPin size={11} color={colors.textSecondary} />
                 <Text style={[styles.metaText, { color: colors.textSecondary }]} numberOfLines={1}>
                   {item.address}
                 </Text>
@@ -316,16 +320,23 @@ export default function KarigarsMasterScreen() {
           <TouchableOpacity
             style={[
               styles.settleBtn,
-              { backgroundColor: hasMetalOutstanding ? '#F59E0B' : colors.border },
+              {
+                backgroundColor: hasMetalOutstanding ? 'rgba(245, 158, 11, 0.14)' : colors.border + '25',
+                borderColor: hasMetalOutstanding ? 'rgba(245, 158, 11, 0.35)' : colors.border + '50',
+              },
             ]}
             disabled={!hasMetalOutstanding}
-            onPress={() => openSettleModal(item)}
+            onPress={() => {
+              try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
+              openSettleModal(item);
+            }}
+            activeOpacity={0.8}
           >
-            <ArrowRightLeft size={13} color={hasMetalOutstanding ? '#FFFFFF' : colors.textSecondary} />
+            <ArrowRightLeft size={13} color={hasMetalOutstanding ? '#D97706' : colors.textSecondary} />
             <Text
               style={[
                 styles.settleBtnText,
-                { color: hasMetalOutstanding ? '#FFFFFF' : colors.textSecondary },
+                { color: hasMetalOutstanding ? '#D97706' : colors.textSecondary },
               ]}
             >
               Settle Metal
@@ -361,19 +372,11 @@ export default function KarigarsMasterScreen() {
   return (
     <TwoToneWrapper title="Karigars" showBack headerContent={headerPills}>
       <View style={[styles.container, { paddingBottom: insets.bottom }]}>
-        {/* Top Action Bar */}
+        {/* Top Header */}
         <View style={styles.topBar}>
-          <View style={{ flex: 1 }}>
-            <Text style={[styles.screenSubtitle, { color: colors.textSecondary }]}>
-              Job work parties • Metal & Labour Dual Ledger
-            </Text>
-          </View>
-          <GlassButton
-            title="Add Karigar"
-            icon={<UserPlus size={16} color="#FFFFFF" />}
-            onPress={openAddModal}
-            variant="primary"
-          />
+          <Text style={[styles.screenSubtitle, { color: colors.textSecondary }]}>
+            Job work parties • Metal & Labour Dual Ledger
+          </Text>
         </View>
 
         {/* Search Bar */}
@@ -422,12 +425,27 @@ export default function KarigarsMasterScreen() {
                 <Hammer size={48} color={colors.textSecondary} style={{ opacity: 0.5, marginBottom: 12 }} />
                 <Text style={[styles.emptyTitle, { color: colors.text }]}>No Karigars Found</Text>
                 <Text style={[styles.emptySubtitle, { color: colors.textSecondary }]}>
-                  {searchQuery ? 'No party matches your search query.' : 'Add your first job-work artisan to begin.'}
+                  {searchQuery ? 'No party matches your search query.' : 'Tap "+ Add Karigar" below to add your first artisan.'}
                 </Text>
               </View>
             }
           />
         )}
+
+        {/* Floating Bottom Action Bar */}
+        <FixedGlassBar>
+          <TouchableOpacity
+            style={fixedBarStyles.pillPrimaryBtn}
+            onPress={() => {
+              try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
+              openAddModal();
+            }}
+            activeOpacity={0.85}
+          >
+            <UserPlus size={18} color="#FFFFFF" />
+            <Text style={fixedBarStyles.pillPrimaryText}>Add Karigar</Text>
+          </TouchableOpacity>
+        </FixedGlassBar>
 
         {/* Settle Metal Modal */}
         <SettleMetalModal
@@ -442,9 +460,28 @@ export default function KarigarsMasterScreen() {
         <Modal visible={modalVisible} animationType="slide" transparent onRequestClose={() => setModalVisible(false)}>
           <KeyboardAvoidingView
             behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-            style={styles.modalOverlay}
+            style={[
+              styles.modalOverlay,
+              isTablet && { justifyContent: 'center', alignItems: 'center', padding: 24 },
+            ]}
           >
-            <View style={[styles.modalCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+            <View
+              style={[
+                styles.modalCard,
+                {
+                  backgroundColor: colors.surface,
+                  borderColor: colors.border,
+                  width: '100%',
+                  maxWidth: isTablet ? 600 : undefined,
+                  borderRadius: isTablet ? 24 : 0,
+                  borderTopLeftRadius: 24,
+                  borderTopRightRadius: 24,
+                  borderBottomLeftRadius: isTablet ? 24 : 0,
+                  borderBottomRightRadius: isTablet ? 24 : 0,
+                  maxHeight: isTablet ? '85%' : '90%',
+                },
+              ]}
+            >
               <View style={styles.modalHeader}>
                 <View>
                   <Text style={[styles.modalTitle, { color: colors.text }]}>
@@ -549,7 +586,15 @@ export default function KarigarsMasterScreen() {
                 </View>
               </ScrollView>
 
-              <View style={[styles.modalFooter, { borderTopColor: colors.border }]}>
+              <View
+                style={[
+                  styles.modalFooter,
+                  {
+                    borderTopColor: colors.border,
+                    paddingBottom: isTablet ? 16 : Math.max(insets.bottom, 16),
+                  },
+                ]}
+              >
                 <TouchableOpacity
                   onPress={() => setModalVisible(false)}
                   style={[styles.cancelBtn, { borderColor: colors.border }]}
@@ -590,10 +635,7 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
   },
   topBar: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 16,
+    marginBottom: 10,
     marginTop: 8,
   },
   screenSubtitle: {
@@ -615,26 +657,26 @@ const styles = StyleSheet.create({
     fontSize: 14,
   },
   listContent: {
-    paddingBottom: 24,
+    paddingBottom: 96,
   },
   karigarCard: {
-    padding: 16,
+    padding: 13,
     borderRadius: 16,
-    marginBottom: 12,
+    marginBottom: 10,
   },
   cardHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 12,
+    marginBottom: 6,
   },
   avatarContainer: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: '#3B82F615',
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    borderWidth: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 12,
+    marginRight: 10,
   },
   headerDetails: {
     flex: 1,
@@ -646,36 +688,46 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   karigarName: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '700',
+  },
+  inlineContact: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: 'rgba(100, 116, 139, 0.08)',
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: 6,
   },
   badge: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 8,
+    paddingHorizontal: 7,
     paddingVertical: 2,
     borderRadius: 6,
   },
   badgeText: {
-    fontSize: 11,
+    fontSize: 10.5,
     fontWeight: '600',
   },
-  metaRow: {
+  addressRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: 5,
     marginTop: 3,
-    gap: 6,
   },
   metaText: {
     fontSize: 12,
+    fontWeight: '500',
   },
   balanceContainer: {
     flexDirection: 'row',
-    borderRadius: 12,
+    borderRadius: 11,
     borderWidth: 1,
-    paddingVertical: 10,
+    paddingVertical: 8,
     paddingHorizontal: 12,
-    marginBottom: 10,
+    marginBottom: 8,
   },
   balanceCol: {
     flex: 1,
@@ -687,11 +739,11 @@ const styles = StyleSheet.create({
   balanceTitleRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    marginBottom: 4,
+    gap: 5,
+    marginBottom: 2,
   },
   balanceLabel: {
-    fontSize: 11,
+    fontSize: 10.5,
     fontWeight: '600',
     color: '#6B7280',
   },
@@ -707,7 +759,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    marginBottom: 10,
+    marginBottom: 8,
   },
   bankText: {
     fontSize: 11,
@@ -716,16 +768,17 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingTop: 10,
+    paddingTop: 8,
     borderTopWidth: 1,
   },
   settleBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 12,
+    gap: 5,
+    paddingHorizontal: 11,
     paddingVertical: 6,
     borderRadius: 8,
+    borderWidth: 1,
   },
   settleBtnText: {
     fontSize: 12,

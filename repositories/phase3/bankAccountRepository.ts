@@ -1,6 +1,7 @@
 // repositories/phase3/bankAccountRepository.ts — Phase 3 Bank Account Master Repository
 // Firm bank accounts data access layer. Exactly one default per firm governance.
 
+import * as Crypto from 'expo-crypto';
 import { eq, and } from 'drizzle-orm';
 import db, { db as dbNamed } from '@/db/client';
 import { bankAccounts } from '@/db/schema';
@@ -38,7 +39,7 @@ export const bankAccountRepository = {
     const timestamp = now();
 
     const toInsert = {
-      id: data.id || crypto.randomUUID(),
+      id: data.id || Crypto.randomUUID(),
       firmId: data.firmId,
       bankName: data.bankName,
       accountHolder: data.accountHolder,

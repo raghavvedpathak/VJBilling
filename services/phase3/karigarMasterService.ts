@@ -6,6 +6,7 @@
 // Cross-FY Lifetime Carryforward (v5.17 FIX-KARIGAR-CROSSFY-1).
 // v4.9 purityPct:0 NO-MULTIPLY RULE.
 
+import * as Crypto from 'expo-crypto';
 import db, { db as dbNamed } from '@/db/client';
 import { ERR } from '@/constants/errorCodes';
 import { karigarMasterRepository } from '@/repositories/phase3/karigarMasterRepository';
@@ -83,7 +84,7 @@ export const karigarMasterService = {
       }
 
       const created = karigarMasterRepository.insert(tx, {
-        id: crypto.randomUUID(),
+        id: Crypto.randomUUID(),
         firmId: input.firmId,
         name: input.name.trim(),
         mobile: input.mobile?.trim() || null,

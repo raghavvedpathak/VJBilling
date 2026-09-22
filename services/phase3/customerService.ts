@@ -1,6 +1,7 @@
 // services/phase3/customerService.ts — Phase 3 Customer Master Service
 // Adheres strictly to STEP 1 Specification (v4.8 Cross-FY, v5.5 SEARCH-P3, v5.9 FIX-CUSTOMER-URD-1)
 
+import * as Crypto from 'expo-crypto';
 import db, { db as dbNamed } from '@/db/client';
 import { ERR } from '@/constants/errorCodes';
 import { customerRepository } from '@/repositories/phase3/customerRepository';
@@ -83,7 +84,7 @@ export const customerService = {
       }
 
       const customer = customerRepository.insert(tx, {
-        id: crypto.randomUUID(),
+        id: Crypto.randomUUID(),
         firmId: input.firmId,
         fyId,
         name: input.name.trim(),

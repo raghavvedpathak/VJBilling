@@ -2,6 +2,7 @@
 // Adheres strictly to STEP 2 Specification (External purchase parties only, SEARCH-P3 v5.5)
 // CONSTITUTIONAL RULE: KARIGAR IS A SEPARATE ENTITY (Step 3). Putting Karigar under Supplier is a violation.
 
+import * as Crypto from 'expo-crypto';
 import db, { db as dbNamed } from '@/db/client';
 import { ERR } from '@/constants/errorCodes';
 import { supplierRepository } from '@/repositories/phase3/supplierRepository';
@@ -84,7 +85,7 @@ export const supplierService = {
       }
 
       const supplier = supplierRepository.insert(tx, {
-        id: crypto.randomUUID(),
+        id: Crypto.randomUUID(),
         firmId: input.firmId,
         name: input.name.trim(),
         mobile: input.mobile?.trim() || null,

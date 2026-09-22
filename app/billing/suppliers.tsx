@@ -15,12 +15,16 @@ import {
   StyleSheet,
   ScrollView,
   RefreshControl,
+  KeyboardAvoidingView,
+  Platform,
+  useWindowDimensions,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import { TwoToneWrapper } from '@/components/common/TwoToneWrapper';
 import { GlassCard, GlassButton, HeaderPill } from '@/components/ui/Glass';
+import { FixedGlassBar, fixedBarStyles } from '@/components/ui/FixedGlassBar';
 import { useFirmStore } from '@/store/phase1/useFirmStore';
 import { appSettingsStore } from '@/store/phase1/appSettingsStore';
 import { supplierService } from '@/services/phase3/supplierService';
@@ -43,15 +47,26 @@ import {
   CreditCard,
   AlertCircle,
   Factory,
+  Wallet,
 } from 'lucide-react-native';
 import { getUserFriendlyErrorMessage } from '@/constants/errorMessageMap';
 
 export default function SuppliersMasterScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { width, height } = useWindowDimensions();
+  const isTablet = width >= 768 || Math.min(width, height) >= 600;
   const { activeFirmId } = useFirmStore();
   const activeTheme = appSettingsStore((s: any) => s.theme);
-  const colors = getThemeColors(activeTheme);
+  const rawColors = getThemeColors(activeTheme);
+  const colors = {
+    ...rawColors,
+    surface: '#FFFFFF',
+    text: rawColors.vjText,
+    textSecondary: '#64748B',
+    background: rawColors.vjBg,
+    primary: rawColors.vjAccent,
+  };
 
   const [suppliersList, setSuppliersList] = useState<Supplier[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
@@ -263,28 +278,29 @@ export default function SuppliersMasterScreen() {
 
   return (
     <TwoToneWrapper title="Suppliers" showBack headerContent={headerPills}>
-      <View style={{ flex: 1, paddingBottom: insets.bottom }}>
-        {/* Search & Add Action Row */}
+      <View style={[s.container, { paddingBottom: insets.bottom }]}>
+        {/* Top Header */}
         <View style={s.topBar}>
-          <View style={s.searchBox}>
-            <Search size={18} color="#94A3B8" style={{ marginRight: 8 }} />
-            <TextInput
-              value={searchQuery}
-              onChangeText={setSearchQuery}
-              placeholder="Search suppliers..."
-              placeholderTextColor="#64748B"
-              style={s.searchInput}
-              clearButtonMode="while-editing"
-            />
-          </View>
-          <TouchableOpacity
-            style={s.addButton}
-            activeOpacity={0.8}
-            onPress={handleOpenAddModal}
-          >
-            <UserPlus size={18} color="#FFFFFF" />
-            <Text style={s.addButtonText}>Add</Text>
-          </TouchableOpacity>
+          <Text style={[s.screenSubtitle, { color: colors.textSecondary }]}>
+            Purchase vendors & refinery houses
+          </Text>
+        </View>
+
+        {/* Search Bar */}
+        <View style={[s.searchBox, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+          <Search size={18} color={colors.textSecondary} />
+          <TextInput
+            style={[s.searchInput, { color: colors.text }]}
+            placeholder="Search supplier by name, mobile, or GSTIN..."
+            placeholderTextColor={colors.textSecondary}
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+          />
+          {searchQuery.length > 0 && (
+            <TouchableOpacity onPress={() => setSearchQuery('')}>
+              <X size={18} color={colors.textSecondary} />
+            </TouchableOpacity>
+          )}
         </View>
 
         {/* Type Category Tabs */}
@@ -302,10 +318,26 @@ export default function SuppliersMasterScreen() {
             return (
               <TouchableOpacity
                 key={tab}
-                style={[s.tabItem, active && s.tabItemActive]}
+                style={[
+                  s.tabItem,
+                  {
+                    backgroundColor: active ? `${colors.primary}18` : colors.surface,
+                    borderColor: active ? colors.primary : colors.border,
+                  },
+                ]}
                 onPress={() => setSelectedTypeTab(tab)}
               >
-                <Text style={[s.tabText, active && s.tabTextActive]}>{label}</Text>
+                <Text
+                  style={[
+                    s.tabText,
+                    {
+                      color: active ? colors.primary : colors.textSecondary,
+                      fontWeight: active ? '700' : '600',
+                    },
+                  ]}
+                >
+                  {label}
+                </Text>
               </TouchableOpacity>
             );
           })}
@@ -331,38 +363,44 @@ export default function SuppliersMasterScreen() {
             <Text style={s.emptySubtitle}>
               {searchQuery
                 ? 'Try searching with a different name, mobile, or GSTIN.'
-                : 'Add purchase dealers or refineries to manage procurements.'}
+                : 'Tap "+ Add Supplier" below to manage your procurements.'}
             </Text>
-            {!searchQuery && (
-              <TouchableOpacity
-                style={[s.addButton, { marginTop: 16 }]}
-                onPress={handleOpenAddModal}
-              >
-                <UserPlus size={18} color="#FFFFFF" />
-                <Text style={s.addButtonText}>Add Supplier</Text>
-              </TouchableOpacity>
-            )}
           </View>
         ) : (
           <FlatList
             data={filteredSuppliers}
             keyExtractor={(item) => item.id}
             showsVerticalScrollIndicator={false}
-            contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 24 }}
+            contentContainerStyle={{ paddingBottom: 96 }}
             refreshControl={
               <RefreshControl refreshing={isRefreshing} onRefresh={handleRefresh} tintColor="#059669" />
             }
             renderItem={({ item }) => {
               const badge = getTypeBadgeStyle(item.type);
               const bal = balances[item.id] || 0;
+              const isPayable = bal > 0;
+              const isAdvance = bal < 0;
+              const initial = item.name ? item.name.trim().charAt(0).toUpperCase() : 'S';
+
               return (
-                <GlassCard style={{ marginBottom: 12, padding: 16 }}>
+                <GlassCard style={s.supplierCard}>
+                  {/* Top Header with Avatar, Name & Contact Inline */}
                   <View style={s.cardHeader}>
-                    <View style={{ flex: 1 }}>
+                    <View style={[s.avatarContainer, { backgroundColor: colors.primary + '18', borderColor: colors.primary + '30' }]}>
+                      <Text style={[s.avatarText, { color: colors.primary }]}>{initial}</Text>
+                    </View>
+
+                    <View style={s.headerDetails}>
                       <View style={s.nameBadgeRow}>
                         <Text style={[s.cardSupplierName, { color: colors.vjText }]}>
                           {item.name}
                         </Text>
+                        {item.mobile ? (
+                          <View style={s.inlineContact}>
+                            <Phone size={11} color={colors.textSecondary} />
+                            <Text style={[s.metaText, { color: colors.textSecondary }]}>{item.mobile}</Text>
+                          </View>
+                        ) : null}
                         <View style={[s.typeBadge, { backgroundColor: badge.bg }]}>
                           <Text style={[s.typeBadgeText, { color: badge.text }]}>
                             {badge.label}
@@ -376,54 +414,81 @@ export default function SuppliersMasterScreen() {
                         ) : null}
                       </View>
 
-                      {item.mobile ? (
-                        <View style={s.metaRow}>
-                          <Phone size={13} color="#94A3B8" />
-                          <Text style={s.metaText}>{item.mobile}</Text>
-                        </View>
-                      ) : null}
-
                       {item.address ? (
-                        <View style={s.metaRow}>
-                          <MapPin size={13} color="#94A3B8" />
-                          <Text style={s.metaText} numberOfLines={1}>
+                        <View style={s.addressRow}>
+                          <MapPin size={11} color={colors.textSecondary} />
+                          <Text style={[s.metaText, { color: colors.textSecondary }]} numberOfLines={1}>
                             {item.address}
                           </Text>
                         </View>
                       ) : null}
-
-                      {item.bankAccount ? (
-                        <View style={s.bankBox}>
-                          <Landmark size={12} color="#38BDF8" style={{ marginRight: 6 }} />
-                          <Text style={s.bankText}>
-                            {item.bankName ? `${item.bankName} • ` : ''}A/C: {item.bankAccount}
-                            {item.ifsc ? ` (${item.ifsc})` : ''}
-                          </Text>
-                        </View>
-                      ) : null}
                     </View>
+                  </View>
 
-                    {/* Derived Balance Badge */}
-                    <View style={s.balanceCol}>
-                      <Text style={s.balanceLabel}>Derived Balance</Text>
+                  {/* Bank Details Banner if present */}
+                  {item.bankAccount ? (
+                    <View style={[s.bankBox, { backgroundColor: colors.background + '80', borderColor: colors.border }]}>
+                      <Landmark size={12} color="#0284C7" style={{ marginRight: 6 }} />
+                      <Text style={[s.bankText, { color: colors.textSecondary }]}>
+                        {item.bankName ? `${item.bankName} • ` : ''}A/C: {item.bankAccount}
+                        {item.ifsc ? ` (${item.ifsc})` : ''}
+                      </Text>
+                    </View>
+                  ) : null}
+
+                  {/* Dedicated Balance Banner */}
+                  <View style={[s.balanceBanner, { backgroundColor: colors.background + '80', borderColor: colors.border }]}>
+                    <View style={s.balanceColLeft}>
+                      <View style={s.balanceTitleRow}>
+                        <Wallet size={13} color={colors.textSecondary} />
+                        <Text style={[s.balanceLabel, { color: colors.textSecondary }]}>Account Balance</Text>
+                      </View>
                       <Text
                         style={[
                           s.balanceValue,
-                          { color: bal > 0 ? '#F87171' : bal < 0 ? '#34D399' : '#94A3B8' },
+                          {
+                            color: isPayable ? '#EF4444' : isAdvance ? '#10B981' : colors.text,
+                          },
                         ]}
                       >
                         {formatRupees(Math.abs(bal))}
                       </Text>
-                      <Text style={s.balanceSub}>
-                        {bal > 0 ? 'Payable' : bal < 0 ? 'Advance Given' : 'Settled'}
+                    </View>
+
+                    <View
+                      style={[
+                        s.balanceStatusPill,
+                        {
+                          backgroundColor: isPayable
+                            ? 'rgba(239, 68, 68, 0.12)'
+                            : isAdvance
+                            ? 'rgba(16, 185, 129, 0.12)'
+                            : colors.border + '50',
+                          borderColor: isPayable
+                            ? 'rgba(239, 68, 68, 0.25)'
+                            : isAdvance
+                            ? 'rgba(16, 185, 129, 0.25)'
+                            : colors.border,
+                        },
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          s.balanceStatusText,
+                          {
+                            color: isPayable ? '#EF4444' : isAdvance ? '#10B981' : colors.textSecondary,
+                          },
+                        ]}
+                      >
+                        {isPayable ? 'Payable (Debt)' : isAdvance ? 'Advance Given' : 'All Settled'}
                       </Text>
                     </View>
                   </View>
 
                   {/* Actions Row */}
-                  <View style={s.cardActions}>
+                  <View style={[s.cardActions, { borderTopColor: colors.border }]}>
                     <TouchableOpacity
-                      style={[s.actionBtn, s.actionBtnPayment]}
+                      style={s.actionBtnPayment}
                       onPress={() => {
                         try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
                         router.push({
@@ -434,32 +499,56 @@ export default function SuppliersMasterScreen() {
                           },
                         });
                       }}
+                      activeOpacity={0.8}
                     >
                       <CreditCard size={14} color="#D97706" />
-                      <Text style={[s.actionBtnText, { color: '#D97706' }]}>Pay Supplier</Text>
+                      <Text style={s.actionBtnPaymentText}>Pay Supplier</Text>
                     </TouchableOpacity>
 
-                    <TouchableOpacity
-                      style={s.actionBtn}
-                      onPress={() => handleOpenEditModal(item)}
-                    >
-                      <Edit2 size={14} color="#38BDF8" />
-                      <Text style={[s.actionBtnText, { color: '#38BDF8' }]}>Edit</Text>
-                    </TouchableOpacity>
+                    <View style={s.rightActions}>
+                      <TouchableOpacity
+                        style={[s.iconBtn, { backgroundColor: colors.border + '60' }]}
+                        onPress={() => {
+                          try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
+                          handleOpenEditModal(item);
+                        }}
+                        activeOpacity={0.8}
+                      >
+                        <Edit2 size={15} color={colors.text} />
+                      </TouchableOpacity>
 
-                    <TouchableOpacity
-                      style={s.actionBtn}
-                      onPress={() => handleArchive(item)}
-                    >
-                      <Archive size={14} color="#F87171" />
-                      <Text style={[s.actionBtnText, { color: '#F87171' }]}>Archive</Text>
-                    </TouchableOpacity>
+                      <TouchableOpacity
+                        style={[s.iconBtn, { backgroundColor: '#EF444415' }]}
+                        onPress={() => {
+                          try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
+                          handleArchive(item);
+                        }}
+                        activeOpacity={0.8}
+                      >
+                        <Archive size={15} color="#EF4444" />
+                      </TouchableOpacity>
+                    </View>
                   </View>
                 </GlassCard>
               );
             }}
           />
         )}
+
+        {/* Floating Bottom Action Bar */}
+        <FixedGlassBar>
+          <TouchableOpacity
+            style={fixedBarStyles.pillPrimaryBtn}
+            onPress={() => {
+              try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
+              handleOpenAddModal();
+            }}
+            activeOpacity={0.85}
+          >
+            <UserPlus size={18} color="#FFFFFF" />
+            <Text style={fixedBarStyles.pillPrimaryText}>Add Supplier</Text>
+          </TouchableOpacity>
+        </FixedGlassBar>
 
         {/* Add / Edit Supplier Modal */}
         <Modal
@@ -468,142 +557,209 @@ export default function SuppliersMasterScreen() {
           transparent
           onRequestClose={() => setModalVisible(false)}
         >
-          <View style={s.modalOverlay}>
-            <View style={s.modalContent}>
+          <KeyboardAvoidingView
+            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+            style={[
+              s.modalOverlay,
+              isTablet && { justifyContent: 'center', alignItems: 'center', padding: 24 },
+            ]}
+          >
+            <View
+              style={[
+                s.modalCard,
+                {
+                  backgroundColor: colors.surface,
+                  borderColor: colors.border,
+                  width: '100%',
+                  maxWidth: isTablet ? 600 : undefined,
+                  borderRadius: isTablet ? 24 : 0,
+                  borderTopLeftRadius: 24,
+                  borderTopRightRadius: 24,
+                  borderBottomLeftRadius: isTablet ? 24 : 0,
+                  borderBottomRightRadius: isTablet ? 24 : 0,
+                  maxHeight: isTablet ? '85%' : '90%',
+                },
+              ]}
+            >
               <View style={s.modalHeader}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-                  <View style={s.iconBadge}>
-                    <Truck size={20} color="#059669" />
-                  </View>
-                  <Text style={s.modalTitle}>
-                    {editingSupplier ? 'Edit Supplier' : 'Add Purchase Supplier'}
+                <View>
+                  <Text style={[s.modalTitle, { color: colors.text }]}>
+                    {editingSupplier ? 'Edit Supplier' : 'New Supplier'}
+                  </Text>
+                  <Text style={[s.modalSubtitle, { color: colors.textSecondary }]}>
+                    Purchase vendor & refinery details
                   </Text>
                 </View>
                 <TouchableOpacity
                   onPress={() => setModalVisible(false)}
-                  style={s.closeButton}
+                  style={[s.closeBtn, { backgroundColor: colors.border }]}
                 >
-                  <X size={20} color="#94A3B8" />
+                  <X size={20} color={colors.text} />
                 </TouchableOpacity>
               </View>
 
-              <ScrollView showsVerticalScrollIndicator={false}>
+              <ScrollView style={s.modalBody} keyboardShouldPersistTaps="handled">
                 {duplicateWarning && (
-                  <View style={s.warningBox}>
-                    <AlertCircle size={16} color="#FBBF24" style={{ marginRight: 6 }} />
-                    <Text style={s.warningText}>{duplicateWarning}</Text>
+                  <View style={[s.warningBox, { backgroundColor: 'rgba(245, 158, 11, 0.12)', borderColor: 'rgba(245, 158, 11, 0.3)' }]}>
+                    <AlertCircle size={16} color="#F59E0B" style={{ marginRight: 8 }} />
+                    <Text style={[s.warningText, { color: '#F59E0B' }]}>{duplicateWarning}</Text>
                   </View>
                 )}
 
-                <Text style={s.fieldLabel}>Party Name *</Text>
-                <TextInput
-                  style={s.formInput}
-                  value={name}
-                  onChangeText={setName}
-                  placeholder="e.g. MMTC-PAMP India Pvt Ltd"
-                  placeholderTextColor="#64748B"
-                  autoFocus
-                />
-
-                <Text style={s.fieldLabel}>Party Category *</Text>
-                <View style={s.typeSelector}>
-                  {[
-                    { id: 'SUPPLIER', label: 'Wholesale Dealer' },
-                    { id: 'REFINERY', label: 'Refinery House' },
-                    { id: 'VENDOR', label: 'Service Vendor' },
-                  ].map((t) => {
-                    const selected = type === t.id;
-                    return (
-                      <TouchableOpacity
-                        key={t.id}
-                        style={[s.typeOption, selected && s.typeOptionSelected]}
-                        onPress={() => setType(t.id as SupplierType)}
-                      >
-                        <Text style={[s.typeOptionText, selected && s.typeOptionTextSelected]}>
-                          {t.label}
-                        </Text>
-                      </TouchableOpacity>
-                    );
-                  })}
+                <View style={s.inputGroup}>
+                  <Text style={[s.inputLabel, { color: colors.textSecondary }]}>Party Name *</Text>
+                  <TextInput
+                    style={[s.inputBox, { backgroundColor: colors.background, borderColor: colors.border, color: colors.text }]}
+                    value={name}
+                    onChangeText={setName}
+                    placeholder="e.g. MMTC-PAMP India Pvt Ltd"
+                    placeholderTextColor={colors.textSecondary}
+                    autoFocus
+                  />
                 </View>
 
-                <Text style={s.fieldLabel}>Mobile Number (Soft-unique)</Text>
-                <TextInput
-                  style={s.formInput}
-                  value={mobile}
-                  onChangeText={handleMobileChange}
-                  placeholder="10-digit mobile"
-                  placeholderTextColor="#64748B"
-                  keyboardType="phone-pad"
-                />
+                <View style={s.inputGroup}>
+                  <Text style={[s.inputLabel, { color: colors.textSecondary }]}>Party Category *</Text>
+                  <View style={s.typeSelector}>
+                    {[
+                      { id: 'SUPPLIER', label: 'Wholesale Dealer' },
+                      { id: 'REFINERY', label: 'Refinery House' },
+                      { id: 'VENDOR', label: 'Service Vendor' },
+                    ].map((t) => {
+                      const selected = type === t.id;
+                      return (
+                        <TouchableOpacity
+                          key={t.id}
+                          style={[
+                            s.typeOption,
+                            {
+                              backgroundColor: selected ? `${colors.primary}20` : colors.background,
+                              borderColor: selected ? colors.primary : colors.border,
+                            },
+                          ]}
+                          onPress={() => setType(t.id as SupplierType)}
+                        >
+                          <Text
+                            style={[
+                              s.typeOptionText,
+                              { color: selected ? colors.primary : colors.textSecondary },
+                            ]}
+                          >
+                            {t.label}
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+                </View>
 
-                <Text style={s.fieldLabel}>GSTIN (Optional)</Text>
-                <TextInput
-                  style={s.formInput}
-                  value={gstin}
-                  onChangeText={(t) => setGstin(t.toUpperCase())}
-                  placeholder="e.g. 27AAPFU0939F1ZV"
-                  placeholderTextColor="#64748B"
-                  autoCapitalize="characters"
-                />
-
-                <Text style={s.fieldLabel}>Address (Optional)</Text>
-                <TextInput
-                  style={[s.formInput, { height: 60 }]}
-                  value={address}
-                  onChangeText={setAddress}
-                  placeholder="Street, City, State..."
-                  placeholderTextColor="#64748B"
-                  multiline
-                />
-
-                <Text style={[s.fieldLabel, { marginTop: 12, color: '#38BDF8' }]}>
-                  Bank Details for Payments (Optional)
-                </Text>
-
-                <TextInput
-                  style={s.formInput}
-                  value={bankName}
-                  onChangeText={setBankName}
-                  placeholder="Bank Name (e.g. HDFC Bank)"
-                  placeholderTextColor="#64748B"
-                />
-
-                <TextInput
-                  style={[s.formInput, { marginTop: 8 }]}
-                  value={bankAccount}
-                  onChangeText={setBankAccount}
-                  placeholder="Account Number"
-                  placeholderTextColor="#64748B"
-                  keyboardType="number-pad"
-                />
-
-                <TextInput
-                  style={[s.formInput, { marginTop: 8 }]}
-                  value={ifsc}
-                  onChangeText={(t) => setIfsc(t.toUpperCase())}
-                  placeholder="IFSC Code (e.g. HDFC0001234)"
-                  placeholderTextColor="#64748B"
-                  autoCapitalize="characters"
-                />
-
-                <View style={s.formActions}>
-                  <GlassButton
-                    title="Cancel"
-                    onPress={() => setModalVisible(false)}
-                    style={{ flex: 1, marginRight: 8 }}
+                <View style={s.inputGroup}>
+                  <Text style={[s.inputLabel, { color: colors.textSecondary }]}>Mobile Number (Soft-unique)</Text>
+                  <TextInput
+                    style={[s.inputBox, { backgroundColor: colors.background, borderColor: colors.border, color: colors.text }]}
+                    value={mobile}
+                    onChangeText={handleMobileChange}
+                    placeholder="10-digit mobile"
+                    placeholderTextColor={colors.textSecondary}
+                    keyboardType="phone-pad"
+                    maxLength={10}
                   />
-                  <GlassButton
-                    title={isSubmitting ? 'Saving...' : editingSupplier ? 'Update' : 'Save'}
-                    variant="primary"
-                    onPress={handleSaveSupplier}
-                    disabled={isSubmitting}
-                    style={{ flex: 1.2 }}
+                </View>
+
+                <View style={s.inputGroup}>
+                  <Text style={[s.inputLabel, { color: colors.textSecondary }]}>GSTIN (Optional)</Text>
+                  <TextInput
+                    style={[s.inputBox, { backgroundColor: colors.background, borderColor: colors.border, color: colors.text }]}
+                    value={gstin}
+                    onChangeText={(t) => setGstin(t.toUpperCase())}
+                    placeholder="e.g. 27AAPFU0939F1ZV"
+                    placeholderTextColor={colors.textSecondary}
+                    autoCapitalize="characters"
+                  />
+                </View>
+
+                <View style={s.inputGroup}>
+                  <Text style={[s.inputLabel, { color: colors.textSecondary }]}>Address (Optional)</Text>
+                  <TextInput
+                    style={[s.inputBox, { backgroundColor: colors.background, borderColor: colors.border, color: colors.text, height: 60 }]}
+                    value={address}
+                    onChangeText={setAddress}
+                    placeholder="Street, City, State..."
+                    placeholderTextColor={colors.textSecondary}
+                    multiline
+                  />
+                </View>
+
+                {/* Bank Details Section */}
+                <Text style={[s.sectionHeading, { color: colors.primary }]}>Bank Details for Payments (Optional)</Text>
+
+                <View style={s.inputGroup}>
+                  <Text style={[s.inputLabel, { color: colors.textSecondary }]}>Bank Name</Text>
+                  <TextInput
+                    style={[s.inputBox, { backgroundColor: colors.background, borderColor: colors.border, color: colors.text }]}
+                    value={bankName}
+                    onChangeText={setBankName}
+                    placeholder="e.g. HDFC Bank"
+                    placeholderTextColor={colors.textSecondary}
+                  />
+                </View>
+
+                <View style={s.inputGroup}>
+                  <Text style={[s.inputLabel, { color: colors.textSecondary }]}>Account Number</Text>
+                  <TextInput
+                    style={[s.inputBox, { backgroundColor: colors.background, borderColor: colors.border, color: colors.text }]}
+                    value={bankAccount}
+                    onChangeText={setBankAccount}
+                    placeholder="Account Number"
+                    placeholderTextColor={colors.textSecondary}
+                    keyboardType="numeric"
+                  />
+                </View>
+
+                <View style={s.inputGroup}>
+                  <Text style={[s.inputLabel, { color: colors.textSecondary }]}>IFSC Code</Text>
+                  <TextInput
+                    style={[s.inputBox, { backgroundColor: colors.background, borderColor: colors.border, color: colors.text }]}
+                    value={ifsc}
+                    onChangeText={(t) => setIfsc(t.toUpperCase())}
+                    placeholder="e.g. HDFC0001234"
+                    placeholderTextColor={colors.textSecondary}
+                    autoCapitalize="characters"
                   />
                 </View>
               </ScrollView>
+
+              <View
+                style={[
+                  s.modalFooter,
+                  {
+                    borderTopColor: colors.border,
+                    paddingBottom: isTablet ? 16 : Math.max(insets.bottom, 16),
+                  },
+                ]}
+              >
+                <TouchableOpacity
+                  onPress={() => setModalVisible(false)}
+                  style={[s.cancelBtn, { borderColor: colors.border }]}
+                  disabled={isSubmitting}
+                >
+                  <Text style={[s.cancelBtnText, { color: colors.text }]}>Cancel</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  onPress={handleSaveSupplier}
+                  style={[s.saveBtn, { backgroundColor: colors.primary }]}
+                  disabled={isSubmitting}
+                >
+                  {isSubmitting ? (
+                    <ActivityIndicator color="#FFFFFF" size="small" />
+                  ) : (
+                    <Text style={s.saveBtnText}>{editingSupplier ? 'Update' : 'Save Supplier'}</Text>
+                  )}
+                </TouchableOpacity>
+              </View>
             </View>
-          </View>
+          </KeyboardAvoidingView>
         </Modal>
       </View>
     </TwoToneWrapper>
@@ -617,72 +773,52 @@ const s = StyleSheet.create({
     gap: 8,
     flexWrap: 'wrap',
   },
-  topBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  container: {
+    flex: 1,
     paddingHorizontal: 16,
-    paddingTop: 16,
-    gap: 10,
+  },
+  topBar: {
+    marginBottom: 10,
+    marginTop: 8,
+  },
+  screenSubtitle: {
+    fontSize: 12,
+    marginTop: 2,
   },
   searchBox: {
-    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(30, 41, 59, 0.8)',
+    paddingHorizontal: 12,
+    height: 46,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
-    paddingHorizontal: 12,
-    paddingVertical: 10,
+    marginBottom: 14,
   },
   searchInput: {
     flex: 1,
-    fontSize: 15,
-    color: '#F8FAFC',
-  },
-  addButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    backgroundColor: '#059669',
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 11,
-  },
-  addButtonText: {
-    color: '#FFFFFF',
+    marginLeft: 8,
     fontSize: 14,
-    fontWeight: '700',
   },
   tabBar: {
     flexDirection: 'row',
-    paddingHorizontal: 16,
-    paddingTop: 12,
+    marginBottom: 10,
     gap: 8,
   },
   tabItem: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 8,
-    backgroundColor: 'rgba(30, 41, 59, 0.6)',
+    flex: 1,
+    paddingVertical: 8,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.06)',
-  },
-  tabItemActive: {
-    backgroundColor: 'rgba(5, 150, 105, 0.2)',
-    borderColor: '#059669',
   },
   tabText: {
     fontSize: 12,
-    fontWeight: '600',
-    color: '#94A3B8',
-  },
-  tabTextActive: {
-    color: '#34D399',
+    textAlign: 'center',
   },
   countRow: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
+    paddingVertical: 6,
+    marginBottom: 8,
   },
   countText: {
     fontSize: 13,
@@ -706,21 +842,50 @@ const s = StyleSheet.create({
     color: '#94A3B8',
     textAlign: 'center',
   },
+  supplierCard: {
+    padding: 13,
+    borderRadius: 16,
+    marginBottom: 10,
+  },
   cardHeader: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
+    alignItems: 'center',
+    marginBottom: 6,
+  },
+  avatarContainer: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    borderWidth: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 10,
+  },
+  avatarText: {
+    fontSize: 16,
+    fontWeight: '800',
+  },
+  headerDetails: {
+    flex: 1,
   },
   nameBadgeRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
     flexWrap: 'wrap',
-    marginBottom: 4,
   },
   cardSupplierName: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '700',
+  },
+  inlineContact: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: 'rgba(100, 116, 139, 0.08)',
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: 6,
   },
   typeBadge: {
     paddingHorizontal: 7,
@@ -743,184 +908,223 @@ const s = StyleSheet.create({
   gstinText: {
     fontSize: 10,
     fontWeight: '700',
-    color: '#38BDF8',
+    color: '#0284C7',
   },
-  metaRow: {
+  addressRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    marginTop: 4,
+    gap: 5,
+    marginTop: 3,
   },
   metaText: {
-    fontSize: 13,
-    color: '#94A3B8',
+    fontSize: 12,
+    fontWeight: '500',
   },
   bankBox: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 6,
-    backgroundColor: 'rgba(56, 189, 248, 0.08)',
+    marginTop: 4,
+    marginBottom: 6,
     paddingHorizontal: 8,
     paddingVertical: 4,
-    borderRadius: 6,
+    borderRadius: 8,
+    borderWidth: 1,
   },
   bankText: {
-    fontSize: 12,
-    color: '#7DD3FC',
+    fontSize: 11.5,
     fontWeight: '500',
   },
-  balanceCol: {
-    alignItems: 'flex-end',
-    backgroundColor: 'rgba(15, 23, 42, 0.6)',
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.05)',
-  },
-  balanceLabel: {
-    fontSize: 10,
-    fontWeight: '600',
-    color: '#64748B',
-    textTransform: 'uppercase',
-  },
-  balanceValue: {
-    fontSize: 14,
-    fontWeight: '800',
-    marginTop: 2,
-  },
-  balanceSub: {
-    fontSize: 10,
-    color: '#94A3B8',
-  },
-  cardActions: {
+  balanceBanner: {
     flexDirection: 'row',
-    justifyContent: 'flex-end',
-    gap: 12,
-    marginTop: 12,
-    paddingTop: 10,
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(255, 255, 255, 0.06)',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    borderRadius: 11,
+    borderWidth: 1,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    marginBottom: 8,
   },
-  actionBtn: {
+  balanceColLeft: {
+    flex: 1,
+  },
+  balanceTitleRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 5,
-    paddingVertical: 5,
-    paddingHorizontal: 10,
-    borderRadius: 8,
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    marginBottom: 2,
+  },
+  balanceLabel: {
+    fontSize: 10.5,
+    fontWeight: '600',
+    textTransform: 'uppercase',
+    letterSpacing: 0.3,
+  },
+  balanceValue: {
+    fontSize: 15,
+    fontWeight: '800',
+  },
+  balanceStatusPill: {
+    paddingHorizontal: 9,
+    paddingVertical: 3.5,
+    borderRadius: 7,
+    borderWidth: 1,
+  },
+  balanceStatusText: {
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  cardActions: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingTop: 8,
+    borderTopWidth: 1,
   },
   actionBtnPayment: {
-    backgroundColor: 'rgba(217, 119, 6, 0.12)',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 11,
+    paddingVertical: 6,
+    borderRadius: 8,
     borderWidth: 1,
-    borderColor: 'rgba(217, 119, 6, 0.25)',
+    backgroundColor: 'rgba(217, 119, 6, 0.12)',
+    borderColor: 'rgba(217, 119, 6, 0.28)',
   },
-  actionBtnText: {
+  actionBtnPaymentText: {
     fontSize: 12,
     fontWeight: '700',
+    color: '#D97706',
+  },
+  rightActions: {
+    flexDirection: 'row',
+    gap: 7,
+  },
+  iconBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.75)',
+    backgroundColor: 'rgba(0,0,0,0.6)',
     justifyContent: 'flex-end',
   },
-  modalContent: {
-    backgroundColor: '#0F172A',
+  modalCard: {
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
     maxHeight: '90%',
-    padding: 20,
   },
   modalHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 16,
-  },
-  iconBadge: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
-    backgroundColor: 'rgba(5, 150, 105, 0.15)',
-    justifyContent: 'center',
-    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingTop: 18,
+    paddingBottom: 14,
   },
   modalTitle: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#F8FAFC',
   },
-  closeButton: {
-    padding: 6,
-    borderRadius: 8,
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+  modalSubtitle: {
+    fontSize: 13,
+    marginTop: 2,
+  },
+  closeBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalBody: {
+    paddingHorizontal: 20,
+    marginBottom: 10,
+  },
+  inputGroup: {
+    marginBottom: 12,
+  },
+  inputLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+    marginBottom: 6,
+  },
+  typeSelector: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  typeOption: {
+    flex: 1,
+    paddingVertical: 10,
+    borderRadius: 10,
+    alignItems: 'center',
+    borderWidth: 1,
+  },
+  typeOptionText: {
+    fontSize: 12,
+    fontWeight: '600',
+    textAlign: 'center',
+  },
+  inputBox: {
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    height: 46,
+    fontSize: 14,
+  },
+  sectionHeading: {
+    fontSize: 13,
+    fontWeight: '700',
+    marginTop: 8,
+    marginBottom: 10,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  modalFooter: {
+    flexDirection: 'row',
+    paddingHorizontal: 20,
+    paddingTop: 16,
+    borderTopWidth: 1,
+    gap: 12,
+  },
+  cancelBtn: {
+    flex: 1,
+    height: 48,
+    borderRadius: 12,
+    borderWidth: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  cancelBtnText: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  saveBtn: {
+    flex: 2,
+    height: 48,
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  saveBtnText: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '700',
   },
   warningBox: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(245, 158, 11, 0.15)',
     borderRadius: 10,
     padding: 10,
     borderWidth: 1,
-    borderColor: 'rgba(245, 158, 11, 0.3)',
     marginBottom: 12,
   },
   warningText: {
     flex: 1,
     fontSize: 12,
-    color: '#FBBF24',
-  },
-  fieldLabel: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#94A3B8',
-    marginBottom: 6,
-    marginTop: 8,
-  },
-  typeSelector: {
-    flexDirection: 'row',
-    gap: 8,
-    marginBottom: 8,
-  },
-  typeOption: {
-    flex: 1,
-    paddingVertical: 8,
-    borderRadius: 8,
-    backgroundColor: 'rgba(30, 41, 59, 0.6)',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.08)',
-  },
-  typeOptionSelected: {
-    backgroundColor: 'rgba(5, 150, 105, 0.2)',
-    borderColor: '#059669',
-  },
-  typeOptionText: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: '#94A3B8',
-    textAlign: 'center',
-  },
-  typeOptionTextSelected: {
-    color: '#34D399',
-  },
-  formInput: {
-    backgroundColor: 'rgba(30, 41, 59, 0.8)',
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    fontSize: 15,
-    color: '#F8FAFC',
-  },
-  formActions: {
-    flexDirection: 'row',
-    marginTop: 24,
-    marginBottom: 20,
-    gap: 8,
   },
 });
