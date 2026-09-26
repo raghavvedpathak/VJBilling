@@ -1,0 +1,18 @@
+{
+  "ignores": [
+    "expo-build-properties",
+    "expo-font",
+    "expo-linear-gradient",
+    "expo-status-bar",
+    "expo-system-ui",
+    "react-native-worklets",
+    "eslint-config-expo",
+    "jpeg-js",
+    "pngjs",
+    "knip",
+    "depcheck",
+    "@types/crypto-js",
+    "crypto-js",
+    "decimal.js"
+  ]
+}

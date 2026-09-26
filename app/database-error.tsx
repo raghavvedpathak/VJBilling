@@ -2,9 +2,9 @@
 
 import React, { useEffect, useState } from 'react';
 import { View, Text, Alert, ActivityIndicator, ScrollView, Linking } from 'react-native';
+import { router } from 'expo-router';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
-import * as Updates from 'expo-updates';
 import { STORAGE_PATHS } from '@/constants';
 import { PRE_MIGRATION_SNAPSHOT_PATH } from '@/services/phase1/bootstrapService';
 import { getDeviceDerivedKeyMaterial } from '@/utils/deviceKey';
@@ -123,8 +123,8 @@ export default function DatabaseErrorScreen() {
         FileSystem.deleteAsync(`${dbBase}-shm`, { idempotent: true }),
       ]);
 
-      Alert.alert('Reset Complete', 'Database wiped completely. The app will now reload.', [
-        { text: 'Restart App', onPress: () => Updates.reloadAsync() },
+      Alert.alert('Reset Complete', 'Database wiped completely. Tap OK to restart.', [
+        { text: 'OK', onPress: () => router.replace('/') },
       ]);
     } catch {
       Alert.alert('Error', 'Failed to delete database journal files.');

@@ -6,11 +6,6 @@ import { jest } from '@jest/globals';
 import { restore, restoreService } from '@/services/phase1/restoreService';
 import { bootstrapDatabase } from '@/services/phase1/bootstrapService';
 
-// 1. MOCK: expo-updates
-// Intercepts Updates.reloadAsync() in development/debug builds to prevent native crashes.
-jest.mock('expo-updates', () => ({
-  reloadAsync: jest.fn().mockImplementation(async () => {}),
-}));
 
 // 2. HELPER: restoreAndBootstrap() (Review Item 5 / POST-V726 FIX)
 // Manually executes bootstrapDatabase() after restore() to simulate the post-reload bootstrap in test builds.

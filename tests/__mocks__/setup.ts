@@ -163,13 +163,7 @@ jest.mock('@react-native-async-storage/async-storage', () => ({
 jest.spyOn(AppState, 'addEventListener').mockImplementation(() => ({ remove: jest.fn() }) as any);
 jest.spyOn(Alert, 'alert').mockImplementation(jest.fn());
 
-// ─── 8. MOCK: expo-updates ───────────────────────────────────────────────────
-
-jest.mock('expo-updates', () => ({
-  reloadAsync: jest.fn().mockResolvedValue(undefined),
-}));
-
-// ─── 9. MOCK: expo-sharing ──────────────────────────────────────────────────
+// ─── 8. MOCK: expo-sharing ──────────────────────────────────────────────────
 
 jest.mock('expo-sharing', () => ({
   isAvailableAsync: jest.fn().mockResolvedValue(false),

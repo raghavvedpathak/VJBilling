@@ -12,7 +12,6 @@
 import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Crypto from 'expo-crypto';
-import * as Updates from 'expo-updates';
 import * as Haptics from 'expo-haptics';
 import quickCrypto, { Buffer } from 'react-native-quick-crypto';
 import { Alert } from 'react-native';
@@ -342,11 +341,7 @@ export const restoreService = {
 
       storage.set('vjbilling_post_restore_logo_check_pending', 'true');
 
-      try {
-        await Updates.reloadAsync();
-      } catch {
-        console.warn('[Restore] Manual reload required in development environment.');
-      }
+      console.log('[Restore] Restore completed successfully.');
 
     } catch (error: any) {
       try {

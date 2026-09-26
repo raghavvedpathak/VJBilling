@@ -1,0 +1,26 @@
+{
+  "$schema": "https://unpkg.com/knip@5/overview/configuration-schema.json",
+  "entry": [
+    "app/**/*.{ts,tsx}",
+    "scripts/**/*.{ts,js}",
+    "tests/**/*.{ts,tsx}"
+  ],
+  "project": [
+    "app/**/*.{ts,tsx}",
+    "components/**/*.{ts,tsx}",
+    "services/**/*.{ts,tsx}",
+    "store/**/*.{ts,tsx}",
+    "repositories/**/*.{ts,tsx}",
+    "db/**/*.{ts,tsx}",
+    "types/**/*.{ts,tsx}",
+    "constants/**/*.{ts,tsx}",
+    "hooks/**/*.{ts,tsx}",
+    "utils/**/*.{ts,tsx}",
+    "templates/**/*.{ts,tsx}"
+  ],
+  "rules": {
+    "types": "off",
+    "duplicates": "off",
+    "exports": "off"
+  }
+}

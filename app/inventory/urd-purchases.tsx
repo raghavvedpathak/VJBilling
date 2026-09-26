@@ -856,6 +856,8 @@ export default function URDPurchasesScreen() {
                 source={{ html: previewHtml }}
                 style={{ flex: 1 }}
                 originWhitelist={['*']}
+                allowFileAccess={false}
+                javaScriptCanOpenWindowsAutomatically={false}
                 scalesPageToFit={true}
                 showsHorizontalScrollIndicator={false}
                 showsVerticalScrollIndicator={true}

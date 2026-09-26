@@ -11,4 +11,21 @@
 -keep class com.swmansion.reanimated.** { *; }
 -keep class com.facebook.react.** { *; }
 -keep class expo.modules.sqlite.** { *; }
-# Add any project specific keep options here:
+
+# react-native-mmkv (JSI native bindings)
+-keep class com.tencent.mmkv.** { *; }
+-keep class com.reactnativemmkv.** { *; }
+
+# react-native-nitro-modules & react-native-quick-crypto (Nitro JSI)
+-keep class com.margelo.nitro.** { *; }
+-keep class com.quickcrypto.** { *; }
+
+# react-native-screens
+-keep class com.swmansion.rnscreens.** { *; }
+
+# react-native-svg
+-keep class com.horcrux.svg.** { *; }
+
+# Expo Native Modules
+-keep class expo.modules.** { *; }
+-keepclassmembers class * extends expo.modules.kotlin.modules.Module { *; }
