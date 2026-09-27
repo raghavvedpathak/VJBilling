@@ -51,6 +51,16 @@ export const appSettingsStore = create<AppSettingsSlice>()(
     {
       name: 'app-settings-store',
       storage: createJSONStorage(() => zustandStorage),
+      onRehydrateStorage: () => (state) => {
+        if (state) {
+          if (!state.currencySymbol || state.currencySymbol === '$') {
+            state.currencySymbol = '\u20B9';
+          }
+          if (!state.currency || state.currency === 'USD') {
+            state.currency = 'INR';
+          }
+        }
+      },
     }
   )
 );

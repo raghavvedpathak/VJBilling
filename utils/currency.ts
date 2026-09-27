@@ -90,7 +90,11 @@ export function amountToWords(paise: number): string {
 }
 
 export function getCurrencySymbol(): string {
-  return appSettingsStore.getState().currencySymbol ?? '\u20B9';
+  const symbol = appSettingsStore.getState()?.currencySymbol;
+  if (!symbol || symbol === '$' || symbol === 'USD') {
+    return '\u20B9';
+  }
+  return symbol;
 }
 
 export function rupeesToPaise(rupees: number | string | null | undefined): number | null {

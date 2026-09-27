@@ -2,7 +2,7 @@
 // Central hub for Sales Invoicing, Payments, Parties & Ledgers, and Tax Configuration
 
 import React, { useState, useCallback, useEffect } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, StyleSheet, useWindowDimensions } from 'react-native';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
@@ -32,6 +32,7 @@ import {
   SlidersHorizontal,
   Edit2,
   Sparkles,
+  Zap,
 } from 'lucide-react-native';
 
 // Micro 3D Bullion Bar Component for Live Bhav Card
@@ -86,6 +87,8 @@ const BhavBullionBadge = ({ label, isGold }: { label: string; isGold: boolean })
 export default function BillingHubScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { width } = useWindowDimensions();
+  const isTablet = width >= 768;
   const currencySymbol = getCurrencySymbol();
   const { activeFirmId } = useFirmStore();
   const activeTheme = appSettingsStore((s: any) => s.theme);
@@ -306,34 +309,71 @@ export default function BillingHubScreen() {
           </GlassCard>
         </TouchableOpacity>
 
-        {/* HERO TILE: NEW SALE INVOICE */}
+        {/* HERO CARD: NEW SALE INVOICE (JEWEL POS COMMAND CENTER) */}
         <TouchableOpacity
           testID="billing-new-sale-tile"
-          activeOpacity={0.85}
+          activeOpacity={0.9}
           onPress={() => {
             try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); } catch {}
             router.push('/billing/sale');
           }}
           style={{ marginBottom: 24 }}
         >
-          <GlassCard style={{ padding: 0, borderColor: 'rgba(5, 150, 105, 0.4)' }}>
-            <View style={[s.heroCardInner, { backgroundColor: 'rgba(5, 150, 105, 0.08)' }]}>
-              <View style={[s.heroIconBox, { backgroundColor: '#059669' }]}>
-                <FileText size={28} color="#FFFFFF" />
+          <GlassCard
+            style={[
+              s.saleCommandCard,
+              {
+                borderColor: isDark ? 'rgba(16, 185, 129, 0.4)' : 'rgba(5, 150, 105, 0.35)',
+                backgroundColor: isDark ? 'rgba(6, 78, 59, 0.22)' : 'rgba(236, 253, 245, 0.85)',
+              },
+            ]}
+          >
+            {/* Top Row: 3D Emblem, Titles & Status Badges */}
+            <View style={s.saleCommandHeader}>
+              <View style={s.saleCommandIconWrapper}>
+                <View style={[s.saleCommandIconBox, { backgroundColor: '#059669' }]}>
+                  <Receipt size={26} color="#FFFFFF" />
+                </View>
+                <View style={s.iconSparkleBadge}>
+                  <Sparkles size={10} color="#FBBF24" />
+                </View>
               </View>
-              <View style={{ flex: 1 }}>
-                <View style={s.titleRow}>
-                  <Text style={[s.heroTitle, { color: colors.vjText }]}>New Sale Invoice</Text>
+
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <View style={s.saleCommandTitleRow}>
+                  <Text style={[s.saleCommandTitle, { color: colors.vjText }]}>NEW SALE INVOICE</Text>
+                  <View style={s.posLiveBadge}>
+                    <View style={s.liveDotPulse} />
+                    <Text style={s.posLiveBadgeText}>FAST POS</Text>
+                  </View>
                   <View style={s.badgeEmerald}>
                     <Text style={s.badgeEmeraldText}>DRAFT & GST</Text>
                   </View>
                 </View>
-                <Text style={[s.heroSubtitle, { color: colors.vjText, opacity: 0.7 }]}>
-                  Create retail invoice with customer details, item barcode/loose lots & old metal
+                <Text style={[s.saleCommandSubtitle, { color: colors.textSecondary }]}>
+                  Retail jewelry counter billing with GST & old gold exchange
                 </Text>
               </View>
-              <View style={[s.chevronBox, { backgroundColor: '#05966920', borderColor: '#05966940' }]}>
-                <ChevronRight size={20} color="#059669" />
+            </View>
+
+            {/* Bottom Strip: Live Bhav Sync & Primary Action Button */}
+            <View style={s.saleCommandFooter}>
+              <View style={s.saleCommandFooterLeft}>
+                <Zap size={14} color={isDark ? '#FBBF24' : '#D97706'} />
+                <Text style={[s.saleRateSyncText, { color: colors.vjText }]}>
+                  {gold22PerGram ? (
+                    <>
+                      Live Bhav: <Text style={{ fontWeight: '800', color: isDark ? '#FDE68A' : '#92400E' }}>22K @ {formatRupees(gold22PerGram)}/g</Text>
+                    </>
+                  ) : (
+                    'Auto-linked with Daily Metal Rates'
+                  )}
+                </Text>
+              </View>
+
+              <View style={[s.startBillBtn, { backgroundColor: '#059669' }]}>
+                <Text style={s.startBillBtnText}>START BILL NOW</Text>
+                <ArrowUpRight size={15} color="#FFFFFF" />
               </View>
             </View>
           </GlassCard>
@@ -702,6 +742,117 @@ const s = StyleSheet.create({
   bhavFooterLink: {
     fontSize: 11.5,
     fontWeight: '700',
+  },
+  saleCommandCard: {
+    padding: 0,
+    borderRadius: 20,
+    overflow: 'hidden',
+  },
+  saleCommandHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    paddingBottom: 16,
+  },
+  saleCommandIconWrapper: {
+    position: 'relative',
+  },
+  saleCommandIconBox: {
+    width: 50,
+    height: 50,
+    borderRadius: 15,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#059669',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.35,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  iconSparkleBadge: {
+    position: 'absolute',
+    top: -3,
+    right: -3,
+    backgroundColor: '#78350F',
+    borderRadius: 999,
+    padding: 3,
+    borderWidth: 1,
+    borderColor: '#FDE68A',
+  },
+  saleCommandTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 3,
+    flexWrap: 'wrap',
+  },
+  saleCommandTitle: {
+    fontSize: 17,
+    fontWeight: '900',
+    letterSpacing: -0.3,
+  },
+  posLiveBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: 'rgba(5, 150, 105, 0.14)',
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: 'rgba(5, 150, 105, 0.3)',
+  },
+  posLiveBadgeText: {
+    fontSize: 9.5,
+    fontWeight: '800',
+    color: '#059669',
+    letterSpacing: 0.5,
+  },
+  saleCommandSubtitle: {
+    fontSize: 12,
+    fontWeight: '500',
+    lineHeight: 16,
+  },
+  saleCommandFooter: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(0, 0, 0, 0.06)',
+  },
+  saleCommandFooterLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    flex: 1,
+    marginRight: 10,
+  },
+  saleRateSyncText: {
+    fontSize: 11.5,
+    fontWeight: '600',
+  },
+  startBillBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 10,
+    shadowColor: '#059669',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  startBillBtnText: {
+    fontSize: 11.5,
+    fontWeight: '900',
+    color: '#FFFFFF',
+    letterSpacing: 0.5,
   },
   heroCardInner: {
     flexDirection: 'row',
