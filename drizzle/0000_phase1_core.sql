@@ -184,7 +184,7 @@ END;
 --> statement-breakpoint
 CREATE TRIGGER prevent_firm_code_update BEFORE UPDATE OF firm_code ON firms
 BEGIN 
-  SELECT RAISE(ABORT, 'FIRM_CODE_IMMUTABLE: firm_code cannot be changed after creation'); 
+  SELECT RAISE(ABORT, 'FIRM_CODE_IMMUTABLE: firmCode cannot be changed after creation'); 
 END;
 --> statement-breakpoint
 CREATE TRIGGER safe_mode_row_guard AFTER INSERT ON schema_version

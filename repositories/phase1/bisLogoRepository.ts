@@ -1,5 +1,7 @@
-// repositories/bisLogoRepository.ts
+// repositories/phase1/bisLogoRepository.ts
 // Strict DB access layer for bis_logos table.
+// v6.6: findActiveByFirmId added
+// v7.39: Unambiguous multi-signature argument resolution
 
 import * as Crypto from 'expo-crypto';
 import { eq, and } from 'drizzle-orm';
@@ -22,6 +24,58 @@ function resolveTxAndFirmId(arg1: any, arg2?: any): { tx: DbOrTx; firmId: string
     return { firmId: arg1, tx: getDb(arg2) };
   }
   return { tx: getDb(arg1), firmId: arg2 };
+}
+
+function resolveArchiveArgs(
+  arg1: any,
+  arg2?: any,
+  arg3?: any,
+  arg4?: any
+): { tx: DbOrTx; bisLogoId: string; reason: string } {
+  let tx: DbOrTx = getDb();
+  let bisLogoId = '';
+  let reason = 'licence_removed';
+
+  // 1. Canonical: (tx, bisLogoId, reason?)
+  if (arg1 && typeof arg1 === 'object' && ('update' in arg1 || 'select' in arg1)) {
+    tx = getDb(arg1);
+    bisLogoId = typeof arg2 === 'string' ? arg2 : '';
+    if (typeof arg3 === 'string') reason = arg3;
+    return { tx, bisLogoId, reason };
+  }
+
+  // 2. (bisLogoId, tx, reason?)
+  if (typeof arg1 === 'string' && arg2 && typeof arg2 === 'object' && ('update' in arg2 || 'select' in arg2)) {
+    bisLogoId = arg1;
+    tx = getDb(arg2);
+    if (typeof arg3 === 'string') reason = arg3;
+    return { tx, bisLogoId, reason };
+  }
+
+  // 3. (bisLogoId, reason, tx)
+  if (typeof arg1 === 'string' && typeof arg2 === 'string' && arg3 && typeof arg3 === 'object') {
+    bisLogoId = arg1;
+    reason = arg2;
+    tx = getDb(arg3);
+    return { tx, bisLogoId, reason };
+  }
+
+  // 4. (firmId, bisLogoId, reason, tx)
+  if (typeof arg1 === 'string' && typeof arg2 === 'string' && typeof arg3 === 'string' && arg4 && typeof arg4 === 'object') {
+    bisLogoId = arg2;
+    reason = arg3;
+    tx = getDb(arg4);
+    return { tx, bisLogoId, reason };
+  }
+
+  // 5. Fallback strings: (bisLogoId, reason?)
+  if (typeof arg1 === 'string') {
+    bisLogoId = arg1;
+    if (typeof arg2 === 'string') reason = arg2;
+    return { tx, bisLogoId, reason };
+  }
+
+  return { tx, bisLogoId, reason };
 }
 
 export const bisLogoRepository = {
@@ -57,32 +111,10 @@ export const bisLogoRepository = {
 
   /**
    * Soft-deletes / archives a BIS logo record.
-   * Supports (tx, bisLogoId, reason?), (firmId, bisLogoId, reason?, tx), and (bisLogoId, tx).
+   * Resolves signatures cleanly without parameter collision.
    */
   archive(arg1: any, arg2?: any, arg3?: any, arg4?: any): void {
-    let tx: DbOrTx = getDb();
-    let bisLogoId: string = '';
-    let reason: string = 'licence_removed';
-
-    if (arg1 && typeof arg1 === 'object' && 'update' in arg1) {
-      // (tx, bisLogoId, reason)
-      tx = getDb(arg1);
-      bisLogoId = arg2;
-      if (typeof arg3 === 'string') reason = arg3;
-    } else if (arg4 && typeof arg4 === 'object' && 'update' in arg4) {
-      // (firmId, bisLogoId, reason, tx)
-      tx = getDb(arg4);
-      bisLogoId = arg2;
-      if (typeof arg3 === 'string') reason = arg3;
-    } else if (typeof arg1 === 'string' && typeof arg2 === 'string') {
-      bisLogoId = arg2;
-      if (typeof arg3 === 'string') reason = arg3;
-      tx = getDb(arg4);
-    } else if (typeof arg1 === 'string') {
-      bisLogoId = arg1;
-      if (typeof arg2 === 'string') reason = arg2;
-      tx = getDb(arg3);
-    }
+    const { tx, bisLogoId, reason } = resolveArchiveArgs(arg1, arg2, arg3, arg4);
 
     if (!bisLogoId) return;
 
@@ -112,3 +144,7 @@ export const bisLogoRepository = {
     return row ?? null;
   },
 };
+
+export const archive = bisLogoRepository.archive.bind(bisLogoRepository);
+export const findActiveByFirmId = bisLogoRepository.findActiveByFirmId.bind(bisLogoRepository);
+export default bisLogoRepository;

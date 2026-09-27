@@ -1,4 +1,5 @@
-// components/FYEndBanner.tsx — Phase 2 v2.11 Canonical Component
+// components/FYEndBanner.tsx — Phase 1 & 2 Canonical Component
+// G68: Propagates formatDate() for all date displays
 
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
@@ -6,6 +7,7 @@ import { useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { useSession } from '@/hooks/useSession';
 import { useFyBannerStore } from '@/store/phase1/fyBannerStore';
+import { formatDate } from '@/utils/formatDate';
 import { AlertTriangle, ChevronRight } from 'lucide-react-native';
 import { COLORS } from '@/constants/theme';
 
@@ -24,6 +26,8 @@ export function FYEndBanner({ activeFY: propActiveFY }: FYEndBannerProps = {}) {
     return null;
   }
 
+  const formattedEndDate = activeFY?.endDate ? formatDate(activeFY.endDate) : 'period boundary';
+
   return (
     <View style={s.banner}>
       <View style={s.iconContainer}>
@@ -32,7 +36,7 @@ export function FYEndBanner({ activeFY: propActiveFY }: FYEndBannerProps = {}) {
       <View style={s.textContainer}>
         <Text style={s.title}>Financial Year Ended</Text>
         <Text style={s.message}>
-          {activeFY?.label ? `${activeFY.label} ended` : 'Current financial year ended'} on {activeFY?.endDate ?? 'period boundary'}. You must close the year to carry forward opening balances.
+          {activeFY?.label ? `${activeFY.label} ended` : 'Current financial year ended'} on {formattedEndDate}. You must close the year to carry forward opening balances.
         </Text>
         <TouchableOpacity 
           style={s.actionBtn} 
@@ -49,6 +53,8 @@ export function FYEndBanner({ activeFY: propActiveFY }: FYEndBannerProps = {}) {
     </View>
   );
 }
+
+export default FYEndBanner;
 
 const s = StyleSheet.create({
   banner: {

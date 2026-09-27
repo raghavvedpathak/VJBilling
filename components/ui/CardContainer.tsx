@@ -8,8 +8,8 @@ import { View, Text, TouchableOpacity, ViewProps, ViewStyle, StyleSheet, Platfor
 import { BlurView } from 'expo-blur';
 import * as Haptics from 'expo-haptics';
 import { ChevronRight } from 'lucide-react-native';
-import { COLORS, getThemeColors } from '../../constants/theme';
-import { appSettingsStore } from '../../store/phase1/appSettingsStore';
+import { getThemeColors } from '@/constants/theme';
+import { appSettingsStore } from '@/store/phase1/appSettingsStore';
 
 // ============================================================================
 // 1. BASE GLASS CARD CONTAINER
@@ -250,7 +250,7 @@ export function MenuTile({
                             ? '#B45309'
                             : badgeVariant === 'active'
                             ? '#047857'
-                            : 'rgba(42, 18, 8, 0.5)',
+                            : `${colors.vjText}99`,
                         }}
                       >
                         {badgeText}
@@ -389,7 +389,7 @@ export function MenuTile({
                           ? '#B45309'
                           : badgeVariant === 'active'
                           ? '#047857'
-                          : 'rgba(42, 18, 8, 0.5)',
+                          : `${colors.vjText}99`,
                       }}
                     >
                       {badgeText}

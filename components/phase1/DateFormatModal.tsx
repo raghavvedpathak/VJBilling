@@ -1,5 +1,5 @@
 // components/DateFormatModal.tsx — Phase 1 & Phase 2 Date Format Picker Modal
-// Aligned with Phase 1 v6.2 (G67–G69) & Phase 2 FIX-DATEFORMAT-1 (v1.97 / v1.98 across all 6 options)
+// Aligned with Phase 1 v6.2 (G67–G69) & Phase 1 v7.2 (FIX-V72-1 canonical date-fns v3 tokens)
 
 import React from 'react';
 import { View, Text, TouchableOpacity, Modal } from 'react-native';
@@ -30,14 +30,14 @@ export function DateFormatModal({
     }
   };
 
-  // Full 6-option canonical format registry per Phase 1 v6.2 (G67–G69) and Phase 2 v1.97/v1.98
+  // Exactly 6 canonical tokens per Phase 1 v6.2 (G68) & v7.2 (FIX-V72-1)
   const formats = [
-    { token: 'dd/MM/yyyy', label: 'Compact (Default)' },
+    { token: 'dd/MM/yyyy', label: 'Compact Indian (Default)' },
+    { token: 'd MMM yyyy', label: 'Standard Readable' },
     { token: 'dd-MM-yyyy', label: 'Hyphen Variant' },
-    { token: 'dd.MM.yyyy', label: 'Dot Variant' },
-    { token: 'd MMM yyyy', label: 'Standard (Abbrev)' },
-    { token: 'd MMMM yyyy', label: 'Formal (Full Month)' },
-    { token: 'yyyy-MM-dd', label: 'ISO 8601 (Export/Ledger)' },
+    { token: 'dd MMM yyyy', label: 'Formal Padded' },
+    { token: 'yyyy-MM-dd', label: 'ISO 8601 (CA / Export)' },
+    { token: 'd/M/yyyy',   label: 'Single-Digit Compact' },
   ];
 
   return (
@@ -83,3 +83,5 @@ export function DateFormatModal({
     </Modal>
   );
 }
+
+export default DateFormatModal;

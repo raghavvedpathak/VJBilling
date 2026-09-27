@@ -1,10 +1,11 @@
-// repositories/phase1/auditArchiveIndexRepository.ts — Phase 2 v2.11 Canonical Repository
+// repositories/phase1/auditArchiveIndexRepository.ts — Phase 1 (Table #15) & Phase 2 Canonical Repository
+// Immutability Contract: Append-only archive registry
 
+import * as Crypto from 'expo-crypto';
 import { eq, and, gte, lte, sql } from 'drizzle-orm';
 import db, { db as dbNamed } from '@/db/client';
 import { auditArchiveIndex, auditLogs } from '@/db/schema';
 import { fyRepository } from '@/repositories/phase1/fyRepository';
-import type { DrizzleTransaction, FinancialYear } from '@/types/phase1/fy.types';
 
 type DbOrTx = any;
 
@@ -20,6 +21,7 @@ export const auditArchiveIndexRepository = {
   /**
    * Inserts a row into audit_archive_index.
    * Supports both (tx, data) and (data, tx) argument orders.
+   * Auto-generates a UUID if data.id is omitted.
    */
   insert(arg1: any, arg2?: any): void {
     let tx: DbOrTx = db;
@@ -34,12 +36,20 @@ export const auditArchiveIndexRepository = {
     }
 
     const targetTx = getDb(tx);
-    targetTx.insert(auditArchiveIndex).values(data).run();
+    const id = data.id || Crypto.randomUUID();
+
+    targetTx
+      .insert(auditArchiveIndex)
+      .values({
+        ...data,
+        id,
+      })
+      .run();
   },
 
   /**
    * Counts audit logs for a firm and FY.
-   * Appends T23:59:59.999Z to YYYY-MM-DD endDate to correctly capture logs created on the final day.
+   * Appends T23:59:59.999Z to YYYY-MM-DD endDate to capture logs on the final day.
    * Supports flexible parameter ordering: (tx, firmId, fyId, fy?) or (firmId, fyId, tx?, fy?).
    */
   countByFirmAndFY(arg1: any, arg2?: any, arg3?: any, arg4?: any): number {
@@ -95,3 +105,7 @@ export const auditArchiveIndexRepository = {
     return this.countByFirmAndFY(arg1, arg2, arg3, arg4);
   },
 };
+
+export const insertArchiveIndex = auditArchiveIndexRepository.insert.bind(auditArchiveIndexRepository);
+export const countAuditLogsByFirmAndFY = auditArchiveIndexRepository.countByFirmAndFY.bind(auditArchiveIndexRepository);
+export default auditArchiveIndexRepository;

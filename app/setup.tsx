@@ -1,6 +1,7 @@
 // app/setup.tsx — Phase 1 (v7.39) & Phase 2 Canonical Setup Screen
+// Step 16 Decision Tree: If backup detected -> Show [Restore from Backup] FIRST
 
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useState, useCallback } from 'react';
 import { View, Text, TouchableOpacity, ActivityIndicator, Alert, ScrollView } from 'react-native';
 import { useRouter, useFocusEffect } from 'expo-router';
 import * as FileSystem from 'expo-file-system/legacy';
@@ -28,7 +29,6 @@ export default function SetupScreen() {
   const [hasBackup, setHasBackup] = useState<boolean | null>(null);
   const [restoring, setRestoring] = useState(false);
 
-  // Restore Preview Modal State
   const [previewModalVisible, setPreviewModalVisible] = useState(false);
   const [previewBackup, setPreviewBackup] = useState<BackupEnvelope | null>(null);
   const [previewFileContent, setPreviewFileContent] = useState<string | null>(null);
@@ -43,7 +43,6 @@ export default function SetupScreen() {
           const backupDir = docDir + 'backups/';
           let vjbExists = false;
 
-          // 1. Scan internal backups/ directory
           try {
             const backupDirInfo = await FileSystem.getInfoAsync(backupDir);
             if (backupDirInfo.exists) {
@@ -54,7 +53,6 @@ export default function SetupScreen() {
             }
           } catch {}
 
-          // 2. Scan root directory as fallback
           if (!vjbExists && docDir) {
             try {
               const rootFiles = await FileSystem.readDirectoryAsync(docDir);
@@ -81,7 +79,7 @@ export default function SetupScreen() {
   const handleRestore = async () => {
     try {
       const result = await restoreService.inspectBackupFile();
-      if (!result) return; // User canceled document picker
+      if (!result) return;
 
       setPreviewBackup(result.backup);
       setPreviewFileContent(result.fileContent);
@@ -110,6 +108,82 @@ export default function SetupScreen() {
     }
   };
 
+  const renderEstablishNewFirmCard = () => (
+    <TouchableOpacity 
+      activeOpacity={0.8}
+      onPress={() => router.push("/create-firm")}
+      disabled={restoring}
+      key="card-new-firm"
+    >
+      <GlassCard style={{ padding: 20, marginBottom: 0 }}>
+        <View className="flex-row items-center gap-5">
+          <View className="bg-vj-text p-4 rounded-2xl shadow-sm">
+            <Store size={28} color={COLORS.vjBg} />
+          </View>
+          <View className="flex-1">
+            <Text className="text-vj-text font-bold text-lg mb-0.5">
+              Set Up New Firm
+            </Text>
+            <Text className="text-vj-text/60 text-xs">
+              Start fresh. Establish shop details.
+            </Text>
+          </View>
+          <View className="bg-vj-glass p-2 rounded-full border border-white/20">
+            <ArrowRight size={20} color={COLORS.vjText} />
+          </View>
+        </View>
+      </GlassCard>
+    </TouchableOpacity>
+  );
+
+  const renderRestoreCard = () => (
+    <TouchableOpacity 
+      activeOpacity={0.8}
+      onPress={handleRestore}
+      disabled={restoring}
+      key="card-restore"
+    >
+      <GlassCard 
+        style={{ 
+          padding: 20, 
+          marginBottom: 0, 
+          ...(hasBackup ? { borderColor: COLORS.vjAccent, borderWidth: 2 } : {}) 
+        }}
+      >
+        <View className="flex-row items-center gap-5">
+          <View className="bg-vj-bg p-4 rounded-2xl border border-vj-accent/30">
+            {restoring ? (
+              <ActivityIndicator size="small" color={COLORS.vjAccent} />
+            ) : (
+              <HardDriveDownload size={28} color={COLORS.vjAccent} />
+            )}
+          </View>
+          <View className="flex-1">
+            <View className="flex-row items-center gap-2 mb-0.5">
+              <Text className="text-vj-text font-bold text-lg">
+                {restoring ? "Restoring..." : "Restore from Backup"}
+              </Text>
+              {hasBackup && (
+                <View className="px-2 py-0.5 rounded-full bg-emerald-600/15 border border-emerald-600/30 flex-row items-center gap-1">
+                  <CheckCircle2 size={10} color="#15803D" />
+                  <Text className="text-emerald-800 font-extrabold text-[8px] uppercase tracking-wider">
+                    File Found
+                  </Text>
+                </View>
+              )}
+            </View>
+            <Text className="text-vj-text/60 text-xs">
+              Import your existing .vjb backup file
+            </Text>
+          </View>
+          <View className="bg-vj-glass p-2 rounded-full border border-white/20">
+            <ArrowRight size={20} color={COLORS.vjText} />
+          </View>
+        </View>
+      </GlassCard>
+    </TouchableOpacity>
+  );
+
   return (
     <ScreenWrapper>
       <ScrollView
@@ -119,7 +193,6 @@ export default function SetupScreen() {
       >
         <View className="w-full px-2">
         
-          {/* 1. HERO SECTION (Logo & Title) */}
           <View className="items-center mb-12">
             <View className="h-24 w-24 bg-vj-glass rounded-full border border-white/50 justify-center items-center mb-6 shadow-sm">
               <View className="h-20 w-20 bg-white/60 rounded-full justify-center items-center shadow-inner">
@@ -135,7 +208,6 @@ export default function SetupScreen() {
             </Text>
           </View>
 
-          {/* 2. WELCOME TEXT */}
           <View className="mb-8">
             <Text className="text-vj-text text-2xl font-bold text-center">
               Welcome
@@ -145,88 +217,23 @@ export default function SetupScreen() {
             </Text>
           </View>
 
-          {/* 3. ACTION CARDS */}
+          {/* Step 16 Decision Tree: If backup detected, render Restore FIRST */}
           <View className="gap-4">
             {hasBackup === null ? (
               <ActivityIndicator size="large" color={COLORS.vjAccent} className="mt-4" />
+            ) : hasBackup ? (
+              <>
+                {renderRestoreCard()}
+                {renderEstablishNewFirmCard()}
+              </>
             ) : (
               <>
-                {/* Create New Firm */}
-                <TouchableOpacity 
-                  activeOpacity={0.8}
-                  onPress={() => router.push("/create-firm")}
-                  disabled={restoring}
-                >
-                  <GlassCard style={{ padding: 20, marginBottom: 0 }}>
-                    <View className="flex-row items-center gap-5">
-                      <View className="bg-vj-text p-4 rounded-2xl shadow-sm">
-                        <Store size={28} color={COLORS.vjBg} />
-                      </View>
-                      <View className="flex-1">
-                        <Text className="text-vj-text font-bold text-lg mb-0.5">
-                          Set Up New Firm
-                        </Text>
-                        <Text className="text-vj-text/60 text-xs">
-                          Start fresh. Establish shop details.
-                        </Text>
-                      </View>
-                      <View className="bg-vj-glass p-2 rounded-full border border-white/20">
-                        <ArrowRight size={20} color={COLORS.vjText} />
-                      </View>
-                    </View>
-                  </GlassCard>
-                </TouchableOpacity>
-
-                {/* Restore Backup (Always accessible) */}
-                <TouchableOpacity 
-                  activeOpacity={0.8}
-                  onPress={handleRestore}
-                  disabled={restoring}
-                >
-                  <GlassCard 
-                    style={{ 
-                      padding: 20, 
-                      marginBottom: 0, 
-                      ...(hasBackup ? { borderColor: COLORS.vjAccent, borderWidth: 2 } : {}) 
-                    }}
-                  >
-                    <View className="flex-row items-center gap-5">
-                      <View className="bg-vj-bg p-4 rounded-2xl border border-vj-accent/30">
-                        {restoring ? (
-                          <ActivityIndicator size="small" color={COLORS.vjAccent} />
-                        ) : (
-                          <HardDriveDownload size={28} color={COLORS.vjAccent} />
-                        )}
-                      </View>
-                      <View className="flex-1">
-                        <View className="flex-row items-center gap-2 mb-0.5">
-                          <Text className="text-vj-text font-bold text-lg">
-                            {restoring ? "Restoring..." : "Restore from Backup"}
-                          </Text>
-                          {hasBackup && (
-                            <View className="px-2 py-0.5 rounded-full bg-emerald-600/15 border border-emerald-600/30 flex-row items-center gap-1">
-                              <CheckCircle2 size={10} color="#15803D" />
-                              <Text className="text-emerald-800 font-extrabold text-[8px] uppercase tracking-wider">
-                                File Found
-                              </Text>
-                            </View>
-                          )}
-                        </View>
-                        <Text className="text-vj-text/60 text-xs">
-                          Import your existing .vjb backup file
-                        </Text>
-                      </View>
-                      <View className="bg-vj-glass p-2 rounded-full border border-white/20">
-                        <ArrowRight size={20} color={COLORS.vjText} />
-                      </View>
-                    </View>
-                  </GlassCard>
-                </TouchableOpacity>
+                {renderEstablishNewFirmCard()}
+                {renderRestoreCard()}
               </>
             )}
           </View>
 
-          {/* 4. FOOTER BADGE */}
           <View className="mt-12 items-center flex-row justify-center gap-2 opacity-50">
             <ShieldCheck size={14} color={COLORS.vjText} />
             <Text className="text-vj-text text-xs font-medium">
@@ -237,7 +244,6 @@ export default function SetupScreen() {
         </View>
       </ScrollView>
 
-      {/* Modern Restore Preview Modal */}
       <RestorePreviewModal
         visible={previewModalVisible}
         backup={previewBackup}

@@ -1,10 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
   View,
-  Text,
   StyleSheet,
-  TouchableOpacity,
-  ActivityIndicator,
   ViewStyle,
   TextStyle,
   Keyboard,
@@ -13,7 +10,7 @@ import {
 } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { getThemeColors, COLORS } from '@/constants/theme';
+import { getThemeColors } from '@/constants/theme';
 import { appSettingsStore } from '@/store/phase1/appSettingsStore';
 
 export interface FixedGlassBarProps {

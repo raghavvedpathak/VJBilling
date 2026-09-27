@@ -1,6 +1,8 @@
 // services/phase1/safeModeService.ts — Canonical Safe Mode Service
+// v7.39 Specification Compliant
 
 import db, { db as dbNamed } from '@/db/client';
+import { schemaVersion } from '@/db/schema';
 import { safeModeRepository } from '@/repositories/phase1/safeModeRepository';
 import { auditRepository } from '@/repositories/phase1/auditRepository';
 import { safeModeStore, SafeModeTrigger } from '@/store/phase1/safeModeStore';
@@ -41,17 +43,30 @@ export const safeModeService = {
         clearedAt: null,
       });
 
-      auditRepository.create(
-        {
-          firmId: null,
+      const auditPayload = { reason, ...details };
+
+      // Support both canonical auditRepository.log(tx, ...) and legacy .create(..., tx)
+      if (typeof (auditRepository as any).log === 'function') {
+        (auditRepository as any).log(tx, {
           eventType: 'SAFE_MODE_ACTIVATED',
-          payload: JSON.stringify({ reason, ...details }),
+          firmId: null,
+          payload: JSON.stringify(auditPayload),
           deviceId,
-        },
-        tx
-      );
+        });
+      } else if (typeof (auditRepository as any).create === 'function') {
+        (auditRepository as any).create(
+          {
+            firmId: null,
+            eventType: 'SAFE_MODE_ACTIVATED',
+            payload: JSON.stringify(auditPayload),
+            deviceId,
+          },
+          tx
+        );
+      }
     });
 
+    // v7.18 FIX-V718-5: SETSTATE-OUTSIDE-TX COROLLARY
     safeModeStore.setState({
       isActive: true,
       reason: reason,
@@ -73,17 +88,28 @@ export const safeModeService = {
         clearedAt: currentTime,
       });
 
-      auditRepository.create(
-        {
-          firmId: null,
+      // Support both canonical auditRepository.log(tx, ...) and legacy .create(..., tx)
+      if (typeof (auditRepository as any).log === 'function') {
+        (auditRepository as any).log(tx, {
           eventType: 'SAFE_MODE_CLEARED',
+          firmId: null,
           payload: JSON.stringify({}),
           deviceId,
-        },
-        tx
-      );
+        });
+      } else if (typeof (auditRepository as any).create === 'function') {
+        (auditRepository as any).create(
+          {
+            firmId: null,
+            eventType: 'SAFE_MODE_CLEARED',
+            payload: JSON.stringify({}),
+            deviceId,
+          },
+          tx
+        );
+      }
     });
 
+    // v7.18 FIX-V718-6: SETSTATE-OUTSIDE-TX COROLLARY
     safeModeStore.setState({
       isActive: false,
       reason: null,
@@ -93,7 +119,27 @@ export const safeModeService = {
 
   loadState() {
     const state = safeModeRepository.get();
-    if (!state) return;
+    
+    // v7.7 / v7.8 FIX-V78-4: SAFE-MODE-ROW-GUARD
+    if (!state) {
+      try {
+        const targetDb = getTargetDb();
+        const svRows = targetDb.select().from(schemaVersion).limit(1).all?.() || [];
+        const hasSchemaVersion = Array.isArray(svRows) ? svRows.length > 0 : !!svRows;
+        
+        if (hasSchemaVersion) {
+          console.error('[SafeMode] Corruption detected: schema_version exists but safe_mode_state row missing.');
+          this.activate('STORAGE_CORRUPTION_DETECTED' as SafeModeTrigger, {
+            missingTable: 'safe_mode_state',
+            schemaVersionConfirmed: true,
+          });
+          return;
+        }
+      } catch (err) {
+        console.warn('[SafeMode] Unable to check schemaVersion during loadState fallback:', err);
+      }
+      return;
+    }
 
     safeModeStore.setState({
       isActive: state.isActive === 1,

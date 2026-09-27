@@ -14,6 +14,7 @@ import { eq, desc, isNull, and, gte, lte } from 'drizzle-orm';
 import db, { db as dbNamed } from '@/db/client';
 import { auditLogs, financialYears } from '@/db/schema';
 import { now } from '@/utils/now';
+import { getDeviceId } from '@/utils/deviceId';
 
 type DbOrTx = any;
 
@@ -56,7 +57,15 @@ export const auditRepository = {
     const dbContext = getDb(tx);
     const newId = Crypto.randomUUID();
     const payloadStr = typeof input.payload === 'string' ? input.payload : JSON.stringify(input.payload ?? {});
-    const deviceId = input.deviceId || 'UNKNOWN_DEVICE';
+    
+    let deviceId = input.deviceId;
+    if (!deviceId) {
+      try {
+        deviceId = getDeviceId();
+      } catch {
+        deviceId = 'UNKNOWN_DEVICE';
+      }
+    }
 
     dbContext.insert(auditLogs).values({
       id: newId,

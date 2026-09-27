@@ -22,18 +22,19 @@ export interface StorageService {
 let storageInstance: StorageService;
 
 try {
-  // 1. Production / Native Build: MMKV Engine
+  // 1. Production / Native Build: MMKV Engine (v4 Nitro / v3)
   const { createMMKV, MMKV } = require('react-native-mmkv');
   
   const mmkv = typeof createMMKV === 'function' 
     ? createMMKV({ id: 'vjbilling-storage' }) 
     : new MMKV({ id: 'vjbilling-storage' });
 
+  // v7.33 FIX-V733-10: Prioritize .remove() for MMKV v4; fallback to .delete() for v3
   const safeDelete = (key: string) => {
-    if (typeof mmkv.delete === 'function') {
-      mmkv.delete(key);
-    } else if (typeof (mmkv as any).remove === 'function') {
+    if (typeof (mmkv as any).remove === 'function') {
       (mmkv as any).remove(key);
+    } else if (typeof (mmkv as any).delete === 'function') {
+      (mmkv as any).delete(key);
     }
   };
 

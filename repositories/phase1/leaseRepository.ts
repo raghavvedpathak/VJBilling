@@ -1,5 +1,6 @@
-// repositories/leaseRepository.ts
+// repositories/phase1/leaseRepository.ts
 // Strict DB access layer for writer_leases table.
+// Synchronous JSI execution under Repository Sync Contract.
 
 import { eq, sql } from 'drizzle-orm';
 import db, { db as dbNamed } from '@/db/client';
@@ -94,3 +95,10 @@ export const leaseRepository = {
     targetTx.delete(writerLeases).run();
   },
 };
+
+export const insert = leaseRepository.insert.bind(leaseRepository);
+export const extendTTL = leaseRepository.extendTTL.bind(leaseRepository);
+export const getActiveLease = leaseRepository.getActiveLease.bind(leaseRepository);
+export const deleteLease = leaseRepository.delete.bind(leaseRepository);
+export const deleteAll = leaseRepository.deleteAll.bind(leaseRepository);
+export default leaseRepository;

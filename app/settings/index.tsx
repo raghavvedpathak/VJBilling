@@ -15,6 +15,7 @@ import { isPinSet, isPinSkipped } from '@/services/phase1/pinService';
 import { appSettingsStore } from '@/store/phase1/appSettingsStore';
 import { ThemeSelectorModal } from '@/components/phase1/ThemeSelectorModal';
 import { DateFormatModal } from '@/components/phase1/DateFormatModal';
+import { format as formatDateFns } from 'date-fns';
 import {
   Building2,
   HardDriveDownload,
@@ -85,22 +86,10 @@ export default function SettingsScreen() {
   );
 
   const getTodayPreview = (formatStr: string) => {
-    const today = new Date();
-    const d = String(today.getDate()).padStart(2, '0');
-    const m = String(today.getMonth() + 1).padStart(2, '0');
-    const y = today.getFullYear();
-    const monthNames = [
-      'January', 'February', 'March', 'April', 'May', 'June',
-      'July', 'August', 'September', 'October', 'November', 'December'
-    ];
-    const monthName = monthNames[today.getMonth()];
-
-    switch (formatStr) {
-      case 'dd/MM/yyyy': return `${d}/${m}/${y}`;
-      case 'd MMMM yyyy': return `${Number(d)} ${monthName} ${y}`;
-      case 'dd-MM-yyyy': return `${d}-${m}-${y}`;
-      case 'yyyy-MM-dd': return `${y}-${m}-${d}`;
-      default: return `${d}/${m}/${y}`;
+    try {
+      return formatDateFns(new Date(), formatStr);
+    } catch {
+      return formatDateFns(new Date(), 'dd/MM/yyyy');
     }
   };
 

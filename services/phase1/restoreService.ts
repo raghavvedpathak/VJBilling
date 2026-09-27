@@ -13,6 +13,7 @@ import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Crypto from 'expo-crypto';
 import * as Haptics from 'expo-haptics';
+import * as Updates from 'expo-updates';
 import quickCrypto, { Buffer } from 'react-native-quick-crypto';
 import { Alert } from 'react-native';
 import { db } from '@/db/client';
@@ -29,7 +30,8 @@ import {
 import { eq } from 'drizzle-orm';
 import { leaseService } from '@/services/phase1/leaseService';
 import { auditRepository } from '@/repositories/phase1/auditRepository';
-import { getDeviceId, getDeviceDerivedKeyMaterial } from '@/utils/deviceId';
+import { getDeviceId } from '@/utils/deviceId';
+import { getDeviceDerivedKeyMaterial } from '@/utils/deviceKey';
 import { useLeaseStore } from '@/store/phase1/leaseStore';
 import { storage } from '@/utils/storage';
 import { safeModeService } from '@/services/phase1/safeModeService';
@@ -43,6 +45,15 @@ function getSafeDeviceId(): string {
     return getDeviceId();
   } catch {
     return 'DEV-DEVICE-ID';
+  }
+}
+
+async function resolveDeviceKey(deviceId: string): Promise<Buffer> {
+  try {
+    const key = await getDeviceDerivedKeyMaterial();
+    return Buffer.from(key);
+  } catch {
+    return Buffer.from(quickCrypto.createHash('sha256').update('vjbilling_device_key_v1:' + deviceId).digest());
   }
 }
 
@@ -69,13 +80,17 @@ function decryptBackupEnvelope(parsedBlob: any, password?: string): BackupEnvelo
   const ciphertextBody = combinedCipherBuffer.subarray(0, combinedCipherBuffer.length - 16);
 
   const deviceId = parsedBlob.deviceId || getSafeDeviceId();
-  const keySourceMaterial = parsedBlob.passwordProtected === true
-    ? Buffer.from(password!, 'utf8')
-    : Buffer.from(quickCrypto.createHash('sha256').update('vjbilling_device_key_v1:' + deviceId).digest());
 
   const iterations = parsedBlob.iterations ?? 100_000;
 
   try {
+    let keySourceMaterial: Buffer;
+    if (parsedBlob.passwordProtected === true) {
+      keySourceMaterial = Buffer.from(password!, 'utf8');
+    } else {
+      keySourceMaterial = Buffer.from(quickCrypto.createHash('sha256').update('vjbilling_device_key_v1:' + deviceId).digest());
+    }
+
     // Native C++ PBKDF2 derivation (~20ms)
     const key = quickCrypto.pbkdf2Sync(
       keySourceMaterial as any,
@@ -206,9 +221,9 @@ export const restoreService = {
         `RECORD COUNTS\n` +
         `Audit Logs: ${backupLogs?.length || 0}\n` +
         `Settings: ${backupSettings?.length || 0}\n\n` +
-        (!hasEmbeddedLogos ? `\u26A0\uFE0F Logo images are not included in this backup and will need to be re-uploaded.\n\n` : '') +
+        (!hasEmbeddedLogos ? `⚠️ Logo images are not included in this backup and will need to be re-uploaded.\n\n` : '') +
         (isSafeModeBackedUp
-          ? `\u26A0\uFE0F SAFE MODE ACTIVE IN BACKUP \u26A0\uFE0F\nRestoring it will re-activate Safe Mode.\n\n`
+          ? `⚠️ SAFE MODE ACTIVE IN BACKUP ⚠️\nRestoring it will re-activate Safe Mode.\n\n`
           : '') +
         `Restoring will permanently replace all current data.`,
         [
@@ -242,7 +257,7 @@ export const restoreService = {
         throw new Error(ERR.RESTORE_VALIDATION_FAILED + `: Backup contains ${backup.payload.firms.length} firms. Maximum capacity is 3.`);
       }
 
-      // v7.36 FIX-V736-1: Write embedded logo binaries (logoAssets) to local storage BEFORE the tx runs[cite: 1]
+      // v7.36 FIX-V736-1: Write embedded logo binaries (logoAssets) to local storage BEFORE tx runs[cite: 1]
       const logosDir = (FileSystem.documentDirectory ?? '') + 'logos/';
       await FileSystem.makeDirectoryAsync(logosDir, { intermediates: true }).catch(() => {});
       
@@ -341,7 +356,14 @@ export const restoreService = {
 
       storage.set('vjbilling_post_restore_logo_check_pending', 'true');
 
-      console.log('[Restore] Restore completed successfully.');
+      console.log('[Restore] Restore completed successfully. Triggering app restart...');
+
+      // Step 10: Full app restart per Step 13 / Review Item 5 FIX-V78-7
+      try {
+        await Updates.reloadAsync();
+      } catch (reloadErr) {
+        console.warn('[Restore] Updates.reloadAsync() skipped (development build or Expo Go):', reloadErr);
+      }
 
     } catch (error: any) {
       try {

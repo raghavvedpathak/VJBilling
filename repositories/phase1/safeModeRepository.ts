@@ -1,4 +1,4 @@
-// repositories/safeModeRepository.ts
+// repositories/phase1/safeModeRepository.ts
 // Strict DB access layer for safe_mode_state singleton table (id = 1).
 
 import { eq } from 'drizzle-orm';
@@ -63,3 +63,7 @@ export const safeModeRepository = {
       .run();
   },
 };
+
+export const getSafeModeState = safeModeRepository.get.bind(safeModeRepository);
+export const upsertSafeModeState = safeModeRepository.upsert.bind(safeModeRepository);
+export default safeModeRepository;

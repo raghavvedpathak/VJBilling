@@ -30,12 +30,16 @@ function resolveTxAndId(arg1: any, arg2: any): { tx: DbOrTx; id: string } {
   if (typeof arg1 === 'string') {
     return { id: arg1, tx: getDb(arg2) };
   }
-  return { tx: getDb(arg1), id: arg2 };
+  if (typeof arg2 === 'string') {
+    return { id: arg2, tx: getDb(arg1) };
+  }
+  return { tx: getDb(arg1), id: '' };
 }
 
 export const firmRepository = {
   /**
    * Primary insert method — supports both (tx, data) and (data, tx) parameter orders.
+   * Constitutional Invariant: Defaults isActive to 1 ONLY for the first active firm.
    */
   insert(arg1: any, arg2?: any): Firm {
     let tx: DbOrTx;
@@ -51,6 +55,13 @@ export const firmRepository = {
 
     const newId = data.id || Crypto.randomUUID();
     const timestamp = now();
+    const activeCount = this.countActiveFirms(tx);
+    const resolvedIsActive = data.isActive !== undefined ? data.isActive : (activeCount === 0 ? 1 : 0);
+
+    // If newly inserted firm is set to active, ensure all others are set inactive
+    if (resolvedIsActive === 1) {
+      tx.update(firms).set({ isActive: 0 }).run();
+    }
 
     tx.insert(firms)
       .values({
@@ -58,8 +69,8 @@ export const firmRepository = {
         id: newId,
         createdAt: data.createdAt || timestamp,
         updatedAt: timestamp,
-        isActive: data.isActive ?? 1,   // plain integer 1
-        isArchived: data.isArchived ?? 0, // plain integer 0
+        isActive: resolvedIsActive,
+        isArchived: data.isArchived ?? 0,
       } as NewFirm)
       .run();
 
@@ -79,6 +90,7 @@ export const firmRepository = {
    */
   findById(arg1: any, arg2?: any): Firm | null {
     const { tx, id } = resolveTxAndId(arg1, arg2);
+    if (!id) return null;
     const firm = tx.select().from(firms).where(eq(firms.id, id)).get();
     return firm ?? null;
   },
@@ -86,8 +98,8 @@ export const firmRepository = {
   /**
    * Alias for findById
    */
-  getById(id: string, tx?: DbOrTx): Firm | null {
-    return this.findById(tx, id);
+  getById(first: any, second?: any): Firm | null {
+    return this.findById(first, second);
   },
 
   /**

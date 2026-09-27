@@ -27,11 +27,14 @@ export const db = drizzle(expoDb);
 let isDbInitialized = false;
 let initPromise: Promise<void> | null = null;
 
-export function useDatabase() {
+export function useDatabase(shouldStart: boolean = true) {
   const [isLoaded, setIsLoaded] = useState(isDbInitialized);
   const [triggerError, setTriggerError] = useState<Error | null>(null);
 
   useEffect(() => {
+    // If gating flag is false, do not trigger migrations yet (Step 0 Pre-migration snapshot guard)
+    if (!shouldStart) return;
+
     // If already initialized by a previous mount, exit immediately.
     if (isDbInitialized) return;
 
@@ -570,12 +573,13 @@ export function useDatabase() {
           expoDb.execSync(`INSERT OR IGNORE INTO audit_delete_gate (id, gate_open) VALUES (1, 0);`);
 
           // app_settings row — parameterized runSync() for ₹ symbol to prevent JNI crash
+          // v7.39 PARITY: explicitly includes audit_retention_last_run_at as NULL
           expoDb.runSync(
             `INSERT OR IGNORE INTO app_settings
-              (id, date_format_token, theme, audit_retention_days,
+              (id, date_format_token, theme, audit_retention_days, audit_retention_last_run_at,
                currency, currency_symbol, currency_decimal_places,
                warn_unsaved_changes, updated_at)
-              VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?);`,
+              VALUES (1, ?, ?, ?, NULL, ?, ?, ?, ?, ?);`,
             [
               'dd/MM/yyyy',
               'system',
@@ -611,7 +615,7 @@ export function useDatabase() {
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [shouldStart]);
 
   return {
     isLoaded,

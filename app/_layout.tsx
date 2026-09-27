@@ -86,7 +86,8 @@ function RootBootloader({ colors }: { colors: any }) {
   });
   
   const [snapshotDone, setSnapshotDone] = useState(false);
-  const { isLoaded, error: dbError } = useDatabase();
+  // Gated: database migrations strictly execute AFTER Step 0 snapshot completes
+  const { isLoaded, error: dbError } = useDatabase(pinPassed && snapshotDone);
   const [bootstrapResult, setBootstrapResult] = useState<BootstrapResult>(null);
   const [dbMigrationError, setDbMigrationError] = useState<string | null>(null);
 

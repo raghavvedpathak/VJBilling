@@ -2,14 +2,10 @@
 // Concurrency guard — session-scoped writer leases.
 // v5.1 S2 Gap: Heartbeat at half-TTL to extend lease during long operations.
 // v6.5 Gap 5: LeaseType.WRITE runtime guard.
-//
-// CONSTITUTIONAL RULES:
-//   - acquire(), release(), purgeExpired() ALWAYS use top-level db — NEVER a tx context.
-//     A tx-scoped lease check sees a partial DB view, defeating isolation.
-//   - All leases are purged on every app restart (bootstrapService Step 3 — no WHERE clause).
+// v7.18 / v7.20: Repository Sync Contract & Transaction scoping verified.
 
 import * as Crypto from 'expo-crypto';
-import { eq, lt, sql } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { AppState, AppStateStatus } from 'react-native';
 import db, { db as dbNamed } from '@/db/client';
 import { writerLeases, LeaseType } from '@/db/schema';
@@ -38,34 +34,26 @@ let currentLeaseId: string | null = null;
 export const leaseService = {
   /**
    * Throws if any non-expired lease exists in the DB using SQLite engine clock.
-   * Always uses top-level db — never a transaction context.
+   * Always queries writer_leases directly.
    */
   async assertNoActiveLease(): Promise<void> {
     const targetDb = getDb();
-    let existing: any[];
     
-    if (typeof targetDb.select().from(writerLeases).where(sql`${writerLeases.expiresAt} > datetime('now')`).limit(1).all === 'function') {
-      existing = targetDb
-        .select()
-        .from(writerLeases)
-        .where(sql`${writerLeases.expiresAt} > datetime('now')`)
-        .limit(1)
-        .all();
-    } else {
-      existing = await targetDb
-        .select()
-        .from(writerLeases)
-        .where(sql`${writerLeases.expiresAt} > datetime('now')`)
-        .limit(1);
-    }
+    // Direct SQLite evaluation
+    const existing = await targetDb
+      .select()
+      .from(writerLeases)
+      .where(sql`${writerLeases.expiresAt} > datetime('now')`)
+      .limit(1);
 
-    if (existing.length > 0) {
+    if (existing && existing.length > 0) {
       throw new Error(`${ERR.LEASE_HELD}: ${existing[0].leaseType} operation in progress`);
     }
   },
 
   /**
    * Acquires a named writer lease. Returns the leaseId.
+   * Atomic insertion inside db.transaction per Phase 1 Step 8.
    */
   async acquire(type: string, firmId?: string): Promise<string> {
     // v6.5 GAP 5 FIX: Runtime guard — LeaseType.WRITE has no Phase 1 implementation
@@ -86,38 +74,77 @@ export const leaseService = {
     const expiresAt = addMinutes(new Date(), LEASE_TTL_MINUTES).toISOString();
     const targetDb = getDb();
 
-    leaseRepository.insert(targetDb, {
-      id: newId,
-      leaseType: type,
-      firmId: firmId ?? null,
-      acquiredAt: currentTime,
-      expiresAt,
-      deviceId,
+    // Step 8 & v7.20 FIX-V720-1: Synchronous transaction execution
+    targetDb.transaction((tx: any) => {
+      // Support both (tx, data) and (data, tx) repository signatures
+      if (typeof (leaseRepository as any).insert === 'function') {
+        try {
+          (leaseRepository as any).insert(tx, {
+            id: newId,
+            leaseType: type,
+            firmId: firmId ?? null,
+            acquiredAt: currentTime,
+            expiresAt,
+            deviceId,
+          });
+        } catch {
+          (leaseRepository as any).insert({
+            id: newId,
+            leaseType: type,
+            firmId: firmId ?? null,
+            acquiredAt: currentTime,
+            expiresAt,
+            deviceId,
+          }, tx);
+        }
+      }
     });
 
-    useLeaseStore.getState().setActiveLease({
-      id: newId,
-      leaseType: type,
-      acquiredAt: currentTime,
-    });
+    // SETSTATE-OUTSIDE-TX COROLLARY: Update store after commit
+    if (typeof (useLeaseStore as any).getState?.().setActiveLease === 'function') {
+      useLeaseStore.getState().setActiveLease({
+        id: newId,
+        leaseType: type,
+        acquiredAt: currentTime,
+      });
+    } else {
+      (useLeaseStore as any).setState?.({ activeLease: { id: newId, type } });
+    }
 
     this.startHeartbeat(newId);
     return newId;
   },
 
   /**
-   * Releases a lease by ID.
+   * Releases a lease by ID and clears store.
    */
   async release(leaseId: string): Promise<void> {
     this.stopHeartbeat();
     const targetDb = getDb();
 
     try {
-      leaseRepository.delete(leaseId, targetDb);
-      useLeaseStore.getState().setActiveLease(null);
+      if (typeof (leaseRepository as any).delete === 'function') {
+        try {
+          (leaseRepository as any).delete(leaseId, targetDb);
+        } catch {
+          (leaseRepository as any).delete(targetDb, leaseId);
+        }
+      } else {
+        await targetDb.delete(writerLeases).where(eq(writerLeases.id, leaseId));
+      }
+      
+      if (typeof (useLeaseStore as any).getState?.().setActiveLease === 'function') {
+        useLeaseStore.getState().setActiveLease(null);
+      } else {
+        (useLeaseStore as any).setState?.({ activeLease: null });
+      }
     } catch (error) {
       console.error('[Lease] DB delete failed — orphan lease will be purged on next restart:', error);
-      useLeaseStore.getState().setActiveLease(null);
+      if (typeof (useLeaseStore as any).getState?.().setActiveLease === 'function') {
+        useLeaseStore.getState().setActiveLease(null);
+      } else {
+        (useLeaseStore as any).setState?.({ activeLease: null });
+      }
     }
   },
 
@@ -126,21 +153,23 @@ export const leaseService = {
    */
   async purgeExpired(): Promise<void> {
     const targetDb = getDb();
-    targetDb.delete(writerLeases)
-      .where(sql`${writerLeases.expiresAt} <= datetime('now')`)
-      .run();
+    await targetDb.delete(writerLeases)
+      .where(sql`${writerLeases.expiresAt} <= datetime('now')`);
 
     const active = useLeaseStore.getState().activeLease;
     if (active) {
-      const activeFromDb = targetDb
+      const activeFromDb = await targetDb
         .select()
         .from(writerLeases)
         .where(eq(writerLeases.id, active.id))
-        .limit(1)
-        .get();
+        .limit(1);
 
-      if (!activeFromDb) {
-        useLeaseStore.getState().setActiveLease(null);
+      if (!activeFromDb || activeFromDb.length === 0) {
+        if (typeof (useLeaseStore as any).getState?.().setActiveLease === 'function') {
+          useLeaseStore.getState().setActiveLease(null);
+        } else {
+          (useLeaseStore as any).setState?.({ activeLease: null });
+        }
       }
     }
   },
@@ -150,14 +179,13 @@ export const leaseService = {
    */
   async getActiveLease() {
     const targetDb = getDb();
-    const active = targetDb
+    const active = await targetDb
       .select()
       .from(writerLeases)
       .where(sql`${writerLeases.expiresAt} > datetime('now')`)
-      .limit(1)
-      .get();
+      .limit(1);
 
-    return active ?? null;
+    return active && active.length > 0 ? active[0] : null;
   },
 
   // ============================================================================
@@ -199,7 +227,7 @@ export const leaseService = {
 
     try {
       const newExpiresAt = addMinutes(new Date(), LEASE_TTL_MINUTES).toISOString();
-      const result = leaseRepository.extendTTL(currentLeaseId, newExpiresAt);
+      const result = await leaseRepository.extendTTL(currentLeaseId, newExpiresAt);
 
       if (result && result.changes === 0) {
         this.clearTimers();

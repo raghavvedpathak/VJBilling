@@ -3,14 +3,14 @@
 // FIX-P2-SYNC-CONTRACT-1 (v1.81)
 
 import db, { db as dbNamed } from '@/db/client';
-import { eq, sql } from 'drizzle-orm';
+import { eq, and, lte, gte, sql } from 'drizzle-orm';
+import { financialYears, auditDeleteGate as auditDeleteGateTable, FYStatus } from '@/db/schema';
 import { fyRepository } from '@/repositories/phase1/fyRepository';
 import { auditRepository } from '@/repositories/phase1/auditRepository';
 import { auditArchiveIndexRepository } from '@/repositories/phase1/auditArchiveIndexRepository';
 import { getDeviceId } from '@/utils/deviceId';
 import { now } from '@/utils/now';
 import * as Crypto from 'expo-crypto';
-import { auditDeleteGate as auditDeleteGateTable } from '@/db/schema';
 import { appSettingsStore } from '@/store/phase1/appSettingsStore';
 import type { DrizzleTransaction, FinancialYear } from '@/types/phase1/fy.types';
 import { ERR } from '@/constants/errorCodes';
@@ -111,9 +111,35 @@ export function closeCoreFY(
   targetTx.update(auditDeleteGateTable).set({ gateOpen: 0 }).where(eq(auditDeleteGateTable.id, 1)).run();
 }
 
-// --- resolveTransactionFyId (RESOLVE-TRANSACTION-FYID / Step 1) ---
+/**
+ * Canonical FY resolution function (RESOLVE-TRANSACTION-FYID / Step 2 & 5)
+ * Disallows entries in closed financial years.
+ */
 export function resolveTransactionFyId(firmId: string, entryDate: string, dbOrTx?: any): string {
-  return fyRepository.resolveTransactionFyId(firmId, entryDate, dbOrTx);
+  if (typeof (fyRepository as any).resolveTransactionFyId === 'function') {
+    return (fyRepository as any).resolveTransactionFyId(firmId, entryDate, dbOrTx);
+  }
+
+  const target = getDb(dbOrTx);
+  const rows = target
+    .select()
+    .from(financialYears)
+    .where(
+      and(
+        eq(financialYears.firmId, firmId),
+        eq(financialYears.status, FYStatus.ACTIVE),
+        lte(financialYears.startDate, entryDate),
+        gte(financialYears.endDate, entryDate)
+      )
+    )
+    .limit(1)
+    .all?.() ?? [];
+
+  if (!rows || rows.length === 0) {
+    throw new Error('ENTRY_DATE_IN_CLOSED_FY');
+  }
+
+  return rows[0].id;
 }
 
 export async function getActiveFY(firmId: string): Promise<FinancialYear | null> {

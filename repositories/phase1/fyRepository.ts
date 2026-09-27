@@ -28,7 +28,10 @@ function resolveTxAndId(arg1: any, arg2: any): { tx: DbOrTx; id: string } {
   if (typeof arg1 === 'string') {
     return { id: arg1, tx: getDb(arg2) };
   }
-  return { tx: getDb(arg1), id: arg2 };
+  if (typeof arg2 === 'string') {
+    return { id: arg2, tx: getDb(arg1) };
+  }
+  return { tx: getDb(arg1), id: '' };
 }
 
 export type NewFY = typeof financialYears.$inferInsert;
@@ -122,6 +125,7 @@ export const fyRepository = {
    */
   getActiveFY(arg1: any, arg2?: any): FinancialYear | null {
     const { tx, id: firmId } = resolveTxAndId(arg1, arg2);
+    if (!firmId) return null;
     const fy = tx
       .select()
       .from(financialYears)
@@ -136,7 +140,7 @@ export const fyRepository = {
   },
 
   /**
-   * Fetches FY by UUID — supports (id), (id, firmId), (tx, id), (tx, id, firmId), (tx, firmId, id).
+   * Fetches FY by UUID.
    */
   findById(first: any, second?: any, third?: any): FinancialYear | null {
     if (typeof first === 'string') {
@@ -221,11 +225,6 @@ export const fyRepository = {
 
   /**
    * Updates status of a financial year.
-   * Robust against any parameter order:
-   *   updateStatus(tx, id, status)
-   *   updateStatus(tx, id, firmId, status)
-   *   updateStatus(tx, firmId, id, status)
-   *   updateStatus(firmId, id, status)
    */
   updateStatus(first: any, second: string, third?: string, fourth?: string): void {
     let targetTx: DbOrTx;
@@ -275,9 +274,12 @@ export const fyRepository = {
 
   /**
    * Constitutional FY resolution function — finds ACTIVE FY covering entryDate.
+   * Normalizes entryDate string to YYYY-MM-DD to avoid timestamp comparison bugs.
    */
   resolveTransactionFyId(firmId: string, entryDate: string, tx?: DbOrTx): string {
     const targetTx = getDb(tx);
+    const cleanDate = entryDate.length > 10 ? entryDate.slice(0, 10) : entryDate;
+
     const match = targetTx
       .select()
       .from(financialYears)
@@ -285,8 +287,8 @@ export const fyRepository = {
         and(
           eq(financialYears.firmId, firmId),
           eq(financialYears.status, FYStatus.ACTIVE),
-          lte(financialYears.startDate, entryDate),
-          gte(financialYears.endDate, entryDate)
+          lte(financialYears.startDate, cleanDate),
+          gte(financialYears.endDate, cleanDate)
         )
       )
       .limit(1)

@@ -1,10 +1,12 @@
-// app/database-error.tsx (or screens/DatabaseErrorScreen.tsx) — Phase 2 Canonical Recovery Screen
+// app/database-error.tsx — Phase 1 & 2 Canonical Recovery Screen
+// Native JSI accelerated decryption via react-native-quick-crypto (<20ms)
 
 import React, { useEffect, useState } from 'react';
-import { View, Text, Alert, ActivityIndicator, ScrollView, Linking } from 'react-native';
+import { View, Text, Alert, ScrollView, Linking } from 'react-native';
 import { router } from 'expo-router';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
+import quickCrypto, { Buffer } from 'react-native-quick-crypto';
 import { STORAGE_PATHS } from '@/constants';
 import { PRE_MIGRATION_SNAPSHOT_PATH } from '@/services/phase1/bootstrapService';
 import { getDeviceDerivedKeyMaterial } from '@/utils/deviceKey';
@@ -43,35 +45,32 @@ export default function DatabaseErrorScreen() {
       });
       const parsedBlob = JSON.parse(fileContent);
 
-      const fromBase64 = (b64: string) => Uint8Array.from(atob(b64.trim()), (c) => c.charCodeAt(0));
-      const saltBytes = fromBase64(parsedBlob.salt);
-      const ivBytes = fromBase64(parsedBlob.iv);
-      const cipherBytes = fromBase64(parsedBlob.ciphertext);
+      const saltBytes = Buffer.from(parsedBlob.salt, 'base64');
+      const ivBytes = Buffer.from(parsedBlob.iv, 'base64');
+      const combinedCipher = Buffer.from(parsedBlob.ciphertext, 'base64');
 
-      const keySourceMaterial = await getDeviceDerivedKeyMaterial();
+      const authTag = combinedCipher.subarray(combinedCipher.length - 16);
+      const ciphertextBody = combinedCipher.subarray(0, combinedCipher.length - 16);
 
-      const globalCrypto = (globalThis as any).crypto;
-      if (!globalCrypto?.subtle) {
-        throw new Error('WebCrypto Subtle API is unavailable on this device.');
-      }
+      const keySourceMaterial = Buffer.from(await getDeviceDerivedKeyMaterial());
 
-      const keyMaterial = await globalCrypto.subtle.importKey(
-        'raw',
-        keySourceMaterial as any,
-        'PBKDF2',
-        false,
-        ['deriveKey']
-      );
-      const key = await globalCrypto.subtle.deriveKey(
-        { name: 'PBKDF2', salt: saltBytes, iterations: 100000, hash: 'SHA-256' },
-        keyMaterial,
-        { name: 'AES-GCM', length: 256 },
-        false,
-        ['decrypt']
+      // Native JSI PBKDF2 (<20ms)
+      const key = quickCrypto.pbkdf2Sync(
+        keySourceMaterial,
+        saltBytes,
+        100_000,
+        32,
+        'sha256'
       );
 
-      const decrypted = await globalCrypto.subtle.decrypt({ name: 'AES-GCM', iv: ivBytes }, key, cipherBytes);
-      const decryptedStr = new TextDecoder().decode(decrypted);
+      // Native JSI AES-256-GCM Decipher
+      const decipher = (quickCrypto as any).createDecipheriv('aes-256-gcm', key, ivBytes);
+      decipher.setAuthTag(authTag);
+
+      const decryptedStr = Buffer.concat([
+        decipher.update(ciphertextBody),
+        decipher.final(),
+      ]).toString('utf8');
 
       const fsAny = FileSystem as any;
       const tempPath = `${fsAny.cacheDirectory ?? fsAny.documentDirectory ?? ''}vjbilling_premigration_decrypted.json`;
@@ -116,7 +115,6 @@ export default function DatabaseErrorScreen() {
     }
     try {
       const dbBase = `${STORAGE_PATHS.RAW_DB_DIR}${STORAGE_PATHS.DB_FILENAME}`;
-      // Clean up primary DB and SQLite WAL/SHM journal files
       await Promise.all([
         FileSystem.deleteAsync(dbBase, { idempotent: true }),
         FileSystem.deleteAsync(`${dbBase}-wal`, { idempotent: true }),

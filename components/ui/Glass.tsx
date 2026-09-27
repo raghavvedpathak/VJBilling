@@ -9,17 +9,14 @@ import {
   TextInput,
   TouchableOpacity,
   ActivityIndicator,
-  ViewProps,
   ScrollView,
   StyleSheet,
-  Platform,
 } from 'react-native';
-import { BlurView } from 'expo-blur';
 import * as Haptics from 'expo-haptics';
-import { ChevronDown, ChevronRight } from 'lucide-react-native';
-import { COLORS, getThemeColors } from '../../constants/theme';
-import { appSettingsStore } from '../../store/phase1/appSettingsStore';
-import { getCurrencySymbol } from '../../utils/currency';
+import { ChevronDown } from 'lucide-react-native';
+import { getThemeColors } from '@/constants/theme';
+import { appSettingsStore } from '@/store/phase1/appSettingsStore';
+import { getCurrencySymbol } from '@/utils/currency';
 
 // ============================================================================
 // 1. RE-EXPORT CENTRALIZED CARD CONTAINER SYSTEM

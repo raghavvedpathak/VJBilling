@@ -48,10 +48,28 @@ function getSafeDeviceId(): string {
   }
 }
 
-// ============================================================================
-// v2.8 FULL COMPLIANCE: The Dual Guard Pattern
-// Both guards MUST fire before ANY write operation in this service.
-// ============================================================================
+function logAudit(tx: any, eventType: string, firmId: string | null, payload: any, deviceId: string) {
+  const payloadStr = typeof payload === 'string' ? payload : JSON.stringify(payload);
+  if (typeof (auditRepository as any).log === 'function') {
+    (auditRepository as any).log(tx, {
+      eventType,
+      firmId,
+      deviceId,
+      payload: payloadStr,
+    });
+  } else if (typeof (auditRepository as any).create === 'function') {
+    (auditRepository as any).create(
+      {
+        firmId,
+        eventType,
+        payload: payloadStr,
+        deviceId,
+      },
+      tx
+    );
+  }
+}
+
 async function assertSystemIsWritable() {
   await leaseService.assertNoActiveLease();
   safeModeService.assertNotInSafeMode();
@@ -61,7 +79,6 @@ export const firmService = {
   /**
    * Creates a new firm with strict validation, race condition fix, and atomic transaction.
    * v7.0 G70: validates GSTIN, stateCode cross-match, pincode.
-   * firmCode is set immutably at creation — DB trigger prevent_firm_code_update enforces this.
    */
   async createFirm(input: CreateFirmInput) {
     await assertSystemIsWritable();
@@ -122,46 +139,40 @@ export const firmService = {
         firmRepository.update(newFirm.id, { bisLogoRef: logoId }, tx);
       }
 
-      auditRepository.create(
+      logAudit(
+        tx,
+        'FIRM_CODE_SET',
+        newFirm.id,
         {
           firmId: newFirm.id,
-          eventType: 'FIRM_CODE_SET',
-          payload: JSON.stringify({
-            firmId: newFirm.id,
-            firmCode: input.firmCode,
-            assignedAt: now(),
-          }),
-          deviceId,
+          firmCode: input.firmCode,
+          assignedAt: now(),
         },
-        tx
+        deviceId
       );
 
-      auditRepository.create(
+      logAudit(
+        tx,
+        'FIRM_CREATED',
+        newFirm.id,
         {
-          firmId: newFirm.id,
-          eventType: 'FIRM_CREATED',
-          payload: JSON.stringify({
-            name: newFirm.name,
-            gstin: newFirm.gstin,
-            proprietor: newFirm.proprietor,
-          }),
-          deviceId,
+          name: newFirm.name,
+          gstin: newFirm.gstin,
+          proprietor: newFirm.proprietor,
         },
-        tx
+        deviceId
       );
 
       if (hasClockSkew) {
-        auditRepository.create(
+        logAudit(
+          tx,
+          'FY_CLOCK_SKEW',
+          newFirm.id,
           {
-            firmId: newFirm.id,
-            eventType: 'FY_CLOCK_SKEW',
-            payload: JSON.stringify({
-              detectedYear: currentYear,
-              message: 'Device clock is outside safe boundaries (<2020 or >2040).',
-            }),
-            deviceId,
+            detectedYear: currentYear,
+            message: 'Device clock is outside safe boundaries (<2020 or >2040).',
           },
-          tx
+          deviceId
         );
       }
 
@@ -189,7 +200,12 @@ export const firmService = {
       const existingFirm = firmRepository.getById(firmId);
       if (!existingFirm) throw new Error('FIRM_NOT_FOUND');
 
-      // v7.35 FIX-V735-1: GSTIN may be ADDED exactly once. If present, it is locked.
+      // Canonical Spec Step 7: firmCode is strictly immutable post-creation
+      if ('firmCode' in input) {
+        throw new Error('FIRM_CODE_IMMUTABLE: firmCode cannot be changed after creation. Firm Code is immutable.');
+      }
+
+      // v7.35 FIX-V735-1: One-time GSTIN addition (null -> value). Locked once set.
       if ('gstin' in input) {
         if (existingFirm.gstin) {
           throw new Error('GSTIN_ALREADY_SET: GSTIN cannot be modified once set');
@@ -200,17 +216,14 @@ export const firmService = {
           const targetStateCode = input.stateCode || existingFirm.stateCode;
           if (gstinStateCode !== targetStateCode) {
             throw new Error(
-              `GSTIN_STATE_MISMATCH: GSTIN state prefix (${gstinStateCode}) must match firm stateCode (${targetStateCode}).`
+              `GSTIN_STATE_MISMATCH: GSTIN state code ${gstinStateCode} does not match firm stateCode ${targetStateCode}`
             );
           }
         }
       }
 
-      if ('firmCode' in input && input.firmCode !== existingFirm.firmCode) {
-        throw new Error('FIRM_CODE_IMMUTABLE: Firm Code is immutable and cannot be updated.');
-      }
-
-      if ('stateCode' in input && input.stateCode !== existingFirm.stateCode && existingFirm.gstin) {
+      // v7.14 FIX-V714-3: stateCode update blocked if firm already has a GSTIN
+      if ('stateCode' in input && existingFirm.gstin) {
         throw new Error(
           'GSTIN_STATE_UPDATE_BLOCKED: stateCode cannot be changed independently when firm has a GSTIN — GSTIN prefix already encodes stateCode'
         );
@@ -238,13 +251,23 @@ export const firmService = {
 
       const targetDb = getDb();
       const updatedFirm = await targetDb.transaction((tx: any) => {
-        // v6.6 BUG FIX: Archiving requires fetching the bis_logos row to pass its UUID
+        // v6.6 BUG FIX: Archive active BIS logo record by UUID when licence is removed
         const clearingBisLicence = ('bisLicence' in input) && (!input.bisLicence) && !!existingFirm.bisLogoRef;
         if (clearingBisLicence) {
           updatePayload.bisLogoRef = null;
-          const bisLogoRow = bisLogoRepository.findActiveByFirmId(firmId, tx);
+          let bisLogoRow: any;
+          try {
+            bisLogoRow = bisLogoRepository.findActiveByFirmId(tx, firmId);
+          } catch {
+            bisLogoRow = (bisLogoRepository as any).findActiveByFirmId(firmId, tx);
+          }
+
           if (bisLogoRow) {
-            bisLogoRepository.archive(bisLogoRow.id, 'licence_removed', tx);
+            try {
+              bisLogoRepository.archive(tx, bisLogoRow.id, 'licence_removed');
+            } catch {
+              (bisLogoRepository as any).archive(bisLogoRow.id, 'licence_removed', tx);
+            }
           }
           auditEvents.push({
             eventType: 'BIS_LOGO_ARCHIVED',
@@ -257,21 +280,16 @@ export const firmService = {
 
         const result = firmRepository.update(firmId, updatePayload, tx);
 
-        auditRepository.create(
-          {
-            firmId,
-            eventType: 'FIRM_UPDATED',
-            payload: JSON.stringify({ changes: Object.keys(updatePayload) }),
-            deviceId,
-          },
-          tx
+        logAudit(
+          tx,
+          'FIRM_UPDATED',
+          firmId,
+          { changes: Object.keys(updatePayload) },
+          deviceId
         );
 
         for (const event of auditEvents) {
-          auditRepository.create(
-            { firmId, eventType: event.eventType, payload: event.payload, deviceId },
-            tx
-          );
+          logAudit(tx, event.eventType, firmId, event.payload, deviceId);
         }
 
         return result;
@@ -299,14 +317,12 @@ export const firmService = {
         tx.update(firms).set({ isActive: 0 }).run();
         tx.update(firms).set({ isActive: 1 }).where(eq(firms.id, firmId)).run();
 
-        auditRepository.create(
-          {
-            firmId,
-            eventType: 'FIRM_SWITCHED',
-            payload: JSON.stringify({ switchedToFirmId: firmId, switchedAt: new Date().toISOString() }),
-            deviceId,
-          },
-          tx
+        logAudit(
+          tx,
+          'FIRM_SWITCHED',
+          firmId,
+          { switchedToFirmId: firmId, switchedAt: new Date().toISOString() },
+          deviceId
         );
       });
 
@@ -338,14 +354,12 @@ export const firmService = {
 
         firmRepository.update(firmId, { isArchived: 1, isActive: 0 }, tx);
 
-        auditRepository.create(
-          {
-            firmId,
-            eventType: 'FIRM_ARCHIVED',
-            payload: JSON.stringify({ archivedAt: now() }),
-            deviceId,
-          },
-          tx
+        logAudit(
+          tx,
+          'FIRM_ARCHIVED',
+          firmId,
+          { archivedAt: now() },
+          deviceId
         );
       });
 
@@ -371,14 +385,12 @@ export const firmService = {
 
         firmRepository.update(firmId, { isArchived: 0 }, tx);
 
-        auditRepository.create(
-          {
-            firmId,
-            eventType: 'FIRM_UNARCHIVED',
-            payload: JSON.stringify({ unarchivedAt: now() }),
-            deviceId,
-          },
-          tx
+        logAudit(
+          tx,
+          'FIRM_UNARCHIVED',
+          firmId,
+          { unarchivedAt: now() },
+          deviceId
         );
       });
 

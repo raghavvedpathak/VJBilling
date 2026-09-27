@@ -1,4 +1,6 @@
 // services/phase1/auditService.ts — Phase 1 & 2 Canonical Audit Service
+// v3.0 G39: entityId traceability support added
+// G41: Strict transaction context passthrough
 
 import { auditRepository } from '@/repositories/phase1/auditRepository';
 import { getDeviceId } from '@/utils/deviceId';
@@ -46,31 +48,35 @@ export const auditService = {
   /**
    * Logs a critical system event.
    * G41-compliant: passes tx through to auditRepository.
-   * tx: null is normalized to undefined so repo defaults to global db.
+   * Supports entityId for Phase 3 document and ledger traceability (v3.0 G39).
    */
   async log(
     tx: any | undefined | null,
     firmId: string | null,
     eventType: AuditEventType | AuditPayload['eventType'],
-    payload: object,
+    payload: object | string,
+    entityId?: string | null,
     deviceIdOverride?: string
   ) {
     const deviceId = deviceIdOverride || getSafeDeviceId();
     const activeTx = tx || undefined;
 
     const payloadObj = typeof payload === 'string' ? JSON.parse(payload) : payload;
+    const resolvedEntityId = entityId ?? (payloadObj as any)?.entityId ?? null;
 
     if (typeof (auditRepository as any).log === 'function') {
       (auditRepository as any).log(activeTx ?? null, {
         firmId,
+        entityId: resolvedEntityId,
         eventType: eventType as string,
         payload: JSON.stringify(payloadObj),
         deviceId,
       });
-    } else {
-      auditRepository.create(
+    } else if (typeof (auditRepository as any).create === 'function') {
+      (auditRepository as any).create(
         {
           firmId,
+          entityId: resolvedEntityId,
           eventType: eventType as string,
           payload: JSON.stringify(payloadObj),
           deviceId,
