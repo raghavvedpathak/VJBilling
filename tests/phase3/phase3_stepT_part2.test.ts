@@ -826,6 +826,73 @@ describe('STEP T — TEST SUITE — Part 2 (T22–T42)', () => {
   });
 
   // ---------------------------------------------------------------------------
+  // T24B: Dynamic Bhav Recalculation on Draft
+  // ---------------------------------------------------------------------------
+  test('T24B: Updating metal rate / bhav on draft dynamically recalculates item metal values and draft invoice totals', async () => {
+    const firmId = 'firm-T24B';
+    const draftId = 'draft-T24B';
+    const customerId = 'cust-T24B';
+
+    sqlite.prepare('INSERT OR IGNORE INTO firms (id, name, firm_code, created_at, updated_at) VALUES (?, ?, ?, ?, ?)')
+      .run(firmId, 'Firm 24B', 'F24B', '2026-04-15', '2026-04-15');
+    sqlite.prepare('INSERT OR IGNORE INTO financial_years (id, firm_id, label, start_date, end_date, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)')
+      .run('fy-T24B', firmId, '2026-27', '2026-04-01', '2027-03-31', 'ACTIVE', '2026-04-15');
+    sqlite.prepare('INSERT OR IGNORE INTO customers (id, firm_id, name, created_at, updated_at) VALUES (?, ?, ?, ?, ?)')
+      .run(customerId, firmId, 'Customer 24B', '2026-04-15', '2026-04-15');
+
+    sqlite.prepare('INSERT OR IGNORE INTO categories (id, firm_id, name, created_at, updated_at) VALUES (?, ?, ?, ?, ?)')
+      .run('cat-T24B', firmId, 'Rings 24B', '2026-04-15', '2026-04-15');
+    sqlite.prepare('INSERT OR IGNORE INTO designs (id, firm_id, category_id, name, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)')
+      .run('des-T24B', firmId, 'cat-T24B', 'Ring 24B', '2026-04-15', '2026-04-15');
+
+    sqlite.prepare(`
+      INSERT OR IGNORE INTO items (id, firm_id, design_id, category_id, sku, barcode, metal, purity_percent, gross_weight_mg, net_weight_mg, fine_weight_mg, status, entry_date, created_at, updated_at)
+      VALUES ('item-T24B', ?, 'des-T24B', 'cat-T24B', 'SKU-T24B', 'BAR-T24B', 'GOLD', 91.6, 5000, 5000, 4580, 'AVAILABLE', '2026-04-15', '2026-04-15', '2026-04-15')
+    `).run(firmId);
+
+    sqlite.prepare(`
+      INSERT INTO sale_invoices (id, firm_id, fy_id, customer_id, invoice_date, status, metal_rate_paise_per_gram, created_at)
+      VALUES (?, ?, 'fy-T24B', ?, '2026-04-15', 'DRAFT', 600000, '2026-04-15')
+    `).run(draftId, firmId, customerId);
+
+    // Initial item added with rate 600000 paise/g (₹6,000/g)
+    // 5000 mg = 5 g -> 5 * 600000 = 3000000 paise (₹30,000)
+    const lineItem = await draftInvoiceService.addItemToDraft({
+      invoiceId: draftId,
+      stockLotId: 'item-T24B',
+      makingChargesPaise: 50000,
+    });
+    expect(lineItem.metalValuePaise).toBe(3000000);
+
+    const initialDraft = await draftInvoiceService.getDraft(draftId);
+    expect(initialDraft?.taxableMetalAmtPaise).toBe(3000000);
+    expect(initialDraft?.taxableMakingAmtPaise).toBe(50000);
+
+    // Now user updates bhav to 700000 paise/g (₹7,000/g)
+    await draftInvoiceService.updateDraftDetails(draftId, {
+      metalRatePaisePerGram: 700000,
+      isManualRate: 1,
+    });
+
+    const updatedDraft = await draftInvoiceService.getDraft(draftId);
+    expect(updatedDraft?.metalRatePaisePerGram).toBe(700000);
+    expect(updatedDraft?.taxableMetalAmtPaise).toBe(3500000); // 5g * 700000 = 3500000 paise
+    expect(updatedDraft?.items[0].metalValuePaise).toBe(3500000);
+    expect(updatedDraft?.taxableMakingAmtPaise).toBe(50000);
+
+    // Reset back to 600000 paise/g
+    await draftInvoiceService.updateDraftDetails(draftId, {
+      metalRatePaisePerGram: 600000,
+      isManualRate: 0,
+    });
+
+    const resetDraft = await draftInvoiceService.getDraft(draftId);
+    expect(resetDraft?.metalRatePaisePerGram).toBe(600000);
+    expect(resetDraft?.taxableMetalAmtPaise).toBe(3000000);
+    expect(resetDraft?.items[0].metalValuePaise).toBe(3000000);
+  });
+
+  // ---------------------------------------------------------------------------
   // T25: Cross-FY backdated entry tests (active, closed, purchase, payment)
   // ---------------------------------------------------------------------------
   test('T25: Cross-FY backdated entry tests: active FY backdate succeeds, closed FY backdate throws ENTRY_DATE_IN_CLOSED_FY', async () => {

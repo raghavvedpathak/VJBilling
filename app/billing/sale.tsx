@@ -2,7 +2,7 @@
 // Section Order (LOCKED): Customer → Items → Old Metal → Summary → Payments
 // Scroll-friendly, inline warnings only, manual rate explicit opt-in, preview gate before save
 
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import {
   View,
   Text,
@@ -12,6 +12,8 @@ import {
   StyleSheet,
   Alert,
   ActivityIndicator,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import {
@@ -28,7 +30,14 @@ import {
   Eye,
   ArrowLeft,
   Sparkles,
+  Phone,
+  MapPin,
+  Building2,
+  ChevronRight,
+  Edit2,
+  RotateCcw,
 } from 'lucide-react-native';
+import * as Haptics from 'expo-haptics';
 
 import { useSession } from '@/hooks/useSession';
 import { TwoToneWrapper } from '@/components/common/TwoToneWrapper';
@@ -74,7 +83,6 @@ export default function SaleScreen() {
   const [dailyRatePaise, setDailyRatePaise] = useState<number>(720000);
   const [activeRatePaise, setActiveRatePaise] = useState<number>(720000);
   const [isManualRate, setIsManualRate] = useState<number>(0);
-  const [isEditingRate, setIsEditingRate] = useState<boolean>(false);
   const [manualRateInputRupees, setManualRateInputRupees] = useState<string>('');
   const [rateError, setRateError] = useState<string | null>(null);
   const [itemsError, setItemsError] = useState<string | null>(null);
@@ -179,63 +187,74 @@ export default function SaleScreen() {
     });
   }, [discountRupeesText, oldMetalDeductionPaise, oldMetalNotes, selectedCustomer?.id, draft?.id]);
 
-  // Handle Manual Rate Override Confirmation (LOCKED UX PRINCIPLE)
-  const handleStartRateOverride = () => {
-    Alert.alert(
-      'Override Daily Rate?',
-      'You are entering a custom rate. This will override the daily rate. Are you sure?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Override Rate',
-          style: 'destructive',
-          onPress: () => {
-            setIsEditingRate(true);
-            setRateError(null);
-          },
-        },
-      ]
-    );
-  };
+  const rateDebounceTimerRef = useRef<NodeJS.Timeout | null>(null);
 
-  const handleApplyManualRate = async () => {
-    const rateRs = parseFloat(manualRateInputRupees.trim());
-    if (isNaN(rateRs) || rateRs <= 0) {
-      setRateError(`Enter a valid positive rate in ${currencySymbol}/g`);
-      return;
+  const flushRateUpdate = async (targetRatePaise: number) => {
+    if (rateDebounceTimerRef.current) {
+      clearTimeout(rateDebounceTimerRef.current);
+      rateDebounceTimerRef.current = null;
     }
-
-    const newRatePaise = Math.round(rateRs * 100);
-    setActiveRatePaise(newRatePaise);
-    setIsManualRate(1);
-    setIsEditingRate(false);
-    setRateError(null);
-
-    if (draft?.id) {
+    if (!draft?.id || targetRatePaise <= 0) return;
+    try {
+      const isManual = targetRatePaise !== dailyRatePaise;
       await draftInvoiceService.updateDraftDetails(draft.id, {
-        metalRatePaisePerGram: newRatePaise,
-        isManualRate: 1,
+        metalRatePaisePerGram: targetRatePaise,
+        isManualRate: isManual ? 1 : 0,
       });
       const updated = await draftInvoiceService.getDraft(draft.id);
-      setDraft(updated);
+      if (updated) {
+        setDraft(updated);
+      }
+    } catch (err: any) {
+      console.error('Failed to sync rate update:', err);
+    }
+  };
+
+  // Clean up rate debounce timer on unmount
+  useEffect(() => {
+    return () => {
+      if (rateDebounceTimerRef.current) {
+        clearTimeout(rateDebounceTimerRef.current);
+      }
+    };
+  }, []);
+
+  // Handle continuous rate input update (ALWAYS OPEN & DIRECTLY EDITABLE)
+  const handleRateInputChange = (text: string) => {
+    setManualRateInputRupees(text);
+    if (rateDebounceTimerRef.current) {
+      clearTimeout(rateDebounceTimerRef.current);
+      rateDebounceTimerRef.current = null;
+    }
+
+    const rateRs = parseFloat(text.trim());
+    if (!isNaN(rateRs) && rateRs > 0) {
+      const newRatePaise = Math.round(rateRs * 100);
+      setActiveRatePaise(newRatePaise);
+      const isManual = newRatePaise !== dailyRatePaise;
+      setIsManualRate(isManual ? 1 : 0);
+      setRateError(null);
+
+      if (draft?.id) {
+        rateDebounceTimerRef.current = setTimeout(() => {
+          flushRateUpdate(newRatePaise);
+        }, 200);
+      }
+    } else if (text.trim() === '') {
+      setRateError(`Enter a valid metal rate in ${currencySymbol}/g`);
     }
   };
 
   const handleResetToDailyRate = async () => {
+    try {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    } catch {}
     setActiveRatePaise(dailyRatePaise);
     setManualRateInputRupees((dailyRatePaise / 100).toFixed(0));
     setIsManualRate(0);
-    setIsEditingRate(false);
     setRateError(null);
 
-    if (draft?.id) {
-      await draftInvoiceService.updateDraftDetails(draft.id, {
-        metalRatePaisePerGram: dailyRatePaise,
-        isManualRate: 0,
-      });
-      const updated = await draftInvoiceService.getDraft(draft.id);
-      setDraft(updated);
-    }
+    await flushRateUpdate(dailyRatePaise);
   };
 
   // Add Serialized Item to Draft
@@ -308,14 +327,20 @@ export default function SaleScreen() {
     }
 
     try {
+      // Ensure any pending rate changes are flushed before previewing
+      if (rateDebounceTimerRef.current) {
+        await flushRateUpdate(activeRatePaise);
+      }
+      const freshDraft = (await draftInvoiceService.getDraft(draft.id)) || draft;
+
       const calc = await accountingTruthService.previewInvoice({
         firmId: firm!.id,
-        metalValuePaise: draft.taxableMetalAmtPaise,
-        makingChargesPaise: draft.taxableMakingAmtPaise,
-        stoneAmtPaise: draft.stoneAmtPaise,
+        metalValuePaise: freshDraft.taxableMetalAmtPaise,
+        makingChargesPaise: freshDraft.taxableMakingAmtPaise,
+        stoneAmtPaise: freshDraft.stoneAmtPaise,
         metalTaxGroupId: metalTaxGroupId || undefined,
         makingTaxGroupId: makingTaxGroupId || undefined,
-        oldMetalDeductionPaise: draft.oldMetalDeductionPaise || 0,
+        oldMetalDeductionPaise: freshDraft.oldMetalDeductionPaise || 0,
       });
 
       setPreviewCalc(calc);
@@ -394,12 +419,18 @@ export default function SaleScreen() {
         </View>
       }
     >
-      <ScrollView
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.scrollContainer}
-        keyboardShouldPersistTaps="handled"
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 88 : 0}
       >
-        {postSuccessMessage && (
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={[styles.scrollContainer, { paddingBottom: 280 }]}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="on-drag"
+        >
+          {postSuccessMessage && (
           <View style={styles.successBanner}>
             <Text style={styles.successBannerText}>{postSuccessMessage}</Text>
           </View>
@@ -416,32 +447,108 @@ export default function SaleScreen() {
 
           {selectedCustomer ? (
             <View style={styles.customerCard}>
-              <View style={styles.customerCardMain}>
-                <Text style={styles.customerCardName}>{selectedCustomer.name}</Text>
-                {selectedCustomer.mobile && (
-                  <Text style={styles.customerCardMeta}>Mobile: {selectedCustomer.mobile}</Text>
-                )}
-                {selectedCustomer.address && (
-                  <Text style={styles.customerCardMeta}>Address: {selectedCustomer.address}</Text>
-                )}
-                <Text style={styles.customerCardMeta}>
-                  {selectedCustomer.gstin ? `GSTIN: ${selectedCustomer.gstin}` : 'Non-GST Retail Customer'}
+              <View style={styles.customerAvatar}>
+                <Text style={styles.customerAvatarText}>
+                  {selectedCustomer.name
+                    ? selectedCustomer.name
+                        .trim()
+                        .split(/\s+/)
+                        .map((p) => p[0])
+                        .slice(0, 2)
+                        .join('')
+                        .toUpperCase()
+                    : 'CU'}
                 </Text>
               </View>
+
+              <View style={styles.customerCardMain}>
+                <View style={styles.customerNameRow}>
+                  <Text style={styles.customerCardName} numberOfLines={1}>
+                    {selectedCustomer.name}
+                  </Text>
+                  {selectedCustomer.gstin ? (
+                    <View style={styles.b2bBadge}>
+                      <Building2 size={10} color="#0284C7" />
+                      <Text style={styles.b2bBadgeText}>B2B</Text>
+                    </View>
+                  ) : (
+                    <View style={styles.retailBadge}>
+                      <Text style={styles.retailBadgeText}>RETAIL</Text>
+                    </View>
+                  )}
+                </View>
+
+                <View style={styles.customerMetaRow}>
+                  {selectedCustomer.mobile ? (
+                    <View style={styles.metaPill}>
+                      <Phone size={11} color="#64748B" />
+                      <Text style={styles.metaPillText}>{selectedCustomer.mobile}</Text>
+                    </View>
+                  ) : null}
+
+                  {selectedCustomer.address ? (
+                    <View style={styles.metaPill}>
+                      <MapPin size={11} color="#64748B" />
+                      <Text style={styles.metaPillText} numberOfLines={1}>
+                        {selectedCustomer.address}
+                      </Text>
+                    </View>
+                  ) : null}
+
+                  {selectedCustomer.gstin ? (
+                    <View style={styles.metaPill}>
+                      <Text style={[styles.metaPillText, { color: '#0284C7' }]}>
+                        {selectedCustomer.gstin}
+                      </Text>
+                    </View>
+                  ) : null}
+                </View>
+              </View>
+
               <TouchableOpacity
-                onPress={() => setCustomerPickerVisible(true)}
+                onPress={() => {
+                  try {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  } catch {}
+                  setCustomerPickerVisible(true);
+                }}
                 style={styles.changeBtn}
               >
+                <Edit2 size={12} color="#059669" />
                 <Text style={styles.changeBtnText}>Change</Text>
               </TouchableOpacity>
             </View>
           ) : (
             <TouchableOpacity
-              style={[styles.selectCustomerBtn, customerError ? styles.selectCustomerBtnError : null]}
-              onPress={() => setCustomerPickerVisible(true)}
+              style={[
+                styles.selectCustomerBtn,
+                customerError ? styles.selectCustomerBtnError : null,
+              ]}
+              onPress={() => {
+                try {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                } catch {}
+                setCustomerPickerVisible(true);
+              }}
+              activeOpacity={0.85}
             >
-              <User size={18} color="#64748B" />
-              <Text style={styles.selectCustomerBtnText}>Select or Search Customer</Text>
+              <View style={styles.selectCustomerIconBox}>
+                <User size={22} color="#FFFFFF" />
+              </View>
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                  <Text style={styles.selectCustomerTitle}>Select or Search Customer</Text>
+                  <View style={styles.fastCounterTag}>
+                    <Text style={styles.fastCounterTagText}>COUNTER POS</Text>
+                  </View>
+                </View>
+                <Text style={styles.selectCustomerSubtitle}>
+                  Choose registered party or tap Counter Walk-in for instant sale
+                </Text>
+              </View>
+              <View style={styles.selectCustomerArrowBox}>
+                <ChevronRight size={18} color="#059669" />
+              </View>
             </TouchableOpacity>
           )}
 
@@ -457,56 +564,77 @@ export default function SaleScreen() {
             <Text style={styles.sectionTitle}>2. ITEMS & RATES</Text>
           </View>
 
-          {/* Metal Rate Bar & Manual Override Opt-in */}
-          <View style={styles.rateBar}>
-            <View style={styles.rateInfo}>
-              <Text style={styles.rateTitle}>Active Bhav Rate:</Text>
-              <Text style={styles.rateValue}>{currencySymbol}{(activeRatePaise / 100).toFixed(2)} /g</Text>
-              {isManualRate ? (
-                <View style={styles.manualBadge}>
-                  <Text style={styles.manualBadgeText}>MANUAL OVERRIDE</Text>
+          {/* Metal Rate Bar — Always Open & Direct Editable */}
+          <View style={styles.rateCardContainer}>
+            <View style={styles.rateCardHeader}>
+              <View style={styles.rateCardHeaderLeft}>
+                <View style={styles.rateIconBadge}>
+                  <Coins size={18} color="#D97706" />
                 </View>
-              ) : (
-                <View style={styles.dailyBadge}>
-                  <Text style={styles.dailyBadgeText}>DAILY RATE</Text>
+                <View style={{ flex: 1, minWidth: 0 }}>
+                  <Text style={styles.rateCardTitle}>BILLING GOLD RATE (/g)</Text>
+                  <Text style={styles.rateCardSubtitle} numberOfLines={1}>
+                    {isManualRate === 1
+                      ? 'Custom counter override active for this invoice'
+                      : `Daily Market Bhav (${currencySymbol}${(dailyRatePaise / 100).toFixed(0)}/g)`}
+                  </Text>
                 </View>
-              )}
+              </View>
+
+              <View style={styles.rateCardStatusBox}>
+                {isManualRate === 1 ? (
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                    <View style={styles.manualRatePill}>
+                      <View style={styles.manualDot} />
+                      <Text style={styles.manualRatePillText}>CUSTOM</Text>
+                    </View>
+                    <TouchableOpacity
+                      style={styles.resetRateChip}
+                      onPress={handleResetToDailyRate}
+                    >
+                      <RotateCcw size={12} color="#059669" />
+                      <Text style={styles.resetRateChipText}>Reset to Daily</Text>
+                    </TouchableOpacity>
+                  </View>
+                ) : (
+                  <View style={styles.syncedRatePill}>
+                    <Check size={12} color="#059669" />
+                    <Text style={styles.syncedRatePillText}>DAILY BHAV</Text>
+                  </View>
+                )}
+              </View>
             </View>
 
-            {!isEditingRate ? (
-              <View style={{ flexDirection: 'row', gap: 6 }}>
-                {isManualRate === 1 && (
-                  <TouchableOpacity
-                    style={styles.resetRateBtn}
-                    onPress={handleResetToDailyRate}
-                  >
-                    <Text style={styles.resetRateBtnText}>Reset</Text>
-                  </TouchableOpacity>
-                )}
-                <TouchableOpacity
-                  style={styles.overrideBtn}
-                  onPress={handleStartRateOverride}
-                >
-                  <Text style={styles.overrideBtnText}>Override Rate</Text>
-                </TouchableOpacity>
-              </View>
-            ) : (
-              <View style={styles.rateEditRow}>
+            {/* Direct Open Editable Rate Input */}
+            <View style={styles.rateInputRowWrapper}>
+              <View
+                style={[
+                  styles.rateInputContainer,
+                  isManualRate === 1 && styles.rateInputContainerOverridden,
+                ]}
+              >
+                <View style={styles.currencyPrefixBox}>
+                  <Text style={styles.currencyPrefixText}>{currencySymbol}</Text>
+                </View>
                 <TextInput
-                  style={styles.rateInput}
+                  style={styles.rateOpenTextInput}
                   value={manualRateInputRupees}
-                  onChangeText={setManualRateInputRupees}
+                  onChangeText={handleRateInputChange}
+                  onBlur={() => {
+                    if (rateDebounceTimerRef.current && activeRatePaise > 0) {
+                      flushRateUpdate(activeRatePaise);
+                    }
+                  }}
                   keyboardType="numeric"
-                  placeholder={`${currencySymbol}/g`}
+                  placeholder="0"
+                  placeholderTextColor="#94A3B8"
+                  selectTextOnFocus
                 />
-                <TouchableOpacity onPress={handleApplyManualRate} style={styles.iconBtnCheck}>
-                  <Check size={16} color="#FFFFFF" />
-                </TouchableOpacity>
-                <TouchableOpacity onPress={() => setIsEditingRate(false)} style={styles.iconBtnCancel}>
-                  <X size={16} color="#64748B" />
-                </TouchableOpacity>
+                <View style={styles.rateUnitBox}>
+                  <Text style={styles.rateUnitText}>per gram</Text>
+                </View>
               </View>
-            )}
+            </View>
           </View>
 
           {rateError && <Text style={styles.inlineWarning}>{rateError}</Text>}
@@ -695,15 +823,20 @@ export default function SaleScreen() {
               </>
             )}
 
-            <View style={styles.summaryRow}>
-              <Text style={styles.inputLabel}>Discount ({currencySymbol})</Text>
-              <TextInput
-                style={[styles.simpleInput, { width: 120, height: 36, textAlign: 'right' }]}
-                placeholder="0"
-                keyboardType="numeric"
-                value={discountRupeesText}
-                onChangeText={setDiscountRupeesText}
-              />
+            <View style={[styles.summaryRow, styles.discountRow]}>
+              <Text style={styles.summaryLabel}>Discount ({currencySymbol})</Text>
+              <View style={styles.discountInputWrapper}>
+                <Text style={styles.discountMinusPrefix}>- {currencySymbol}</Text>
+                <TextInput
+                  style={styles.discountTextInput}
+                  placeholder="0"
+                  placeholderTextColor="#94A3B8"
+                  keyboardType="numeric"
+                  value={discountRupeesText}
+                  onChangeText={setDiscountRupeesText}
+                  selectTextOnFocus
+                />
+              </View>
             </View>
 
             {oldMetalDeductionPaise > 0 && (
@@ -817,7 +950,25 @@ export default function SaleScreen() {
 
             <View style={styles.rowInputs}>
               <View style={styles.flex1}>
-                <Text style={styles.inputLabel}>Amount Received ({currencySymbol})</Text>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                  <Text style={styles.inputLabel}>Amount Received ({currencySymbol})</Text>
+                  {draft && (draft.netPayablePaise || 0) > 0 && (
+                    <TouchableOpacity
+                      style={styles.fullAmountChip}
+                      onPress={() => {
+                        try {
+                          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                        } catch {}
+                        setAmountPaidRupeesText(((draft.netPayablePaise || 0) / 100).toFixed(2));
+                      }}
+                    >
+                      <Sparkles size={11} color="#059669" />
+                      <Text style={styles.fullAmountChipText}>
+                        Fill Net Due ({currencySymbol}{((draft.netPayablePaise || 0) / 100).toFixed(2)})
+                      </Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
                 <TextInput
                   style={styles.simpleInput}
                   placeholder={`${currencySymbol} 0.00`}
@@ -841,7 +992,8 @@ export default function SaleScreen() {
           <Eye size={20} color="#FFFFFF" style={{ marginRight: 8 }} />
           <Text style={styles.previewGateButtonText}>Preview Invoice (Mandatory Before Save)</Text>
         </TouchableOpacity>
-      </ScrollView>
+        </ScrollView>
+      </KeyboardAvoidingView>
 
       {/* Customer Selection Modal */}
       <CustomerSearchPickerModal
@@ -942,155 +1094,342 @@ const styles = StyleSheet.create({
   },
   customerCard: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    backgroundColor: '#F8FAFC',
+    gap: 12,
+    backgroundColor: '#FFFFFF',
     borderWidth: 1,
-    borderColor: '#CBD5E1',
-    borderRadius: 12,
+    borderColor: 'rgba(5, 150, 105, 0.25)',
+    borderRadius: 14,
     padding: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 6,
+    elevation: 2,
+  },
+  customerAvatar: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    backgroundColor: 'rgba(5, 150, 105, 0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(5, 150, 105, 0.25)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  customerAvatarText: {
+    fontSize: 15,
+    fontWeight: '900',
+    color: '#059669',
+    letterSpacing: 0.5,
   },
   customerCardMain: {
     flex: 1,
+    minWidth: 0,
+  },
+  customerNameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 4,
+    flexWrap: 'wrap',
   },
   customerCardName: {
-    fontSize: 15,
+    fontSize: 15.5,
     fontWeight: '800',
     color: '#0F172A',
   },
-  customerCardMeta: {
-    fontSize: 12,
+  b2bBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    backgroundColor: 'rgba(2, 132, 199, 0.12)',
+    paddingHorizontal: 6,
+    paddingVertical: 1.5,
+    borderRadius: 4,
+    borderWidth: 1,
+    borderColor: 'rgba(2, 132, 199, 0.25)',
+  },
+  b2bBadgeText: {
+    fontSize: 9,
+    fontWeight: '800',
+    color: '#0284C7',
+    letterSpacing: 0.5,
+  },
+  retailBadge: {
+    paddingHorizontal: 6,
+    paddingVertical: 1.5,
+    borderRadius: 4,
+    backgroundColor: 'rgba(5, 150, 105, 0.1)',
+    borderWidth: 1,
+    borderColor: 'rgba(5, 150, 105, 0.2)',
+  },
+  retailBadgeText: {
+    fontSize: 9,
+    fontWeight: '800',
+    color: '#059669',
+    letterSpacing: 0.5,
+  },
+  customerMetaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    flexWrap: 'wrap',
+  },
+  metaPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  metaPillText: {
+    fontSize: 11.5,
+    fontWeight: '500',
     color: '#64748B',
-    marginTop: 2,
   },
   changeBtn: {
-    paddingHorizontal: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 10,
     paddingVertical: 6,
-    backgroundColor: '#E2E8F0',
+    backgroundColor: 'rgba(5, 150, 105, 0.08)',
     borderRadius: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(5, 150, 105, 0.2)',
   },
   changeBtnText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#334155',
+    fontSize: 11.5,
+    fontWeight: '800',
+    color: '#059669',
   },
   selectCustomerBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    borderWidth: 1.5,
-    borderColor: '#CBD5E1',
-    borderStyle: 'dashed',
-    borderRadius: 12,
-    paddingVertical: 14,
-    backgroundColor: '#F8FAFC',
+    gap: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(5, 150, 105, 0.3)',
+    borderRadius: 14,
+    padding: 12,
+    backgroundColor: 'rgba(236, 253, 245, 0.85)',
   },
   selectCustomerBtnError: {
     borderColor: '#DC2626',
     backgroundColor: '#FEF2F2',
   },
-  selectCustomerBtnText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#475569',
+  selectCustomerIconBox: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    backgroundColor: '#059669',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#059669',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 2,
   },
-  rateBar: {
+  selectCustomerTitle: {
+    fontSize: 14.5,
+    fontWeight: '800',
+    color: '#064E3B',
+  },
+  selectCustomerSubtitle: {
+    fontSize: 11,
+    fontWeight: '500',
+    color: '#047857',
+    marginTop: 2,
+  },
+  fastCounterTag: {
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+    borderRadius: 4,
+    backgroundColor: 'rgba(5, 150, 105, 0.15)',
+  },
+  fastCounterTagText: {
+    fontSize: 8.5,
+    fontWeight: '900',
+    color: '#047857',
+    letterSpacing: 0.5,
+  },
+  selectCustomerArrowBox: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: 'rgba(5, 150, 105, 0.12)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  rateCardContainer: {
+    backgroundColor: '#FFFBEB',
+    borderWidth: 1.5,
+    borderColor: '#FDE68A',
+    borderRadius: 14,
+    padding: 14,
+    marginBottom: 14,
+  },
+  rateCardHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: '#FFFBEB',
-    borderWidth: 1,
-    borderColor: '#FDE68A',
-    borderRadius: 12,
-    padding: 12,
     marginBottom: 10,
+    gap: 8,
+    flexWrap: 'wrap',
   },
-  rateInfo: {
-    flex: 1,
-  },
-  rateTitle: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#92400E',
-  },
-  rateValue: {
-    fontSize: 16,
-    fontWeight: '900',
-    color: '#78350F',
-    marginVertical: 2,
-  },
-  manualBadge: {
-    alignSelf: 'flex-start',
-    backgroundColor: '#FEF3C7',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4,
-  },
-  manualBadgeText: {
-    fontSize: 9,
-    fontWeight: '800',
-    color: '#B45309',
-  },
-  dailyBadge: {
-    alignSelf: 'flex-start',
-    backgroundColor: '#DCFCE7',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4,
-  },
-  dailyBadgeText: {
-    fontSize: 9,
-    fontWeight: '800',
-    color: '#15803D',
-  },
-  overrideBtn: {
-    backgroundColor: '#D97706',
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 8,
-  },
-  overrideBtnText: {
-    fontSize: 11,
-    fontWeight: '800',
-    color: '#FFFFFF',
-  },
-  resetRateBtn: {
-    backgroundColor: '#E2E8F0',
-    paddingHorizontal: 8,
-    paddingVertical: 6,
-    borderRadius: 8,
-  },
-  resetRateBtnText: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#475569',
-  },
-  rateEditRow: {
+  rateCardHeaderLeft: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: 10,
+    flex: 1,
+    minWidth: 180,
   },
-  rateInput: {
-    width: 80,
+  rateIconBadge: {
+    width: 36,
     height: 36,
-    borderWidth: 1.5,
-    borderColor: '#D97706',
-    borderRadius: 8,
+    borderRadius: 10,
+    backgroundColor: 'rgba(217, 119, 6, 0.15)',
+    borderWidth: 1,
+    borderColor: 'rgba(217, 119, 6, 0.25)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  rateCardTitle: {
+    fontSize: 12.5,
+    fontWeight: '900',
+    color: '#92400E',
+    letterSpacing: 0.5,
+  },
+  rateCardSubtitle: {
+    fontSize: 11,
+    fontWeight: '500',
+    color: '#B45309',
+    marginTop: 1,
+  },
+  rateCardStatusBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  syncedRatePill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: 'rgba(5, 150, 105, 0.12)',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: 'rgba(5, 150, 105, 0.25)',
+  },
+  syncedRatePillText: {
+    fontSize: 9.5,
+    fontWeight: '800',
+    color: '#059669',
+    letterSpacing: 0.5,
+  },
+  manualRatePill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: 'rgba(217, 119, 6, 0.15)',
+    paddingHorizontal: 7,
+    paddingVertical: 3,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: 'rgba(217, 119, 6, 0.3)',
+  },
+  manualDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#D97706',
+  },
+  manualRatePillText: {
+    fontSize: 9,
+    fontWeight: '900',
+    color: '#B45309',
+    letterSpacing: 0.5,
+  },
+  resetRateChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
     backgroundColor: '#FFFFFF',
     paddingHorizontal: 8,
-    fontSize: 13,
+    paddingVertical: 4,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: 'rgba(5, 150, 105, 0.3)',
+  },
+  resetRateChipText: {
+    fontSize: 10.5,
     fontWeight: '700',
+    color: '#059669',
   },
-  iconBtnCheck: {
-    backgroundColor: '#16A34A',
-    padding: 8,
-    borderRadius: 8,
+  rateInputRowWrapper: {
+    marginTop: 4,
   },
-  iconBtnCancel: {
-    backgroundColor: '#E2E8F0',
-    padding: 8,
-    borderRadius: 8,
+  rateInputContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1.5,
+    borderColor: '#FDE68A',
+    borderRadius: 12,
+    overflow: 'hidden',
+    shadowColor: '#B45309',
+    shadowOffset: { width: 0, height: 1.5 },
+    shadowOpacity: 0.08,
+    shadowRadius: 3,
+    elevation: 1,
+  },
+  rateInputContainerOverridden: {
+    borderColor: '#D97706',
+    borderWidth: 2,
+  },
+  currencyPrefixBox: {
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    backgroundColor: 'rgba(217, 119, 6, 0.08)',
+    borderRightWidth: 1,
+    borderRightColor: 'rgba(217, 119, 6, 0.15)',
+  },
+  currencyPrefixText: {
+    fontSize: 16,
+    fontWeight: '900',
+    color: '#92400E',
+  },
+  rateOpenTextInput: {
+    flex: 1,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    fontSize: 18,
+    fontWeight: '900',
+    color: '#1E293B',
+  },
+  rateUnitBox: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  rateUnitText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#94A3B8',
+  },
+  fullAmountChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    backgroundColor: 'rgba(5, 150, 105, 0.1)',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: 'rgba(5, 150, 105, 0.25)',
+  },
+  fullAmountChipText: {
+    fontSize: 10.5,
+    fontWeight: '800',
+    color: '#059669',
   },
   itemsTableCard: {
     marginTop: 14,
@@ -1193,6 +1532,36 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingVertical: 4,
+  },
+  discountRow: {
+    paddingVertical: 3,
+  },
+  discountInputWrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1.5,
+    borderColor: '#CBD5E1',
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    height: 34,
+    minWidth: 110,
+    justifyContent: 'flex-end',
+  },
+  discountMinusPrefix: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#DC2626',
+    marginRight: 4,
+  },
+  discountTextInput: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#0F172A',
+    textAlign: 'right',
+    minWidth: 50,
+    padding: 0,
+    margin: 0,
   },
   summaryLabel: {
     fontSize: 12,

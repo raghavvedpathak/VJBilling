@@ -323,6 +323,7 @@ export const draftInvoiceService = {
 
   /**
    * Updates draft details such as customer, discount, old metal deduction, notes, or rate override.
+   * If metal rate is updated, automatically recalculates all line items with the new rate.
    */
   async updateDraftDetails(invoiceId: string, updates: UpdateDraftDetailsInput): Promise<SaleInvoice> {
     const invoice = await invoiceRepository.getById(invoiceId);
@@ -338,7 +339,75 @@ export const draftInvoiceService = {
     if (updates.isManualRate !== undefined) updatePayload.isManualRate = updates.isManualRate;
 
     await invoiceRepository.updateDraft(invoiceId, updatePayload);
+
+    // If metal rate changed, re-rate all items in the draft
+    if (updates.metalRatePaisePerGram !== undefined) {
+      await this.recalculateItemsForRate(invoice.firmId, invoiceId, updates.metalRatePaisePerGram);
+    }
+
     return this.recalculateDraftTotals(invoiceId);
+  },
+
+  /**
+   * Recalculates metal value and GST for all items of a draft invoice when the metal rate changes.
+   */
+  async recalculateItemsForRate(firmId: string, invoiceId: string, newRatePaise: number): Promise<void> {
+    const items = await invoiceRepository.getItemsByInvoiceId(invoiceId);
+    if (!items || items.length === 0) return;
+
+    const firm = await firmRepository.findById(firmId);
+    let activeGroups: any[] = [];
+    if (firm?.gstin) {
+      activeGroups = await taxMasterService.getActiveTaxGroups(firmId);
+    }
+
+    for (const item of items) {
+      const netWeight =
+        item.lineType === 'LOOSE_LOT'
+          ? (item.weightSoldMg ?? item.netWeightMg ?? item.grossWeightMg ?? 0)
+          : (item.netWeightMg ?? item.grossWeightMg ?? 0);
+
+      const metalValuePaise = Math.round((netWeight * newRatePaise) / 1000);
+      const makingChargesPaise = item.makingChargesPaise || 0;
+      const stoneAmtPaise = item.stoneAmountPaise || 0;
+
+      let lineCgst = 0;
+      let lineSgst = 0;
+
+      if (firm?.gstin && activeGroups.length > 0) {
+        const metalGrp =
+          activeGroups.find((g) => g.id === item.metalTaxGroupId) ||
+          activeGroups.find((g) => g.groupName.includes('3%')) ||
+          activeGroups[0];
+        const makingGrp =
+          activeGroups.find((g) => g.id === item.makingTaxGroupId) ||
+          activeGroups.find((g) => g.groupName.includes('5%')) ||
+          activeGroups[0];
+
+        if (metalGrp) {
+          const metalCgstBps = metalGrp.cgstRate?.rateBps ?? 150;
+          const metalSgstBps = metalGrp.sgstRate?.rateBps ?? 150;
+          lineCgst += Math.round((metalValuePaise * metalCgstBps) / 10000);
+          lineSgst += Math.round((metalValuePaise * metalSgstBps) / 10000);
+        }
+
+        if (makingGrp) {
+          const makingCgstBps = makingGrp.cgstRate?.rateBps ?? 250;
+          const makingSgstBps = makingGrp.sgstRate?.rateBps ?? 250;
+          lineCgst += Math.round((makingChargesPaise * makingCgstBps) / 10000);
+          lineSgst += Math.round((makingChargesPaise * makingSgstBps) / 10000);
+        }
+      }
+
+      const lineGstPaise = lineCgst + lineSgst;
+      const lineTotalPaise = metalValuePaise + makingChargesPaise + stoneAmtPaise + lineGstPaise;
+
+      await invoiceRepository.updateItemSnapshot(item.id, {
+        metalValuePaise,
+        lineGstPaise,
+        lineTotalPaise,
+      });
+    }
   },
 
   /**
@@ -371,7 +440,7 @@ export const draftInvoiceService = {
     const oldMetalDeductionPaise = invoice.oldMetalDeductionPaise || 0;
 
     // Old metal deduction and discount are applied strictly AFTER GST:
-    const netPayablePaise = Math.max(0, subtotalPaise - discountPaise - oldMetalDeductionPaise);
+    const netPayablePaise = subtotalPaise - discountPaise - oldMetalDeductionPaise;
 
     return invoiceRepository.updateDraft(invoiceId, {
       taxableMetalAmtPaise,
