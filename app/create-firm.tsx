@@ -209,13 +209,14 @@ export default function CreateFirmScreen() {
     try {
       setLoading(true);
 
+      // Create firm with bisLogoUri = null to avoid writing temporary cache URI to bis_logos table
       const newFirm = await firmService.createFirm({
         name: form.name.trim(),
         firmCode: form.firmCode.trim().toUpperCase(),
         proprietor: form.proprietor.trim(),
         gstin: form.gstin.trim().toUpperCase() || null,
         bisLicence: form.bisLicence.trim().toUpperCase() || null,
-        bisLogoUri: form.bisLogoUri,
+        bisLogoUri: null,
         phone1: form.phone1.trim(),
         phone2: form.phone2.trim() || null,
         phone3: form.phone3.trim() || null,
@@ -227,6 +228,7 @@ export default function CreateFirmScreen() {
         pincode: form.pincode.trim(),
       });
 
+      // Save firm brand logo and update firm record
       if (form.firmLogoUri) {
         const savedLogoPath = await processAndSaveFirmImage(form.firmLogoUri, 'firm', newFirm.id);
         if (savedLogoPath) {
@@ -234,10 +236,14 @@ export default function CreateFirmScreen() {
         }
       }
 
+      // Save BIS hallmark logo to permanent location and register via firmService.updateFirm
       if (form.bisLogoUri && form.bisLicence) {
         const savedBisLogoPath = await processAndSaveFirmImage(form.bisLogoUri, 'bis_firm', newFirm.id);
         if (savedBisLogoPath) {
-          await firmService.updateFirm(newFirm.id, { bisLogoUri: savedBisLogoPath, bisLicence: form.bisLicence.trim().toUpperCase() });
+          await firmService.updateFirm(newFirm.id, {
+            bisLogoUri: savedBisLogoPath,
+            bisLicence: form.bisLicence.trim().toUpperCase(),
+          });
         }
       }
 

@@ -8,7 +8,8 @@ const getSafeDir = (): string => {
     return dir.endsWith('/') ? dir : `${dir}/`;
   }
 
-  return 'file:///data/user/0/com.vjbilling/files/';
+  // Corrected to match app package identifier (com.vjbilling.app)
+  return 'file:///data/user/0/com.vjbilling.app/files/';
 };
 
 const BASE_DIR = getSafeDir();
@@ -22,3 +23,5 @@ export const STORAGE_PATHS = {
   RAW_DB_DIR: `${BASE_DIR}SQLite/`,
   DB_FILENAME: 'vjbilling_v2.db',
 };
+
+export default STORAGE_PATHS;

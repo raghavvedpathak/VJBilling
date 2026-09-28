@@ -9,6 +9,7 @@ import * as FileSystem from 'expo-file-system/legacy';
 import { TwoToneWrapper } from '@/components/common/TwoToneWrapper';
 import { firmService } from '@/services/phase1/firmService';
 import { useFirmStore } from '@/store/phase1/useFirmStore';
+import { bisLogoRepository } from '@/repositories/phase1/bisLogoRepository';
 import { INDIAN_STATES } from '@/utils/indianStates'; 
 import { GlassCard, GlassInput, GlassButton, FixedGlassBar, fixedBarStyles } from '@/components/ui/Glass';
 import { Save, Building2, User, MapPin, Hash, Phone, ShieldCheck, ImagePlus, Tag, CheckCircle2, ArrowLeft, ChevronDown, X, Lock } from 'lucide-react-native';
@@ -74,7 +75,15 @@ export default function EditFirmScreen() {
     if (id && firms.length > 0) {
       const firmToEdit = firms.find((f: any) => f.id === id);
       if (firmToEdit) {
-        setOriginalFirm(firmToEdit);
+        let activeBisLogoUri = firmToEdit.bisLogoRef || null;
+        try {
+          const activeBis = bisLogoRepository.findActiveByFirmId(firmToEdit.id);
+          if (activeBis?.fileRef) {
+            activeBisLogoUri = activeBis.fileRef;
+          }
+        } catch {}
+
+        setOriginalFirm({ ...firmToEdit, resolvedBisUri: activeBisLogoUri });
         setForm({
           name: firmToEdit.name,
           firmCode: firmToEdit.firmCode,
@@ -82,7 +91,7 @@ export default function EditFirmScreen() {
           logoUri: firmToEdit.firmLogoRef || null, 
           gstin: firmToEdit.gstin || '',
           bisLicence: firmToEdit.bisLicence || '',
-          bisLogoUri: firmToEdit.bisLogoRef || null, 
+          bisLogoUri: activeBisLogoUri, 
           phone1: firmToEdit.phone1,
           phone2: firmToEdit.phone2 || '',
           phone3: firmToEdit.phone3 || '',
@@ -100,6 +109,7 @@ export default function EditFirmScreen() {
 
   const isDirty = useMemo(() => {
     if (!originalFirm) return false;
+    const origBis = originalFirm.resolvedBisUri ?? originalFirm.bisLogoRef ?? null;
     return form.name !== originalFirm.name || 
            form.proprietor !== originalFirm.proprietor || 
            form.phone1 !== originalFirm.phone1 ||
@@ -110,7 +120,7 @@ export default function EditFirmScreen() {
            form.city !== originalFirm.city ||
            form.pincode !== originalFirm.pincode ||
            form.logoUri !== (originalFirm.firmLogoRef || null) ||
-           form.bisLogoUri !== (originalFirm.bisLogoRef || null) ||
+           form.bisLogoUri !== origBis ||
            form.bisLicence !== (originalFirm.bisLicence || '') ||
            form.gstin !== (originalFirm.gstin || '') ||
            form.stateCode !== (originalFirm.stateCode || '');
@@ -239,10 +249,12 @@ export default function EditFirmScreen() {
           }
         }
 
-        if (form.bisLogoUri !== (originalFirm?.bisLogoRef || null)) {
+        // BIS logo processing: pass bisLogoUri to trigger canonical bis_logos registration
+        const origBis = originalFirm?.resolvedBisUri ?? originalFirm?.bisLogoRef ?? null;
+        if (form.bisLogoUri !== origBis) {
           if (form.bisLogoUri) {
             const savedBisLogoPath = await processAndSaveFirmImage(form.bisLogoUri, 'bis_firm', id);
-            if (savedBisLogoPath) updatePayload.bisLogoRef = savedBisLogoPath;
+            if (savedBisLogoPath) updatePayload.bisLogoUri = savedBisLogoPath;
           } else {
             updatePayload.bisLogoRef = null;
           }
@@ -262,8 +274,9 @@ export default function EditFirmScreen() {
         if (form.logoUri !== (originalFirm?.firmLogoRef || null) && originalFirm?.firmLogoRef) {
           try { await FileSystem.deleteAsync(originalFirm.firmLogoRef, { idempotent: true }); } catch {}
         }
-        if (form.bisLogoUri !== (originalFirm?.bisLogoRef || null) && originalFirm?.bisLogoRef) {
-          try { await FileSystem.deleteAsync(originalFirm.bisLogoRef, { idempotent: true }); } catch {}
+        const origBisFile = originalFirm?.resolvedBisUri || (originalFirm?.bisLogoRef?.startsWith('file:') ? originalFirm.bisLogoRef : null);
+        if (form.bisLogoUri !== origBis && origBisFile) {
+          try { await FileSystem.deleteAsync(origBisFile, { idempotent: true }); } catch {}
         }
 
         await switchFirm(id);
@@ -275,7 +288,7 @@ export default function EditFirmScreen() {
       }
     };
 
-    if (originalFirm?.bisLogoRef && !form.bisLicence) {
+    if ((originalFirm?.bisLogoRef || originalFirm?.resolvedBisUri) && !form.bisLicence) {
       Alert.alert(
         "Archive BIS Logo?",
         "Removing the BIS Licence will automatically archive your BIS Logo. Proceed?",
