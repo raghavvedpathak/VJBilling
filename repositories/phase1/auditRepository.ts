@@ -1,20 +1,14 @@
-// repositories/auditRepository.ts
-// Append-only audit trail — no update or delete methods exist by design.
-//
-// v4.0 G41: tx is required for all events EXCEPT the 3 exempt events.
-// v7.4 AUDIT-ARCHIVE: countByFy + deleteByRetention added for fyService.closeFY().
-//
-// CONSTITUTIONAL RULES:
-//   - No UPDATE method exists — audit_logs is immutable (DB trigger + no service method).
-//   - G41 whitelist: RESTORE_OLD_SCHEMA, DEVICE_ID_GENERATED, BACKUP_CREATED are the
-//     ONLY 3 events that may be written without a tx context.
+// repositories/phase1/auditRepository.ts
+// Append-only audit trail — strictly immutable.
+// v4.0 G41: tx required for all events EXCEPT the 3 exempt events.
+// Cycle Fix: reads deviceId from storage directly to eliminate circular require with utils/deviceId.ts
 
 import * as Crypto from 'expo-crypto';
 import { eq, desc, isNull, and, gte, lte } from 'drizzle-orm';
 import db, { db as dbNamed } from '@/db/client';
 import { auditLogs, financialYears } from '@/db/schema';
 import { now } from '@/utils/now';
-import { getDeviceId } from '@/utils/deviceId';
+import { storage } from '@/utils/storage';
 
 type DbOrTx = any;
 
@@ -58,14 +52,8 @@ export const auditRepository = {
     const newId = Crypto.randomUUID();
     const payloadStr = typeof input.payload === 'string' ? input.payload : JSON.stringify(input.payload ?? {});
     
-    let deviceId = input.deviceId;
-    if (!deviceId) {
-      try {
-        deviceId = getDeviceId();
-      } catch {
-        deviceId = 'UNKNOWN_DEVICE';
-      }
-    }
+    // Cycle-safe direct storage read — does not import utils/deviceId.ts
+    const deviceId = input.deviceId || storage.getString('vjbilling_device_id') || 'DEV-DEVICE-ID';
 
     dbContext.insert(auditLogs).values({
       id: newId,
@@ -180,3 +168,12 @@ export const auditRepository = {
     );
   },
 };
+
+export const log = auditRepository.log.bind(auditRepository);
+export const create = auditRepository.create.bind(auditRepository);
+export const getByFirmId = auditRepository.getByFirmId.bind(auditRepository);
+export const getSystemLogs = auditRepository.getSystemLogs.bind(auditRepository);
+export const hasEvent = auditRepository.hasEvent.bind(auditRepository);
+export const countByFy = auditRepository.countByFy.bind(auditRepository);
+export const deleteByRetention = auditRepository.deleteByRetention.bind(auditRepository);
+export default auditRepository;

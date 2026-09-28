@@ -1,14 +1,13 @@
-// utils/deviceId.ts — Phase 1 v7.38 Canonical Device Identity & Key Derivation
+// utils/deviceId.ts — Phase 1 (v7.39) Canonical Device Identity
+// Step B / Hardening 5 compliant — Two-phase bootstrap safely decoupled
 
 import { storage } from './storage';
 import * as Crypto from 'expo-crypto';
 import * as Device from 'expo-device';
-import { auditRepository } from '@/repositories/phase1/auditRepository';
 import { now } from './now';
 
 const DEVICE_ID_KEY = 'vjbilling_device_id';
 
-// Exposed unique ID generator for database entities
 export const generateId = () => Crypto.randomUUID();
 
 /**
@@ -26,7 +25,7 @@ export function getDeviceId(): string {
  * Phase A: Generate and persist device ID — NO audit log.
  * Synchronous per Step B specification.
  * Called early in bootstrap before DB is ready.
- * Safe from circular dependencies (does not touch auditRepository).
+ * Safe from circular dependencies.
  */
 export function getOrGenerateDeviceId(): string {
   const existingId = storage.getString(DEVICE_ID_KEY);
@@ -44,11 +43,11 @@ export function getOrGenerateDeviceId(): string {
 /**
  * Phase B: Write DEVICE_ID_GENERATED audit event if not already logged.
  * Called after DB and repositories are fully initialized (bootstrap Step 7).
- * Handles reinstalls correctly — checks DB directly, not MMKV flag.
- * Non-fatal: errors are caught and logged, never bubble up to crash bootstrap.
+ * Lazy-loads auditRepository to ensure zero circular evaluation issues.
  */
 export async function auditDeviceIdIfNew(): Promise<void> {
   try {
+    const { auditRepository } = require('@/repositories/phase1/auditRepository');
     const hasEvent = auditRepository.hasEvent('DEVICE_ID_GENERATED');
 
     if (!hasEvent) {
@@ -64,15 +63,15 @@ export async function auditDeviceIdIfNew(): Promise<void> {
         os: osName,
       });
 
-      if (typeof (auditRepository as any).log === 'function') {
-        (auditRepository as any).log(null, {
+      if (typeof auditRepository.log === 'function') {
+        auditRepository.log(null, {
           eventType: 'DEVICE_ID_GENERATED',
           firmId: null,
           payload,
           deviceId,
         });
-      } else if (typeof (auditRepository as any).create === 'function') {
-        (auditRepository as any).create({
+      } else if (typeof auditRepository.create === 'function') {
+        auditRepository.create({
           firmId: null,
           eventType: 'DEVICE_ID_GENERATED',
           payload,
@@ -97,16 +96,5 @@ export async function getCanonicalBackupKeyMaterial(): Promise<Uint8Array> {
   return new Uint8Array(raw);
 }
 
-/**
- * Derives a consistent 32-byte Uint8Array from the Device ID (or provided overrideDeviceId)
- * for use as raw key material when an automated backup runs without a user password (FIX-V726-6).
- */
-export async function getDeviceDerivedKeyMaterial(overrideDeviceId?: string): Promise<Uint8Array> {
-  const deviceId = overrideDeviceId || getDeviceId();
-  const enc = new TextEncoder();
-  const raw = await crypto.subtle.digest(
-    'SHA-256',
-    enc.encode('vjbilling_device_key_v1:' + deviceId)
-  );
-  return new Uint8Array(raw);
-}
+// Re-export getDeviceDerivedKeyMaterial for backward compatibility
+export { getDeviceDerivedKeyMaterial } from './deviceKey';
