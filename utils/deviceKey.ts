@@ -2,9 +2,10 @@
 // utils/deviceKey.ts
 // v7.26 FIX-V726-6 [build-blocker]: Canonical device-derived key utility
 // Shared by createBackup(), restore(), and pre-migration snapshot encryption.
+// Decoupled from utils/deviceId.ts to eliminate require cycles.
 // ================================================================
 
-import { getDeviceId } from '@/utils/deviceId';
+import { storage } from '@/utils/storage';
 import * as Crypto from 'expo-crypto';
 
 function hexToBytes(hex: string): Uint8Array {
@@ -20,7 +21,8 @@ function hexToBytes(hex: string): Uint8Array {
  * for raw key material in AES-256-GCM / PBKDF2 operations.
  */
 export async function getDeviceDerivedKeyMaterial(overrideDeviceId?: string): Promise<Uint8Array> {
-  const deviceId = overrideDeviceId || getDeviceId();
+  const deviceId = overrideDeviceId || storage.getString('vjbilling_device_id');
+  if (!deviceId) throw new Error('DEVICE_ID_NOT_INITIALIZED');
   const rawKeyString = 'vjbilling_device_key_v1:' + deviceId;
 
   if (typeof crypto !== 'undefined' && crypto?.subtle?.digest) {
@@ -36,3 +38,5 @@ export async function getDeviceDerivedKeyMaterial(overrideDeviceId?: string): Pr
   
   return hexToBytes(hexHash);
 }
+
+export default getDeviceDerivedKeyMaterial;

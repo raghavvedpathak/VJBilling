@@ -102,8 +102,8 @@ export function RestorePreviewModal({
       onRequestClose={handleCancelPress}
     >
       <KeyboardAvoidingView 
-        behavior={Platform.OS === 'ios' ? 'padding' : 'padding'}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : (Platform.OS === 'android' ? (require('react-native').StatusBar.currentHeight || 24) : 24)}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 12 : 0}
         style={s.overlay}
       >
         <View style={s.container}>
@@ -133,7 +133,7 @@ export function RestorePreviewModal({
               )}
             </View>
 
-            <ScrollView showsVerticalScrollIndicator={false} style={s.scrollArea}>
+            <ScrollView showsVerticalScrollIndicator={false} style={s.scrollArea} keyboardShouldPersistTaps="handled">
               
               {/* Metadata Pills */}
               <View style={s.metaPillContainer}>

@@ -95,6 +95,3 @@ export async function getCanonicalBackupKeyMaterial(): Promise<Uint8Array> {
   );
   return new Uint8Array(raw);
 }
-
-// Re-export getDeviceDerivedKeyMaterial for backward compatibility
-export { getDeviceDerivedKeyMaterial } from './deviceKey';
