@@ -56,7 +56,7 @@ const DesignRow = memo(({ item, categoryName, isLowStock, currentThreshold, colo
       <View style={[s.metalStripe, { backgroundColor: metalColor }]} />
 
       <View style={[s.metalBadge, { backgroundColor: `${colors.vjAccent}12`, borderColor: `${colors.vjAccent}35` }]}>
-        {getJewelryCategoryIcon(categoryName, item.designName, item.metal, 22, colors.vjAccent)}
+        {getJewelryCategoryIcon(categoryName, item.designName, item.metal, 32, colors.vjAccent)}
       </View>
 
       <View style={s.cardBody}>

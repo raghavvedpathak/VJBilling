@@ -119,6 +119,79 @@ export const COLORS = {
   subtle: 'rgba(42, 18, 8, 0.25)',
 };
 
+export const SEMANTIC_BADGES = {
+  gold: {
+    bg: 'rgba(212, 175, 55, 0.15)',
+    border: 'rgba(212, 175, 55, 0.45)',
+    text: '#92400E',
+    darkBg: 'rgba(212, 175, 55, 0.22)',
+    darkText: '#FDE68A',
+  },
+  silver: {
+    bg: 'rgba(148, 163, 184, 0.18)',
+    border: 'rgba(148, 163, 184, 0.45)',
+    text: '#334155',
+    darkBg: 'rgba(148, 163, 184, 0.25)',
+    darkText: '#F1F5F9',
+  },
+  success: {
+    bg: 'rgba(16, 185, 129, 0.12)',
+    border: 'rgba(16, 185, 129, 0.35)',
+    text: '#047857',
+    darkBg: 'rgba(16, 185, 129, 0.22)',
+    darkText: '#34D399',
+  },
+  warning: {
+    bg: 'rgba(245, 158, 11, 0.14)',
+    border: 'rgba(245, 158, 11, 0.38)',
+    text: '#B45309',
+    darkBg: 'rgba(245, 158, 11, 0.24)',
+    darkText: '#FBBF24',
+  },
+  danger: {
+    bg: 'rgba(239, 68, 68, 0.12)',
+    border: 'rgba(239, 68, 68, 0.35)',
+    text: '#B91C1C',
+    darkBg: 'rgba(239, 68, 68, 0.22)',
+    darkText: '#F87171',
+  },
+  info: {
+    bg: 'rgba(14, 165, 233, 0.12)',
+    border: 'rgba(14, 165, 233, 0.35)',
+    text: '#0369A1',
+    darkBg: 'rgba(14, 165, 233, 0.22)',
+    darkText: '#38BDF8',
+  },
+  purple: {
+    bg: 'rgba(124, 58, 237, 0.12)',
+    border: 'rgba(124, 58, 237, 0.35)',
+    text: '#6D28D9',
+    darkBg: 'rgba(124, 58, 237, 0.22)',
+    darkText: '#C084FC',
+  },
+} as const;
+
+export const TYPOGRAPHY = {
+  displayHero: { fontSize: 26, fontWeight: '900' as const, letterSpacing: -0.5 },
+  screenTitle: { fontSize: 20, fontWeight: '900' as const, letterSpacing: 0.2 },
+  sectionHeader: { fontSize: 13, fontWeight: '800' as const, textTransform: 'uppercase' as const, letterSpacing: 0.8 },
+  statLabel: { fontSize: 11, fontWeight: '800' as const, textTransform: 'uppercase' as const, letterSpacing: 0.6 },
+  statValue: { fontSize: 20, fontWeight: '900' as const },
+  currencyValue: { fontSize: 22, fontWeight: '900' as const, letterSpacing: 0.2 },
+  bodyRegular: { fontSize: 14, fontWeight: '600' as const },
+  bodyMuted: { fontSize: 12, fontWeight: '500' as const },
+  badgeText: { fontSize: 10, fontWeight: '800' as const, letterSpacing: 0.5, textTransform: 'uppercase' as const },
+} as const;
+
+export const SPACING = {
+  touchTargetMin: 48,
+  touchTargetTablet: 52,
+  cardRadius: 24,
+  inputRadius: 16,
+  pillRadius: 999,
+  headerHeight: 56,
+} as const;
+
 export const SHADOWS = {
   glass: {
     shadowColor: '#000',
@@ -139,6 +212,10 @@ export const SHADOWS = {
 export const THEME = {
   colors: COLORS,
   shadows: SHADOWS,
+  semanticBadges: SEMANTIC_BADGES,
+  typography: TYPOGRAPHY,
+  spacing: SPACING,
 } as const;
 
 export type ThemeColors = typeof COLORS;
+

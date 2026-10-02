@@ -777,3 +777,252 @@ export function StatCard({
     </GlassCard>
   );
 }
+
+// ============================================================================
+// 7. LIVE MATH BREAKDOWN CARD (Jewelry Formula Transparency)
+// Displays crystal-clear calculation steps (e.g. Gross - Stone = Net Wt)
+// or (Base + Making + GST = Total) with intuitive sign pill tags.
+// ============================================================================
+export interface MathStepItem {
+  label: string;
+  value: string | number;
+  operator?: '+' | '-' | '×' | '=' | undefined;
+  unit?: string | undefined;
+  isHighlight?: boolean | undefined;
+}
+
+export interface LiveMathBreakdownCardProps {
+  title?: string | undefined;
+  steps: MathStepItem[];
+  resultLabel: string;
+  resultValue: string | number;
+  resultUnit?: string | undefined;
+  style?: ViewStyle | undefined;
+}
+
+export function LiveMathBreakdownCard({
+  title = 'Live Calculation Breakdown',
+  steps,
+  resultLabel,
+  resultValue,
+  resultUnit,
+  style,
+}: LiveMathBreakdownCardProps) {
+  const activeTheme = appSettingsStore((s: any) => s.theme);
+  const colors = getThemeColors(activeTheme);
+  const isDark = activeTheme === 'dark';
+
+  return (
+    <GlassCard
+      style={[
+        {
+          padding: 16,
+          borderWidth: 1.2,
+          borderColor: isDark ? 'rgba(212, 175, 55, 0.40)' : 'rgba(212, 175, 55, 0.35)',
+          backgroundColor: isDark ? 'rgba(28, 20, 24, 0.88)' : 'rgba(255, 255, 255, 0.82)',
+          marginBottom: 16,
+        },
+        style,
+      ]}
+    >
+      {title ? (
+        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+          <Text
+            style={{
+              fontSize: 11.5,
+              fontWeight: '800',
+              textTransform: 'uppercase',
+              letterSpacing: 0.8,
+              color: `${colors.vjText}99`,
+            }}
+          >
+            {title}
+          </Text>
+        </View>
+      ) : null}
+
+      {/* Steps List */}
+      <View style={{ gap: 8 }}>
+        {steps.map((step, idx) => (
+          <View
+            key={idx}
+            style={{
+              flexDirection: 'row',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              paddingVertical: 4,
+              borderBottomWidth: idx < steps.length - 1 ? 0.8 : 0,
+              borderBottomColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(92, 22, 35, 0.06)',
+            }}
+          >
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flex: 1 }}>
+              {step.operator ? (
+                <View
+                  style={{
+                    width: 20,
+                    height: 20,
+                    borderRadius: 10,
+                    backgroundColor: isDark ? 'rgba(255, 255, 255, 0.12)' : 'rgba(212, 175, 55, 0.18)',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  <Text
+                    style={{
+                      fontSize: 11,
+                      fontWeight: '900',
+                      color: colors.vjText,
+                    }}
+                  >
+                    {step.operator}
+                  </Text>
+                </View>
+              ) : null}
+              <Text
+                style={{
+                  fontSize: 13.5,
+                  fontWeight: '600',
+                  color: `${colors.vjText}B3`,
+                }}
+              >
+                {step.label}
+              </Text>
+            </View>
+            <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 3 }}>
+              <Text
+                style={{
+                  fontSize: 14.5,
+                  fontWeight: step.isHighlight ? '800' : '700',
+                  color: step.isHighlight ? colors.vjAccent : colors.vjText,
+                }}
+              >
+                {step.value}
+              </Text>
+              {step.unit ? (
+                <Text
+                  style={{
+                    fontSize: 11,
+                    fontWeight: '600',
+                    color: `${colors.vjText}80`,
+                  }}
+                >
+                  {step.unit}
+                </Text>
+              ) : null}
+            </View>
+          </View>
+        ))}
+      </View>
+
+      {/* Result Section */}
+      <View
+        style={{
+          marginTop: 12,
+          paddingTop: 10,
+          borderTopWidth: 1.5,
+          borderTopColor: isDark ? 'rgba(212, 175, 55, 0.35)' : 'rgba(212, 175, 55, 0.30)',
+          flexDirection: 'row',
+          alignItems: 'baseline',
+          justifyContent: 'space-between',
+        }}
+      >
+        <Text
+          style={{
+            fontSize: 13,
+            fontWeight: '900',
+            textTransform: 'uppercase',
+            letterSpacing: 0.6,
+            color: colors.vjText,
+          }}
+        >
+          {resultLabel}
+        </Text>
+        <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 4 }}>
+          <Text
+            style={{
+              fontSize: 18,
+              fontWeight: '900',
+              color: colors.vjAccent,
+            }}
+          >
+            {resultValue}
+          </Text>
+          {resultUnit ? (
+            <Text
+              style={{
+                fontSize: 12,
+                fontWeight: '700',
+                color: `${colors.vjText}99`,
+              }}
+            >
+              {resultUnit}
+            </Text>
+          ) : null}
+        </View>
+      </View>
+    </GlassCard>
+  );
+}
+
+// ============================================================================
+// 8. METRIC BADGE ROW (Showroom Quick Attribute Chips)
+// Displays a row of metadata chips (e.g. Purity, HUID, Weight, Stones)
+// ============================================================================
+export interface MetricChipItem {
+  label: string;
+  value: string | number;
+  highlight?: boolean | undefined;
+}
+
+export function MetricBadgeRow({ chips }: { chips: MetricChipItem[] }) {
+  const activeTheme = appSettingsStore((s: any) => s.theme);
+  const colors = getThemeColors(activeTheme);
+  const isDark = activeTheme === 'dark';
+
+  return (
+    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginVertical: 6 }}>
+      {chips.map((chip, idx) => (
+        <View
+          key={idx}
+          style={{
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: 4,
+            paddingHorizontal: 9,
+            paddingVertical: 4,
+            borderRadius: 10,
+            borderWidth: 1,
+            backgroundColor: chip.highlight
+              ? (isDark ? 'rgba(212, 175, 55, 0.20)' : 'rgba(212, 175, 55, 0.15)')
+              : (isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.04)'),
+            borderColor: chip.highlight
+              ? (isDark ? 'rgba(212, 175, 55, 0.45)' : 'rgba(212, 175, 55, 0.40)')
+              : (isDark ? 'rgba(255, 255, 255, 0.12)' : 'rgba(0, 0, 0, 0.08)'),
+          }}
+        >
+          <Text
+            style={{
+              fontSize: 10,
+              fontWeight: '700',
+              textTransform: 'uppercase',
+              color: `${colors.vjText}80`,
+              letterSpacing: 0.3,
+            }}
+          >
+            {chip.label}:
+          </Text>
+          <Text
+            style={{
+              fontSize: 11,
+              fontWeight: '800',
+              color: chip.highlight ? colors.vjAccent : colors.vjText,
+            }}
+          >
+            {chip.value}
+          </Text>
+        </View>
+      ))}
+    </View>
+  );
+}
+

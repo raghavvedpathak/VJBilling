@@ -14,7 +14,7 @@ import {
 } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { ChevronDown } from 'lucide-react-native';
-import { getThemeColors } from '@/constants/theme';
+import { getThemeColors, SEMANTIC_BADGES } from '@/constants/theme';
 import { appSettingsStore } from '@/store/phase1/appSettingsStore';
 import { getCurrencySymbol } from '@/utils/currency';
 
@@ -35,6 +35,7 @@ export interface GlassInputProps {
   value: string;
   onChangeText: (text: string) => void;
   placeholder?: string | undefined;
+  unit?: string | undefined;
   keyboardType?: any;
   maxLength?: number | undefined;
   autoCapitalize?: any;
@@ -52,6 +53,7 @@ export function GlassInput({
   label,
   icon,
   placeholder,
+  unit,
   value,
   onChangeText,
   keyboardType,
@@ -169,6 +171,28 @@ export function GlassInput({
           onBlur={handleBlur}
           onSubmitEditing={onSubmitEditing}
         />
+        {unit ? (
+          <View
+            style={[
+              glassStyles.inputUnitBadge,
+              {
+                backgroundColor: isDark ? 'rgba(255, 255, 255, 0.10)' : 'rgba(212, 175, 55, 0.14)',
+                borderColor: isDark ? 'rgba(212, 175, 55, 0.35)' : 'rgba(212, 175, 55, 0.30)',
+              },
+            ]}
+          >
+            <Text
+              style={[
+                glassStyles.inputUnitText,
+                {
+                  color: isDark ? '#FDE68A' : colors.vjText,
+                },
+              ]}
+            >
+              {unit}
+            </Text>
+          </View>
+        ) : null}
       </TouchableOpacity>
     </View>
   );
@@ -460,6 +484,52 @@ export function HeaderPill({ icon, label, variant = 'default' }: HeaderPillProps
     >
       {icon}
       <Text style={[glassStyles.headerPillText, { color: textColors[variant] }]}>
+        {label}
+      </Text>
+    </View>
+  );
+}
+
+// ============================================================================
+// 5B. STATUS PILL BADGE (Universal Showroom Pill)
+// High-clarity badge for Paid, Unpaid, Gold, Silver, Karigar, Draft, etc.
+// ============================================================================
+export interface StatusPillBadgeProps {
+  label: string;
+  variant?: 'gold' | 'silver' | 'success' | 'warning' | 'danger' | 'info' | 'purple';
+  icon?: React.ReactNode;
+}
+
+export function StatusPillBadge({ label, variant = 'info', icon }: StatusPillBadgeProps) {
+  const activeTheme = appSettingsStore((s: any) => s.theme);
+  const isDark = activeTheme === 'dark';
+  const badgeConfig = SEMANTIC_BADGES[variant] || SEMANTIC_BADGES.info;
+
+  return (
+    <View
+      style={{
+        paddingHorizontal: 9,
+        paddingVertical: 3.5,
+        borderRadius: 999,
+        borderWidth: 1,
+        backgroundColor: isDark ? badgeConfig.darkBg : badgeConfig.bg,
+        borderColor: badgeConfig.border,
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 5,
+        alignSelf: 'flex-start',
+      }}
+    >
+      {icon}
+      <Text
+        style={{
+          fontSize: 10.5,
+          fontWeight: '800',
+          textTransform: 'uppercase',
+          letterSpacing: 0.6,
+          color: isDark ? badgeConfig.darkText : badgeConfig.text,
+        }}
+      >
         {label}
       </Text>
     </View>
@@ -1023,5 +1093,19 @@ const glassStyles = StyleSheet.create({
   pickerPlaceholder: {
     fontWeight: '600',
     fontSize: 15,
+  },
+  inputUnitBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 3.5,
+    borderRadius: 8,
+    borderWidth: 1,
+    marginLeft: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  inputUnitText: {
+    fontSize: 12,
+    fontWeight: '800',
+    letterSpacing: 0.4,
   },
 });

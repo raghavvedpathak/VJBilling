@@ -1,5 +1,6 @@
 // utils/jewelryIcons.tsx
 import React from 'react';
+import { View, Text } from 'react-native';
 import Svg, { Path, Circle, SvgProps } from 'react-native-svg';
 
 export interface JewelryIconProps extends SvgProps {
@@ -206,27 +207,236 @@ const CATEGORY_RULES: { keywords: string[]; Component: React.FC<JewelryIconProps
   },
 ];
 
+// ======== ALTERNATIVE 1: LUXURY MONOGRAM EMBLEM SYSTEM ========
+
+/**
+ * Extracts a high-end 2-letter luxury monogram from any category or design name.
+ * Handles English, Marathi/Hindi, single words, and multi-word jewelry names.
+ */
+export function extractJewelryMonogram(name?: string): string {
+  if (!name || !name.trim()) return 'VJ';
+
+  const cleaned = name.trim().replace(/[^a-zA-Z0-9\s\u0900-\u097F]/g, '');
+  const words = cleaned.split(/\s+/).filter(Boolean);
+
+  if (words.length >= 2) {
+    const firstChar = words[0].charAt(0).toUpperCase();
+    const secondChar = words[1].charAt(0).toUpperCase();
+    return `${firstChar}${secondChar}`;
+  }
+
+  const singleWord = words[0] || '';
+  if (singleWord.length === 1) {
+    return singleWord.toUpperCase();
+  }
+
+  // Common jewelry dictionary for single-word categories
+  const lower = singleWord.toLowerCase();
+  const knownInitials: Record<string, string> = {
+    ring: 'RG',
+    rings: 'RG',
+    bangle: 'BG',
+    bangles: 'BG',
+    kada: 'KD',
+    kadas: 'KD',
+    kangan: 'KG',
+    kangans: 'KG',
+    necklace: 'NK',
+    necklaces: 'NK',
+    choker: 'CK',
+    chokers: 'CK',
+    mangalsutra: 'MS',
+    chain: 'CH',
+    chains: 'CH',
+    earring: 'ER',
+    earrings: 'ER',
+    jhumka: 'JK',
+    jhumki: 'JK',
+    tops: 'TP',
+    bali: 'BL',
+    payal: 'PY',
+    anklet: 'AK',
+    anklets: 'AK',
+    bichhiya: 'BC',
+    nath: 'NT',
+    coin: 'CN',
+    coins: 'CN',
+    vedhani: 'VD',
+    biscuit: 'BS',
+    bar: 'BR',
+    utensil: 'UT',
+    utensils: 'UT',
+    diya: 'DY',
+    kalash: 'KL',
+    murti: 'MR',
+    idol: 'ID',
+    gem: 'GM',
+    stone: 'ST',
+    diamond: 'DM',
+    loose: 'LS',
+  };
+
+  if (knownInitials[lower]) {
+    return knownInitials[lower];
+  }
+
+  return singleWord.slice(0, 2).toUpperCase();
+}
+
+export function detectMetalFromName(name?: string, explicitMetal?: string): 'GOLD' | 'SILVER' {
+  if (explicitMetal?.toUpperCase() === 'SILVER') return 'SILVER';
+  if (explicitMetal?.toUpperCase() === 'GOLD') return 'GOLD';
+  if (!name) return 'GOLD';
+  const lower = name.toLowerCase();
+  if (lower.includes('silver') || lower.includes('चांदी') || lower.includes('चादी') || lower.includes('925') || lower.includes('92.5')) {
+    return 'SILVER';
+  }
+  return 'GOLD';
+}
+
+export interface JewelryMonogramProps {
+  categoryName?: string | undefined;
+  designName?: string | undefined;
+  metal?: 'GOLD' | 'SILVER' | string | undefined;
+  size?: number | undefined;
+}
+
+export function JewelryMonogramEmblem({
+  categoryName,
+  designName,
+  metal,
+  size = 32,
+}: JewelryMonogramProps) {
+  const nameToUse = designName || categoryName || 'VJ';
+  const resolvedMetal = detectMetalFromName(nameToUse, metal);
+  const isSilver = resolvedMetal === 'SILVER';
+  const monogram = extractJewelryMonogram(nameToUse);
+
+  // High-End Gold Bullion vs Silver Ingot Palette
+  const bgColor = isSilver ? '#E2E8F0' : '#FEF3C7';
+  const borderColor = isSilver ? '#94A3B8' : '#D4AF37';
+  const textColor = isSilver ? '#1E293B' : '#92400E';
+  const innerRimColor = isSilver ? 'rgba(148, 163, 184, 0.40)' : 'rgba(212, 175, 55, 0.40)';
+
+  const fontSize = Math.max(Math.round(size * 0.38), 10);
+
+  return (
+    <View
+      style={{
+        width: size,
+        height: size,
+        borderRadius: Math.round(size * 0.28),
+        backgroundColor: bgColor,
+        borderWidth: 1.5,
+        borderColor: borderColor,
+        alignItems: 'center',
+        justifyContent: 'center',
+        position: 'relative',
+        overflow: 'hidden',
+      }}
+    >
+      {/* Luxury Gloss Light Bevel Highlight */}
+      <View
+        style={{
+          position: 'absolute',
+          top: -2,
+          left: -4,
+          right: 0,
+          height: size * 0.45,
+          backgroundColor: 'rgba(255, 255, 255, 0.50)',
+          transform: [{ skewY: '-15deg' }],
+        }}
+      />
+      {/* Inner Precision Rim */}
+      <View
+        style={{
+          width: size - 6,
+          height: size - 6,
+          borderRadius: Math.round((size - 6) * 0.26),
+          borderWidth: 1,
+          borderColor: innerRimColor,
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
+      >
+        <Text
+          style={{
+            fontSize,
+            fontWeight: '900',
+            letterSpacing: 0.6,
+            color: textColor,
+            textAlign: 'center',
+            includeFontPadding: false,
+          }}
+          numberOfLines={1}
+        >
+          {monogram}
+        </Text>
+      </View>
+    </View>
+  );
+}
+
+/**
+ * Checks for high-confidence keyword match using whole-word boundary or exact token match.
+ */
+function findHighConfidenceSvg(
+  nameStr: string
+): React.FC<JewelryIconProps> | null {
+  const normalized = nameStr.toLowerCase().trim();
+  if (!normalized) return null;
+
+  // Split into tokens for whole-word boundary matching
+  const tokens = normalized.split(/[\s,._\-/]+/);
+
+  for (const rule of CATEGORY_RULES) {
+    for (const kw of rule.keywords) {
+      const kwLower = kw.toLowerCase();
+      // Match if token equals keyword, or if whole normalized string equals or starts/ends with keyword
+      const isWordMatch = tokens.some(t => t === kwLower || t === `${kwLower}s` || t === `${kwLower}es`);
+      if (isWordMatch) {
+        return rule.Component;
+      }
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Canonical entry point for jewelry icons/monograms across Stock Ledger and Category Items.
+ * ALTERNATIVE 3: SMART HYBRID
+ * - High-confidence match for standard categories -> returns polished vector SVG Icon.
+ * - Custom, regional, or unmapped jewelry names -> returns Luxury Monogram Emblem (zero mismatch).
+ */
 export function getJewelryCategoryIcon(
   categoryName?: string,
   designName?: string,
   metal?: string,
-  size: number = 24,
+  size: number = 32,
   color: string = '#D4AF37'
 ) {
-  const nameStr = `${categoryName || ''} ${designName || ''}`.toLowerCase();
+  const nameToUse = designName || categoryName || '';
+  const resolvedMetal = detectMetalFromName(nameToUse, metal);
+  const isSilver = resolvedMetal === 'SILVER';
+  const iconColor = isSilver ? '#94A3B8' : (color || '#D4AF37');
 
-  // Find matching SVG component by keyword lookup
-  const matchedRule = CATEGORY_RULES.find((rule) =>
-    rule.keywords.some((kw) => nameStr.includes(kw))
-  );
+  // 1. Try high-confidence SVG match
+  const SvgComponent = findHighConfidenceSvg(`${categoryName || ''} ${designName || ''}`);
 
-  let SelectedIcon: React.FC<JewelryIconProps> = CrownIcon; // Default luxury crown fallback
-
-  if (matchedRule) {
-    SelectedIcon = matchedRule.Component;
-  } else if (metal?.toUpperCase() === 'SILVER') {
-    SelectedIcon = UtensilsIcon; // Generic Silver items default to Utensils/Silverware icon instead of necklace
+  if (SvgComponent) {
+    // Render the precision matched SVG icon sized nicely inside badge
+    const svgSize = Math.min(size, 26);
+    return <SvgComponent size={svgSize} color={iconColor} />;
   }
 
-  return <SelectedIcon size={size} color={color} />;
+  // 2. Fallback to Luxury 2-Letter Monogram Emblem (never guesses wrong, bespoke luxury styling)
+  return (
+    <JewelryMonogramEmblem
+      categoryName={categoryName}
+      designName={designName}
+      metal={resolvedMetal}
+      size={size}
+    />
+  );
 }

@@ -39,7 +39,7 @@ const CategoryRow = memo(({ item, colors, onPress }: CategoryRowProps) => {
       <View style={[s.metalStripe, { backgroundColor: COLORS.bullionGold }]} />
 
       <View style={[s.metalBadge, { backgroundColor: `${colors.vjAccent}12`, borderColor: `${colors.vjAccent}35` }]}>
-        {getJewelryCategoryIcon(item.name, undefined, undefined, 24, colors.vjAccent)}
+        {getJewelryCategoryIcon(item.name, undefined, undefined, 32, colors.vjAccent)}
       </View>
 
       <View style={s.cardBody}>

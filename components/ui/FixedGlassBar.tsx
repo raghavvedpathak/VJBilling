@@ -23,8 +23,8 @@ export interface FixedGlassBarProps {
 
 export function FixedGlassBar({ children, style, cardStyle, contentStyle, hideOnKeyboard = true }: FixedGlassBarProps) {
   const insets = useSafeAreaInsets();
-  const { width } = useWindowDimensions();
-  const isTablet = width >= 768;
+  const { width, height } = useWindowDimensions();
+  const isTablet = width >= 768 || Math.min(width, height) >= 600;
   // Safe clearance above Android 3-button navigation bar (48-56dp), gesture home bar, or iOS home indicator
   const bottomOffset = Platform.select({
     ios: Math.max(insets.bottom, 16),
@@ -115,6 +115,7 @@ export const fixedBarStyles = {
       gap: 8,
       backgroundColor: colors.vjAccent,
       paddingVertical: 14,
+      minHeight: 48,
       borderRadius: 28,
     };
   },
@@ -138,6 +139,7 @@ export const fixedBarStyles = {
       borderColor: colors.border || 'rgba(212, 175, 55, 0.25)',
       paddingVertical: 14,
       paddingHorizontal: 18,
+      minHeight: 48,
       borderRadius: 28,
     };
   },
