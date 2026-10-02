@@ -11,11 +11,11 @@ import {
   TextInput, 
   FlatList, 
   StyleSheet, 
-  KeyboardAvoidingView, 
   Platform, 
   Keyboard, 
   useWindowDimensions 
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BlurView } from 'expo-blur';
 import * as Haptics from 'expo-haptics';
 import { X, Search, Check } from 'lucide-react-native';
@@ -120,17 +120,46 @@ export function GlassPickerModal({
   allowClear = true,
 }: GlassPickerModalProps) {
   const [searchQuery, setSearchQuery] = useState('');
-  const { width: windowWidth } = useWindowDimensions();
-  const isTablet = windowWidth >= 768;
+  const [isSearchFocused, setIsSearchFocused] = useState(false);
+  const { width: windowWidth, height: windowHeight } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
+  const isTablet = windowWidth >= 768 || Math.min(windowWidth, windowHeight) >= 600;
+
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
 
   const activeTheme = appSettingsStore((s: any) => s.theme);
   const colors = getThemeColors(activeTheme);
   const isDark = activeTheme === 'dark';
 
   useEffect(() => {
+    const showSub = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
+      (e) => {
+        setKeyboardHeight(e.endCoordinates.height);
+      }
+    );
+    const hideSub = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide',
+      () => {
+        setKeyboardHeight(0);
+        setIsSearchFocused(false);
+      }
+    );
+
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, []);
+
+  useEffect(() => {
     if (visible) {
-      Keyboard.dismiss();
       setSearchQuery('');
+      setIsSearchFocused(false);
+    } else {
+      Keyboard.dismiss();
+      setKeyboardHeight(0);
+      setIsSearchFocused(false);
     }
   }, [visible]);
 
@@ -152,8 +181,16 @@ export function GlassPickerModal({
     return options.find((opt) => opt.id === selectedId) || null;
   }, [options, selectedId]);
 
+  const handleClose = useCallback(() => {
+    Keyboard.dismiss();
+    setIsSearchFocused(false);
+    onClose();
+  }, [onClose]);
+
   const handleSelect = useCallback(
     (option: GlassPickerOption | null) => {
+      Keyboard.dismiss();
+      setIsSearchFocused(false);
       try {
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       } catch (e) {}
@@ -179,6 +216,17 @@ export function GlassPickerModal({
   if (!visible) return null;
 
   const isQueryEmpty = searchQuery.trim().length === 0;
+  const isKeyboardOpen = keyboardHeight > 0;
+  const isKeyboardActive = isKeyboardOpen || isSearchFocused;
+  const effectiveKeyboardHeight = keyboardHeight > 0 ? keyboardHeight : (isSearchFocused ? 310 : 0);
+  const availableHeight = windowHeight - effectiveKeyboardHeight - insets.top;
+
+  // Generous, non-collapsing spacious heights for phone and tablet
+  const computedSheetHeight = isTablet
+    ? Math.min(windowHeight * 0.78, availableHeight - 32, 700)
+    : isKeyboardActive
+      ? Math.max(availableHeight - 20, 320)
+      : Math.min(windowHeight * 0.82, 650);
 
   return (
     <Modal 
@@ -186,19 +234,35 @@ export function GlassPickerModal({
       transparent 
       animationType="fade" 
       statusBarTranslucent={true}
-      onRequestClose={onClose}
+      onRequestClose={handleClose}
     >
-      <KeyboardAvoidingView 
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined} 
-        style={[styles.overlay, isTablet && styles.overlayTablet]}
+      <View 
+        style={[
+          styles.overlay, 
+          isTablet ? styles.overlayTablet : (
+            isKeyboardActive ? styles.overlayKeyboardActive : styles.overlayPhoneNormal
+          ),
+          {
+            paddingTop: isTablet ? 24 : (isKeyboardActive ? insets.top + 8 : insets.top),
+            paddingBottom: isTablet 
+              ? (isKeyboardOpen ? Math.min(keyboardHeight / 2, 80) : 24)
+              : (isKeyboardActive ? 12 : insets.bottom),
+            paddingHorizontal: isTablet ? 24 : (isKeyboardActive ? 12 : 0),
+          }
+        ]}
       >
-        <TouchableOpacity style={styles.backdrop} activeOpacity={1} onPress={onClose} />
+        <TouchableOpacity style={styles.backdrop} activeOpacity={1} onPress={handleClose} />
         
         <View 
           style={[
             styles.sheetContainer, 
-            isTablet && styles.sheetContainerTablet,
-            { borderColor: isDark ? 'rgba(212, 175, 55, 0.35)' : 'rgba(212, 175, 55, 0.35)' }
+            isTablet ? styles.sheetContainerTablet : (
+              isKeyboardActive ? styles.sheetContainerKeyboardActive : styles.sheetContainerPhoneNormal
+            ),
+            { 
+              borderColor: isDark ? 'rgba(212, 175, 55, 0.35)' : 'rgba(212, 175, 55, 0.35)',
+              height: computedSheetHeight,
+            }
           ]}
         >
           <BlurView
@@ -235,7 +299,7 @@ export function GlassPickerModal({
                     </Text>
                   </View>
                 </View>
-                <TouchableOpacity onPress={onClose} style={styles.closeBtn} activeOpacity={0.7}>
+                <TouchableOpacity onPress={handleClose} style={styles.closeBtn} activeOpacity={0.7}>
                   <X size={20} color={colors.vjText} />
                 </TouchableOpacity>
               </View>
@@ -257,6 +321,12 @@ export function GlassPickerModal({
                   placeholderTextColor={isDark ? 'rgba(255, 255, 255, 0.38)' : 'rgba(92, 22, 35, 0.38)'}
                   value={searchQuery}
                   onChangeText={setSearchQuery}
+                  onFocus={() => setIsSearchFocused(true)}
+                  onBlur={() => {
+                    if (searchQuery.trim().length === 0) {
+                      setIsSearchFocused(false);
+                    }
+                  }}
                   autoFocus={false}
                   autoCorrect={false}
                   autoCapitalize="none"
@@ -339,7 +409,7 @@ export function GlassPickerModal({
             </View>
           </BlurView>
         </View>
-      </KeyboardAvoidingView>
+      </View>
     </Modal>
   );
 }
@@ -347,12 +417,16 @@ export function GlassPickerModal({
 const styles = StyleSheet.create({
   overlay: {
     flex: 1,
+  },
+  overlayPhoneNormal: {
     justifyContent: 'flex-end',
+  },
+  overlayKeyboardActive: {
+    justifyContent: 'flex-start',
   },
   overlayTablet: {
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 24,
   },
   backdrop: {
     position: 'absolute',
@@ -363,22 +437,24 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0, 0, 0, 0.45)',
   },
   sheetContainer: {
-    maxHeight: '82%',
-    minHeight: '45%',
     width: '100%',
-    borderTopLeftRadius: 32,
-    borderTopRightRadius: 32,
     overflow: 'hidden',
     borderWidth: 1.5,
     backgroundColor: 'transparent',
   },
+  sheetContainerPhoneNormal: {
+    borderTopLeftRadius: 32,
+    borderTopRightRadius: 32,
+    borderBottomLeftRadius: 0,
+    borderBottomRightRadius: 0,
+  },
+  sheetContainerKeyboardActive: {
+    borderRadius: 28,
+  },
   sheetContainerTablet: {
-    maxWidth: 580,
+    maxWidth: 600,
+    width: '100%',
     borderRadius: 32,
-    borderBottomLeftRadius: 32,
-    borderBottomRightRadius: 32,
-    maxHeight: '75%',
-    borderWidth: 1.5,
   },
   sheetBlurContent: {
     flex: 1,
