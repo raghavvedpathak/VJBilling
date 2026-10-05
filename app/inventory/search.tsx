@@ -3,7 +3,7 @@
 // and MastersSyncStore
 
 import React, { useState, useEffect, useCallback, memo, useRef } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator, Modal, Alert, Keyboard } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator, Modal, Alert, Keyboard, useWindowDimensions } from 'react-native';
 import { FlashList } from '@shopify/flash-list';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -18,6 +18,7 @@ import { useFirmStore } from '@/store/phase1/useFirmStore';
 import { TwoToneWrapper } from '@/components/common/TwoToneWrapper';
 import { HeaderPill } from '@/components/ui/Glass';
 import { appSettingsStore } from '@/store/phase1/appSettingsStore';
+import { JewelryMonogramEmblem } from '@/utils/jewelryIcons';
 import { COLORS as CENTRAL_COLORS, getThemeColors } from '@/constants/theme';
 
 const COLORS = {
@@ -74,10 +75,11 @@ type SearchResultRowProps = {
   item: ItemSearchResult;
   query: string;
   colors: ReturnType<typeof getThemeColors>;
+  isDark: boolean;
   onPress: (itemId: string) => void;
 };
 
-const SearchResultRow = memo(({ item, query, colors, onPress }: SearchResultRowProps) => {
+const SearchResultRow = memo(({ item, query, colors, isDark, onPress }: SearchResultRowProps) => {
   const isGold = item.metal === 'GOLD';
   const isPhantom = item.status === 'PHANTOM_AVAILABLE';
   const activeQuery = query.trim();
@@ -86,7 +88,13 @@ const SearchResultRow = memo(({ item, query, colors, onPress }: SearchResultRowP
   return (
     <TouchableOpacity 
       testID={`search-result-row-${item.itemId}`}
-      style={[s.card, { borderColor: `${colors.vjAccent}25` }]}
+      style={[
+        s.card,
+        {
+          backgroundColor: isDark ? 'rgba(28, 20, 24, 0.96)' : '#FFFFFF',
+          borderColor: isDark ? 'rgba(212, 175, 55, 0.22)' : `${colors.vjAccent}25`,
+        }
+      ]}
       activeOpacity={0.7}
       onPress={() => {
         try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
@@ -131,28 +139,43 @@ const SearchResultRow = memo(({ item, query, colors, onPress }: SearchResultRowP
             </Text>
           </View>
         ) : (
-          <Text style={[s.huidTextMuted, { color: `${colors.vjText}80` }]}>No HUID</Text>
+          <Text style={[s.huidTextMuted, { color: isDark ? 'rgba(255,255,255,0.45)' : `${colors.vjText}80` }]}>No HUID</Text>
         )}
       </View>
 
       <View style={s.cardBody}>
+        <View style={{ marginRight: 10, alignSelf: 'center' }}>
+          <JewelryMonogramEmblem
+            designName={item.designName || ''}
+            categoryName={item.categoryName || ''}
+            metal={item.metal}
+            size={38}
+          />
+        </View>
+
         <View style={s.mainDetails}>
           <Text style={[s.itemNameText, { color: colors.vjText }]} numberOfLines={1}>
             <HighlightText text={item.designName} query={activeQuery} style={[s.itemNameText, { color: colors.vjText }]} />
             {item.categoryName ? (
-              <Text style={[s.itemCategorySub, { color: colors.vjText }]}> ({item.categoryName})</Text>
+              <Text style={[s.itemCategorySub, { color: isDark ? 'rgba(255,255,255,0.6)' : colors.vjText }]}> ({item.categoryName})</Text>
             ) : null}
           </Text>
-          <Text style={[s.skuSubText, { color: colors.vjText, opacity: 0.6 }]}>
-            SKU: <HighlightText text={formatSKUDisplay(item.sku)} query={activeQuery} style={[s.skuSubText, { color: colors.vjText, opacity: 0.8 }]} />
+          <Text style={[s.skuSubText, { color: colors.vjText, opacity: 0.65 }]}>
+            SKU: <HighlightText text={formatSKUDisplay(item.sku)} query={activeQuery} style={[s.skuSubText, { color: colors.vjText, opacity: 0.85 }]} />
             {item.barcode ? (
               <>
                 {' • Barcode: '}
-                <HighlightText text={item.barcode} query={activeQuery} style={[s.skuSubText, { color: colors.vjText, opacity: 0.8 }]} />
+                <HighlightText text={item.barcode} query={activeQuery} style={[s.skuSubText, { color: colors.vjText, opacity: 0.85 }]} />
               </>
             ) : null}
           </Text>
-          <View style={[s.inlineWeightRow, { backgroundColor: `${colors.vjAccent}08`, borderColor: `${colors.vjAccent}18` }]}>
+          <View style={[
+            s.inlineWeightRow,
+            {
+              backgroundColor: isDark ? 'rgba(212, 175, 55, 0.08)' : `${colors.vjAccent}08`,
+              borderColor: isDark ? 'rgba(212, 175, 55, 0.2)' : `${colors.vjAccent}18`,
+            }
+          ]}>
             <Text style={[s.weightInlineLabel, { color: colors.vjText }]}>Gross: </Text>
             <Text style={[s.weightInlineVal, { color: colors.vjText }]}>{formatWeight(item.grossWeightMg)}</Text>
             <Text style={[s.weightInlineDivider, { color: `${colors.vjText}4D` }]}>   •   </Text>
@@ -160,7 +183,7 @@ const SearchResultRow = memo(({ item, query, colors, onPress }: SearchResultRowP
             <HighlightText 
               text={formatWeight(item.netWeightMg ?? item.grossWeightMg ?? 0)} 
               query={activeQuery} 
-              style={[s.weightInlineValBold, { color: colors.vjAccent }]} 
+              style={[s.weightInlineValBold, { color: '#D4AF37' }]} 
             />
           </View>
         </View>
@@ -172,6 +195,8 @@ const SearchResultRow = memo(({ item, query, colors, onPress }: SearchResultRowP
 export default function InventorySearchScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { width } = useWindowDimensions();
+  const isTablet = width >= 768;
   const { activeFirmId } = useFirmStore();
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<ItemSearchResult[]>([]);
@@ -268,8 +293,17 @@ export default function InventorySearchScreen() {
 
   return (
     <TwoToneWrapper title="Stock Search" showBack headerContent={searchHeaderPills}>
-      <View style={s.topSearchSection}>
-        <View style={[s.searchBox, { borderColor: `${colors.vjAccent}40` }]}>
+      <View style={[
+        s.topSearchSection,
+        isTablet ? { maxWidth: 780, alignSelf: 'center', width: '100%' } : null,
+      ]}>
+        <View style={[
+          s.searchBox,
+          {
+            backgroundColor: isDark ? 'rgba(32, 22, 26, 0.95)' : '#FFFFFF',
+            borderColor: isDark ? 'rgba(212, 175, 55, 0.35)' : `${colors.vjAccent}40`,
+          }
+        ]}>
           <Search size={18} color={colors.vjAccent} style={s.searchIcon} />
           <TextInput
             testID="inventory-search-input"
@@ -308,7 +342,10 @@ export default function InventorySearchScreen() {
         </View>
       </View>
 
-      <View style={s.listContainer}>
+      <View style={[
+        s.listContainer,
+        isTablet ? { maxWidth: 780, alignSelf: 'center', width: '100%' } : null,
+      ]}>
         {query.trim().length === 0 ? (
           <View style={s.emptyState}>
             <Hash size={44} color={colors.vjAccent} style={{ opacity: 0.3 }} />
@@ -341,7 +378,7 @@ export default function InventorySearchScreen() {
               getItemType={(item) => item.metal}
               keyExtractor={(item) => item.itemId}
               renderItem={({ item }) => (
-                <SearchResultRow item={item} query={query} colors={colors} onPress={handleItemPress} />
+                <SearchResultRow item={item} query={query} colors={colors} isDark={isDark} onPress={handleItemPress} />
               )}
               contentContainerStyle={{
                 paddingHorizontal: 14,
@@ -510,15 +547,13 @@ const s = StyleSheet.create({
   },
   cardBody: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-end',
+    alignItems: 'center',
   },
   mainDetails: {
     flex: 1,
-    marginRight: 8,
   },
   itemNameText: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '900',
     letterSpacing: 0.2,
     marginBottom: 2,

@@ -2,7 +2,7 @@
 // Aligned with Step 16, FEAT-DRILL-DOWN-1 (v1.65), and MastersSyncStore
 
 import React, { useState, useCallback, useEffect, memo } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, useWindowDimensions } from 'react-native';
 import { FlashList } from '@shopify/flash-list';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -66,6 +66,8 @@ const CategoryRow = memo(({ item, colors, onPress }: CategoryRowProps) => {
 export default function DrillDownScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { width } = useWindowDimensions();
+  const isTablet = width >= 768;
   const { activeFirmId } = useFirmStore();
   const [data, setData] = useState<{ id: string; name: string; availableCount: number; totalNetWeightMg: number }[]>([]);
   const [loading, setLoading] = useState(true);
@@ -115,33 +117,35 @@ export default function DrillDownScreen() {
   const totalWeightMg = data.reduce((sum, c) => sum + c.totalNetWeightMg, 0);
 
   const headerVaultCard = !loading && data.length > 0 ? (
-    <View style={s.headerVaultCard}>
-      <View style={s.heroTopRow}>
-        <View style={s.headerVaultBadge}>
-          <Layers size={13} color={COLORS.bullionGold} />
-          <Text style={s.headerVaultBadgeText}>VAULT OVERVIEW</Text>
-        </View>
-        <View style={s.heroPillsRow}>
-          <View style={s.headerMetaPill}>
-            <Package size={11} color="rgba(255, 255, 255, 0.85)" />
-            <Text style={s.headerMetaText}>{totalItems} Pieces</Text>
+    <View style={[{ width: '100%' }, isTablet && { maxWidth: 780, alignSelf: 'center' }]}>
+      <View style={s.headerVaultCard}>
+        <View style={s.heroTopRow}>
+          <View style={s.headerVaultBadge}>
+            <Layers size={13} color={COLORS.bullionGold} />
+            <Text style={s.headerVaultBadgeText}>VAULT OVERVIEW</Text>
           </View>
-          <View style={s.headerMetaPill}>
-            <Sparkles size={11} color="rgba(255, 255, 255, 0.85)" />
-            <Text style={s.headerMetaText}>{data.length} Categories</Text>
+          <View style={s.heroPillsRow}>
+            <View style={s.headerMetaPill}>
+              <Package size={11} color="rgba(255, 255, 255, 0.85)" />
+              <Text style={s.headerMetaText}>{totalItems} Pieces</Text>
+            </View>
+            <View style={s.headerMetaPill}>
+              <Sparkles size={11} color="rgba(255, 255, 255, 0.85)" />
+              <Text style={s.headerMetaText}>{data.length} Categories</Text>
+            </View>
           </View>
         </View>
-      </View>
 
-      <View style={s.headerDivider} />
+        <View style={s.headerDivider} />
 
-      <View style={s.heroScaleContainer}>
-        <Text style={s.headerScaleLabel}>TOTAL PHYSICAL NET WEIGHT</Text>
-        <View style={s.heroScaleValueRow}>
-          <Scale size={20} color={COLORS.bullionGold} style={{ marginRight: 6 }} />
-          <Text style={s.headerScaleDigits}>
-            {formatWeight(totalWeightMg)}
-          </Text>
+        <View style={s.heroScaleContainer}>
+          <Text style={s.headerScaleLabel}>TOTAL PHYSICAL NET WEIGHT</Text>
+          <View style={s.heroScaleValueRow}>
+            <Scale size={20} color={COLORS.bullionGold} style={{ marginRight: 6 }} />
+            <Text style={s.headerScaleDigits}>
+              {formatWeight(totalWeightMg)}
+            </Text>
+          </View>
         </View>
       </View>
     </View>
@@ -149,7 +153,7 @@ export default function DrillDownScreen() {
 
   return (
     <TwoToneWrapper title="Stock Ledger" showBack headerContent={headerVaultCard}>
-      <View style={s.listContainer}>
+      <View style={[s.listContainer, isTablet && { maxWidth: 780, width: '100%', alignSelf: 'center' }]}>
         {loading && data.length === 0 ? (
           <View style={s.loadingContainer}>
             <ActivityIndicator size="large" color={colors.vjAccent} />

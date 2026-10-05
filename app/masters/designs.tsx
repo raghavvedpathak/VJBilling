@@ -42,6 +42,7 @@ import { designCategoryMapRepository } from '@/repositories/phase2/designCategor
 import { designService } from '@/services/phase2/designService';
 import type { Design, Category } from '@/types/phase2/phase2.types';
 import { getThemeColors } from '@/constants/theme';
+import { JewelryMonogramEmblem } from '@/utils/jewelryIcons';
 
 type DesignWithCategory = Design & { categoryName: string | null };
 
@@ -216,241 +217,247 @@ export default function DesignsScreen() {
   return (
     <TwoToneWrapper title="Design Master" showBack headerContent={designHeaderPills}>
       <View style={s.container}>
-        {/* Top Search & View Switcher */}
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 12 }}>
-          <View style={[s.searchBarContainer, { flex: 1, borderColor: `${colors.vjAccent}35`, marginBottom: 0 }]}>
-            <Search size={16} color={colors.vjAccent} style={{ marginRight: 8, opacity: 0.8 }} />
-            <TextInput
-              testID="design-search-input"
-              value={searchQuery}
-              onChangeText={setSearchQuery}
-              placeholder="Search design, code, metal, category, or stock type..."
-              placeholderTextColor={isDark ? 'rgba(255, 255, 255, 0.38)' : 'rgba(92, 22, 35, 0.38)'}
-              style={[s.searchInput, { color: colors.vjText }]}
-              autoCorrect={false}
-              autoCapitalize="none"
-              spellCheck={false}
-              returnKeyType="search"
-            />
-            {Boolean(searchQuery) && (
-              <TouchableOpacity 
-                testID="design-search-clear-btn"
-                onPress={() => setSearchQuery('')} 
-                style={{ padding: 4 }}
-              >
-                <X size={16} color={colors.vjText} style={{ opacity: 0.5 }} />
-              </TouchableOpacity>
-            )}
-          </View>
-
-          <View style={[s.toggleContainer, { backgroundColor: `${colors.vjAccent}14` }]}>
-            <TouchableOpacity
-              testID="view-mode-list-btn"
-              onPress={() => setViewMode('list')}
-              activeOpacity={0.8}
-              style={[s.toggleIconBtn, viewMode === 'list' && s.toggleIconActive]}
-            >
-              <ListIcon
-                size={20}
-                color={viewMode === 'list' ? colors.vjAccent : colors.vjText}
-                style={{ opacity: viewMode === 'list' ? 1 : 0.6 }}
+        <View style={[{ flex: 1, width: '100%' }, isTablet && { maxWidth: 920, alignSelf: 'center' }]}>
+          {/* Top Search & View Switcher */}
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 12 }}>
+            <View style={[s.searchBarContainer, { flex: 1, borderColor: `${colors.vjAccent}35`, marginBottom: 0 }]}>
+              <Search size={16} color={colors.vjAccent} style={{ marginRight: 8, opacity: 0.8 }} />
+              <TextInput
+                testID="design-search-input"
+                value={searchQuery}
+                onChangeText={setSearchQuery}
+                placeholder="Search design, code, metal, category, or stock type..."
+                placeholderTextColor={isDark ? 'rgba(255, 255, 255, 0.38)' : 'rgba(92, 22, 35, 0.38)'}
+                style={[s.searchInput, { color: colors.vjText }]}
+                autoCorrect={false}
+                autoCapitalize="none"
+                spellCheck={false}
+                returnKeyType="search"
               />
-            </TouchableOpacity>
-            <TouchableOpacity
-              testID="view-mode-grid-btn"
-              onPress={() => setViewMode('grid')}
-              activeOpacity={0.8}
-              style={[s.toggleIconBtn, viewMode === 'grid' && s.toggleIconActive]}
-            >
-              <LayoutGrid
-                size={20}
-                color={viewMode === 'grid' ? colors.vjAccent : colors.vjText}
-                style={{ opacity: viewMode === 'grid' ? 1 : 0.6 }}
-              />
-            </TouchableOpacity>
-          </View>
-        </View>
-
-        {loading && designs.length === 0 ? (
-          <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', marginTop: 60 }}>
-            <ActivityIndicator size="large" color={colors.vjAccent} />
-            <Text style={{ marginTop: 12, fontSize: 13, color: colors.vjText, opacity: 0.6, fontWeight: '600' }}>
-              Loading Product Designs...
-            </Text>
-          </View>
-        ) : filteredDesigns.length === 0 ? (
-          <View style={s.emptyContainer}>
-            <View style={[s.emptyIconCircle, { backgroundColor: `${colors.vjAccent}14`, borderColor: `${colors.vjAccent}35` }]}>
-              <Sparkles size={40} color={colors.vjAccent} />
+              {Boolean(searchQuery) && (
+                <TouchableOpacity 
+                  testID="design-search-clear-btn"
+                  onPress={() => setSearchQuery('')} 
+                  style={{ padding: 4 }}
+                >
+                  <X size={16} color={colors.vjText} style={{ opacity: 0.5 }} />
+                </TouchableOpacity>
+              )}
             </View>
-            <Text style={[s.emptyTitle, { color: colors.vjText }]}>
-              {searchQuery ? 'No Matching Designs' : 'No Designs Created Yet'}
-            </Text>
-            <Text style={[s.emptySubtitle, { color: colors.vjText }]}>
-              {searchQuery
-                ? `No design patterns match "${searchQuery}". Clear your search query to see all items.`
-                : 'Create your gold and silver jewelry patterns to organize items with low-stock alerts.'}
-            </Text>
-            {!searchQuery && (
-              <View style={{ width: 220, marginTop: 16 }}>
-                <GlassButton
-                  title="Add First Design"
-                  onPress={() => router.push('/masters/create-design')}
-                  icon={<Plus size={18} color="#fff" />}
-                />
-              </View>
-            )}
-          </View>
-        ) : (
-          <ScrollView
-            style={{ flex: 1, marginTop: 8 }}
-            showsVerticalScrollIndicator={false}
-            contentContainerStyle={[
-              { paddingBottom: Math.max(insets.bottom + 120, 140) },
-              viewMode === 'grid' && {
-                flexDirection: 'row',
-                flexWrap: 'wrap',
-                gap,
-              },
-            ]}
-          >
-            {filteredDesigns.map((d) => {
-              const isLoose = d.stockType === 'LOOSE';
 
-              if (viewMode === 'grid') {
+            <View style={[s.toggleContainer, { backgroundColor: `${colors.vjAccent}14` }]}>
+              <TouchableOpacity
+                testID="view-mode-list-btn"
+                onPress={() => setViewMode('list')}
+                activeOpacity={0.8}
+                style={[s.toggleIconBtn, viewMode === 'list' && s.toggleIconActive]}
+              >
+                <ListIcon
+                  size={20}
+                  color={viewMode === 'list' ? colors.vjAccent : colors.vjText}
+                  style={{ opacity: viewMode === 'list' ? 1 : 0.6 }}
+                />
+              </TouchableOpacity>
+              <TouchableOpacity
+                testID="view-mode-grid-btn"
+                onPress={() => setViewMode('grid')}
+                activeOpacity={0.8}
+                style={[s.toggleIconBtn, viewMode === 'grid' && s.toggleIconActive]}
+              >
+                <LayoutGrid
+                  size={20}
+                  color={viewMode === 'grid' ? colors.vjAccent : colors.vjText}
+                  style={{ opacity: viewMode === 'grid' ? 1 : 0.6 }}
+                />
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          {loading && designs.length === 0 ? (
+            <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', marginTop: 60 }}>
+              <ActivityIndicator size="large" color={colors.vjAccent} />
+              <Text style={{ marginTop: 12, fontSize: 13, color: colors.vjText, opacity: 0.6, fontWeight: '600' }}>
+                Loading Designs...
+              </Text>
+            </View>
+          ) : filteredDesigns.length === 0 ? (
+            <View style={s.emptyContainer}>
+              <View style={[s.emptyIconCircle, { backgroundColor: `${colors.vjAccent}14`, borderColor: `${colors.vjAccent}35` }]}>
+                <Sparkles size={40} color={colors.vjAccent} />
+              </View>
+              <Text style={[s.emptyTitle, { color: colors.vjText }]}>
+                {searchQuery ? 'No Matching Designs' : 'No Designs Created Yet'}
+              </Text>
+              <Text style={[s.emptySubtitle, { color: colors.vjText }]}>
+                {searchQuery
+                  ? `No design patterns match "${searchQuery}". Clear your search query to see all items.`
+                  : 'Create your gold and silver jewelry patterns to organize items with low-stock alerts.'}
+              </Text>
+              {!searchQuery && (
+                <View style={{ width: 220, marginTop: 16 }}>
+                  <GlassButton
+                    title="Add First Design"
+                    onPress={() => router.push('/masters/create-design')}
+                    icon={<Plus size={18} color="#fff" />}
+                  />
+                </View>
+              )}
+            </View>
+          ) : (
+            <ScrollView
+              style={{ flex: 1, marginTop: 8 }}
+              showsVerticalScrollIndicator={false}
+              contentContainerStyle={[
+                { paddingBottom: Math.max(insets.bottom + 120, 140) },
+                viewMode === 'grid' && {
+                  flexDirection: 'row',
+                  flexWrap: 'wrap',
+                  gap,
+                },
+              ]}
+            >
+              {filteredDesigns.map((d) => {
+                const isLoose = d.stockType === 'LOOSE';
+
+                if (viewMode === 'grid') {
+                  return (
+                    <GlassCard
+                      testID={`design-card-${d.id}`}
+                      key={d.id}
+                      style={{
+                        width: gridItemWidth,
+                        marginBottom: gap,
+                        borderColor: `${colors.vjAccent}25`,
+                      }}
+                    >
+                      <View style={s.gridCardInner}>
+                        <View style={s.gridHeaderRow}>
+                          <JewelryMonogramEmblem designName={d.name} metal={d.metal} categoryName={d.categoryName || undefined} size={34} />
+                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                            <GlassMetalBadge metal={d.metal} />
+                            {isLoose && (
+                              <View style={[s.looseBadge, { backgroundColor: 'rgba(217, 119, 6, 0.15)', borderColor: 'rgba(217, 119, 6, 0.35)' }]}>
+                                <Boxes size={9} color="#D97706" />
+                                <Text style={s.looseBadgeText}>LOOSE</Text>
+                              </View>
+                            )}
+                            <View style={[s.codeBadge, { backgroundColor: `${colors.vjAccent}10`, borderColor: `${colors.vjAccent}20` }]}>
+                              <Text style={[s.codeBadgeText, { color: colors.vjText }]} numberOfLines={1}>
+                                {d.code}
+                              </Text>
+                            </View>
+                          </View>
+                        </View>
+
+                        <Text style={[s.gridTitle, { color: colors.vjText }]} numberOfLines={2}>
+                          {d.name}
+                        </Text>
+
+                        <View style={[s.categoryScopeBadge, { backgroundColor: `${colors.vjAccent}14`, borderColor: `${colors.vjAccent}30` }]}>
+                          <Text style={[s.categoryScopeText, { color: colors.vjAccent }]} numberOfLines={1}>
+                            {d.categoryName ? `Cat: ${d.categoryName}` : 'Unassigned Category'}
+                          </Text>
+                        </View>
+
+                        <View style={[s.gridActionRow, { borderTopColor: `${colors.vjAccent}15` }]}>
+                          <TouchableOpacity
+                            testID={`edit-design-btn-${d.id}`}
+                            onPress={() => openEdit(d)}
+                            style={[s.actionBtnEdit, { backgroundColor: `${colors.vjAccent}14`, borderColor: `${colors.vjAccent}30` }]}
+                            activeOpacity={0.7}
+                          >
+                            <Edit2 size={14} color={colors.vjAccent} />
+                            <Text style={[s.actionBtnEditText, { color: colors.vjAccent }]}>Edit</Text>
+                          </TouchableOpacity>
+                          <TouchableOpacity
+                            testID={`delete-design-btn-${d.id}`}
+                            onPress={() => handleDelete(d)}
+                            style={s.actionBtnDelete}
+                            activeOpacity={0.7}
+                          >
+                            <Trash2 size={14} color="#DC2626" />
+                          </TouchableOpacity>
+                        </View>
+                      </View>
+                    </GlassCard>
+                  );
+                }
+
                 return (
-                  <GlassCard
+                  <GlassCard 
                     testID={`design-card-${d.id}`}
-                    key={d.id}
-                    style={{
-                      width: gridItemWidth,
-                      marginBottom: gap,
-                      borderColor: `${colors.vjAccent}25`,
-                    }}
+                    key={d.id} 
+                    style={{ marginBottom: 10, width: '100%', borderColor: `${colors.vjAccent}25` }}
                   >
-                    <View style={s.gridCardInner}>
-                      <View style={s.gridHeaderRow}>
-                        <GlassMetalBadge metal={d.metal} />
-                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                    <View style={s.listCardInner}>
+                      <View style={{ marginRight: 12 }}>
+                        <JewelryMonogramEmblem designName={d.name} metal={d.metal} categoryName={d.categoryName || undefined} size={isTablet ? 42 : 38} />
+                      </View>
+
+                      <View style={s.listTextContainer}>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                          <Text style={[s.listTitle, { color: colors.vjText, flex: 1 }]} numberOfLines={1}>
+                            {d.name}
+                          </Text>
+                          <GlassMetalBadge metal={d.metal} />
                           {isLoose && (
                             <View style={[s.looseBadge, { backgroundColor: 'rgba(217, 119, 6, 0.15)', borderColor: 'rgba(217, 119, 6, 0.35)' }]}>
                               <Boxes size={9} color="#D97706" />
                               <Text style={s.looseBadgeText}>LOOSE</Text>
                             </View>
                           )}
+                        </View>
+                        <View style={s.listSubRow}>
                           <View style={[s.codeBadge, { backgroundColor: `${colors.vjAccent}10`, borderColor: `${colors.vjAccent}20` }]}>
-                            <Text style={[s.codeBadgeText, { color: colors.vjText }]} numberOfLines={1}>
-                              {d.code}
-                            </Text>
+                            <Text style={[s.codeBadgeText, { color: colors.vjText }]}>{d.code}</Text>
                           </View>
+                          <Text style={[s.listCategoryText, { color: colors.vjText }]} numberOfLines={1}>
+                            {d.categoryName || 'Unlinked'}
+                          </Text>
                         </View>
                       </View>
 
-                      <Text style={[s.gridTitle, { color: colors.vjText }]} numberOfLines={2}>
-                        {d.name}
-                      </Text>
-
-                      <View style={[s.categoryScopeBadge, { backgroundColor: `${colors.vjAccent}14`, borderColor: `${colors.vjAccent}30` }]}>
-                        <Text style={[s.categoryScopeText, { color: colors.vjAccent }]} numberOfLines={1}>
-                          {d.categoryName ? `Cat: ${d.categoryName}` : 'Unassigned Category'}
-                        </Text>
-                      </View>
-
-                      <View style={[s.gridActionRow, { borderTopColor: `${colors.vjAccent}15` }]}>
+                      <View style={s.listActionRow}>
                         <TouchableOpacity
                           testID={`edit-design-btn-${d.id}`}
                           onPress={() => openEdit(d)}
-                          style={[s.actionBtnEdit, { backgroundColor: `${colors.vjAccent}14`, borderColor: `${colors.vjAccent}30` }]}
+                          style={[s.actionBtnEditCircle, { backgroundColor: `${colors.vjAccent}14`, borderColor: `${colors.vjAccent}30` }]}
                           activeOpacity={0.7}
                         >
-                          <Edit2 size={14} color={colors.vjAccent} />
-                          <Text style={[s.actionBtnEditText, { color: colors.vjAccent }]}>Edit</Text>
+                          <Edit2 size={16} color={colors.vjAccent} />
                         </TouchableOpacity>
                         <TouchableOpacity
                           testID={`delete-design-btn-${d.id}`}
                           onPress={() => handleDelete(d)}
-                          style={s.actionBtnDelete}
+                          style={s.actionBtnDeleteCircle}
                           activeOpacity={0.7}
                         >
-                          <Trash2 size={14} color="#DC2626" />
+                          <Trash2 size={16} color="#DC2626" />
                         </TouchableOpacity>
                       </View>
                     </View>
                   </GlassCard>
                 );
-              }
-
-              return (
-                <GlassCard 
-                  testID={`design-card-${d.id}`}
-                  key={d.id} 
-                  style={{ marginBottom: 10, width: '100%', borderColor: `${colors.vjAccent}25` }}
-                >
-                  <View style={s.listCardInner}>
-                    <View style={{ marginRight: 12 }}>
-                      <GlassMetalBadge metal={d.metal} />
-                    </View>
-
-                    <View style={s.listTextContainer}>
-                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                        <Text style={[s.listTitle, { color: colors.vjText, flex: 1 }]} numberOfLines={1}>
-                          {d.name}
-                        </Text>
-                        {isLoose && (
-                          <View style={[s.looseBadge, { backgroundColor: 'rgba(217, 119, 6, 0.15)', borderColor: 'rgba(217, 119, 6, 0.35)' }]}>
-                            <Boxes size={9} color="#D97706" />
-                            <Text style={s.looseBadgeText}>LOOSE</Text>
-                          </View>
-                        )}
-                      </View>
-                      <View style={s.listSubRow}>
-                        <View style={[s.codeBadge, { backgroundColor: `${colors.vjAccent}10`, borderColor: `${colors.vjAccent}20` }]}>
-                          <Text style={[s.codeBadgeText, { color: colors.vjText }]}>{d.code}</Text>
-                        </View>
-                        <Text style={[s.listCategoryText, { color: colors.vjText }]} numberOfLines={1}>
-                          {d.categoryName || 'Unlinked'}
-                        </Text>
-                      </View>
-                    </View>
-
-                    <View style={s.listActionRow}>
-                      <TouchableOpacity
-                        testID={`edit-design-btn-${d.id}`}
-                        onPress={() => openEdit(d)}
-                        style={[s.actionBtnEditCircle, { backgroundColor: `${colors.vjAccent}14`, borderColor: `${colors.vjAccent}30` }]}
-                        activeOpacity={0.7}
-                      >
-                        <Edit2 size={16} color={colors.vjAccent} />
-                      </TouchableOpacity>
-                      <TouchableOpacity
-                        testID={`delete-design-btn-${d.id}`}
-                        onPress={() => handleDelete(d)}
-                        style={s.actionBtnDeleteCircle}
-                        activeOpacity={0.7}
-                      >
-                        <Trash2 size={16} color="#DC2626" />
-                      </TouchableOpacity>
-                    </View>
-                  </View>
-                </GlassCard>
-              );
-            })}
-          </ScrollView>
-        )}
+              })}
+            </ScrollView>
+          )}
+        </View>
 
         <FixedGlassBar>
-          <TouchableOpacity
-            testID="create-design-bottom-btn"
-            style={[fixedBarStyles.pillPrimaryBtn, { backgroundColor: colors.vjAccent }]}
-            onPress={() => {
-              try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
-              router.push('/masters/create-design');
-            }}
-            activeOpacity={0.8}
-          >
-            <Plus size={18} color="#fff" />
-            <Text style={fixedBarStyles.pillPrimaryText}>Create Design</Text>
-          </TouchableOpacity>
+          <View style={[{ width: '100%' }, isTablet && { maxWidth: 640, alignSelf: 'center' }]}>
+            <TouchableOpacity
+              testID="create-design-bottom-btn"
+              style={[fixedBarStyles.pillPrimaryBtn, { backgroundColor: colors.vjAccent }]}
+              onPress={() => {
+                try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
+                router.push('/masters/create-design');
+              }}
+              activeOpacity={0.8}
+            >
+              <Plus size={18} color="#fff" />
+              <Text style={fixedBarStyles.pillPrimaryText}>Create Design</Text>
+            </TouchableOpacity>
+          </View>
         </FixedGlassBar>
       </View>
 
@@ -463,7 +470,13 @@ export default function DesignsScreen() {
         >
           <TouchableOpacity 
             activeOpacity={1} 
-            style={[s.successModalContent, { backgroundColor: colors.vjBg, borderColor: colors.border }]}
+            style={[
+              s.successModalContent, 
+              { 
+                backgroundColor: isDark ? '#1C1418' : colors.vjBg, 
+                borderColor: isDark ? 'rgba(212, 175, 55, 0.35)' : colors.border 
+              }
+            ]}
           >
             <View style={s.successIconContainer}>
               <CheckCircle size={56} color="#10B981" />
@@ -486,7 +499,13 @@ export default function DesignsScreen() {
         >
           <TouchableOpacity 
             activeOpacity={1} 
-            style={[s.successModalContent, { backgroundColor: colors.vjBg, borderColor: colors.border }]}
+            style={[
+              s.successModalContent, 
+              { 
+                backgroundColor: isDark ? '#1C1418' : colors.vjBg, 
+                borderColor: isDark ? 'rgba(212, 175, 55, 0.35)' : colors.border 
+              }
+            ]}
           >
             <View style={[s.successIconContainer, { backgroundColor: 'rgba(239, 68, 68, 0.1)' }]}>
               <Trash2 size={36} color="#DC2626" />
@@ -526,7 +545,13 @@ export default function DesignsScreen() {
         >
           <TouchableOpacity 
             activeOpacity={1} 
-            style={[s.successModalContent, { backgroundColor: colors.vjBg, borderColor: colors.border }]}
+            style={[
+              s.successModalContent, 
+              { 
+                backgroundColor: isDark ? '#1C1418' : colors.vjBg, 
+                borderColor: isDark ? 'rgba(212, 175, 55, 0.35)' : colors.border 
+              }
+            ]}
           >
             <View style={[s.successIconContainer, { backgroundColor: 'rgba(239, 68, 68, 0.1)' }]}>
               <Text style={{ fontSize: 40 }}>⚠️</Text>

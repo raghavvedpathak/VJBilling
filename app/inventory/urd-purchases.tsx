@@ -19,6 +19,7 @@ import { firmRepository } from '@/repositories/phase1/firmRepository';
 import { urdPurchaseService } from '@/services/phase2/urdPurchaseService';
 import { urdPrintService } from '@/services/phase2/urdPrintService';
 import { formatRupees, formatWeightMg as formatWeight, formatKaratBadge } from '@/utils/calculations';
+import { JewelryMonogramEmblem } from '@/utils/jewelryIcons';
 import { FileDown, Plus, Scale, Banknote, ShieldAlert, CheckCircle, Printer, Trash2, Eye, X, Share2, Edit3, Sparkles, ChevronRight, ShieldCheck } from 'lucide-react-native';
 import type { URDPurchase } from '@/types/phase2/phase2.types';
 import type { Firm } from '@/types/phase1/firm';
@@ -69,23 +70,26 @@ const URDPurchaseRow = memo(({
         ]}
       >
         <View style={s.cardTop}>
-          <View style={{ flex: 1, marginRight: 8 }}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginBottom: 2 }}>
-              <Text style={[s.customerName, { color: colors.vjText, fontSize: isTablet ? 17.5 : 15.5 }]} numberOfLines={1}>
-                {item.customerName}
-              </Text>
-              {isSelected && (
-                <View style={[s.selectedChip, { backgroundColor: `${colors.vjAccent}22`, borderColor: colors.vjAccent }]}>
-                  <Sparkles size={10} color={colors.vjAccent} />
-                  <Text style={[s.selectedChipText, { color: colors.vjAccent }]}>SELECTED</Text>
-                </View>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1, marginRight: 8 }}>
+            <JewelryMonogramEmblem metal={item.metalType} size={isTablet ? 38 : 34} />
+            <View style={{ flex: 1 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginBottom: 2 }}>
+                <Text style={[s.customerName, { color: colors.vjText, fontSize: isTablet ? 17.5 : 15.5 }]} numberOfLines={1}>
+                  {item.customerName}
+                </Text>
+                {isSelected && (
+                  <View style={[s.selectedChip, { backgroundColor: `${colors.vjAccent}22`, borderColor: colors.vjAccent }]}>
+                    <Sparkles size={10} color={colors.vjAccent} />
+                    <Text style={[s.selectedChipText, { color: colors.vjAccent }]}>SELECTED</Text>
+                  </View>
+                )}
+              </View>
+              {isConfirmed ? (
+                <Text style={[s.billNumber, { color: colors.vjAccent, fontSize: isTablet ? 14 : 12.5 }]}>{item.urdNumber}</Text>
+              ) : (
+                <Text style={[s.draftDate, { color: colors.vjText, opacity: 0.55, fontSize: isTablet ? 13 : 11.5 }]}>Draft — {item.purchaseDate}</Text>
               )}
             </View>
-            {isConfirmed ? (
-              <Text style={[s.billNumber, { color: colors.vjAccent, fontSize: isTablet ? 14 : 12.5 }]}>{item.urdNumber}</Text>
-            ) : (
-              <Text style={[s.draftDate, { color: colors.vjText, opacity: 0.55, fontSize: isTablet ? 13 : 11.5 }]}>Draft — {item.purchaseDate}</Text>
-            )}
           </View>
 
           <View 
@@ -182,6 +186,7 @@ export default function URDPurchasesScreen() {
   const [selectedTemplate, setSelectedTemplate] = useState<URDDeclarationTemplateId>('urdDeclaration1');
 
   const activeTheme = appSettingsStore((s: any) => s.theme);
+  const isDark = activeTheme === 'dark';
   const colors = getThemeColors(activeTheme);
 
   const selectedPurchase = useMemo(() => {
@@ -432,6 +437,7 @@ export default function URDPurchasesScreen() {
               paddingHorizontal: 16,
               paddingTop: isTablet ? 24 : 16,
               paddingBottom: Math.max(insets.bottom + 180, 200),
+              ...(isTablet ? { maxWidth: 780, alignSelf: 'center', width: '100%' } : {})
             }}
             showsVerticalScrollIndicator={false}
             ListEmptyComponent={
@@ -449,7 +455,7 @@ export default function URDPurchasesScreen() {
 
       {/* Floating Sticky Action Bar */}
       <FixedGlassBar
-        cardStyle={{ borderRadius: 22 }}
+        cardStyle={{ borderRadius: 22, ...(isTablet ? { maxWidth: 780, alignSelf: 'center', width: '100%' } : {}) }}
         contentStyle={{ paddingHorizontal: 16, paddingVertical: 13, borderRadius: 22 }}
       >
         {selectedPurchase ? (
@@ -662,23 +668,26 @@ export default function URDPurchasesScreen() {
             style={[
               s.modernModalContent, 
               { 
-                backgroundColor: colors.vjBg, 
-                borderColor: `${colors.vjAccent}35`,
+                backgroundColor: isDark ? '#1C1418' : colors.vjBg, 
+                borderColor: isDark ? 'rgba(212,175,55,0.3)' : `${colors.vjAccent}35`,
                 maxWidth: isTablet ? 500 : 400,
               }
             ]}
           >
-            <View style={[s.modalIconCircle, { backgroundColor: 'rgba(16,185,129,0.12)', borderColor: 'rgba(16,185,129,0.3)' }]}>
-              <ShieldCheck size={32} color="#10B981" />
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 12, width: '100%' }}>
+              <JewelryMonogramEmblem metal={confirmingPurchase?.metalType} size={38} />
+              <View style={{ flex: 1 }}>
+                <Text style={[s.modernModalTitle, { color: colors.vjText, textAlign: 'left', marginBottom: 2 }]}>Confirm & Generate Bill</Text>
+                <Text style={{ fontSize: 11, color: colors.vjAccent, fontWeight: '700' }}>Official URD Intake Voucher</Text>
+              </View>
             </View>
 
-            <Text style={[s.modernModalTitle, { color: colors.vjText }]}>Confirm & Generate Bill</Text>
             <Text style={[s.modernModalSubtitle, { color: colors.vjText, opacity: 0.65 }]}>
               Finalize unrefined purchase from {confirmingPurchase?.customerName} and generate an official URD voucher.
             </Text>
 
             {confirmingPurchase && (
-              <View style={[s.modalSummaryCard, { backgroundColor: `${colors.vjAccent}0A`, borderColor: `${colors.vjAccent}25` }]}>
+              <View style={[s.modalSummaryCard, { backgroundColor: isDark ? 'rgba(212,175,55,0.06)' : `${colors.vjAccent}0A`, borderColor: `${colors.vjAccent}25` }]}>
                 <View style={s.modalSummaryRow}>
                   <Text style={[s.modalSummaryLabel, { color: colors.vjText }]}>Metal & Purity</Text>
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
@@ -709,7 +718,7 @@ export default function URDPurchasesScreen() {
 
             <View style={{ width: '100%', flexDirection: 'row', gap: 10, marginTop: 20 }}>
               <TouchableOpacity
-                style={[s.modalCancelBtn, { borderColor: `${colors.vjAccent}35` }]}
+                style={[s.modalCancelBtn, { borderColor: `${colors.vjAccent}35`, backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(255,255,255,0.2)' }]}
                 onPress={() => setConfirmingPurchase(null)}
                 disabled={isConfirming}
                 activeOpacity={0.8}
@@ -750,17 +759,19 @@ export default function URDPurchasesScreen() {
             style={[
               s.modernModalContent, 
               { 
-                backgroundColor: colors.vjBg, 
-                borderColor: 'rgba(16,185,129,0.3)',
+                backgroundColor: isDark ? '#1C1418' : colors.vjBg, 
+                borderColor: 'rgba(16,185,129,0.35)',
                 maxWidth: isTablet ? 500 : 400,
               }
             ]}
           >
-            <View style={[s.modalIconCircle, { backgroundColor: 'rgba(16,185,129,0.15)', borderColor: 'rgba(16,185,129,0.35)' }]}>
-              <Sparkles size={32} color="#10B981" />
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 12, width: '100%' }}>
+              <JewelryMonogramEmblem metal={confirmedPurchase?.metalType} size={38} />
+              <View style={{ flex: 1 }}>
+                <Text style={[s.modernModalTitle, { color: colors.vjText, textAlign: 'left', marginBottom: 2 }]}>URD Bill Generated!</Text>
+                <Text style={{ fontSize: 11, color: '#10B981', fontWeight: '700' }}>Intake Complete & Stock Added</Text>
+              </View>
             </View>
-
-            <Text style={[s.modernModalTitle, { color: colors.vjText }]}>URD Bill Generated!</Text>
             
             {confirmedPurchase && (
               <>

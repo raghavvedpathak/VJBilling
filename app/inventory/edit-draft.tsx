@@ -3,7 +3,7 @@
 // GAP-P2-SIZE-EDIT-1 (v1.78), and FEAT-ITEM-CORRECTION-1 (v1.88)
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator, Modal, Alert } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, Modal, Alert, useWindowDimensions } from 'react-native';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
@@ -28,15 +28,18 @@ import {
   isPresetMatchingPurity,
   parseCleanFloat,
 } from '@/utils/calculations';
-import { Edit3, Save, Calculator, CheckCircle, Package, Trash2 } from 'lucide-react-native';
-import { GlassButton, GlassPickerInput, FixedGlassBar, fixedBarStyles, HeaderPill, GlassCard } from '@/components/ui/Glass';
+import { JewelryMonogramEmblem } from '@/utils/jewelryIcons';
+import { Edit3, Save, Calculator, CheckCircle, Package, Trash2, ShieldCheck, Sparkles, Scale, Layers } from 'lucide-react-native';
+import { GlassButton, GlassPickerInput, GlassInput, FixedGlassBar, fixedBarStyles, HeaderPill, GlassCard } from '@/components/ui/Glass';
 import { GlassPickerModal, GlassPickerOption } from '@/components/ui/GlassPickerModal';
 import { appSettingsStore } from '@/store/phase1/appSettingsStore';
-import { getThemeColors } from '@/constants/theme';
+import { COLORS, getThemeColors } from '@/constants/theme';
 import type { Item } from '@/types/phase2/phase2.types';
 
 export default function EditDraftScreen() {
   const router = useRouter();
+  const { width } = useWindowDimensions();
+  const isTablet = width >= 768;
   const { activeFirmId } = useFirmStore();
   const params = useLocalSearchParams<{ itemId: string }>();
   const itemId = Array.isArray(params.itemId) ? params.itemId[0] : params.itemId;
@@ -70,6 +73,7 @@ export default function EditDraftScreen() {
   const [reason, setReason] = useState('Draft modification before activation');
 
   const activeTheme = appSettingsStore((s: any) => s.theme);
+  const isDark = activeTheme === 'dark';
   const colors = getThemeColors(activeTheme);
 
   const [pickerModal, setPickerModal] = useState<{
@@ -353,73 +357,146 @@ export default function EditDraftScreen() {
             enableAutomaticScroll={true}
             extraScrollHeight={120}
             extraHeight={140}
-            contentContainerStyle={{ paddingBottom: 220, paddingTop: 6 }}
+            contentContainerStyle={{
+              paddingBottom: 220,
+              paddingTop: 16,
+              paddingHorizontal: 16,
+              ...(isTablet ? { maxWidth: 740, alignSelf: 'center', width: '100%' } : {}),
+            }}
           >
-            <View style={[s.card, { borderColor: `${colors.vjAccent}25`, zIndex: 50 }]}>
-              <Text style={[s.sectionTitle, { color: colors.vjText }]}>Weights (Grams)</Text>
+            {/* ITEM SUMMARY BANNER */}
+            {initialItem && (
+              <View style={[
+                s.itemBanner,
+                {
+                  backgroundColor: isDark ? 'rgba(212, 175, 55, 0.08)' : 'rgba(212, 175, 55, 0.05)',
+                  borderColor: isDark ? 'rgba(212, 175, 55, 0.25)' : 'rgba(212, 175, 55, 0.2)',
+                }
+              ]}>
+                <JewelryMonogramEmblem
+                  metal={initialItem.metal}
+                  size={42}
+                />
+                <View style={{ flex: 1 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <Text style={[s.bannerSku, { color: colors.vjText }]}>{sku}</Text>
+                    <View style={[
+                      s.metalBadge,
+                      {
+                        backgroundColor: initialItem.metal === 'GOLD' ? `${COLORS.bullionGold}20` : `${COLORS.bullionSilver}20`,
+                        borderColor: initialItem.metal === 'GOLD' ? COLORS.bullionGold : COLORS.bullionSilver,
+                      }
+                    ]}>
+                      <Text style={[
+                        s.metalBadgeText,
+                        { color: initialItem.metal === 'GOLD' ? COLORS.bullionGold : (isDark ? '#E5E7EB' : '#4B5563') }
+                      ]}>
+                        {initialItem.metal}
+                      </Text>
+                    </View>
+                  </View>
+                  <Text style={[s.bannerPurity, { color: isDark ? 'rgba(255,255,255,0.65)' : 'rgba(92,22,35,0.65)' }]}>
+                    Initial Purity: {initialItem.purityPercent}% Fineness • {formatSKUDisplay(initialItem.sku)}
+                  </Text>
+                </View>
+              </View>
+            )}
+
+            {/* SECTION 1: WEIGHTS */}
+            <View style={[
+              s.card,
+              {
+                backgroundColor: isDark ? 'rgba(28, 20, 24, 0.96)' : '#fff',
+                borderColor: isDark ? 'rgba(212, 175, 55, 0.22)' : `${colors.vjAccent}25`,
+              }
+            ]}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 14 }}>
+                <Scale size={18} color="#D4AF37" />
+                <Text style={[s.sectionTitle, { color: colors.vjText, marginBottom: 0 }]}>Weights</Text>
+              </View>
+
               <View style={s.row}>
-                <View style={[s.inputGroup, { flex: 1, paddingRight: 6 }]}>
-                  <Text style={[s.label, { color: `${colors.vjText}99` }]}>Gross Wt *</Text>
-                  <TextInput 
-                    style={[s.input, { color: colors.vjText, borderColor: colors.border }]} 
+                <View style={[s.inputGroup, { flex: 1, paddingRight: 4 }]}>
+                  <GlassInput 
+                    label="Gross Wt *"
                     value={grossG} 
                     onChangeText={setGrossG} 
-                    keyboardType="decimal-pad" 
+                    keyboardType="decimal-pad"
+                    unit="g"
                   />
                 </View>
-                <View style={[s.inputGroup, { flex: 1, paddingHorizontal: 6 }]}>
-                  <Text style={[s.label, { color: `${colors.vjText}99` }]}>Stone Wt</Text>
-                  <TextInput 
-                    style={[s.input, { color: colors.vjText, borderColor: colors.border }]} 
+                <View style={[s.inputGroup, { flex: 1, paddingHorizontal: 4 }]}>
+                  <GlassInput 
+                    label="Stone Wt"
                     value={stoneG} 
                     onChangeText={setStoneG} 
-                    keyboardType="decimal-pad" 
+                    keyboardType="decimal-pad"
+                    unit="g"
                   />
                 </View>
-                <View style={[s.inputGroup, { flex: 1, paddingLeft: 6 }]}>
-                  <Text style={[s.label, { color: `${colors.vjText}99` }]}>Beads Wt</Text>
-                  <TextInput 
-                    style={[s.input, { color: colors.vjText, borderColor: colors.border }]} 
+                <View style={[s.inputGroup, { flex: 1, paddingLeft: 4 }]}>
+                  <GlassInput 
+                    label="Beads Wt"
                     value={beadsG} 
                     onChangeText={setBeadsG} 
-                    keyboardType="decimal-pad" 
+                    keyboardType="decimal-pad"
+                    unit="g"
                   />
                 </View>
               </View>
             </View>
 
-            <View style={[s.card, { borderColor: `${colors.vjAccent}25`, zIndex: 40 }]}>
-              <Text style={[s.sectionTitle, { color: colors.vjText }]}>Purity & Financials</Text>
+            {/* SECTION 2: PURITY & FINANCIALS */}
+            <View style={[
+              s.card,
+              {
+                backgroundColor: isDark ? 'rgba(28, 20, 24, 0.96)' : '#fff',
+                borderColor: isDark ? 'rgba(212, 175, 55, 0.22)' : `${colors.vjAccent}25`,
+              }
+            ]}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                  <Layers size={18} color="#D4AF37" />
+                  <Text style={[s.sectionTitle, { color: colors.vjText, marginBottom: 0 }]}>Purity & Fineness</Text>
+                </View>
+                {computedKarat ? (
+                  <View style={{
+                    backgroundColor: 'rgba(212,175,55,0.18)',
+                    paddingHorizontal: 8,
+                    paddingVertical: 3,
+                    borderRadius: 6,
+                    borderWidth: 1,
+                    borderColor: 'rgba(212,175,55,0.3)',
+                  }}>
+                    <Text style={{ fontSize: 11, fontWeight: '800', color: '#D4AF37' }}>{computedKarat}</Text>
+                  </View>
+                ) : null}
+              </View>
+
               <View style={s.row}>
                 <View style={[s.inputGroup, { flex: 1, paddingRight: 6 }]}>
-                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-                    <Text style={[s.label, { color: `${colors.vjText}99`, marginBottom: 0 }]}>Purity % *</Text>
-                    {computedKarat ? (
-                      <View style={{ backgroundColor: 'rgba(212,175,55,0.2)', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 }}>
-                        <Text style={{ fontSize: 11, fontWeight: '800', color: '#D4AF37' }}>{computedKarat}</Text>
-                      </View>
-                    ) : null}
-                  </View>
-                  <TextInput 
-                    style={[s.input, { color: colors.vjText, borderColor: colors.border }]} 
+                  <GlassInput 
+                    label="Purity % *"
                     value={purityPercent} 
                     onChangeText={setPurityPercent} 
-                    keyboardType="decimal-pad" 
+                    keyboardType="decimal-pad"
+                    unit="%"
                   />
                 </View>
                 <View style={[s.inputGroup, { flex: 1, paddingLeft: 6 }]}>
-                  <Text style={[s.label, { color: `${colors.vjText}99` }]}>Wastage %</Text>
-                  <TextInput 
-                    style={[s.input, { color: colors.vjText, borderColor: colors.border }]} 
+                  <GlassInput 
+                    label="Wastage %"
                     value={wastagePercent} 
                     onChangeText={setWastagePercent} 
-                    keyboardType="decimal-pad" 
+                    keyboardType="decimal-pad"
+                    unit="%"
                   />
                 </View>
               </View>
 
-              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 4, marginBottom: 12 }}>
-                {getPurityPresets(metal || 'GOLD').map(preset => {
+              {/* Hallmark Purity Presets */}
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 2, marginBottom: 14 }}>
+                {getPurityPresets(metal || 'GOLD').map((preset) => {
                   const isSelected = isPresetMatchingPurity(purityPercent, preset.val);
                   return (
                     <TouchableOpacity
@@ -429,16 +506,18 @@ export default function EditDraftScreen() {
                         setPurityPercent(preset.val);
                       }}
                       style={{
-                        backgroundColor: isSelected ? '#D4AF37' : 'rgba(212,175,55,0.12)',
-                        paddingHorizontal: 8,
-                        paddingVertical: 4,
-                        borderRadius: 6
+                        backgroundColor: isSelected ? '#D4AF37' : (isDark ? 'rgba(212,175,55,0.14)' : 'rgba(212,175,55,0.09)'),
+                        paddingHorizontal: 10,
+                        paddingVertical: 5,
+                        borderRadius: 8,
+                        borderWidth: 1,
+                        borderColor: isSelected ? '#D4AF37' : (isDark ? 'rgba(212,175,55,0.25)' : 'rgba(212,175,55,0.18)'),
                       }}
                     >
                       <Text style={{
                         fontSize: 11,
                         fontWeight: '700',
-                        color: isSelected ? '#FFF' : colors.vjText
+                        color: isSelected ? '#FFF' : colors.vjText,
                       }}>
                         {preset.label}
                       </Text>
@@ -448,52 +527,63 @@ export default function EditDraftScreen() {
               </View>
 
               <View style={s.row}>
-                <View style={[s.inputGroup, { flex: 1, paddingRight: 6 }]}>
-                  <Text style={[s.label, { color: `${colors.vjText}99` }]}>Rate ({getCurrencySymbol()}/g)</Text>
-                  <TextInput 
-                    style={[s.input, { color: colors.vjText, borderColor: colors.border }]} 
+                <View style={[s.inputGroup, { flex: 1, paddingRight: 4 }]}>
+                  <GlassInput 
+                    label="Rate / g"
                     value={purchaseRate} 
                     onChangeText={setPurchaseRate} 
-                    keyboardType="decimal-pad" 
+                    keyboardType="decimal-pad"
+                    unit={`${getCurrencySymbol()}/g`}
                   />
                 </View>
-                <View style={[s.inputGroup, { flex: 1, paddingHorizontal: 6 }]}>
-                  <Text style={[s.label, { color: `${colors.vjText}99` }]}>Making ({getCurrencySymbol()})</Text>
-                  <TextInput 
-                    style={[s.input, { color: colors.vjText, borderColor: colors.border }]} 
+                <View style={[s.inputGroup, { flex: 1, paddingHorizontal: 4 }]}>
+                  <GlassInput 
+                    label="Labour"
                     value={makingCharge} 
                     onChangeText={setMakingCharge} 
-                    keyboardType="decimal-pad" 
+                    keyboardType="decimal-pad"
+                    unit={getCurrencySymbol()}
                   />
                 </View>
-                <View style={[s.inputGroup, { flex: 1, paddingLeft: 6 }]}>
-                  <Text style={[s.label, { color: `${colors.vjText}99` }]}>Stn Cost ({getCurrencySymbol()})</Text>
-                  <TextInput 
-                    style={[s.input, { color: colors.vjText, borderColor: colors.border }]} 
+                <View style={[s.inputGroup, { flex: 1, paddingLeft: 4 }]}>
+                  <GlassInput 
+                    label="Stone Cost"
                     value={stoneCost} 
                     onChangeText={setStoneCost} 
-                    keyboardType="decimal-pad" 
+                    keyboardType="decimal-pad"
+                    unit={getCurrencySymbol()}
                   />
                 </View>
               </View>
             </View>
 
-            <View style={[s.card, { borderColor: `${colors.vjAccent}25`, zIndex: 30 }]}>
-              <Text style={[s.sectionTitle, { color: colors.vjText }]}>Tracking & Sizing</Text>
+            {/* SECTION 3: TRACKING & SIZING */}
+            <View style={[
+              s.card,
+              {
+                backgroundColor: isDark ? 'rgba(28, 20, 24, 0.96)' : '#fff',
+                borderColor: isDark ? 'rgba(212, 175, 55, 0.22)' : `${colors.vjAccent}25`,
+              }
+            ]}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 14 }}>
+                <ShieldCheck size={18} color="#D4AF37" />
+                <Text style={[s.sectionTitle, { color: colors.vjText, marginBottom: 0 }]}>Tracking & Sizing</Text>
+              </View>
+
               <View style={s.row}>
                 <View style={[s.inputGroup, { flex: 1, paddingRight: 6 }]}>
-                  <Text style={[s.label, { color: `${colors.vjText}99` }]}>Location</Text>
-                  <TextInput 
-                    style={[s.input, { color: colors.vjText, borderColor: colors.border }]} 
+                  <GlassInput 
+                    label="Showroom Location"
+                    placeholder="e.g. TRAY-A1"
                     value={location} 
                     onChangeText={setLocation} 
                     autoCapitalize="characters" 
                   />
                 </View>
                 <View style={[s.inputGroup, { flex: 1, paddingLeft: 6 }]}>
-                  <Text style={[s.label, { color: `${colors.vjText}99` }]}>BIS HUID</Text>
-                  <TextInput 
-                    style={[s.input, { color: colors.vjText, borderColor: colors.border }]} 
+                  <GlassInput 
+                    label="BIS HUID"
+                    placeholder="6 characters"
                     value={huid} 
                     onChangeText={(t) => setHuid(t.toUpperCase())} 
                     autoCapitalize="characters" 
@@ -501,15 +591,15 @@ export default function EditDraftScreen() {
                   />
                 </View>
               </View>
-              <View style={[s.row, { marginTop: 4, zIndex: 10 }]}>
+
+              <View style={[s.row, { marginTop: 4 }]}>
                 <View style={[s.inputGroup, { flex: 1, paddingRight: 6 }]}>
-                  <Text style={[s.label, { color: `${colors.vjText}99` }]}>Size Value</Text>
-                  <TextInput 
-                    style={[s.input, { color: colors.vjText, borderColor: colors.border }]} 
+                  <GlassInput 
+                    label="Size Value"
                     value={sizeValue} 
                     onChangeText={setSizeValue} 
                     keyboardType="decimal-pad" 
-                    placeholder="Size" 
+                    placeholder="e.g. 2.4" 
                   />
                 </View>
                 <View style={[s.inputGroup, { flex: 1, paddingLeft: 6 }]}>
@@ -544,11 +634,17 @@ export default function EditDraftScreen() {
               </View>
             </View>
 
-            {/* Live Cost Preview (FEAT-EFFECTIVE-PRICE-1 v2.00 / FIX-EFFPRICE-GATE-1 v2.01) */}
+            {/* Live Cost Preview */}
             {liveWastageSeparation.isValid && (
-              <View style={{ paddingHorizontal: 4, marginBottom: 16, marginTop: 8, zIndex: 10 }}>
-                <GlassCard style={{ backgroundColor: 'rgba(252,251,248, 0.98)', borderColor: '#D4AF37', borderWidth: 1.5, padding: 16 }}>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12, paddingBottom: 10, borderBottomWidth: 1, borderBottomColor: 'rgba(0,0,0,0.05)' }}>
+              <View style={{ marginBottom: 16, marginTop: 4 }}>
+                <GlassCard style={{
+                  backgroundColor: isDark ? 'rgba(28, 20, 24, 0.98)' : 'rgba(252,251,248, 0.98)',
+                  borderColor: '#D4AF37',
+                  borderWidth: 1.5,
+                  padding: 16,
+                  borderRadius: 16,
+                }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12, paddingBottom: 10, borderBottomWidth: 1, borderBottomColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)' }}>
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                       <View style={{ width: 28, height: 28, borderRadius: 8, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(245, 158, 11, 0.15)', borderWidth: 1, borderColor: 'rgba(245, 158, 11, 0.3)' }}>
                         <Calculator size={16} color="#D4AF37" />
@@ -565,7 +661,7 @@ export default function EditDraftScreen() {
                   </View>
 
                   <View style={{ flexDirection: 'row', gap: 10, marginBottom: 12 }}>
-                    <View style={{ flex: 1, padding: 10, borderRadius: 12, backgroundColor: 'rgba(0,0,0,0.02)', borderWidth: 1, borderColor: 'rgba(0,0,0,0.05)' }}>
+                    <View style={{ flex: 1, padding: 10, borderRadius: 12, backgroundColor: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.02)', borderWidth: 1, borderColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)' }}>
                       <Text style={{ fontSize: 10, fontWeight: '700', color: `${colors.vjText}80`, textTransform: 'uppercase', letterSpacing: 0.5 }}>Net Weight</Text>
                       <Text style={{ fontSize: 16, fontWeight: '900', color: colors.vjText, fontFamily: 'monospace', marginTop: 2 }}>{liveWastageSeparation.netWeight}</Text>
                       <Text style={{ fontSize: 9, color: `${colors.vjText}90`, fontWeight: '600', marginTop: 2 }} numberOfLines={1}>
@@ -573,7 +669,7 @@ export default function EditDraftScreen() {
                       </Text>
                     </View>
 
-                    <View style={{ flex: 1, padding: 10, borderRadius: 12, backgroundColor: 'rgba(0,0,0,0.02)', borderWidth: 1, borderColor: 'rgba(0,0,0,0.05)' }}>
+                    <View style={{ flex: 1, padding: 10, borderRadius: 12, backgroundColor: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.02)', borderWidth: 1, borderColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)' }}>
                       <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
                         <Text style={{ fontSize: 10, fontWeight: '700', color: `${colors.vjText}80`, textTransform: 'uppercase', letterSpacing: 0.5 }}>Total Touch</Text>
                         <Text style={{ fontSize: 12, fontWeight: '900', color: colors.vjAccent, fontFamily: 'monospace' }}>{liveWastageSeparation.totalTouch}</Text>
@@ -586,7 +682,7 @@ export default function EditDraftScreen() {
                     </View>
                   </View>
 
-                  <View style={{ marginBottom: 12, padding: 12, borderRadius: 16, backgroundColor: 'rgba(0,0,0,0.02)', borderWidth: 1, borderColor: 'rgba(0,0,0,0.05)' }}>
+                  <View style={{ marginBottom: 12, padding: 12, borderRadius: 16, backgroundColor: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.02)', borderWidth: 1, borderColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)' }}>
                     <Text style={{ fontSize: 10, fontWeight: '900', textTransform: 'uppercase', letterSpacing: 0.8, color: `${colors.vjText}99`, marginBottom: 8 }}>
                       Fine Metal Accounting ({metal})
                     </Text>
@@ -617,7 +713,7 @@ export default function EditDraftScreen() {
                   </View>
 
                   {liveWastageSeparation.hasCostData && (
-                    <View style={{ padding: 12, borderRadius: 16, backgroundColor: 'rgba(212, 175, 55, 0.1)', borderWidth: 1, borderColor: 'rgba(212, 175, 55, 0.3)' }}>
+                    <View style={{ padding: 12, borderRadius: 16, backgroundColor: isDark ? 'rgba(212, 175, 55, 0.15)' : 'rgba(212, 175, 55, 0.1)', borderWidth: 1, borderColor: 'rgba(212, 175, 55, 0.3)' }}>
                       {liveWastageSeparation.hasRateData && (
                         <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingBottom: 6, borderBottomWidth: 1, borderBottomColor: 'rgba(212, 175, 55, 0.15)' }}>
                           <Text style={{ fontSize: 11, color: `${colors.vjText}B0`, fontWeight: '700' }}>Effective Price / g:</Text>
@@ -633,7 +729,7 @@ export default function EditDraftScreen() {
                             {liveWastageSeparation.financialBreakdown}
                           </Text>
                         </View>
-                        <Text style={{ fontSize: 18, fontWeight: '900', fontFamily: 'monospace', color: '#92400E' }}>
+                        <Text style={{ fontSize: 18, fontWeight: '900', fontFamily: 'monospace', color: isDark ? '#D4AF37' : '#92400E' }}>
                           {getCurrencySymbol()} {liveWastageSeparation.totalAmount.toLocaleString('en-IN', { maximumFractionDigits: 2 })}
                         </Text>
                       </View>
@@ -649,7 +745,7 @@ export default function EditDraftScreen() {
         {!loading && !errorMessage && (
           <FixedGlassBar>
             <TouchableOpacity 
-              style={[fixedBarStyles.pillSecondaryBtn, { backgroundColor: 'rgba(239, 68, 68, 0.08)', borderColor: 'rgba(239, 68, 68, 0.25)', flex: 0.8 }]} 
+              style={[fixedBarStyles.pillSecondaryBtn, { backgroundColor: isDark ? 'rgba(239, 68, 68, 0.15)' : 'rgba(239, 68, 68, 0.08)', borderColor: isDark ? 'rgba(239, 68, 68, 0.35)' : 'rgba(239, 68, 68, 0.25)', flex: 0.8 }]} 
               onPress={handleDiscard}
               disabled={saving}
             >
@@ -688,7 +784,13 @@ export default function EditDraftScreen() {
         >
           <TouchableOpacity 
             activeOpacity={1} 
-            style={[s.successModalContent, { backgroundColor: colors.vjBg, borderColor: colors.border }]}
+            style={[
+              s.successModalContent,
+              {
+                backgroundColor: isDark ? '#23181C' : colors.vjBg,
+                borderColor: isDark ? 'rgba(212, 175, 55, 0.25)' : colors.border,
+              }
+            ]}
           >
             <View style={s.successIconContainer}>
               <CheckCircle size={56} color="#10B981" />
@@ -723,7 +825,13 @@ export default function EditDraftScreen() {
         >
           <TouchableOpacity 
             activeOpacity={1} 
-            style={[s.successModalContent, { backgroundColor: colors.vjBg, borderColor: colors.border }]}
+            style={[
+              s.successModalContent,
+              {
+                backgroundColor: isDark ? '#23181C' : colors.vjBg,
+                borderColor: isDark ? 'rgba(239, 68, 68, 0.35)' : colors.border,
+              }
+            ]}
           >
             <View style={[s.successIconContainer, { backgroundColor: 'rgba(239, 68, 68, 0.1)' }]}>
               <Text style={{ fontSize: 40 }}>⚠️</Text>
@@ -761,6 +869,36 @@ export default function EditDraftScreen() {
 
 const s = StyleSheet.create({
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  itemBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    padding: 12,
+    borderRadius: 16,
+    borderWidth: 1,
+    marginBottom: 16,
+  },
+  bannerSku: {
+    fontSize: 16,
+    fontWeight: '800',
+    fontFamily: 'monospace',
+  },
+  bannerPurity: {
+    fontSize: 12,
+    marginTop: 2,
+    fontWeight: '600',
+  },
+  metalBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 6,
+    borderWidth: 1,
+  },
+  metalBadgeText: {
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+  },
   card: {
     backgroundColor: '#fff',
     borderRadius: 16,
@@ -775,21 +913,6 @@ const s = StyleSheet.create({
   },
   inputGroup: { marginBottom: 12 },
   row: { flexDirection: 'row' },
-  label: {
-    fontSize: 10,
-    fontWeight: '700',
-    marginBottom: 6,
-    textTransform: 'uppercase',
-  },
-  input: {
-    backgroundColor: '#F3F4F6',
-    borderWidth: 1,
-    borderRadius: 10,
-    paddingHorizontal: 10,
-    paddingVertical: 12,
-    fontSize: 14,
-    fontWeight: '600',
-  },
   modalOverlayCenter: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.6)',

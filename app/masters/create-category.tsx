@@ -2,7 +2,7 @@
 // Aligned with Step 3.5, Step 16, and MastersSyncStore
 
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, Alert, Modal, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, Alert, Modal, TouchableOpacity, ActivityIndicator, useWindowDimensions } from 'react-native';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -14,10 +14,14 @@ import { Layers, CheckCircle, ShieldCheck, Plus } from 'lucide-react-native';
 import { useFirmStore } from '@/store/phase1/useFirmStore';
 import { categoryService } from '@/services/phase2/categoryService';
 import { getThemeColors } from '@/constants/theme';
+import { JewelryMonogramEmblem } from '@/utils/jewelryIcons';
 
 export default function CreateCategoryScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { width } = useWindowDimensions();
+  const isTablet = width >= 768;
+
   const { activeFirmId } = useFirmStore();
   
   const [newName, setNewName] = useState('');
@@ -26,6 +30,7 @@ export default function CreateCategoryScreen() {
 
   const activeTheme = appSettingsStore((s: any) => s.theme);
   const colors = getThemeColors(activeTheme);
+  const isDark = activeTheme === 'dark';
 
   const handleAdd = async () => {
     try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); } catch {}
@@ -76,7 +81,8 @@ export default function CreateCategoryScreen() {
           showsVerticalScrollIndicator={false} 
           contentContainerStyle={{ 
             paddingTop: 24, 
-            paddingBottom: Math.max(insets.bottom + 120, 160) 
+            paddingBottom: Math.max(insets.bottom + 120, 160),
+            alignItems: isTablet ? 'center' : undefined,
           }} 
           keyboardShouldPersistTaps="handled"
           keyboardDismissMode="on-drag"
@@ -85,51 +91,63 @@ export default function CreateCategoryScreen() {
           extraScrollHeight={120}
           extraHeight={140}
         >
-          <GlassCard style={{ padding: 20, marginBottom: 16, borderColor: `${colors.vjAccent}25` }}>
-            <View style={s.formGroup}>
-              <GlassInput 
-                label="Category Name *"
-                value={newName}
-                onChangeText={setNewName}
-                placeholder="e.g. Rings, Chains, Necklaces"
-                autoCapitalize="words"
-                maxLength={50}
-              />
-            </View>
-          </GlassCard>
+          <View style={[{ width: '100%' }, isTablet && { maxWidth: 680 }]}>
+            <GlassCard style={{ padding: 24, marginBottom: 16, borderColor: `${colors.vjAccent}25` }}>
+              {/* Real-time Monogram Preview */}
+              <View style={s.previewContainer}>
+                <JewelryMonogramEmblem categoryName={newName.trim() || 'New Category'} size={56} />
+                <Text style={[s.previewText, { color: colors.vjText }]}>
+                  {newName.trim() ? `Preview: ${newName.trim()}` : 'Live Monogram Badge Preview'}
+                </Text>
+              </View>
+
+              <View style={s.formGroup}>
+                <GlassInput 
+                  label="Category Name *"
+                  value={newName}
+                  onChangeText={setNewName}
+                  placeholder="e.g. Rings, Chains, Necklaces"
+                  autoCapitalize="words"
+                  maxLength={50}
+                />
+              </View>
+            </GlassCard>
+          </View>
         </KeyboardAwareScrollView>
 
         <FixedGlassBar>
-          <TouchableOpacity
-            testID="cancel-category-btn"
-            style={fixedBarStyles.pillSecondaryBtn}
-            onPress={() => {
-              try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
-              router.back();
-            }}
-            disabled={isSubmitting}
-          >
-            <Text style={[fixedBarStyles.pillSecondaryText, { color: colors.vjText }]}>Cancel</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            testID="save-category-btn"
-            style={[
-              fixedBarStyles.pillPrimaryBtn, 
-              { backgroundColor: colors.vjAccent },
-              (!newName.trim() || isSubmitting) && { opacity: 0.5 }
-            ]}
-            onPress={handleAdd}
-            disabled={isSubmitting || !newName.trim()}
-          >
-            {isSubmitting ? (
-              <ActivityIndicator color="#fff" size="small" />
-            ) : (
-              <>
-                <Plus size={18} color="#fff" />
-                <Text style={fixedBarStyles.pillPrimaryText}>Save Category</Text>
-              </>
-            )}
-          </TouchableOpacity>
+          <View style={[{ width: '100%', flexDirection: 'row', gap: 12 }, isTablet && { maxWidth: 600, alignSelf: 'center' }]}>
+            <TouchableOpacity
+              testID="cancel-category-btn"
+              style={[fixedBarStyles.pillSecondaryBtn, { flex: 1 }]}
+              onPress={() => {
+                try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
+                router.back();
+              }}
+              disabled={isSubmitting}
+            >
+              <Text style={[fixedBarStyles.pillSecondaryText, { color: colors.vjText }]}>Cancel</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              testID="save-category-btn"
+              style={[
+                fixedBarStyles.pillPrimaryBtn, 
+                { flex: 1, backgroundColor: colors.vjAccent },
+                (!newName.trim() || isSubmitting) && { opacity: 0.5 }
+              ]}
+              onPress={handleAdd}
+              disabled={isSubmitting || !newName.trim()}
+            >
+              {isSubmitting ? (
+                <ActivityIndicator color="#fff" size="small" />
+              ) : (
+                <>
+                  <Plus size={18} color="#fff" />
+                  <Text style={fixedBarStyles.pillPrimaryText}>Save Category</Text>
+                </>
+              )}
+            </TouchableOpacity>
+          </View>
         </FixedGlassBar>
       </View>
 
@@ -142,7 +160,13 @@ export default function CreateCategoryScreen() {
         >
           <TouchableOpacity 
             activeOpacity={1} 
-            style={[s.successModalContent, { backgroundColor: colors.vjBg, borderColor: colors.border }]}
+            style={[
+              s.successModalContent, 
+              { 
+                backgroundColor: isDark ? '#1C1418' : colors.vjBg, 
+                borderColor: isDark ? 'rgba(212, 175, 55, 0.35)' : colors.border 
+              }
+            ]}
           >
             <View style={s.successIconContainer}>
               <CheckCircle size={56} color="#10B981" />
@@ -165,6 +189,16 @@ export default function CreateCategoryScreen() {
 
 const s = StyleSheet.create({
   container: { flex: 1 },
+  previewContainer: {
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  previewText: {
+    fontSize: 12.5,
+    fontWeight: '700',
+    marginTop: 8,
+    opacity: 0.65,
+  },
   formGroup: { marginBottom: 4 },
   modalOverlayCenter: {
     flex: 1,

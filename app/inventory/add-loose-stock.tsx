@@ -3,7 +3,7 @@
 // and FIX-EFFPRICE-PURITYROUND-1 (v2.14)
 
 import React, { useState, useMemo, useCallback, useEffect } from 'react';
-import { View, Text, Alert, Modal, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { View, Text, Alert, Modal, StyleSheet, TouchableOpacity, ActivityIndicator, useWindowDimensions } from 'react-native';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import { useRouter, useFocusEffect } from 'expo-router';
 import * as Haptics from 'expo-haptics';
@@ -25,14 +25,18 @@ import {
   percentToKarat,
   computeEffectivePricePerGram,
 } from '@/utils/calculations';
-import { Layers, Scale, Banknote, CheckCircle, Plus } from 'lucide-react-native';
+import { JewelryMonogramEmblem } from '@/utils/jewelryIcons';
+import { Layers, Scale, Banknote, CheckCircle, Plus, Sparkles } from 'lucide-react-native';
 import type { Design, AddLooseStockInput } from '@/types/phase2/phase2.types';
 import { getThemeColors } from '@/constants/theme';
 
 export default function AddLooseStockScreen() {
   const router = useRouter();
+  const { width } = useWindowDimensions();
+  const isTablet = width >= 768;
   const { activeFirmId } = useFirmStore();
   const activeTheme = appSettingsStore((s: any) => s.theme);
+  const isDark = activeTheme === 'dark';
   const colors = getThemeColors(activeTheme);
 
   const [designs, setDesigns] = useState<Design[]>([]);
@@ -192,7 +196,12 @@ export default function AddLooseStockScreen() {
   return (
     <TwoToneWrapper title="Add Loose Stock" showBack>
       <KeyboardAwareScrollView
-        contentContainerStyle={{ paddingTop: 32, paddingBottom: 190 }}
+        contentContainerStyle={{
+          paddingTop: 24,
+          paddingBottom: 190,
+          paddingHorizontal: 16,
+          ...(isTablet ? { maxWidth: 740, alignSelf: 'center', width: '100%' } : {}),
+        }}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="on-drag"
@@ -202,10 +211,53 @@ export default function AddLooseStockScreen() {
         extraHeight={140}
       >
         <GlassCard style={{ marginBottom: 16 }}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 16 }}>
-            <Layers size={20} color="#D4AF37" />
-            <Text style={{ fontSize: 18, fontWeight: '700', color: colors.vjText }}>Design & Fineness</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              <Layers size={20} color="#D4AF37" />
+              <Text style={{ fontSize: 18, fontWeight: '700', color: colors.vjText }}>Design & Fineness</Text>
+            </View>
+            <View style={{
+              backgroundColor: 'rgba(212, 175, 55, 0.12)',
+              paddingHorizontal: 8,
+              paddingVertical: 3,
+              borderRadius: 6,
+              borderWidth: 1,
+              borderColor: 'rgba(212, 175, 55, 0.25)',
+            }}>
+              <Text style={{ fontSize: 11, fontWeight: '800', color: '#D4AF37', letterSpacing: 0.5 }}>
+                LOOSE POOL
+              </Text>
+            </View>
           </View>
+
+          {selectedDesign && (
+            <View style={{
+              flexDirection: 'row',
+              alignItems: 'center',
+              gap: 12,
+              backgroundColor: isDark ? 'rgba(212, 175, 55, 0.08)' : 'rgba(212, 175, 55, 0.05)',
+              padding: 10,
+              borderRadius: 12,
+              marginBottom: 14,
+              borderWidth: 1,
+              borderColor: 'rgba(212, 175, 55, 0.2)',
+            }}>
+              <JewelryMonogramEmblem
+                designName={selectedDesign.name}
+                categoryName={selectedDesign.name}
+                metal={selectedDesign.metal}
+                size={34}
+              />
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontSize: 14, fontWeight: '700', color: colors.vjText }} numberOfLines={1}>
+                  {selectedDesign.name}
+                </Text>
+                <Text style={{ fontSize: 11, color: isDark ? 'rgba(255,255,255,0.6)' : 'rgba(92,22,35,0.6)' }}>
+                  {selectedDesign.metal} • Code: {selectedDesign.code}
+                </Text>
+              </View>
+            </View>
+          )}
 
           <GlassPickerInput
             label="Loose Stock Design *"
@@ -265,7 +317,7 @@ export default function AddLooseStockScreen() {
                 options: availablePurityPresets.map((p) => ({
                   id: p.id,
                   label: p.label,
-                  sublabel: `${p.val}%`,
+                  sublabel: `${p.val}% Fineness`,
                 })),
                 onSelect: (opt) => {
                   if (!opt) return setSelectedPurity(null);
@@ -299,22 +351,37 @@ export default function AddLooseStockScreen() {
                 keyboardType="number-pad"
                 value={pieceCount}
                 onChangeText={setPieceCount}
+                unit="pcs"
               />
             </View>
             <View style={{ flex: 1 }}>
               <GlassInput
-                label="Total Weight (g) *"
+                label="Total Weight *"
                 placeholder="0.000"
                 keyboardType="decimal-pad"
                 value={weightGrams}
                 onChangeText={setWeightGrams}
+                unit="g"
               />
             </View>
           </View>
 
-          <View style={{ backgroundColor: 'rgba(212,175,55,0.08)', padding: 14, borderRadius: 12, marginTop: 6 }}>
+          <View style={{
+            backgroundColor: isDark ? 'rgba(212,175,55,0.1)' : 'rgba(212,175,55,0.08)',
+            padding: 14,
+            borderRadius: 12,
+            marginTop: 6,
+            borderWidth: 1,
+            borderColor: 'rgba(212, 175, 55, 0.22)',
+            flexDirection: 'row',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+          }}>
             <Text style={{ fontSize: 12, color: colors.vjText, fontWeight: '600' }}>
-              Average Piece Weight: <Text style={{ fontFamily: 'monospace', fontWeight: '800' }}>{previewData.avgWeightGrams} g</Text>
+              Average Piece Weight:
+            </Text>
+            <Text style={{ fontFamily: 'monospace', fontWeight: '800', fontSize: 14, color: '#D4AF37' }}>
+              {previewData.avgWeightGrams} g
             </Text>
           </View>
         </GlassCard>
@@ -328,33 +395,45 @@ export default function AddLooseStockScreen() {
           <View style={{ flexDirection: 'row', gap: 12 }}>
             <View style={{ flex: 1.2 }}>
               <GlassInput
-                label={`Rate / g (${getCurrencySymbol()})`}
+                label="Rate / g"
                 placeholder="e.g. 6800"
                 keyboardType="decimal-pad"
                 value={ratePerGram}
                 onChangeText={setRatePerGram}
+                unit={`${getCurrencySymbol()}/g`}
               />
             </View>
             <View style={{ flex: 0.8 }}>
               <GlassInput
-                label="Wastage %"
+                label="Wastage"
                 placeholder="0.00"
                 keyboardType="decimal-pad"
                 value={wastagePercent}
                 onChangeText={setWastagePercent}
+                unit="%"
               />
             </View>
           </View>
 
-          <View style={{ backgroundColor: colors.vjText, padding: 16, borderRadius: 12, marginTop: 8 }}>
+          <View style={{
+            backgroundColor: isDark ? '#1C1418' : colors.vjText,
+            padding: 16,
+            borderRadius: 14,
+            marginTop: 8,
+            borderWidth: 1,
+            borderColor: 'rgba(212, 175, 55, 0.3)',
+          }}>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
               <Text style={{ fontSize: 12, color: 'rgba(255,255,255,0.7)', textTransform: 'uppercase', fontWeight: '700' }}>
                 Estimated Lot Value
               </Text>
               {previewData.hasCalculatedRate && (
-                <Text style={{ fontSize: 11, color: '#D4AF37', fontWeight: '700' }}>
-                  Eff: {getCurrencySymbol()}{previewData.effectivePricePerGram.toFixed(2)}/g
-                </Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                  <Sparkles size={11} color="#D4AF37" />
+                  <Text style={{ fontSize: 11, color: '#D4AF37', fontWeight: '700' }}>
+                    Eff: {getCurrencySymbol()}{previewData.effectivePricePerGram.toFixed(2)}/g
+                  </Text>
+                </View>
               )}
             </View>
             <Text style={{ fontSize: 28, fontWeight: '800', color: '#FCFBF8', fontFamily: 'monospace' }}>
@@ -392,12 +471,23 @@ export default function AddLooseStockScreen() {
 
       <Modal visible={!!successMessage} transparent animationType="fade">
         <View style={s.modalOverlayCenter}>
-          <View style={s.successModalContent}>
+          <View style={[
+            s.successModalContent,
+            {
+              backgroundColor: isDark ? '#23181C' : '#FCFBF8',
+              borderColor: isDark ? 'rgba(212, 175, 55, 0.25)' : 'rgba(255,255,255,0.5)',
+            }
+          ]}>
             <View style={s.successIconContainer}>
               <CheckCircle size={56} color="#10B981" />
             </View>
-            <Text style={s.successTitle}>Added to Pool</Text>
-            <Text style={s.successSubtitle}>{successMessage}</Text>
+            <Text style={[s.successTitle, { color: colors.vjText }]}>Added to Pool</Text>
+            <Text style={[
+              s.successSubtitle,
+              { color: isDark ? 'rgba(255,255,255,0.65)' : 'rgba(92,22,35,0.6)' }
+            ]}>
+              {successMessage}
+            </Text>
 
             <View style={{ width: '100%', marginTop: 16 }}>
               <GlassButton
@@ -461,7 +551,6 @@ const s = StyleSheet.create({
   },
   successSubtitle: {
     fontSize: 14,
-    color: 'rgba(92,22,35,0.6)',
     textAlign: 'center',
     marginBottom: 24,
   },

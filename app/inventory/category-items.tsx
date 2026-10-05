@@ -2,7 +2,7 @@
 // Aligned with FEAT-DRILL-DOWN-1 (v1.65), FIX-LOWSTOCK-PURITYGRAIN-1 (v2.13), and MastersSyncStore
 
 import React, { useState, useCallback, useEffect, useMemo, memo } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, Modal, TextInput } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, Modal, TextInput, useWindowDimensions } from 'react-native';
 import { FlashList } from '@shopify/flash-list';
 import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -117,6 +117,8 @@ const DesignRow = memo(({ item, categoryName, isLowStock, currentThreshold, colo
 export default function CategoryItemsScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { width } = useWindowDimensions();
+  const isTablet = width >= 768;
   const params = useLocalSearchParams<{ categoryId: string; categoryName: string }>();
   const categoryId = Array.isArray(params.categoryId) ? params.categoryId[0] : params.categoryId;
   const categoryName = Array.isArray(params.categoryName) ? params.categoryName[0] : params.categoryName;
@@ -262,55 +264,57 @@ export default function CategoryItemsScreen() {
   }, [data, lowStockVariantKeys]);
 
   const headerCategoryCard = (
-    <View style={s.headerCategoryCard}>
-      <View style={s.heroTopRow}>
-        <View style={s.headerCategoryBadge}>
-          <Tag size={13} color={COLORS.bullionGold} />
-          <Text style={s.headerCategoryBadgeText}>CATEGORY SUMMARY</Text>
-        </View>
-        <View style={s.heroPillsRow}>
-          <View style={s.headerMetaPill}>
-            <Package size={11} color="rgba(255, 255, 255, 0.85)" />
-            <Text style={s.headerMetaText}>{totalItems} Pieces</Text>
+    <View style={[{ width: '100%' }, isTablet && { maxWidth: 780, alignSelf: 'center' }]}>
+      <View style={s.headerCategoryCard}>
+        <View style={s.heroTopRow}>
+          <View style={s.headerCategoryBadge}>
+            <Tag size={13} color={COLORS.bullionGold} />
+            <Text style={s.headerCategoryBadgeText}>CATEGORY SUMMARY</Text>
           </View>
-          <View style={s.headerMetaPill}>
-            <Layers size={11} color="rgba(255, 255, 255, 0.85)" />
-            <Text style={s.headerMetaText}>{data.length} Variants</Text>
-          </View>
-        </View>
-      </View>
-
-      <View style={s.headerDivider} />
-
-      <View style={s.heroBottomRow}>
-        <View style={s.heroScaleContainer}>
-          <Text style={s.headerScaleLabel}>CATEGORY PHYSICAL NET WEIGHT</Text>
-          <View style={s.heroScaleValueRow}>
-            <Scale size={20} color={COLORS.bullionGold} style={{ marginRight: 6 }} />
-            <Text style={s.headerScaleDigits}>
-              {formatWeight(totalWeightMg)}
-            </Text>
+          <View style={s.heroPillsRow}>
+            <View style={s.headerMetaPill}>
+              <Package size={11} color="rgba(255, 255, 255, 0.85)" />
+              <Text style={s.headerMetaText}>{totalItems} Pieces</Text>
+            </View>
+            <View style={s.headerMetaPill}>
+              <Layers size={11} color="rgba(255, 255, 255, 0.85)" />
+              <Text style={s.headerMetaText}>{data.length} Variants</Text>
+            </View>
           </View>
         </View>
 
-        {categoryLowCount > 0 ? (
-          <View style={[s.statusCapsule, { backgroundColor: 'rgba(245, 158, 11, 0.20)', borderColor: 'rgba(245, 158, 11, 0.45)' }]}>
-            <AlertTriangle size={12} color="#FBBF24" />
-            <Text style={[s.statusCapsuleText, { color: '#FDE68A' }]}>{categoryLowCount} Low Stock</Text>
+        <View style={s.headerDivider} />
+
+        <View style={s.heroBottomRow}>
+          <View style={s.heroScaleContainer}>
+            <Text style={s.headerScaleLabel}>CATEGORY PHYSICAL NET WEIGHT</Text>
+            <View style={s.heroScaleValueRow}>
+              <Scale size={20} color={COLORS.bullionGold} style={{ marginRight: 6 }} />
+              <Text style={s.headerScaleDigits}>
+                {formatWeight(totalWeightMg)}
+              </Text>
+            </View>
           </View>
-        ) : (
-          <View style={[s.statusCapsule, { backgroundColor: 'rgba(22, 163, 74, 0.18)', borderColor: 'rgba(74, 222, 128, 0.35)' }]}>
-            <ShieldCheck size={12} color="#4ADE80" />
-            <Text style={[s.statusCapsuleText, { color: '#BBF7D0' }]}>Stock Optimal</Text>
-          </View>
-        )}
+
+          {categoryLowCount > 0 ? (
+            <View style={[s.statusCapsule, { backgroundColor: 'rgba(245, 158, 11, 0.20)', borderColor: 'rgba(245, 158, 11, 0.45)' }]}>
+              <AlertTriangle size={12} color="#FBBF24" />
+              <Text style={[s.statusCapsuleText, { color: '#FDE68A' }]}>{categoryLowCount} Low Stock</Text>
+            </View>
+          ) : (
+            <View style={[s.statusCapsule, { backgroundColor: 'rgba(22, 163, 74, 0.18)', borderColor: 'rgba(74, 222, 128, 0.35)' }]}>
+              <ShieldCheck size={12} color="#4ADE80" />
+              <Text style={[s.statusCapsuleText, { color: '#BBF7D0' }]}>Stock Optimal</Text>
+            </View>
+          )}
+        </View>
       </View>
     </View>
   );
 
   return (
     <TwoToneWrapper title={categoryName || 'Category Items'} showBack headerContent={headerCategoryCard}>
-      <View style={s.listContainer}>
+      <View style={[s.listContainer, isTablet && { maxWidth: 780, width: '100%', alignSelf: 'center' }]}>
         {loading ? (
           <View style={s.loadingContainer}>
             <ActivityIndicator size="large" color={colors.vjAccent} />
@@ -683,6 +687,7 @@ const s = StyleSheet.create({
   },
   modalCard: {
     width: '100%',
+    maxWidth: 440,
     borderRadius: 24,
     padding: 24,
     borderWidth: 1,

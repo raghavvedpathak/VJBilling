@@ -6,7 +6,8 @@
 import React, { useState, useCallback, memo, useMemo } from 'react';
 import {
   View, Text, StyleSheet, ActivityIndicator, ScrollView,
-  TouchableOpacity, Modal, TextInput, Alert, KeyboardAvoidingView, Platform
+  TouchableOpacity, Modal, TextInput, Alert, KeyboardAvoidingView, Platform,
+  useWindowDimensions
 } from 'react-native';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import { useLocalSearchParams, useRouter, useFocusEffect } from 'expo-router';
@@ -21,6 +22,7 @@ import { inventoryDrillDownService } from '@/services/phase2/inventoryDrillDownS
 import { itemService } from '@/services/phase2/itemService';
 import { formatSKUDisplay } from '@/services/phase2/skuEngine';
 import { COLORS, getThemeColors } from '@/constants/theme';
+import { JewelryMonogramEmblem } from '@/utils/jewelryIcons';
 import {
   getDisplayPurity,
   percentToKarat,
@@ -151,6 +153,8 @@ function DetailRow({ label, subLabel, value, icon, valueColor, style }: { label:
 
 export default function ItemDetailScreen() {
   const router = useRouter();
+  const { width } = useWindowDimensions();
+  const isTablet = width >= 768;
   const params = useLocalSearchParams<{ itemId: string }>();
   const itemId = Array.isArray(params.itemId) ? params.itemId[0] : params.itemId;
 
@@ -528,6 +532,7 @@ export default function ItemDetailScreen() {
           extraHeight={140}
           contentContainerStyle={{ paddingTop: 16, paddingBottom: 190 }}
         >
+          <View style={[{ width: '100%' }, isTablet && { maxWidth: 780, alignSelf: 'center' }]}>
           {isReprintRequired && (
             <GlassCard style={s.reprintAmberBanner}>
               <View style={s.reprintBannerInner}>
@@ -570,6 +575,14 @@ export default function ItemDetailScreen() {
 
             <View style={s.heroCardInner}>
               <View style={s.heroTopRow}>
+                <View style={{ marginRight: 12 }}>
+                  <JewelryMonogramEmblem
+                    designName={item.designName}
+                    categoryName={item.categoryName}
+                    metal={item.metal}
+                    size={42}
+                  />
+                </View>
                 <View style={{ flex: 1, paddingRight: 8 }}>
                   <Text style={[s.heroDesignName, { color: colors.vjText }]} numberOfLines={2}>
                     {item.designName}
@@ -587,32 +600,52 @@ export default function ItemDetailScreen() {
                 </View>
               </View>
 
-              {/* Digital Swiss Scale Hero Box */}
-              <View style={[s.heroScaleBox, { backgroundColor: '#ffffff', borderColor: `${colors.vjAccent}18` }]}>
-                <View style={s.heroScaleLeft}>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 2 }}>
-                    <Scale size={13} color={colors.vjAccent} />
-                    <Text style={[s.heroScaleLabel, { color: colors.vjText, opacity: 0.6 }]}>NET WEIGHT</Text>
+              {/* Digital Swiss Scale Hero Box with Formula Clarity */}
+              <View style={[s.heroScaleBox, { backgroundColor: isDark ? 'rgba(255, 255, 255, 0.05)' : '#ffffff', borderColor: `${colors.vjAccent}25` }]}>
+                {/* Top: Net Weight Prominent Display */}
+                <View style={s.heroScaleTopRow}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                    <Scale size={15} color={colors.vjAccent} />
+                    <Text style={[s.heroScaleLabel, { color: colors.vjText, opacity: 0.65 }]}>
+                      NET PHYSICAL WEIGHT
+                    </Text>
                   </View>
                   <Text style={[s.heroScaleDigits, { color: colors.vjAccent }]}>
                     {formatWeight(liveCalculations.netMg)}
                   </Text>
                 </View>
 
-                <View style={[s.heroScaleDivider, { backgroundColor: `${colors.vjText}14` }]} />
+                {/* Bottom: Crystal-Clear Weight Formula Row */}
+                <View style={[s.heroFormulaDivider, { backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : `${colors.vjAccent}15` }]} />
 
-                <View style={s.heroScaleRight}>
-                  <View style={s.heroMiniMetricRow}>
-                    <Text style={[s.heroMiniMetricLabel, { color: `${colors.vjText}80` }]}>GROSS:</Text>
-                    <Text style={[s.heroMiniMetricVal, { color: colors.vjText }]}>{formatWeight(liveCalculations.grossMg)}</Text>
+                <View style={s.heroFormulaRow}>
+                  <View style={[s.formulaChip, { backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.03)', borderColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.08)' }]}>
+                    <Text style={[s.formulaChipLabel, { color: `${colors.vjText}80` }]}>GROSS</Text>
+                    <Text style={[s.formulaChipVal, { color: colors.vjText }]}>{formatWeight(liveCalculations.grossMg)}</Text>
                   </View>
-                  <View style={s.heroMiniMetricRow}>
-                    <Text style={[s.heroMiniMetricLabel, { color: `${colors.vjText}80` }]}>STONE:</Text>
-                    <Text style={[s.heroMiniMetricVal, { color: colors.vjText }]}>{formatWeight(liveCalculations.stoneMg)}</Text>
+
+                  <Text style={[s.formulaOp, { color: `${colors.vjText}60` }]}>−</Text>
+
+                  <View style={[s.formulaChip, { backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.03)', borderColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.08)' }]}>
+                    <Text style={[s.formulaChipLabel, { color: `${colors.vjText}80` }]}>STONE</Text>
+                    <Text style={[s.formulaChipVal, { color: colors.vjText }]}>{formatWeight(liveCalculations.stoneMg)}</Text>
                   </View>
-                  <View style={s.heroMiniMetricRow}>
-                    <Text style={[s.heroMiniMetricLabel, { color: `${colors.vjText}80` }]}>BEADS:</Text>
-                    <Text style={[s.heroMiniMetricVal, { color: colors.vjText }]}>{formatWeight(liveCalculations.beadsMg)}</Text>
+
+                  {liveCalculations.beadsMg > 0 ? (
+                    <>
+                      <Text style={[s.formulaOp, { color: `${colors.vjText}60` }]}>−</Text>
+                      <View style={[s.formulaChip, { backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.03)', borderColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.08)' }]}>
+                        <Text style={[s.formulaChipLabel, { color: `${colors.vjText}80` }]}>BEADS</Text>
+                        <Text style={[s.formulaChipVal, { color: colors.vjText }]}>{formatWeight(liveCalculations.beadsMg)}</Text>
+                      </View>
+                    </>
+                  ) : null}
+
+                  <Text style={[s.formulaOp, { color: `${colors.vjText}60` }]}>=</Text>
+
+                  <View style={[s.formulaChip, { backgroundColor: `${colors.vjAccent}15`, borderColor: `${colors.vjAccent}40` }]}>
+                    <Text style={[s.formulaChipLabel, { color: colors.vjAccent }]}>NET WT</Text>
+                    <Text style={[s.formulaChipVal, { color: colors.vjAccent, fontWeight: '900' }]}>{formatWeight(liveCalculations.netMg)}</Text>
                   </View>
                 </View>
               </View>
@@ -630,23 +663,30 @@ export default function ItemDetailScreen() {
                     <Text style={s.heroHuidVerifiedText}>HUID: {item.huid.trim()}</Text>
                   </View>
                 ) : (
-                  <View style={[s.heroHuidMissing, { backgroundColor: `${colors.vjText}08`, borderColor: `${colors.vjText}18` }]}>
-                    <ShieldAlert size={12} color={`${colors.vjText}66`} />
-                    <Text style={[s.heroHuidMissingText, { color: `${colors.vjText}80` }]}>No HUID</Text>
+                  <View style={[s.heroHuidMissing, { backgroundColor: 'rgba(245, 158, 11, 0.12)', borderColor: 'rgba(245, 158, 11, 0.35)' }]}>
+                    <ShieldAlert size={12} color="#B45309" />
+                    <Text style={[s.heroHuidMissingText, { color: '#B45309' }]}>No HUID</Text>
                   </View>
                 )}
 
                 <View style={[
                   s.heroStatusCapsule, 
                   item.status === 'AVAILABLE' 
-                    ? { backgroundColor: 'rgba(16,185,129,0.12)', borderColor: 'rgba(16,185,129,0.3)' } 
+                    ? { backgroundColor: 'rgba(16,185,129,0.12)', borderColor: 'rgba(16,185,129,0.35)' }
+                    : item.status === 'SENT_TO_KARIGAR'
+                    ? { backgroundColor: 'rgba(124, 58, 237, 0.12)', borderColor: 'rgba(124, 58, 237, 0.35)' }
+                    : item.status === 'DRAFT'
+                    ? { backgroundColor: 'rgba(245, 158, 11, 0.12)', borderColor: 'rgba(245, 158, 11, 0.35)' }
                     : { backgroundColor: `${colors.vjText}08`, borderColor: `${colors.vjText}18` }
                 ]}>
                   <Text style={[
                     s.heroStatusText,
-                    item.status === 'AVAILABLE' ? { color: '#047857' } : { color: colors.vjText }
+                    item.status === 'AVAILABLE' ? { color: '#047857' }
+                    : item.status === 'SENT_TO_KARIGAR' ? { color: '#6D28D9' }
+                    : item.status === 'DRAFT' ? { color: '#B45309' }
+                    : { color: colors.vjText }
                   ]}>
-                    {item.status}
+                    {item.status.replace(/_/g, ' ')}
                   </Text>
                 </View>
 
@@ -663,17 +703,17 @@ export default function ItemDetailScreen() {
           </GlassCard>
 
           {/* Three-Way Segmented Selector */}
-          <View style={[s.tabContainer, { backgroundColor: `${colors.vjAccent}14` }]}>
+          <View style={[s.tabContainer, { backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : `${colors.vjAccent}14`, borderColor: isDark ? 'rgba(212, 175, 55, 0.25)' : 'rgba(212, 175, 55, 0.20)', borderWidth: 1 }]}>
             <TouchableOpacity
               activeOpacity={0.8}
               onPress={() => {
                 try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
                 setActiveTab('SPECS');
               }}
-              style={[s.tabButton, activeTab === 'SPECS' && s.tabButtonActive]}
+              style={[s.tabButton, activeTab === 'SPECS' && [s.tabButtonActive, { backgroundColor: isDark ? colors.vjText : '#ffffff' }]]}
             >
               <Scale size={14} color={activeTab === 'SPECS' ? colors.vjAccent : colors.vjText} style={{ opacity: activeTab === 'SPECS' ? 1 : 0.6 }} />
-              <Text style={[s.tabText, { color: activeTab === 'SPECS' ? colors.vjAccent : colors.vjText }, activeTab === 'SPECS' && s.tabTextActive]}>
+              <Text style={[s.tabText, { color: activeTab === 'SPECS' ? (isDark ? '#ffffff' : colors.vjAccent) : colors.vjText }, activeTab === 'SPECS' && s.tabTextActive]}>
                 Specifications
               </Text>
             </TouchableOpacity>
@@ -684,10 +724,10 @@ export default function ItemDetailScreen() {
                 try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
                 setActiveTab('COSTING');
               }}
-              style={[s.tabButton, activeTab === 'COSTING' && s.tabButtonActive]}
+              style={[s.tabButton, activeTab === 'COSTING' && [s.tabButtonActive, { backgroundColor: isDark ? colors.vjText : '#ffffff' }]]}
             >
               <Calculator size={14} color={activeTab === 'COSTING' ? colors.vjAccent : colors.vjText} style={{ opacity: activeTab === 'COSTING' ? 1 : 0.6 }} />
-              <Text style={[s.tabText, { color: activeTab === 'COSTING' ? colors.vjAccent : colors.vjText }, activeTab === 'COSTING' && s.tabTextActive]}>
+              <Text style={[s.tabText, { color: activeTab === 'COSTING' ? (isDark ? '#ffffff' : colors.vjAccent) : colors.vjText }, activeTab === 'COSTING' && s.tabTextActive]}>
                 Valuation
               </Text>
             </TouchableOpacity>
@@ -698,10 +738,10 @@ export default function ItemDetailScreen() {
                 try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
                 setActiveTab('TIMELINE');
               }}
-              style={[s.tabButton, activeTab === 'TIMELINE' && s.tabButtonActive]}
+              style={[s.tabButton, activeTab === 'TIMELINE' && [s.tabButtonActive, { backgroundColor: isDark ? colors.vjText : '#ffffff' }]]}
             >
               <History size={14} color={activeTab === 'TIMELINE' ? colors.vjAccent : colors.vjText} style={{ opacity: activeTab === 'TIMELINE' ? 1 : 0.6 }} />
-              <Text style={[s.tabText, { color: activeTab === 'TIMELINE' ? colors.vjAccent : colors.vjText }, activeTab === 'TIMELINE' && s.tabTextActive]}>
+              <Text style={[s.tabText, { color: activeTab === 'TIMELINE' ? (isDark ? '#ffffff' : colors.vjAccent) : colors.vjText }, activeTab === 'TIMELINE' && s.tabTextActive]}>
                 History ({item.timeline?.length || 0})
               </Text>
             </TouchableOpacity>
@@ -1229,16 +1269,17 @@ export default function ItemDetailScreen() {
             </View>
           )}
 
+          </View>
         </KeyboardAwareScrollView>
 
         {/* Fixed Action Bar */}
         {isEditable && (
           <FixedGlassBar>
             {isEditing ? (
-              <>
+              <View style={[{ width: '100%', flexDirection: 'row', gap: 12 }, isTablet && { maxWidth: 680, alignSelf: 'center' }]}>
                 <TouchableOpacity
                   testID="cancel-inline-item-btn"
-                  style={s.bottomCancelBtn}
+                  style={[s.bottomCancelBtn, { flex: 1 }]}
                   onPress={handleCancelEditing}
                   disabled={savingInline}
                   activeOpacity={0.7}
@@ -1249,7 +1290,7 @@ export default function ItemDetailScreen() {
 
                 <TouchableOpacity
                   testID="save-inline-item-btn"
-                  style={s.bottomSaveBtn}
+                  style={[s.bottomSaveBtn, { flex: 1 }]}
                   onPress={handleSaveInlineEditing}
                   disabled={savingInline}
                   activeOpacity={0.8}
@@ -1263,12 +1304,12 @@ export default function ItemDetailScreen() {
                     </>
                   )}
                 </TouchableOpacity>
-              </>
+              </View>
             ) : (
-              <>
+              <View style={[{ width: '100%', flexDirection: 'row', gap: 12 }, isTablet && { maxWidth: 680, alignSelf: 'center' }]}>
                 <TouchableOpacity
                   testID="edit-item-details-btn"
-                  style={[s.bottomEditBtn, { backgroundColor: colors.vjAccent }]}
+                  style={[s.bottomEditBtn, { flex: 1, backgroundColor: colors.vjAccent }]}
                   onPress={handleStartEditing}
                   activeOpacity={0.8}
                 >
@@ -1284,7 +1325,7 @@ export default function ItemDetailScreen() {
                 >
                   <Trash2 size={18} color={COLORS.error} />
                 </TouchableOpacity>
-              </>
+              </View>
             )}
           </FixedGlassBar>
         )}
@@ -1430,16 +1471,17 @@ const s = StyleSheet.create({
     letterSpacing: 0.3,
   },
   heroScaleBox: {
+    padding: 12,
+    borderRadius: 16,
+    borderWidth: 1.2,
+    marginBottom: 12,
+  },
+  heroScaleTopRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    padding: 12,
-    borderRadius: 14,
-    borderWidth: 1,
-    marginBottom: 12,
-  },
-  heroScaleLeft: {
-    flex: 1.1,
+    paddingHorizontal: 2,
+    marginBottom: 8,
   },
   heroScaleLabel: {
     fontSize: 10,
@@ -1447,31 +1489,44 @@ const s = StyleSheet.create({
     letterSpacing: 0.8,
   },
   heroScaleDigits: {
-    fontSize: 24,
+    fontSize: 22,
     fontWeight: '900',
-    letterSpacing: 0.5,
+    letterSpacing: 0.4,
   },
-  heroScaleDivider: {
-    width: 1,
-    height: 38,
-    marginHorizontal: 10,
+  heroFormulaDivider: {
+    height: 1,
+    width: '100%',
+    marginBottom: 8,
   },
-  heroScaleRight: {
-    flex: 1.2,
-    gap: 2,
-  },
-  heroMiniMetricRow: {
+  heroFormulaRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 4,
   },
-  heroMiniMetricLabel: {
-    fontSize: 9.5,
+  formulaChip: {
+    flex: 1,
+    paddingVertical: 5,
+    paddingHorizontal: 4,
+    borderRadius: 8,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  formulaChipLabel: {
+    fontSize: 8.5,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+    marginBottom: 1,
+  },
+  formulaChipVal: {
+    fontSize: 11,
     fontWeight: '700',
   },
-  heroMiniMetricVal: {
-    fontSize: 11,
-    fontWeight: '800',
+  formulaOp: {
+    fontSize: 13,
+    fontWeight: '900',
+    marginHorizontal: 1,
   },
   heroIdentityRow: {
     flexDirection: 'row',
@@ -1960,7 +2015,7 @@ const s = StyleSheet.create({
 
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' },
   modalScrollContent: { flexGrow: 1, justifyContent: 'center', alignItems: 'center', paddingVertical: 40, width: '100%' },
-  modalContent: { width: '85%', borderRadius: 16, padding: 24 },
+  modalContent: { width: '85%', maxWidth: 440, borderRadius: 16, padding: 24 },
   modalTitle: { fontSize: 18, fontWeight: '700', marginBottom: 16 },
   modalLabel: { fontSize: 13, fontWeight: '600', marginBottom: 6 },
   modalInput: { borderWidth: 1, borderRadius: 8, padding: 12, marginBottom: 16, fontSize: 15 },

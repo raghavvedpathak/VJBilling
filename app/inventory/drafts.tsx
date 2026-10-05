@@ -1,8 +1,8 @@
 // app/inventory/drafts.tsx — Phase 2 v2.34 Canonical Screen
 // Aligned with Step 6.5, Step 10.5, and MastersSyncStore
 
-import React, { useState, useCallback, memo } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, Modal, Alert } from 'react-native';
+import React, { useState, useCallback, useMemo, memo } from 'react';
+import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, Modal, Alert, useWindowDimensions } from 'react-native';
 import { FlashList } from '@shopify/flash-list';
 import { useRouter, useFocusEffect } from 'expo-router';
 import * as Haptics from 'expo-haptics';
@@ -13,19 +13,21 @@ import { inventoryDrillDownService } from '@/services/phase2/inventoryDrillDownS
 import { itemService } from '@/services/phase2/itemService';
 import type { ItemSearchResult } from '@/types/phase2/phase2.types';
 import { getDisplayPurity, formatKaratBadge, formatSKUDisplay, formatWeightMg as formatWeight } from '@/utils/calculations';
-import { Check, PackageSearch, Edit3, CheckCircle, Package, Scale, ShieldCheck, Trash2 } from 'lucide-react-native';
+import { JewelryMonogramEmblem } from '@/utils/jewelryIcons';
+import { Check, PackageSearch, Edit3, CheckCircle, Package, Scale, ShieldCheck, Trash2, Sparkles } from 'lucide-react-native';
 import { appSettingsStore } from '@/store/phase1/appSettingsStore';
 import { COLORS, getThemeColors } from '@/constants/theme';
 
 type DraftRowProps = {
   item: ItemSearchResult;
   colors: ReturnType<typeof getThemeColors>;
+  isDark: boolean;
   onActivate: (itemId: string, sku: string) => void;
   onEdit: (itemId: string) => void;
   onDiscard: (itemId: string, sku: string) => void;
 };
 
-const DraftRow = memo(({ item, colors, onActivate, onEdit, onDiscard }: DraftRowProps) => {
+const DraftRow = memo(({ item, colors, isDark, onActivate, onEdit, onDiscard }: DraftRowProps) => {
   const metalColor = item.metal === 'GOLD' ? COLORS.bullionGold : COLORS.bullionSilver;
   const isGold = item.metal === 'GOLD';
 
@@ -39,8 +41,26 @@ const DraftRow = memo(({ item, colors, onActivate, onEdit, onDiscard }: DraftRow
   const sizeDisplay = hasSize ? `Size ${item.sizeValue}${item.sizeUnit ? ' ' + item.sizeUnit : ''}` : null;
 
   return (
-    <View testID={`draft-card-${item.itemId}`} style={[s.card, { borderColor: `${colors.vjAccent}25` }]}>
+    <View
+      testID={`draft-card-${item.itemId}`}
+      style={[
+        s.card,
+        {
+          backgroundColor: isDark ? 'rgba(28, 20, 24, 0.96)' : '#ffffff',
+          borderColor: isDark ? 'rgba(212, 175, 55, 0.22)' : `${colors.vjAccent}25`,
+        }
+      ]}
+    >
       <View style={[s.metalStripe, { backgroundColor: metalColor }]} />
+
+      <View style={{ paddingLeft: 10 }}>
+        <JewelryMonogramEmblem
+          designName={item.designName || ''}
+          categoryName={item.categoryName || ''}
+          metal={item.metal}
+          size={36}
+        />
+      </View>
 
       <View style={s.cardBody}>
         <View style={s.rowTop}>
@@ -49,7 +69,7 @@ const DraftRow = memo(({ item, colors, onActivate, onEdit, onDiscard }: DraftRow
             <View style={s.draftBadge}>
               <Text style={s.draftBadgeText}>DRAFT</Text>
             </View>
-            <View style={[s.metalPill, { borderColor: metalColor, backgroundColor: `${metalColor}12` }]}>
+            <View style={[s.metalPill, { borderColor: metalColor, backgroundColor: `${metalColor}15` }]}>
               <Text style={[s.metalPillText, { color: metalColor }]}>{purityDisplay}</Text>
             </View>
           </View>
@@ -61,10 +81,12 @@ const DraftRow = memo(({ item, colors, onActivate, onEdit, onDiscard }: DraftRow
         </Text>
 
         <View style={s.metaRow}>
-          <Text style={[s.weightText, { color: colors.vjText }]}>Gross: {formatWeight(item.grossWeightMg)}</Text>
+          <Text style={[s.weightText, { color: isDark ? 'rgba(255,255,255,0.7)' : colors.vjText }]}>
+            Gross: <Text style={{ fontFamily: 'monospace' }}>{formatWeight(item.grossWeightMg)}</Text>
+          </Text>
           <Text style={[s.weightDivider, { color: `${colors.vjText}4D` }]}>•</Text>
-          <Text style={[s.weightText, { color: colors.vjAccent }]}>
-            Net: {formatWeight(item.netWeightMg ?? item.grossWeightMg)}
+          <Text style={[s.weightText, { color: '#D4AF37', fontWeight: '800' }]}>
+            Net: <Text style={{ fontFamily: 'monospace' }}>{formatWeight(item.netWeightMg ?? item.grossWeightMg)}</Text>
           </Text>
 
           {sizeDisplay && (
@@ -91,19 +113,31 @@ const DraftRow = memo(({ item, colors, onActivate, onEdit, onDiscard }: DraftRow
       <View style={s.actionRow}>
         <TouchableOpacity 
           testID={`discard-draft-btn-${item.itemId}`}
-          style={[s.discardBtn, { backgroundColor: 'rgba(239, 68, 68, 0.08)', borderColor: 'rgba(239, 68, 68, 0.25)' }]} 
+          style={[
+            s.discardBtn,
+            {
+              backgroundColor: isDark ? 'rgba(239, 68, 68, 0.15)' : 'rgba(239, 68, 68, 0.08)',
+              borderColor: isDark ? 'rgba(239, 68, 68, 0.35)' : 'rgba(239, 68, 68, 0.25)',
+            }
+          ]} 
           activeOpacity={0.7}
           onPress={() => {
             try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
             onDiscard(item.itemId, displaySku);
           }}
         >
-          <Trash2 size={16} color="#EF4444" />
+          <Trash2 size={17} color="#EF4444" />
         </TouchableOpacity>
 
         <TouchableOpacity 
           testID={`edit-draft-btn-${item.itemId}`}
-          style={[s.editBtn, { backgroundColor: `${colors.vjAccent}14`, borderColor: `${colors.vjAccent}35` }]} 
+          style={[
+            s.editBtn,
+            {
+              backgroundColor: `${colors.vjAccent}14`,
+              borderColor: `${colors.vjAccent}35`,
+            }
+          ]} 
           activeOpacity={0.7}
           onPress={() => {
             try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
@@ -122,7 +156,7 @@ const DraftRow = memo(({ item, colors, onActivate, onEdit, onDiscard }: DraftRow
             onActivate(item.itemId, displaySku);
           }}
         >
-          <Check size={19} color="#fff" />
+          <Check size={20} color="#fff" />
         </TouchableOpacity>
       </View>
     </View>
@@ -131,16 +165,20 @@ const DraftRow = memo(({ item, colors, onActivate, onEdit, onDiscard }: DraftRow
 
 export default function DraftsScreen() {
   const router = useRouter();
+  const { width } = useWindowDimensions();
+  const isTablet = width >= 768;
   const { activeFirmId } = useFirmStore();
   const [data, setData] = useState<ItemSearchResult[]>([]);
   const [loading, setLoading] = useState(false);
   const [isActivating, setIsActivating] = useState(false);
+  const [metalFilter, setMetalFilter] = useState<'ALL' | 'GOLD' | 'SILVER'>('ALL');
 
   const [successSku, setSuccessSku] = useState<string | null>(null);
   const [confirmActivate, setConfirmActivate] = useState<{ itemId: string; displaySku: string } | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const activeTheme = appSettingsStore((s: any) => s.theme);
+  const isDark = activeTheme === 'dark';
   const colors = getThemeColors(activeTheme);
 
   const loadDrafts = useCallback(async () => {
@@ -220,10 +258,20 @@ export default function DraftsScreen() {
   };
 
   const totalItems = data.length;
-  const totalWeightMg = data.reduce((acc, curr) => {
-    const net = curr.netWeightMg != null && curr.netWeightMg > 0 ? curr.netWeightMg : curr.grossWeightMg;
-    return acc + (net || 0);
-  }, 0);
+  const goldCount = useMemo(() => data.filter((d) => d.metal === 'GOLD').length, [data]);
+  const silverCount = useMemo(() => data.filter((d) => d.metal === 'SILVER').length, [data]);
+
+  const filteredData = useMemo(() => {
+    if (metalFilter === 'ALL') return data;
+    return data.filter((item) => item.metal === metalFilter);
+  }, [data, metalFilter]);
+
+  const totalWeightMg = useMemo(() => {
+    return filteredData.reduce((acc, curr) => {
+      const net = curr.netWeightMg != null && curr.netWeightMg > 0 ? curr.netWeightMg : curr.grossWeightMg;
+      return acc + (net || 0);
+    }, 0);
+  }, [filteredData]);
 
   const draftsHeaderPills = (
     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginTop: 4 }}>
@@ -234,7 +282,59 @@ export default function DraftsScreen() {
 
   return (
     <TwoToneWrapper title="Pending Drafts" showBack headerContent={draftsHeaderPills}>
-      <View style={s.listContainer}>
+      <View style={[
+        s.listContainer,
+        isTablet ? { maxWidth: 780, alignSelf: 'center', width: '100%' } : null,
+      ]}>
+        {/* Metal Quick Filters (when items exist) */}
+        {data.length > 0 && (
+          <View style={s.filterRow}>
+            <TouchableOpacity
+              style={[
+                s.filterChip,
+                metalFilter === 'ALL' && [s.filterChipActive, { backgroundColor: colors.vjAccent, borderColor: colors.vjAccent }],
+                metalFilter !== 'ALL' && { backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)', borderColor: isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.08)' }
+              ]}
+              onPress={() => setMetalFilter('ALL')}
+            >
+              <Text style={[s.filterChipText, { color: metalFilter === 'ALL' ? '#fff' : colors.vjText }]}>
+                All ({totalItems})
+              </Text>
+            </TouchableOpacity>
+
+            {goldCount > 0 && (
+              <TouchableOpacity
+                style={[
+                  s.filterChip,
+                  metalFilter === 'GOLD' && [s.filterChipActive, { backgroundColor: COLORS.bullionGold, borderColor: COLORS.bullionGold }],
+                  metalFilter !== 'GOLD' && { backgroundColor: isDark ? 'rgba(212,175,55,0.1)' : 'rgba(212,175,55,0.08)', borderColor: 'rgba(212,175,55,0.25)' }
+                ]}
+                onPress={() => setMetalFilter('GOLD')}
+              >
+                <Sparkles size={11} color={metalFilter === 'GOLD' ? '#fff' : COLORS.bullionGold} />
+                <Text style={[s.filterChipText, { color: metalFilter === 'GOLD' ? '#fff' : COLORS.bullionGold }]}>
+                  Gold ({goldCount})
+                </Text>
+              </TouchableOpacity>
+            )}
+
+            {silverCount > 0 && (
+              <TouchableOpacity
+                style={[
+                  s.filterChip,
+                  metalFilter === 'SILVER' && [s.filterChipActive, { backgroundColor: COLORS.bullionSilver, borderColor: COLORS.bullionSilver }],
+                  metalFilter !== 'SILVER' && { backgroundColor: isDark ? 'rgba(156,163,175,0.12)' : 'rgba(156,163,175,0.1)', borderColor: 'rgba(156,163,175,0.3)' }
+                ]}
+                onPress={() => setMetalFilter('SILVER')}
+              >
+                <Text style={[s.filterChipText, { color: metalFilter === 'SILVER' ? '#fff' : (isDark ? '#E5E7EB' : '#4B5563') }]}>
+                  Silver ({silverCount})
+                </Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        )}
+
         {loading && data.length === 0 ? (
           <View style={s.loadingContainer}>
             <ActivityIndicator size="large" color={colors.vjAccent} />
@@ -242,12 +342,13 @@ export default function DraftsScreen() {
           </View>
         ) : (
           <FlashList
-            data={data}
+            data={filteredData}
             keyExtractor={(item) => item.itemId}
             renderItem={({ item }) => (
               <DraftRow 
                 item={item} 
-                colors={colors} 
+                colors={colors}
+                isDark={isDark}
                 onActivate={handleActivate} 
                 onEdit={handleEdit}
                 onDiscard={handleDiscard}
@@ -255,14 +356,18 @@ export default function DraftsScreen() {
             )}
             // @ts-ignore: estimatedItemSize required by FlashList
             estimatedItemSize={100}
-            contentContainerStyle={{ paddingBottom: 100, paddingTop: 32 }}
+            contentContainerStyle={{ paddingBottom: 100, paddingTop: 16 }}
             showsVerticalScrollIndicator={false}
             ListEmptyComponent={
               <View style={s.emptyContainer}>
-                <PackageSearch size={48} color={colors.vjAccent} style={{ opacity: 0.3 }} />
-                <Text style={[s.emptyTitle, { color: colors.vjText }]}>No Drafts Found</Text>
-                <Text style={[s.emptySubtitle, { color: colors.vjText, opacity: 0.5 }]}>
-                  All intake items have been verified and moved to available stock.
+                <PackageSearch size={52} color={colors.vjAccent} style={{ opacity: 0.35, marginBottom: 6 }} />
+                <Text style={[s.emptyTitle, { color: colors.vjText }]}>
+                  {metalFilter !== 'ALL' ? `No ${metalFilter} Drafts` : 'No Drafts Found'}
+                </Text>
+                <Text style={[s.emptySubtitle, { color: isDark ? 'rgba(255,255,255,0.6)' : 'rgba(0,0,0,0.5)' }]}>
+                  {metalFilter !== 'ALL' 
+                    ? `There are currently no pending ${metalFilter.toLowerCase()} drafts.`
+                    : 'All intake items have been verified and moved to available showroom stock.'}
                 </Text>
               </View>
             }
@@ -279,7 +384,13 @@ export default function DraftsScreen() {
         >
           <TouchableOpacity 
             activeOpacity={1} 
-            style={[s.successModalContent, { backgroundColor: colors.vjBg, borderColor: colors.border }]}
+            style={[
+              s.successModalContent,
+              {
+                backgroundColor: isDark ? '#23181C' : '#FCFBF8',
+                borderColor: isDark ? 'rgba(212, 175, 55, 0.25)' : colors.border,
+              }
+            ]}
           >
             <View style={s.successIconContainer}>
               <CheckCircle size={56} color="#10B981" />
@@ -304,7 +415,13 @@ export default function DraftsScreen() {
         >
           <TouchableOpacity 
             activeOpacity={1} 
-            style={[s.successModalContent, { backgroundColor: colors.vjBg, borderColor: colors.border }]}
+            style={[
+              s.successModalContent,
+              {
+                backgroundColor: isDark ? '#23181C' : '#FCFBF8',
+                borderColor: isDark ? 'rgba(212, 175, 55, 0.25)' : colors.border,
+              }
+            ]}
           >
             <View style={[s.successIconContainer, { backgroundColor: `${colors.vjAccent}18` }]}>
               <Check size={40} color={colors.vjAccent} />
@@ -343,7 +460,13 @@ export default function DraftsScreen() {
         >
           <TouchableOpacity 
             activeOpacity={1} 
-            style={[s.successModalContent, { backgroundColor: colors.vjBg, borderColor: colors.border }]}
+            style={[
+              s.successModalContent,
+              {
+                backgroundColor: isDark ? '#23181C' : '#FCFBF8',
+                borderColor: isDark ? 'rgba(239, 68, 68, 0.3)' : colors.border,
+              }
+            ]}
           >
             <View style={[s.successIconContainer, { backgroundColor: 'rgba(239, 68, 68, 0.1)' }]}>
               <Text style={{ fontSize: 32 }}>⚠️</Text>
@@ -361,7 +484,37 @@ export default function DraftsScreen() {
 }
 
 const s = StyleSheet.create({
-  listContainer: { flex: 1 },
+  listContainer: {
+    flex: 1,
+    paddingHorizontal: 14,
+  },
+  filterRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingTop: 16,
+    paddingBottom: 4,
+  },
+  filterChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+    borderWidth: 1,
+  },
+  filterChipActive: {
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 3,
+    elevation: 2,
+  },
+  filterChipText: {
+    fontSize: 12,
+    fontWeight: '700',
+  },
   card: { 
     flexDirection: 'row', 
     alignItems: 'center', 
@@ -371,20 +524,20 @@ const s = StyleSheet.create({
     overflow: 'hidden', 
     borderWidth: 1, 
     paddingRight: 12, 
-    gap: 12,
+    gap: 10,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.04,
-    shadowRadius: 6,
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
     elevation: 2,
   },
   metalStripe: { 
-    width: 6, 
+    width: 5, 
     alignSelf: 'stretch' 
   },
   cardBody: { 
     flex: 1, 
-    paddingVertical: 14 
+    paddingVertical: 12 
   },
   rowTop: { 
     flexDirection: 'row', 
@@ -394,7 +547,7 @@ const s = StyleSheet.create({
   },
   sku: { 
     fontWeight: '800', 
-    fontSize: 15,
+    fontSize: 14,
     fontFamily: 'monospace',
   },
   draftBadge: { 
@@ -425,7 +578,7 @@ const s = StyleSheet.create({
   designName: { 
     fontWeight: '700', 
     fontSize: 13, 
-    marginBottom: 6 
+    marginBottom: 5 
   },
   metaRow: { 
     flexDirection: 'row', 
@@ -473,25 +626,25 @@ const s = StyleSheet.create({
     gap: 6 
   },
   discardBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
+    width: 38,
+    height: 38,
+    borderRadius: 11,
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 1,
   },
   editBtn: { 
-    width: 36, 
-    height: 36, 
-    borderRadius: 10, 
+    width: 38, 
+    height: 38, 
+    borderRadius: 11, 
     justifyContent: 'center', 
     alignItems: 'center', 
     borderWidth: 1 
   },
   activateBtn: { 
-    width: 36, 
-    height: 36, 
-    borderRadius: 10, 
+    width: 38, 
+    height: 38, 
+    borderRadius: 11, 
     justifyContent: 'center', 
     alignItems: 'center', 
     shadowColor: '#000', 

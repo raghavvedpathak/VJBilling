@@ -2,7 +2,7 @@
 // Implements FEAT-GAP6-KARIGAR-SUMMARY-1 (v1.66) & RULE-1A-WEIGHT-DISPLAY (v1.54)
 
 import React, { useState, useCallback, useMemo, memo } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, useWindowDimensions } from 'react-native';
 import { FlashList } from '@shopify/flash-list';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -15,6 +15,7 @@ import { inventoryDrillDownService } from '@/services/phase2/inventoryDrillDownS
 import { formatWeightMg as formatWeight, formatKaratBadge } from '@/utils/calculations';
 import { formatSKUDisplay } from '@/services/phase2/skuEngine';
 import { formatDate } from '@/utils/formatDate';
+import { JewelryMonogramEmblem } from '@/utils/jewelryIcons';
 import { Wrench, Scale, User, Clock, ChevronRight, CheckCircle2 } from 'lucide-react-native';
 import type { KarigarIssuedItem } from '@/types/phase2/phase2.types';
 import { COLORS, getThemeColors } from '@/constants/theme';
@@ -22,10 +23,12 @@ import { COLORS, getThemeColors } from '@/constants/theme';
 const KarigarItemRow = memo(({
   item,
   colors,
+  isDark,
   onPress,
 }: {
   item: KarigarIssuedItem;
   colors: ReturnType<typeof getThemeColors>;
+  isDark: boolean;
   onPress: (itemId: string) => void;
 }) => {
   const metalColor = item.metal === 'GOLD' ? COLORS.bullionGold : COLORS.bullionSilver;
@@ -41,8 +44,22 @@ const KarigarItemRow = memo(({
         onPress(item.id);
       }}
     >
-      <GlassCard style={[s.card, { borderColor: `${colors.vjAccent}25` }]}>
+      <GlassCard style={[
+        s.card,
+        {
+          backgroundColor: isDark ? 'rgba(28, 20, 24, 0.96)' : '#ffffff',
+          borderColor: isDark ? 'rgba(212, 175, 55, 0.22)' : `${colors.vjAccent}25`,
+        }
+      ]}>
         <View style={s.cardTop}>
+          <View style={{ marginRight: 10, alignSelf: 'center' }}>
+            <JewelryMonogramEmblem
+              designName={item.designName}
+              metal={item.metal}
+              size={38}
+            />
+          </View>
+
           <View style={{ flex: 1, paddingRight: 8 }}>
             <Text style={[s.designName, { color: colors.vjText }]} numberOfLines={1}>
               {item.designName}
@@ -65,7 +82,14 @@ const KarigarItemRow = memo(({
           </View>
         </View>
 
-        <View style={[s.cardMiddle, { backgroundColor: `${colors.vjAccent}08` }]}>
+        <View style={[
+          s.cardMiddle,
+          {
+            backgroundColor: isDark ? 'rgba(255, 255, 255, 0.04)' : `${colors.vjAccent}08`,
+            borderColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'transparent',
+            borderWidth: isDark ? 1 : 0,
+          }
+        ]}>
           <View style={s.detailCol}>
             <View style={s.iconRow}>
               <User size={12} color={colors.vjAccent} style={{ opacity: 0.7 }} />
@@ -81,7 +105,7 @@ const KarigarItemRow = memo(({
               <Scale size={12} color={colors.vjAccent} style={{ opacity: 0.7 }} />
               <Text style={[s.detailLabel, { color: colors.vjText }]}>Net Wt</Text>
             </View>
-            <Text style={[s.detailValue, { color: colors.vjAccent }]}>
+            <Text style={[s.detailValue, { color: '#D4AF37' }]}>
               {formatWeight(item.netWeightMg ?? item.grossWeightMg)}
             </Text>
           </View>
@@ -97,8 +121,8 @@ const KarigarItemRow = memo(({
           </View>
         </View>
 
-        <View style={[s.cardFooter, { borderTopColor: `${colors.vjAccent}15` }]}>
-          <Text style={[s.footerHint, { color: colors.vjText, opacity: 0.55 }]}>
+        <View style={[s.cardFooter, { borderTopColor: isDark ? 'rgba(255, 255, 255, 0.08)' : `${colors.vjAccent}15` }]}>
+          <Text style={[s.footerHint, { color: isDark ? 'rgba(255, 255, 255, 0.55)' : colors.vjText, opacity: 0.7 }]}>
             Tap to view item history or process return
           </Text>
           <ChevronRight size={13} color={colors.vjAccent} style={{ opacity: 0.5 }} />
@@ -111,11 +135,14 @@ const KarigarItemRow = memo(({
 export default function KarigarItemsScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { width } = useWindowDimensions();
+  const isTablet = width >= 768;
   const { activeFirmId } = useFirmStore();
   const [items, setItems] = useState<KarigarIssuedItem[]>([]);
   const [loading, setLoading] = useState(true);
 
   const activeTheme = appSettingsStore((s: any) => s.theme);
+  const isDark = activeTheme === 'dark';
   const colors = getThemeColors(activeTheme);
 
   useFocusEffect(
@@ -152,7 +179,10 @@ export default function KarigarItemsScreen() {
 
   return (
     <TwoToneWrapper title="Items at Karigar" showBack headerContent={headerPills}>
-      <View style={s.container}>
+      <View style={[
+        s.container,
+        isTablet ? { maxWidth: 780, alignSelf: 'center', width: '100%' } : null,
+      ]}>
         {loading && items.length === 0 ? (
           <View style={s.loadingContainer}>
             <ActivityIndicator size="large" color={colors.vjAccent} />
@@ -166,6 +196,7 @@ export default function KarigarItemsScreen() {
               <KarigarItemRow
                 item={item}
                 colors={colors}
+                isDark={isDark}
                 onPress={(id) => router.push({ pathname: '/inventory/item-detail', params: { itemId: id } })}
               />
             )}
@@ -201,7 +232,7 @@ const s = StyleSheet.create({
   emptyTitle: { fontSize: 18, fontWeight: '800' },
   emptySubtitle: { fontSize: 13, textAlign: 'center' },
   card: { padding: 16, borderRadius: 18, borderWidth: 1 },
-  cardTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 },
+  cardTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
   designName: { fontSize: 16, fontWeight: '900' },
   skuText: { fontSize: 12, fontWeight: '800', fontFamily: 'monospace' },
   metalPill: { paddingHorizontal: 7, paddingVertical: 2.5, borderRadius: 6, borderWidth: 1 },
@@ -216,3 +247,4 @@ const s = StyleSheet.create({
   cardFooter: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', borderTopWidth: 1, paddingTop: 8 },
   footerHint: { fontSize: 11, fontWeight: '600' },
 });
+

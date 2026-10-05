@@ -2,7 +2,7 @@
 // Aligned with Step 12.9, Step 12.12, URD-BILL-DECIMAL-SPEC, and URD-AMOUNT-WORDS (v1.54)
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { View, Text, Alert, TouchableOpacity, Modal, ActivityIndicator, StyleSheet } from 'react-native';
+import { View, Text, Alert, TouchableOpacity, Modal, ActivityIndicator, StyleSheet, useWindowDimensions } from 'react-native';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import * as Haptics from 'expo-haptics';
@@ -21,6 +21,7 @@ import {
   isPresetMatchingPurity,
   rupeesToPaise 
 } from '@/utils/calculations';
+import { JewelryMonogramEmblem } from '@/utils/jewelryIcons';
 import { User, Scale, Banknote, CheckCircle, Save, X, Building2, Trash2, Calendar as CalendarIcon } from 'lucide-react-native';
 import { formatDate } from '@/utils/formatDate';
 import type { URDMetalType, URDPurchase, CreateURDPurchaseInput } from '@/types/phase2/phase2.types';
@@ -29,6 +30,8 @@ import { getThemeColors } from '@/constants/theme';
 
 export default function EditURDScreen() {
   const router = useRouter();
+  const { width } = useWindowDimensions();
+  const isTablet = width >= 768;
   const { activeFirmId } = useFirmStore();
   const params = useLocalSearchParams<{ urdId: string }>();
   const urdId = Array.isArray(params.urdId) ? params.urdId[0] : params.urdId;
@@ -66,6 +69,7 @@ export default function EditURDScreen() {
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   const activeTheme = appSettingsStore((s: any) => s.theme);
+  const isDark = activeTheme === 'dark';
   const colors = getThemeColors(activeTheme);
 
   // Load existing URD Purchase data
@@ -290,7 +294,12 @@ export default function EditURDScreen() {
           enableAutomaticScroll={true}
           extraScrollHeight={120}
           extraHeight={140}
-          contentContainerStyle={{ paddingTop: 16, paddingBottom: 190, paddingHorizontal: 16 }}
+          contentContainerStyle={{ 
+            paddingTop: 16, 
+            paddingBottom: 190, 
+            paddingHorizontal: 16,
+            ...(isTablet ? { maxWidth: 740, alignSelf: 'center', width: '100%' } : {})
+          }}
         >
           {/* Seller / Customer Details */}
           <GlassCard style={{ marginBottom: 16 }}>
@@ -356,9 +365,22 @@ export default function EditURDScreen() {
 
           {/* Item Specification */}
           <GlassCard style={{ marginBottom: 16 }}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 16 }}>
-              <Scale size={20} color="#D4AF37" />
-              <Text style={{ fontSize: 18, fontWeight: '700', color: colors.vjText }}>Item Details</Text>
+            <View style={{ 
+              flexDirection: 'row', 
+              alignItems: 'center', 
+              gap: 10, 
+              marginBottom: 16,
+              borderBottomWidth: 1,
+              borderBottomColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(92,22,35,0.08)',
+              paddingBottom: 10
+            }}>
+              <JewelryMonogramEmblem metal={metalType} size={34} />
+              <View>
+                <Text style={{ fontSize: 18, fontWeight: '700', color: colors.vjText }}>Item Details</Text>
+                <Text style={{ fontSize: 11, fontWeight: '600', color: `${colors.vjText}80` }}>
+                  Old {metalType.charAt(0) + metalType.slice(1).toLowerCase()} Intake Breakdown
+                </Text>
+              </View>
             </View>
 
             <Text style={{ fontSize: 12, fontWeight: '700', color: `${colors.vjText}99`, textTransform: 'uppercase', marginBottom: 6 }}>Metal Type *</Text>
@@ -367,7 +389,15 @@ export default function EditURDScreen() {
                 <TouchableOpacity
                   key={m}
                   style={[
-                    { flex: 1, padding: 10, borderRadius: 10, borderWidth: 1, borderColor: `${colors.vjText}4D`, alignItems: 'center' },
+                    { 
+                      flex: 1, 
+                      padding: 10, 
+                      borderRadius: 10, 
+                      borderWidth: 1, 
+                      borderColor: isDark ? 'rgba(255,255,255,0.15)' : 'rgba(92,22,35,0.2)', 
+                      backgroundColor: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(92,22,35,0.03)',
+                      alignItems: 'center' 
+                    },
                     metalType === m && { backgroundColor: m === 'GOLD' ? '#C8860A' : '#6B7280', borderColor: m === 'GOLD' ? '#C8860A' : '#6B7280' },
                   ]}
                   onPress={() => {
@@ -386,6 +416,7 @@ export default function EditURDScreen() {
               label="Gross Weight (Grams) *"
               placeholder="0.000"
               keyboardType="decimal-pad"
+              unit="g"
               value={grossWeight}
               onChangeText={setGrossWeight}
             />
@@ -404,6 +435,7 @@ export default function EditURDScreen() {
               <GlassInput
                 placeholder={metalType === 'SILVER' ? '92.5' : '91.6'}
                 keyboardType="decimal-pad"
+                unit="%"
                 value={purityPercent}
                 onChangeText={setPurityPercent}
               />
@@ -418,10 +450,12 @@ export default function EditURDScreen() {
                     key={preset.id}
                     onPress={() => setPurityPercent(preset.val)}
                     style={{
-                      backgroundColor: isSelected ? '#D4AF37' : 'rgba(212,175,55,0.12)',
+                      backgroundColor: isSelected ? '#D4AF37' : isDark ? 'rgba(212,175,55,0.18)' : 'rgba(212,175,55,0.12)',
                       paddingHorizontal: 8,
                       paddingVertical: 4,
                       borderRadius: 6,
+                      borderWidth: 1,
+                      borderColor: isSelected ? '#D4AF37' : 'rgba(212,175,55,0.25)',
                     }}
                   >
                     <Text style={{ fontSize: 11, fontWeight: '700', color: isSelected ? '#FFF' : colors.vjText }}>
@@ -436,6 +470,7 @@ export default function EditURDScreen() {
               label={`Rate Per Gram (${getCurrencySymbol()}) *`}
               placeholder="0.00"
               keyboardType="decimal-pad"
+              unit={`${getCurrencySymbol()}/g`}
               value={ratePerGram}
               onChangeText={setRatePerGram}
             />
@@ -447,26 +482,50 @@ export default function EditURDScreen() {
               <View style={{ flexDirection: 'row', gap: 8 }}>
                 <TouchableOpacity 
                   style={{
-                    flex: 1, paddingVertical: 8, borderRadius: 8, alignItems: 'center',
-                    backgroundColor: adjustmentType === '+' ? colors.vjText : 'rgba(255,255,255,0.4)',
-                    borderWidth: 1, borderColor: adjustmentType === '+' ? colors.vjText : 'rgba(0,0,0,0.1)'
+                    flex: 1, 
+                    paddingVertical: 8, 
+                    borderRadius: 8, 
+                    alignItems: 'center',
+                    backgroundColor: adjustmentType === '+' 
+                      ? (isDark ? '#3E242B' : colors.vjText) 
+                      : (isDark ? 'rgba(255,255,255,0.06)' : 'rgba(255,255,255,0.5)'),
+                    borderWidth: 1, 
+                    borderColor: adjustmentType === '+' 
+                      ? '#D4AF37' 
+                      : (isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)')
                   }}
                   onPress={() => setAdjustmentType('+')}
                 >
-                  <Text style={{ fontSize: 12, fontWeight: 'bold', color: adjustmentType === '+' ? '#fff' : colors.vjText }}>
+                  <Text style={{ 
+                    fontSize: 12, 
+                    fontWeight: 'bold', 
+                    color: adjustmentType === '+' ? (isDark ? '#F7D273' : '#fff') : colors.vjText 
+                  }}>
                     + Addition (Round-Up)
                   </Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity 
                   style={{
-                    flex: 1, paddingVertical: 8, borderRadius: 8, alignItems: 'center',
-                    backgroundColor: adjustmentType === '-' ? '#EF4444' : 'rgba(255,255,255,0.4)',
-                    borderWidth: 1, borderColor: adjustmentType === '-' ? '#EF4444' : 'rgba(0,0,0,0.1)'
+                    flex: 1, 
+                    paddingVertical: 8, 
+                    borderRadius: 8, 
+                    alignItems: 'center',
+                    backgroundColor: adjustmentType === '-' 
+                      ? '#EF4444' 
+                      : (isDark ? 'rgba(255,255,255,0.06)' : 'rgba(255,255,255,0.5)'),
+                    borderWidth: 1, 
+                    borderColor: adjustmentType === '-' 
+                      ? '#EF4444' 
+                      : (isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)')
                   }}
                   onPress={() => setAdjustmentType('-')}
                 >
-                  <Text style={{ fontSize: 12, fontWeight: 'bold', color: adjustmentType === '-' ? '#fff' : colors.vjText }}>
+                  <Text style={{ 
+                    fontSize: 12, 
+                    fontWeight: 'bold', 
+                    color: adjustmentType === '-' ? '#fff' : colors.vjText 
+                  }}>
                     - Deduction (Round-Down)
                   </Text>
                 </TouchableOpacity>
@@ -474,9 +533,10 @@ export default function EditURDScreen() {
             </View>
 
             <GlassInput
-              label={`Adjustment Amount (${getCurrencySymbol()})`}
+              label="Adjustment Amount"
               placeholder="0.00"
               keyboardType="decimal-pad"
+              unit={getCurrencySymbol()}
               value={discount}
               onChangeText={setDiscount}
             />
@@ -495,7 +555,15 @@ export default function EditURDScreen() {
                 <TouchableOpacity
                   key={mode}
                   style={[
-                    { flex: 1, padding: 10, borderRadius: 8, borderWidth: 1, borderColor: `${colors.vjText}4D`, alignItems: 'center' },
+                    { 
+                      flex: 1, 
+                      padding: 10, 
+                      borderRadius: 8, 
+                      borderWidth: 1, 
+                      borderColor: isDark ? 'rgba(255,255,255,0.15)' : 'rgba(92,22,35,0.3)', 
+                      backgroundColor: isDark ? 'rgba(255,255,255,0.04)' : 'transparent',
+                      alignItems: 'center' 
+                    },
                     paymentMode === mode && { backgroundColor: '#D4AF37', borderColor: '#D4AF37' },
                   ]}
                   onPress={() => setPaymentMode(mode)}
@@ -518,7 +586,14 @@ export default function EditURDScreen() {
             )}
 
             {calculation.isValid && (
-              <View style={{ backgroundColor: colors.vjText, padding: 16, borderRadius: 14, marginTop: 4 }}>
+              <View style={{ 
+                backgroundColor: isDark ? '#26151B' : colors.vjText, 
+                padding: 16, 
+                borderRadius: 14, 
+                marginTop: 4,
+                borderWidth: 1,
+                borderColor: isDark ? 'rgba(212,175,55,0.3)' : 'transparent'
+              }}>
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
                   <Text style={{ fontSize: 12, color: 'rgba(255,255,255,0.7)', fontWeight: '600' }}>Calculated Fine Weight</Text>
                   <Text style={{ fontSize: 12, color: '#F7D273', fontWeight: 'bold', fontFamily: 'monospace' }}>{calculation.formattedFineGrams}</Text>
@@ -589,13 +664,13 @@ export default function EditURDScreen() {
         >
           <TouchableOpacity 
             activeOpacity={1} 
-            style={[s.successModalContent, { backgroundColor: colors.vjBg, borderColor: colors.border }]}
+            style={[s.successModalContent, isDark && { backgroundColor: '#1C1418', borderColor: 'rgba(212,175,55,0.3)' }]}
           >
             <View style={s.successIconContainer}>
               <CheckCircle size={56} color="#10B981" />
             </View>
             <Text style={[s.successTitle, { color: colors.vjText }]}>Draft Updated!</Text>
-            <Text style={[s.successSubtitle, { color: colors.vjText }]}>{successMessage}</Text>
+            <Text style={[s.successSubtitle, { color: `${colors.vjText}99` }]}>{successMessage}</Text>
 
             <View style={{ width: '100%', marginTop: 16 }}>
               <GlassButton
@@ -631,12 +706,14 @@ const s = StyleSheet.create({
     padding: 24,
   },
   successModalContent: {
+    backgroundColor: '#FCFBF8',
     width: '100%',
     maxWidth: 400,
     borderRadius: 24,
     padding: 32,
     alignItems: 'center',
     borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.5)',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 10 },
     shadowOpacity: 0.25,

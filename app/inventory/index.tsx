@@ -3,7 +3,7 @@
 // FIX-OLDMETAL-RENAME-1 (/inventory/old-metal-lots), and live master subscriptions
 
 import React, { useState, useCallback, useEffect } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, StyleSheet, useWindowDimensions } from 'react-native';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
@@ -19,25 +19,31 @@ import {
   Layers, 
   PackagePlus, 
   ClipboardList, 
-  Gem,
-  Coins,
-  Database,
-  ChevronRight,
-  Search,
-  Package,
-  TrendingUp,
-  Boxes,
-  Wrench,
-  FileDown
+  Gem, 
+  Coins, 
+  Database, 
+  ChevronRight, 
+  Search, 
+  Package, 
+  TrendingUp, 
+  Boxes, 
+  Wrench, 
+  FileDown,
+  ScanLine
 } from 'lucide-react-native';
 import { getThemeColors } from '@/constants/theme';
 
 export default function InventoryHubScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { width, height } = useWindowDimensions();
   const { activeFirmId } = useFirmStore();
   const activeTheme = appSettingsStore((s: any) => s.theme);
   const colors = getThemeColors(activeTheme);
+  const isDark = activeTheme === 'dark';
+
+  const isTablet = width >= 768 || Math.min(width, height) >= 600;
+  const tileContainerStyle = { width: isTablet ? '31.8%' : '48.2%' };
 
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [draftCount, setDraftCount] = useState(0);
@@ -82,14 +88,14 @@ export default function InventoryHubScreen() {
       <ScrollView 
         showsVerticalScrollIndicator={false} 
         contentContainerStyle={{ 
-          paddingTop: 20, 
+          paddingTop: 16, 
           paddingBottom: Math.max(insets.bottom + 32, 80) 
         }}
       >
         
         {/* Native Live Jewelry Stock Display */}
         {activeFirmId && (
-          <View style={{ marginBottom: 24 }}>
+          <View style={{ marginBottom: 20 }}>
             <InventoryStockSummary firmId={activeFirmId} refreshTrigger={refreshTrigger} />
           </View>
         )}
@@ -97,26 +103,40 @@ export default function InventoryHubScreen() {
         {/* Global Glass Smart Search */}
         <TouchableOpacity
           testID="inventory-hub-search-btn"
-          activeOpacity={0.8}
+          activeOpacity={0.85}
           onPress={() => {
             try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
             router.push('/inventory/search');
           }}
-          style={{ marginBottom: 16 }}
+          style={{ marginBottom: 22 }}
         >
           <GlassCard style={{ padding: 0 }}>
-            <View style={[s.searchInner, { backgroundColor: 'rgba(255,255,255,0.45)' }]}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1, marginRight: 8 }}>
-                <View style={[s.searchIconContainer, { backgroundColor: `${colors.vjAccent}18`, borderColor: `${colors.vjAccent}30` }]}>
-                  <Search size={18} color={colors.vjAccent} />
+            <View 
+              style={[
+                s.searchInner, 
+                { 
+                  backgroundColor: isDark ? 'rgba(255, 255, 255, 0.06)' : 'rgba(255, 255, 255, 0.75)',
+                  borderColor: isDark ? 'rgba(212, 175, 55, 0.32)' : 'rgba(212, 175, 55, 0.35)',
+                }
+              ]}
+            >
+              <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1, marginRight: 10 }}>
+                <View style={[s.searchIconContainer, { backgroundColor: `${colors.vjAccent}18`, borderColor: `${colors.vjAccent}35` }]}>
+                  <Search size={18} color={isDark ? '#FDE68A' : colors.vjAccent} />
                 </View>
-                <Text style={[s.searchPlaceholderText, { color: colors.vjText, opacity: 0.6 }]} numberOfLines={1}>
-                  Search SKU, HUID, or Design...
-                </Text>
+                <View style={{ flex: 1 }}>
+                  <Text style={[s.searchPlaceholderText, { color: colors.vjText }]} numberOfLines={1}>
+                    Search SKU, HUID, or Design...
+                  </Text>
+                  <Text style={{ fontSize: 10.5, color: isDark ? 'rgba(255,255,255,0.48)' : 'rgba(92,22,35,0.55)', fontWeight: '600', marginTop: 1 }}>
+                    Direct live camera scan or tag number
+                  </Text>
+                </View>
               </View>
-              <View style={[s.searchBadge, { backgroundColor: colors.vjText, borderColor: `${colors.vjAccent}35` }]}>
+              <View style={[s.searchBadge, { backgroundColor: colors.vjText, borderColor: isDark ? 'rgba(212, 175, 55, 0.40)' : `${colors.vjAccent}35` }]}>
+                <ScanLine size={13} color="#FFFFFF" style={{ marginRight: 5 }} />
                 <Text style={s.searchBadgeText}>
-                  SEARCH
+                  SCAN / SEARCH
                 </Text>
               </View>
             </View>
@@ -124,76 +144,119 @@ export default function InventoryHubScreen() {
         </TouchableOpacity>
 
         {/* SECTION: CATALOG DEFINITIONS */}
-        <Text style={[s.sectionHeader, { color: colors.vjText, opacity: 0.6 }]}>
-          Catalog Definitions
-        </Text>
+        <View style={s.sectionHeaderRow}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 7 }}>
+            <View style={[s.sectionHeaderDiamond, { backgroundColor: '#D4AF37' }]} />
+            <Text style={[s.sectionHeaderTitle, { color: colors.vjText }]}>
+              Catalog Definitions
+            </Text>
+          </View>
+          <View style={[s.sectionBadge, { backgroundColor: isDark ? 'rgba(255, 255, 255, 0.06)' : 'rgba(212, 175, 55, 0.10)', borderColor: isDark ? 'rgba(255, 255, 255, 0.12)' : 'rgba(212, 175, 55, 0.25)' }]}>
+            <Database size={11} color={isDark ? '#FDE68A' : colors.vjAccent} />
+            <Text style={[s.sectionBadgeText, { color: isDark ? '#E5E7EB' : colors.vjText }]}>
+              SHOWROOM MASTERS
+            </Text>
+          </View>
+        </View>
 
         <TouchableOpacity 
           testID="metal-master-tile"
-          activeOpacity={0.8} 
+          activeOpacity={0.85} 
           onPress={() => {
             try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
             router.push('/masters');
           }} 
           style={{ marginBottom: 24 }}
         >
-          <GlassCard style={{ padding: 0, borderColor: `${colors.vjAccent}35` }}>
+          <GlassCard 
+            style={{ 
+              padding: 0, 
+              borderColor: isDark ? 'rgba(212, 175, 55, 0.40)' : 'rgba(212, 175, 55, 0.45)',
+              borderWidth: 1.2,
+              backgroundColor: isDark ? 'rgba(28, 20, 24, 0.88)' : 'rgba(255, 255, 255, 0.90)',
+              borderRadius: 20,
+            }}
+          >
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 16, padding: 16 }}>
-              <View style={[s.masterIconContainer, { backgroundColor: `${colors.vjAccent}15` }]}>
-                <Database size={24} color={colors.vjAccent} />
+              <View 
+                style={[
+                  s.masterIconContainer, 
+                  { 
+                    backgroundColor: isDark ? 'rgba(212, 175, 55, 0.18)' : 'rgba(212, 175, 55, 0.15)',
+                    borderColor: isDark ? 'rgba(212, 175, 55, 0.35)' : 'rgba(212, 175, 55, 0.30)',
+                  }
+                ]}
+              >
+                <Database size={24} color={isDark ? '#FDE68A' : colors.vjAccent} />
               </View>
               <View style={{ flex: 1 }}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 2 }}>
-                  <Text style={{ color: colors.vjText, fontWeight: '900', fontSize: 18 }}>Metal Master</Text>
-                  <View style={[s.masterBadge, { backgroundColor: `${colors.vjAccent}18`, borderColor: `${colors.vjAccent}30` }]}>
-                    <Text style={[s.masterBadgeText, { color: colors.vjAccent }]}>MASTERS</Text>
+                  <Text style={{ color: colors.vjText, fontWeight: '900', fontSize: 17, letterSpacing: 0.3 }}>
+                    Metal Master
+                  </Text>
+                  <View style={[s.masterBadge, { backgroundColor: isDark ? 'rgba(212, 175, 55, 0.22)' : `${colors.vjAccent}18`, borderColor: isDark ? 'rgba(212, 175, 55, 0.45)' : `${colors.vjAccent}30` }]}>
+                    <Text style={[s.masterBadgeText, { color: isDark ? '#FDE68A' : colors.vjAccent }]}>MASTERS</Text>
                   </View>
                 </View>
                 <Text style={{ color: colors.vjText, opacity: 0.65, fontSize: 12, fontWeight: '600' }}>
                   Categories, Designs, Stones & HSN Codes
                 </Text>
               </View>
-              <View style={[s.chevronContainer, { backgroundColor: `${colors.vjAccent}10`, borderColor: `${colors.vjAccent}25` }]}>
-                <ChevronRight size={18} color={colors.vjText} />
+              <View style={[s.chevronContainer, { backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : `${colors.vjAccent}10`, borderColor: isDark ? 'rgba(255, 255, 255, 0.15)' : `${colors.vjAccent}25` }]}>
+                <ChevronRight size={18} color={isDark ? '#E5E7EB' : colors.vjText} />
               </View>
             </View>
           </GlassCard>
         </TouchableOpacity>
 
         {/* SECTION 1: STOCK OPERATIONS & WORKFLOW */}
-        <Text style={[s.sectionHeader, { color: colors.vjText, opacity: 0.6 }]}>
-          Stock Operations
-        </Text>
+        <View style={s.sectionHeaderRow}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 7 }}>
+            <View style={[s.sectionHeaderDiamond, { backgroundColor: '#4F46E5' }]} />
+            <Text style={[s.sectionHeaderTitle, { color: colors.vjText }]}>
+              Stock Operations
+            </Text>
+          </View>
+          <View style={[s.sectionBadge, { backgroundColor: isDark ? 'rgba(79, 70, 229, 0.15)' : 'rgba(79, 70, 229, 0.10)', borderColor: 'rgba(79, 70, 229, 0.30)' }]}>
+            <Package size={11} color="#4F46E5" />
+            <Text style={[s.sectionBadgeText, { color: isDark ? '#A5B4FC' : '#4338CA' }]}>
+              REGISTERS
+            </Text>
+          </View>
+        </View>
 
         <View style={s.menuGrid}>
           <MenuTile 
+            containerStyle={tileContainerStyle}
             title="Stock Ledger" 
             subtitle="Drill-Down View" 
             icon={<PackageSearch size={22} color="#4F46E5" />} 
             iconBg="rgba(79, 70, 229, 0.12)"
-            borderColor="rgba(79, 70, 229, 0.25)"
+            borderColor="rgba(79, 70, 229, 0.28)"
             badgeText="ALL STOCKS"
             onPress={() => router.push('/inventory/drill-down')} 
           />
 
           <MenuTile 
+            containerStyle={tileContainerStyle}
             title="Draft Items" 
             subtitle={draftCount > 0 ? `${draftCount} Pending Review` : "Pending Verification"} 
             icon={<ClipboardList size={22} color="#D97706" />} 
             iconBg={draftCount > 0 ? "rgba(245, 158, 11, 0.2)" : "rgba(217, 119, 6, 0.12)"}
-            borderColor={draftCount > 0 ? "rgba(245, 158, 11, 0.5)" : "rgba(217, 119, 6, 0.25)"}
+            borderColor={draftCount > 0 ? "rgba(245, 158, 11, 0.55)" : "rgba(217, 119, 6, 0.28)"}
             badgeText={draftCount > 0 ? `${draftCount} PENDING` : "0 DRAFTS"}
             alertCount={draftCount}
             onPress={() => router.push('/inventory/drafts')} 
           />
 
           <MenuTile 
+            containerStyle={tileContainerStyle}
             testID="karigar-items-menu-tile"
             title="Items at Karigar" 
             subtitle={karigarCount > 0 ? `${karigarCount} in workshop` : "Artisan Tracking"} 
             icon={<Wrench size={22} color="#0284C7" />} 
             iconBg="rgba(2, 132, 199, 0.12)"
-            borderColor="rgba(2, 132, 199, 0.25)"
+            borderColor="rgba(2, 132, 199, 0.28)"
             badgeText={karigarCount > 0 ? `${karigarCount} ACTIVE` : "WORKSHOP"}
             alertCount={karigarCount}
             onPress={() => router.push('/inventory/karigar-items')} 
@@ -201,75 +264,103 @@ export default function InventoryHubScreen() {
         </View>
 
         {/* SECTION 2: STOCK INWARD ENTRY */}
-        <Text style={[s.sectionHeader, { color: colors.vjText, opacity: 0.6, marginTop: 32 }]}>
-          Stock Inward Entry
-        </Text>
+        <View style={[s.sectionHeaderRow, { marginTop: 28 }]}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 7 }}>
+            <View style={[s.sectionHeaderDiamond, { backgroundColor: '#059669' }]} />
+            <Text style={[s.sectionHeaderTitle, { color: colors.vjText }]}>
+              Stock Inward Entry
+            </Text>
+          </View>
+          <View style={[s.sectionBadge, { backgroundColor: isDark ? 'rgba(5, 150, 105, 0.15)' : 'rgba(5, 150, 105, 0.10)', borderColor: 'rgba(5, 150, 105, 0.30)' }]}>
+            <PackagePlus size={11} color="#059669" />
+            <Text style={[s.sectionBadgeText, { color: isDark ? '#6EE7B7' : '#047857' }]}>
+              INTAKE
+            </Text>
+          </View>
+        </View>
 
         <View style={s.menuGrid}>
           <MenuTile 
+            containerStyle={tileContainerStyle}
             title="Single Item Add" 
             subtitle="Detailed Entry" 
             icon={<PackagePlus size={22} color="#059669" />} 
             iconBg="rgba(5, 150, 105, 0.12)"
-            borderColor="rgba(5, 150, 105, 0.25)"
+            borderColor="rgba(5, 150, 105, 0.28)"
             badgeText="1-BY-1"
             onPress={() => router.push('/inventory/add-stock')} 
           />
 
           <MenuTile 
+            containerStyle={tileContainerStyle}
             title="Bulk Add Matrix" 
             subtitle="Rapid Batch Entry" 
             icon={<Layers size={22} color="#7C3AED" />} 
             iconBg="rgba(124, 58, 237, 0.12)"
-            borderColor="rgba(124, 58, 237, 0.25)"
+            borderColor="rgba(124, 58, 237, 0.28)"
             badgeText="BATCH"
             onPress={() => router.push('/inventory/bulk-add')} 
           />
 
           <MenuTile 
+            containerStyle={tileContainerStyle}
             title="Loose Stock Add" 
             subtitle="Pooled Weight Lot" 
             icon={<Boxes size={22} color="#D97706" />} 
             iconBg="rgba(217, 119, 6, 0.12)"
-            borderColor="rgba(217, 119, 6, 0.25)"
+            borderColor="rgba(217, 119, 6, 0.28)"
             badgeText="POOLED"
             onPress={() => router.push('/inventory/add-loose-stock')} 
           />
         </View>
 
         {/* SECTION 3: PROCUREMENT, SCRAP & GEMSTONES */}
-        <Text style={[s.sectionHeader, { color: colors.vjText, opacity: 0.6, marginTop: 32 }]}>
-          Procurement, Scrap & Stones
-        </Text>
+        <View style={[s.sectionHeaderRow, { marginTop: 28 }]}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 7 }}>
+            <View style={[s.sectionHeaderDiamond, { backgroundColor: '#E11D48' }]} />
+            <Text style={[s.sectionHeaderTitle, { color: colors.vjText }]}>
+              Procurement, Scrap & Stones
+            </Text>
+          </View>
+          <View style={[s.sectionBadge, { backgroundColor: isDark ? 'rgba(225, 29, 72, 0.15)' : 'rgba(225, 29, 72, 0.10)', borderColor: 'rgba(225, 29, 72, 0.30)' }]}>
+            <Coins size={11} color="#E11D48" />
+            <Text style={[s.sectionBadgeText, { color: isDark ? '#FDA4AF' : '#BE123C' }]}>
+              VALUABLES
+            </Text>
+          </View>
+        </View>
 
         <View style={[s.menuGrid, { marginBottom: 32 }]}>
           <MenuTile 
+            containerStyle={tileContainerStyle}
             title="URD Purchases" 
             subtitle="Customer Buying" 
             icon={<FileDown size={22} color="#E11D48" />} 
             iconBg="rgba(225, 29, 72, 0.12)"
-            borderColor="rgba(225, 29, 72, 0.25)"
+            borderColor="rgba(225, 29, 72, 0.28)"
             badgeText="PURCHASES"
             onPress={() => router.push('/inventory/urd-purchases')} 
           />
 
           <MenuTile 
+            containerStyle={tileContainerStyle}
             testID="old-metal-lots-menu-tile"
             title="Old Metal Vault" 
             subtitle="Scrap & Melt Lots" 
             icon={<Coins size={22} color="#D97706" />} 
             iconBg="rgba(217, 119, 6, 0.12)"
-            borderColor="rgba(217, 119, 6, 0.25)"
+            borderColor="rgba(217, 119, 6, 0.28)"
             badgeText="SCRAP LOTS"
             onPress={() => router.push('/inventory/old-metal-lots')} 
           />
 
           <MenuTile 
+            containerStyle={tileContainerStyle}
             title="Gemstone Lots" 
             subtitle="Physical Intake" 
             icon={<Gem size={22} color="#0891B2" />} 
             iconBg="rgba(8, 145, 178, 0.12)"
-            borderColor="rgba(8, 145, 178, 0.25)"
+            borderColor="rgba(8, 145, 178, 0.28)"
             badgeText="GEM LOTS"
             onPress={() => router.push('/inventory/gemstones')} 
           />
@@ -280,19 +371,48 @@ export default function InventoryHubScreen() {
 }
 
 const s = StyleSheet.create({
-  sectionHeader: {
+  sectionHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+    paddingHorizontal: 4,
+  },
+  sectionHeaderDiamond: {
+    width: 6,
+    height: 6,
+    borderRadius: 1.5,
+    transform: [{ rotate: '45deg' }],
+  },
+  sectionHeaderTitle: {
     fontSize: 12,
     fontWeight: '900',
     textTransform: 'uppercase',
-    letterSpacing: 1.5,
-    marginBottom: 14,
-    marginLeft: 4,
+    letterSpacing: 1.2,
+  },
+  sectionBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4.5,
+    paddingHorizontal: 7.5,
+    paddingVertical: 3,
+    borderRadius: 999,
+    borderWidth: 1,
+  },
+  sectionBadgeText: {
+    fontSize: 9,
+    fontWeight: '800',
+    textTransform: 'uppercase',
+    letterSpacing: 0.8,
   },
   searchInner: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 16,
+    paddingHorizontal: 14,
+    paddingVertical: 14,
     justifyContent: 'space-between',
+    borderRadius: 18,
+    borderWidth: 1.2,
   },
   searchIconContainer: {
     padding: 8,
@@ -301,12 +421,13 @@ const s = StyleSheet.create({
     marginRight: 12,
   },
   searchPlaceholderText: {
-    fontWeight: '600',
-    fontSize: 14,
-    flex: 1,
+    fontWeight: '700',
+    fontSize: 14.5,
   },
   searchBadge: {
-    paddingHorizontal: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 11,
     paddingVertical: 6,
     borderRadius: 999,
     borderWidth: 1,
@@ -317,13 +438,12 @@ const s = StyleSheet.create({
     fontWeight: '900',
     textAlign: 'center',
     textTransform: 'uppercase',
-    letterSpacing: 1.5,
+    letterSpacing: 1.2,
   },
   masterIconContainer: {
     padding: 12,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: 'rgba(0,0,0,0.05)',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -348,6 +468,6 @@ const s = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'space-between',
-    rowGap: 16,
+    rowGap: 14,
   },
 });

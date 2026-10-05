@@ -2,7 +2,7 @@
 // Aligned with FEAT-LOOSE-STOCK-1 (v2.24), FIX-LOWSTOCK-PURITYGRAIN-1 (v2.13), and MastersSyncStore
 
 import React, { useState, useCallback, useEffect } from 'react';
-import { View, Text, StyleSheet, Alert, Modal, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, Alert, Modal, TouchableOpacity, ActivityIndicator, useWindowDimensions } from 'react-native';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -18,10 +18,14 @@ import { categoryRepository } from '@/repositories/phase2/categoryRepository';
 import { designService } from '@/services/phase2/designService';
 import type { Category } from '@/types/phase2/phase2.types';
 import { getThemeColors } from '@/constants/theme';
+import { JewelryMonogramEmblem } from '@/utils/jewelryIcons';
 
 export default function CreateDesignScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { width } = useWindowDimensions();
+  const isTablet = width >= 768;
+
   const { activeFirmId } = useFirmStore();
   
   const [categories, setCategories] = useState<Category[]>([]);
@@ -139,7 +143,8 @@ export default function CreateDesignScreen() {
           showsVerticalScrollIndicator={false} 
           contentContainerStyle={{ 
             paddingTop: 24, 
-            paddingBottom: Math.max(insets.bottom + 120, 160) 
+            paddingBottom: Math.max(insets.bottom + 120, 160),
+            alignItems: isTablet ? 'center' : undefined,
           }} 
           keyboardShouldPersistTaps="handled"
           keyboardDismissMode="on-drag"
@@ -148,159 +153,178 @@ export default function CreateDesignScreen() {
           extraScrollHeight={120}
           extraHeight={140}
         >
-          <GlassCard style={{ padding: 20, marginBottom: 16, borderColor: `${colors.vjAccent}25` }}>
-            <View style={s.formGroup}>
-              <GlassInput 
-                label="Design Name * (1 or 2 words only)"
-                value={newName}
-                onChangeText={setNewName}
-                placeholder="e.g. Classic Band"
-                autoCapitalize="words"
-                maxLength={50}
+          <View style={[{ width: '100%' }, isTablet && { maxWidth: 720 }]}>
+            <GlassCard style={{ padding: 24, marginBottom: 16, borderColor: `${colors.vjAccent}25` }}>
+              {/* Interactive Real-Time Monogram & Metal Preview */}
+              <View style={s.previewContainer}>
+                <JewelryMonogramEmblem 
+                  designName={newName.trim() || 'Design'} 
+                  metal={newMetal} 
+                  categoryName={categories.find(c => c.id === selectedCategoryId)?.name || undefined}
+                  size={60} 
+                />
+                <Text style={[s.previewText, { color: colors.vjText }]}>
+                  {newName.trim() 
+                    ? `${newName.trim()} • ${newMetal} • ${stockType === 'LOOSE' ? 'Loose' : 'Serialized'}` 
+                    : `Live Design Preview (${newMetal})`}
+                </Text>
+              </View>
+
+              <View style={s.formGroup}>
+                <GlassInput 
+                  label="Design Name * (1 or 2 words only)"
+                  value={newName}
+                  onChangeText={setNewName}
+                  placeholder="e.g. Classic Band"
+                  autoCapitalize="words"
+                  maxLength={50}
+                />
+              </View>
+
+              <GlassMetalSelector
+                selectedMetal={newMetal}
+                onSelectMetal={(m) => {
+                  setNewMetal(m);
+                }}
               />
-            </View>
 
-            <GlassMetalSelector
-              selectedMetal={newMetal}
-              onSelectMetal={(m) => {
-                setNewMetal(m);
-              }}
-            />
+              {/* Stock Type Selector */}
+              <View style={s.formGroup}>
+                <View style={s.labelRow}>
+                  <Text style={[s.label, { color: colors.vjText, opacity: 0.7 }]}>
+                    Stock Tracking Model *
+                  </Text>
+                  <Text style={[s.immutableBadge, { color: colors.vjAccent }]}>
+                    Immutable
+                  </Text>
+                </View>
 
-            {/* Stock Type Selector */}
-            <View style={s.formGroup}>
-              <View style={s.labelRow}>
-                <Text style={[s.label, { color: colors.vjText, opacity: 0.7 }]}>
-                  Stock Tracking Model *
-                </Text>
-                <Text style={[s.immutableBadge, { color: colors.vjAccent }]}>
-                  Immutable
-                </Text>
+                <View style={s.stockTypeRow}>
+                  {/* Serialized Option */}
+                  <TouchableOpacity
+                    testID="stock-type-serialized-btn"
+                    activeOpacity={0.8}
+                    onPress={() => {
+                      try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
+                      setStockType('SERIALIZED');
+                    }}
+                    style={[
+                      s.stockTypeCard,
+                      {
+                        backgroundColor: stockType === 'SERIALIZED'
+                          ? (isDark ? `${colors.vjAccent}25` : `${colors.vjAccent}14`)
+                          : (isDark ? 'rgba(255, 255, 255, 0.05)' : '#ffffff'),
+                        borderColor: stockType === 'SERIALIZED' ? colors.vjAccent : `${colors.vjAccent}25`,
+                        borderWidth: stockType === 'SERIALIZED' ? 1.8 : 1,
+                      },
+                    ]}
+                  >
+                    <View style={[s.stockTypeIconBox, { backgroundColor: `${colors.vjAccent}15` }]}>
+                      <Barcode size={18} color={colors.vjAccent} />
+                    </View>
+                    <Text style={[s.stockTypeTitle, { color: colors.vjText }]}>Serialized</Text>
+                    <Text style={[s.stockTypeSubtitle, { color: colors.vjText, opacity: 0.65 }]}>
+                      Individual Barcode, SKU & Tagging
+                    </Text>
+                  </TouchableOpacity>
+
+                  {/* Loose Stock Option */}
+                  <TouchableOpacity
+                    testID="stock-type-loose-btn"
+                    activeOpacity={0.8}
+                    onPress={() => {
+                      try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
+                      setStockType('LOOSE');
+                    }}
+                    style={[
+                      s.stockTypeCard,
+                      {
+                        backgroundColor: stockType === 'LOOSE'
+                          ? (isDark ? `${colors.vjAccent}25` : `${colors.vjAccent}14`)
+                          : (isDark ? 'rgba(255, 255, 255, 0.05)' : '#ffffff'),
+                        borderColor: stockType === 'LOOSE' ? colors.vjAccent : `${colors.vjAccent}25`,
+                        borderWidth: stockType === 'LOOSE' ? 1.8 : 1,
+                      },
+                    ]}
+                  >
+                    <View style={[s.stockTypeIconBox, { backgroundColor: `${colors.vjAccent}15` }]}>
+                      <Boxes size={18} color={colors.vjAccent} />
+                    </View>
+                    <Text style={[s.stockTypeTitle, { color: colors.vjText }]}>Loose Stock</Text>
+                    <Text style={[s.stockTypeSubtitle, { color: colors.vjText, opacity: 0.65 }]}>
+                      Bulk Lot Weights without Barcode Tags
+                    </Text>
+                  </TouchableOpacity>
+                </View>
               </View>
 
-              <View style={s.stockTypeRow}>
-                {/* Serialized Option */}
-                <TouchableOpacity
-                  testID="stock-type-serialized-btn"
-                  activeOpacity={0.8}
-                  onPress={() => {
-                    try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
-                    setStockType('SERIALIZED');
-                  }}
-                  style={[
-                    s.stockTypeCard,
-                    {
-                      backgroundColor: stockType === 'SERIALIZED'
-                        ? (isDark ? `${colors.vjAccent}25` : `${colors.vjAccent}14`)
-                        : (isDark ? 'rgba(255, 255, 255, 0.05)' : '#ffffff'),
-                      borderColor: stockType === 'SERIALIZED' ? colors.vjAccent : `${colors.vjAccent}25`,
-                      borderWidth: stockType === 'SERIALIZED' ? 1.8 : 1,
-                    },
-                  ]}
-                >
-                  <View style={[s.stockTypeIconBox, { backgroundColor: `${colors.vjAccent}15` }]}>
-                    <Barcode size={18} color={colors.vjAccent} />
-                  </View>
-                  <Text style={[s.stockTypeTitle, { color: colors.vjText }]}>Serialized</Text>
-                  <Text style={[s.stockTypeSubtitle, { color: colors.vjText, opacity: 0.65 }]}>
-                    Individual Barcode, SKU & Tagging
-                  </Text>
-                </TouchableOpacity>
-
-                {/* Loose Stock Option */}
-                <TouchableOpacity
-                  testID="stock-type-loose-btn"
-                  activeOpacity={0.8}
-                  onPress={() => {
-                    try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
-                    setStockType('LOOSE');
-                  }}
-                  style={[
-                    s.stockTypeCard,
-                    {
-                      backgroundColor: stockType === 'LOOSE'
-                        ? (isDark ? `${colors.vjAccent}25` : `${colors.vjAccent}14`)
-                        : (isDark ? 'rgba(255, 255, 255, 0.05)' : '#ffffff'),
-                      borderColor: stockType === 'LOOSE' ? colors.vjAccent : `${colors.vjAccent}25`,
-                      borderWidth: stockType === 'LOOSE' ? 1.8 : 1,
-                    },
-                  ]}
-                >
-                  <View style={[s.stockTypeIconBox, { backgroundColor: `${colors.vjAccent}15` }]}>
-                    <Boxes size={18} color={colors.vjAccent} />
-                  </View>
-                  <Text style={[s.stockTypeTitle, { color: colors.vjText }]}>Loose Stock</Text>
-                  <Text style={[s.stockTypeSubtitle, { color: colors.vjText, opacity: 0.65 }]}>
-                    Bulk Lot Weights without Barcode Tags
-                  </Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-
-            <GlassPickerInput
-              label="Link to Category *"
-              placeholder="Search categories..."
-              selectedLabel={categories.find((c) => c.id === selectedCategoryId)?.name || null}
-              selectedSublabel={
-                categories.find((c) => c.id === selectedCategoryId)?.code
-                  ? `Code: ${categories.find((c) => c.id === selectedCategoryId)?.code}`
-                  : null
-              }
-              onPress={() => {
-                if (categories.length === 0) {
-                  Alert.alert('No Categories Found', 'Please create at least one category before adding a design.');
-                  return;
+              <GlassPickerInput
+                label="Link to Category *"
+                placeholder="Search categories..."
+                selectedLabel={categories.find((c) => c.id === selectedCategoryId)?.name || null}
+                selectedSublabel={
+                  categories.find((c) => c.id === selectedCategoryId)?.code
+                    ? `Code: ${categories.find((c) => c.id === selectedCategoryId)?.code}`
+                    : null
                 }
-                setPickerModal({
-                  visible: true,
-                  title: 'Select Category',
-                  placeholder: 'Search category...',
-                  selectedId: selectedCategoryId || null,
-                  options: categories.map((c) => ({
-                    id: c.id,
-                    label: c.name,
-                    sublabel: c.code ? `Code: ${c.code}` : undefined,
-                  })),
-                  onSelect: (opt) => {
-                    setSelectedCategoryId(opt ? opt.id : '');
-                  },
-                });
-              }}
-            />
-          </GlassCard>
+                onPress={() => {
+                  if (categories.length === 0) {
+                    Alert.alert('No Categories Found', 'Please create at least one category before adding a design.');
+                    return;
+                  }
+                  setPickerModal({
+                    visible: true,
+                    title: 'Select Category',
+                    placeholder: 'Search category...',
+                    selectedId: selectedCategoryId || null,
+                    options: categories.map((c) => ({
+                      id: c.id,
+                      label: c.name,
+                      sublabel: c.code ? `Code: ${c.code}` : undefined,
+                    })),
+                    onSelect: (opt) => {
+                      setSelectedCategoryId(opt ? opt.id : '');
+                    },
+                  });
+                }}
+              />
+            </GlassCard>
+          </View>
         </KeyboardAwareScrollView>
 
         <FixedGlassBar>
-          <TouchableOpacity
-            testID="cancel-design-btn"
-            style={fixedBarStyles.pillSecondaryBtn}
-            onPress={() => {
-              try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
-              router.back();
-            }}
-            disabled={isSubmitting}
-          >
-            <Text style={[fixedBarStyles.pillSecondaryText, { color: colors.vjText }]}>Cancel</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            testID="save-design-btn"
-            style={[
-              fixedBarStyles.pillPrimaryBtn, 
-              { backgroundColor: colors.vjAccent },
-              (!selectedCategoryId || !newName.trim() || isSubmitting) && { opacity: 0.5 }
-            ]}
-            onPress={handleAdd}
-            disabled={isSubmitting || !selectedCategoryId || !newName.trim()}
-          >
-            {isSubmitting ? (
-              <ActivityIndicator color="#fff" size="small" />
-            ) : (
-              <>
-                <Plus size={18} color="#fff" />
-                <Text style={fixedBarStyles.pillPrimaryText}>Save Design</Text>
-              </>
-            )}
-          </TouchableOpacity>
+          <View style={[{ width: '100%', flexDirection: 'row', gap: 12 }, isTablet && { maxWidth: 640, alignSelf: 'center' }]}>
+            <TouchableOpacity
+              testID="cancel-design-btn"
+              style={[fixedBarStyles.pillSecondaryBtn, { flex: 1 }]}
+              onPress={() => {
+                try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
+                router.back();
+              }}
+              disabled={isSubmitting}
+            >
+              <Text style={[fixedBarStyles.pillSecondaryText, { color: colors.vjText }]}>Cancel</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              testID="save-design-btn"
+              style={[
+                fixedBarStyles.pillPrimaryBtn, 
+                { flex: 1, backgroundColor: colors.vjAccent },
+                (!selectedCategoryId || !newName.trim() || isSubmitting) && { opacity: 0.5 }
+              ]}
+              onPress={handleAdd}
+              disabled={isSubmitting || !selectedCategoryId || !newName.trim()}
+            >
+              {isSubmitting ? (
+                <ActivityIndicator color="#fff" size="small" />
+              ) : (
+                <>
+                  <Plus size={18} color="#fff" />
+                  <Text style={fixedBarStyles.pillPrimaryText}>Save Design</Text>
+                </>
+              )}
+            </TouchableOpacity>
+          </View>
         </FixedGlassBar>
       </View>
 
@@ -313,7 +337,13 @@ export default function CreateDesignScreen() {
         >
           <TouchableOpacity 
             activeOpacity={1} 
-            style={[s.successModalContent, { backgroundColor: colors.vjBg, borderColor: colors.border }]}
+            style={[
+              s.successModalContent, 
+              { 
+                backgroundColor: isDark ? '#1C1418' : colors.vjBg, 
+                borderColor: isDark ? 'rgba(212, 175, 55, 0.35)' : colors.border 
+              }
+            ]}
           >
             <View style={s.successIconContainer}>
               <CheckCircle size={56} color="#10B981" />
@@ -346,6 +376,16 @@ export default function CreateDesignScreen() {
 
 const s = StyleSheet.create({
   container: { flex: 1 },
+  previewContainer: {
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  previewText: {
+    fontSize: 12.5,
+    fontWeight: '700',
+    marginTop: 8,
+    opacity: 0.65,
+  },
   formGroup: { marginBottom: 20 },
   labelRow: {
     flexDirection: 'row',

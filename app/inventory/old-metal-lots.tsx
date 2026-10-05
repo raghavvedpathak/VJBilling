@@ -2,7 +2,7 @@
 // Implements FIX-OLDMETAL-RENAME-1 (v2.32), FIX-OLDMETAL-VOID-1 (v2.33), FIX-OLDGOLD-TXNLINK-1 (v2.31)
 
 import React, { useState, useCallback, useMemo, memo } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Alert, Modal } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Alert, Modal, useWindowDimensions } from 'react-native';
 import { FlashList } from '@shopify/flash-list';
 import { useFocusEffect } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -14,6 +14,7 @@ import { appSettingsStore } from '@/store/phase1/appSettingsStore';
 import { oldMetalLotRepository } from '@/repositories/phase2/oldGoldLotRepository';
 import { oldMetalLotService } from '@/services/phase2/oldGoldLotService';
 import { formatWeightMg as formatWeight, formatKaratBadge } from '@/utils/calculations';
+import { JewelryMonogramEmblem } from '@/utils/jewelryIcons';
 import { formatDate } from '@/utils/formatDate';
 import { Coins, Scale, ChevronRight, Ban } from 'lucide-react-native';
 import type { OldMetalLot, OldMetalLotStatus } from '@/types/phase2/phase2.types';
@@ -23,10 +24,12 @@ import { COLORS, getThemeColors } from '@/constants/theme';
 const LotCard = memo(({
   lot,
   colors,
+  isTablet,
   onOpenTransition,
 }: {
   lot: OldMetalLot;
   colors: ReturnType<typeof getThemeColors>;
+  isTablet?: boolean;
   onOpenTransition: (lot: OldMetalLot) => void;
 }) => {
   const isGold = lot.metal === 'GOLD';
@@ -39,23 +42,26 @@ const LotCard = memo(({
       testID={`old-metal-lot-card-${lot.id}`}
       activeOpacity={0.88}
       onPress={() => onOpenTransition(lot)}
-      style={{ marginBottom: 12 }}
+      style={{ marginBottom: isTablet ? 14 : 12 }}
     >
       <GlassCard style={[s.card, { borderColor: isVoided ? 'rgba(239, 68, 68, 0.25)' : `${colors.vjAccent}25` }]}>
         <View style={s.cardTop}>
-          <View style={{ flex: 1, paddingRight: 8 }}>
-            <Text style={[s.lotCustomer, { color: colors.vjText }]} numberOfLines={1}>
-              {lot.receivedFrom}
-            </Text>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 3 }}>
-              <View style={[s.metalPill, { borderColor: metalColor, backgroundColor: `${metalColor}12` }]}>
-                <Text style={[s.metalPillText, { color: metalColor }]}>
-                  {karatBadge ? `${karatBadge} · ${lot.purityPercent}%` : `${lot.metal} ${lot.purityPercent}%`}
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1, paddingRight: 8 }}>
+            <JewelryMonogramEmblem metal={lot.metal} size={isTablet ? 38 : 34} />
+            <View style={{ flex: 1 }}>
+              <Text style={[s.lotCustomer, { color: colors.vjText }]} numberOfLines={1}>
+                {lot.receivedFrom}
+              </Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 3 }}>
+                <View style={[s.metalPill, { borderColor: metalColor, backgroundColor: `${metalColor}12` }]}>
+                  <Text style={[s.metalPillText, { color: metalColor }]}>
+                    {karatBadge ? `${karatBadge} · ${lot.purityPercent}%` : `${lot.metal} ${lot.purityPercent}%`}
+                  </Text>
+                </View>
+                <Text style={{ fontSize: 11, color: `${colors.vjText}80`, fontWeight: '600' }}>
+                  {formatDate(lot.receivedDate)}
                 </Text>
               </View>
-              <Text style={{ fontSize: 11, color: `${colors.vjText}80`, fontWeight: '600' }}>
-                {formatDate(lot.receivedDate)}
-              </Text>
             </View>
           </View>
 
@@ -107,6 +113,8 @@ const LotCard = memo(({
 
 export default function OldMetalLotsScreen() {
   const insets = useSafeAreaInsets();
+  const { width } = useWindowDimensions();
+  const isTablet = width >= 768;
   const { activeFirmId } = useFirmStore();
   const [lots, setLots] = useState<OldMetalLot[]>([]);
   const [loading, setLoading] = useState(true);
@@ -115,6 +123,7 @@ export default function OldMetalLotsScreen() {
   const [updating, setUpdating] = useState(false);
 
   const activeTheme = appSettingsStore((s: any) => s.theme);
+  const isDark = activeTheme === 'dark';
   const colors = getThemeColors(activeTheme);
 
   const loadData = useCallback(async () => {
@@ -193,6 +202,7 @@ export default function OldMetalLotsScreen() {
               <LotCard
                 lot={item}
                 colors={colors}
+                isTablet={isTablet}
                 onOpenTransition={(l) => setSelectedLot(l)}
               />
             )}
@@ -202,6 +212,7 @@ export default function OldMetalLotsScreen() {
               paddingHorizontal: 16,
               paddingTop: 20,
               paddingBottom: Math.max(insets.bottom + 60, 80),
+              ...(isTablet ? { maxWidth: 780, alignSelf: 'center', width: '100%' } : {})
             }}
             showsVerticalScrollIndicator={false}
             ListEmptyComponent={
@@ -226,12 +237,23 @@ export default function OldMetalLotsScreen() {
         >
           <TouchableOpacity
             activeOpacity={1}
-            style={[s.modalCard, { backgroundColor: colors.vjBg, borderColor: `${colors.vjAccent}35` }]}
+            style={[
+              s.modalCard, 
+              { 
+                backgroundColor: isDark ? '#1C1418' : colors.vjBg, 
+                borderColor: isDark ? 'rgba(212,175,55,0.3)' : `${colors.vjAccent}35` 
+              }
+            ]}
           >
-            <Text style={[s.modalTitle, { color: colors.vjText }]}>Manage Scrap Lot</Text>
-            <Text style={[s.modalSub, { color: colors.vjText, opacity: 0.7 }]}>
-              Current Status: <Text style={{ fontWeight: '800' }}>{selectedLot?.status}</Text>
-            </Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 12 }}>
+              <JewelryMonogramEmblem metal={selectedLot?.metal} size={38} />
+              <View style={{ flex: 1 }}>
+                <Text style={[s.modalTitle, { color: colors.vjText, marginBottom: 2 }]}>Manage Scrap Lot</Text>
+                <Text style={[s.modalSub, { color: colors.vjText, opacity: 0.7, marginBottom: 0 }]}>
+                  Current Status: <Text style={{ fontWeight: '800', color: colors.vjAccent }}>{selectedLot?.status}</Text>
+                </Text>
+              </View>
+            </View>
 
             {availableTransitions.length > 0 ? (
               <View style={{ width: '100%', gap: 8, marginTop: 14 }}>

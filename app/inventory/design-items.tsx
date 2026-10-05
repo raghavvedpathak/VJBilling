@@ -2,12 +2,13 @@
 // Aligned with FEAT-SCREEN-C-SIZE-1 (v2.13), FIX-SCREENC-PHANTOM-DOC-1 (v1.70), and MastersSyncStore
 
 import React, { useState, useCallback, memo, useMemo } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, ScrollView, Modal } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, ScrollView, Modal, useWindowDimensions } from 'react-native';
 import { FlashList } from '@shopify/flash-list';
 import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import { TwoToneWrapper } from '@/components/common/TwoToneWrapper';
+import { JewelryMonogramEmblem } from '@/utils/jewelryIcons';
 import { appSettingsStore } from '@/store/phase1/appSettingsStore';
 import { useFirmStore } from '@/store/phase1/useFirmStore';
 import { useMastersSyncStore } from '@/store/phase2/mastersSyncStore';
@@ -47,11 +48,13 @@ const SORT_PRESETS: SortPreset[] = [
 const ItemRow = memo(({ 
   item, 
   colors, 
+  isDark,
   onPress, 
   onPrint 
 }: { 
   item: ItemSearchResult; 
   colors: ReturnType<typeof getThemeColors>; 
+  isDark: boolean;
   onPress: (id: string) => void; 
   onPrint: (id: string) => void; 
 }) => {
@@ -70,7 +73,13 @@ const ItemRow = memo(({
     <TouchableOpacity 
       testID={`design-item-row-${item.itemId}`}
       activeOpacity={0.85} 
-      style={s.itemCard} 
+      style={[
+        s.itemCard,
+        {
+          backgroundColor: isDark ? 'rgba(28, 20, 24, 0.88)' : '#FFFFFF',
+          borderColor: isDark ? 'rgba(212, 175, 55, 0.28)' : 'rgba(212, 175, 55, 0.22)',
+        }
+      ]} 
       onPress={() => {
         try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
         onPress(item.itemId);
@@ -79,62 +88,71 @@ const ItemRow = memo(({
       <View style={[s.metalStripe, { backgroundColor: metalColor }]} />
 
       <View style={s.cardBody}>
-        {/* Top Row: Name + Size, SKU below name, Purity Badge */}
+        {/* Top Row: Monogram + Name + Size, SKU below name, Purity Badge */}
         <View style={s.itemHeaderRow}>
           <View style={s.titleAndSkuBlock}>
             <View style={s.nameAndSizeRow}>
-              {item.designName ? (
-                <Text style={[s.designNameText, { color: colors.vjText }]} numberOfLines={2}>
-                  {item.designName}
-                </Text>
-              ) : null}
-              {sizeDisplay && (
-                <View style={[s.sizeBadge, { backgroundColor: `${colors.vjAccent}18`, borderColor: `${colors.vjAccent}40` }]}>
-                  <Text style={[s.sizeBadgeText, { color: colors.vjText }]}>{sizeDisplay}</Text>
+              <JewelryMonogramEmblem
+                designName={item.designName}
+                metal={item.metal}
+                size={34}
+              />
+              <View style={{ flex: 1 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                  {item.designName ? (
+                    <Text style={[s.designNameText, { color: colors.vjText }]} numberOfLines={2}>
+                      {item.designName}
+                    </Text>
+                  ) : null}
+                  {sizeDisplay && (
+                    <View style={[s.sizeBadge, { backgroundColor: isDark ? 'rgba(212, 175, 55, 0.16)' : `${colors.vjAccent}18`, borderColor: isDark ? 'rgba(212, 175, 55, 0.35)' : `${colors.vjAccent}40` }]}>
+                      <Text style={[s.sizeBadgeText, { color: isDark ? '#FDE68A' : colors.vjText }]}>{sizeDisplay}</Text>
+                    </View>
+                  )}
                 </View>
-              )}
-            </View>
 
-            <View style={s.skuRowBelow}>
-              <View style={[s.skuCapsule, { backgroundColor: `${colors.vjHeaderBg}10`, borderColor: `${colors.vjHeaderBg}28` }]}>
-                <Tag size={11} color={colors.vjHeaderBg} style={{ opacity: 0.85 }} />
-                <Text style={[s.skuText, { color: colors.vjHeaderBg }]}>{formatSKUDisplay(item.sku)}</Text>
+                <View style={s.skuRowBelow}>
+                  <View style={[s.skuCapsule, { backgroundColor: isDark ? 'rgba(255, 255, 255, 0.06)' : `${colors.vjHeaderBg}10`, borderColor: isDark ? 'rgba(255, 255, 255, 0.12)' : `${colors.vjHeaderBg}28` }]}>
+                    <Tag size={10} color={isDark ? '#FDE68A' : colors.vjHeaderBg} style={{ opacity: 0.85 }} />
+                    <Text style={[s.skuText, { color: isDark ? '#E5E7EB' : colors.vjHeaderBg }]}>{formatSKUDisplay(item.sku)}</Text>
+                  </View>
+                </View>
               </View>
             </View>
           </View>
 
           <View style={s.headerCornerCluster}>
-            <View style={[s.purityBadge, { borderColor: `${colors.vjHeaderBg}35`, backgroundColor: `${colors.vjHeaderBg}14` }]}>
-              <Sparkles size={11} color={colors.vjHeaderBg} style={{ marginRight: 4 }} />
-              <Text style={[s.purityBadgeText, { color: colors.vjHeaderBg }]}>{purityFull}</Text>
+            <View style={[s.purityBadge, { borderColor: isGold ? (isDark ? 'rgba(212, 175, 55, 0.40)' : `${colors.vjHeaderBg}35`) : (isDark ? 'rgba(148, 163, 184, 0.40)' : '#CBD5E1'), backgroundColor: isGold ? (isDark ? 'rgba(212, 175, 55, 0.16)' : `${colors.vjHeaderBg}14`) : (isDark ? 'rgba(148, 163, 184, 0.16)' : '#F1F5F9') }]}>
+              <Sparkles size={11} color={isGold ? (isDark ? '#FDE68A' : colors.vjHeaderBg) : (isDark ? '#E2E8F0' : '#475569')} style={{ marginRight: 4 }} />
+              <Text style={[s.purityBadgeText, { color: isGold ? (isDark ? '#FDE68A' : colors.vjHeaderBg) : (isDark ? '#E2E8F0' : '#475569') }]}>{purityFull}</Text>
             </View>
             <ChevronRight size={17} color={colors.vjAccent} style={{ opacity: 0.38, marginLeft: 2 }} />
           </View>
         </View>
 
         {/* Digital Swiss Scale Metrics Box */}
-        <View style={[s.heroMetricsContainer, { backgroundColor: 'rgba(255, 255, 255, 0.85)', borderColor: `${colors.vjText}18` }]}>
+        <View style={[s.heroMetricsContainer, { backgroundColor: isDark ? 'rgba(255, 255, 255, 0.05)' : 'rgba(255, 255, 255, 0.85)', borderColor: isDark ? 'rgba(255, 255, 255, 0.10)' : `${colors.vjText}18` }]}>
           <View style={s.weightSingleLine}>
-            <Text style={[s.weightLabel, { color: `${colors.vjText}99` }]}>NET: </Text>
-            <Text style={[s.weightValueNet, { color: colors.vjHeaderBg }]}>
+            <Text style={[s.weightLabel, { color: isDark ? 'rgba(255, 255, 255, 0.55)' : `${colors.vjText}99` }]}>NET: </Text>
+            <Text style={[s.weightValueNet, { color: isDark ? '#FDE68A' : colors.vjHeaderBg }]}>
               {formatWeight(item.netWeightMg ?? item.grossWeightMg)}
             </Text>
-            <Text style={[s.weightBullet, { color: `${colors.vjText}4D` }]}>  •  </Text>
-            <Text style={[s.weightLabel, { color: `${colors.vjText}99` }]}>GROSS: </Text>
+            <Text style={[s.weightBullet, { color: isDark ? 'rgba(255, 255, 255, 0.30)' : `${colors.vjText}4D` }]}>  •  </Text>
+            <Text style={[s.weightLabel, { color: isDark ? 'rgba(255, 255, 255, 0.55)' : `${colors.vjText}99` }]}>GROSS: </Text>
             <Text style={[s.weightValueGross, { color: colors.vjText }]}>
               {formatWeight(item.grossWeightMg)}
             </Text>
           </View>
 
           {item.huid?.trim() ? (
-            <View style={s.huidVerifiedCapsule}>
-              <ShieldCheck size={11} color="#15803d" />
+            <View style={[s.huidVerifiedCapsule, { backgroundColor: isDark ? 'rgba(22, 163, 74, 0.16)' : 'rgba(22, 163, 74, 0.08)' }]}>
+              <ShieldCheck size={11} color="#16A34A" />
               <Text style={s.huidVerifiedText}>HUID: {item.huid.trim()}</Text>
             </View>
           ) : (
-            <View style={s.huidPendingCapsule}>
-              <ShieldAlert size={11} color={`${colors.vjText}66`} />
-              <Text style={[s.huidPendingText, { color: `${colors.vjText}80` }]}>No HUID</Text>
+            <View style={[s.huidPendingCapsule, { backgroundColor: isDark ? 'rgba(255, 255, 255, 0.06)' : 'rgba(92, 22, 35, 0.04)' }]}>
+              <ShieldAlert size={11} color={isDark ? '#9CA3AF' : `${colors.vjText}66`} />
+              <Text style={[s.huidPendingText, { color: isDark ? '#9CA3AF' : `${colors.vjText}80` }]}>No HUID</Text>
             </View>
           )}
         </View>
@@ -163,10 +181,16 @@ const ItemRow = memo(({
               try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
               onPrint(item.itemId);
             }}
-            style={[s.printBtn, { borderColor: `${colors.vjAccent}45`, backgroundColor: `${colors.vjAccent}12` }]}
+            style={[
+              s.printBtn, 
+              { 
+                borderColor: isDark ? 'rgba(212, 175, 55, 0.35)' : `${colors.vjAccent}45`, 
+                backgroundColor: isDark ? 'rgba(212, 175, 55, 0.14)' : `${colors.vjAccent}12` 
+              }
+            ]}
           >
-            <Printer size={13} color={colors.vjAccent} />
-            <Text style={[s.printBtnText, { color: colors.vjAccent }]}>Print Tag</Text>
+            <Printer size={13} color={isDark ? '#FDE68A' : colors.vjAccent} />
+            <Text style={[s.printBtnText, { color: isDark ? '#FDE68A' : colors.vjAccent }]}>Print Tag</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -177,6 +201,9 @@ const ItemRow = memo(({
 export default function DesignItemsScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { width, height } = useWindowDimensions();
+  const isTablet = width >= 768 || Math.min(width, height) >= 600;
+
   const params = useLocalSearchParams<{ designId: string; designName: string; purityPercent?: string }>();
   const designId = Array.isArray(params.designId) ? params.designId[0] : params.designId;
   const designName = Array.isArray(params.designName) ? params.designName[0] : params.designName;
@@ -193,6 +220,7 @@ export default function DesignItemsScreen() {
 
   const activeTheme = appSettingsStore((s: any) => s.theme);
   const colors = getThemeColors(activeTheme);
+  const isDark = activeTheme === 'dark';
   const designVersion = useMastersSyncStore((s) => s.designVersion);
 
   const purityNum = purityPercent ? parseFloat(purityPercent) : undefined;
@@ -320,34 +348,36 @@ export default function DesignItemsScreen() {
   }, [selectedSort]);
 
   const headerDesignCard = !loading && items.length > 0 ? (
-    <View style={s.headerDesignCard}>
-      <View style={s.heroTopRow}>
-        <View style={[s.headerPurityBadge, { backgroundColor: `${bullionColor}18`, borderColor: `${bullionColor}40` }]}>
-          <Sparkles size={13} color={bullionColor} />
-          <Text style={[s.headerPurityBadgeText, { color: bullionColor }]}>{purityPillLabel || 'BULLION PURITY'}</Text>
-        </View>
-        <View style={s.heroPillsRow}>
-          <View style={s.headerMetaPill}>
-            <Package size={11} color="rgba(255, 255, 255, 0.85)" />
-            <Text style={s.headerMetaText}>{processedItems.length} Tagged</Text>
+    <View style={[{ width: '100%' }, isTablet && { maxWidth: 780, alignSelf: 'center' }]}>
+      <View style={s.headerDesignCard}>
+        <View style={s.heroTopRow}>
+          <View style={[s.headerPurityBadge, { backgroundColor: `${bullionColor}18`, borderColor: `${bullionColor}40` }]}>
+            <Sparkles size={13} color={bullionColor} />
+            <Text style={[s.headerPurityBadgeText, { color: bullionColor }]}>{purityPillLabel || 'BULLION PURITY'}</Text>
           </View>
-          {distinctSizes.length > 0 && (
+          <View style={s.heroPillsRow}>
             <View style={s.headerMetaPill}>
-              <Text style={s.headerMetaText}>{distinctSizes.length} Sizes</Text>
+              <Package size={11} color="rgba(255, 255, 255, 0.85)" />
+              <Text style={s.headerMetaText}>{processedItems.length} Tagged</Text>
             </View>
-          )}
+            {distinctSizes.length > 0 && (
+              <View style={s.headerMetaPill}>
+                <Text style={s.headerMetaText}>{distinctSizes.length} Sizes</Text>
+              </View>
+            )}
+          </View>
         </View>
-      </View>
 
-      <View style={s.headerDivider} />
+        <View style={s.headerDivider} />
 
-      <View style={s.heroScaleContainer}>
-        <Text style={s.headerScaleLabel}>TOTAL PHYSICAL NET WEIGHT</Text>
-        <View style={s.heroScaleValueRow}>
-          <Scale size={20} color={bullionColor} style={{ marginRight: 6 }} />
-          <Text style={s.headerScaleDigits}>
-            {formatWeight(totalNetWeightMg)}
-          </Text>
+        <View style={s.heroScaleContainer}>
+          <Text style={s.headerScaleLabel}>TOTAL PHYSICAL NET WEIGHT</Text>
+          <View style={s.heroScaleValueRow}>
+            <Scale size={20} color={bullionColor} style={{ marginRight: 6 }} />
+            <Text style={s.headerScaleDigits}>
+              {formatWeight(totalNetWeightMg)}
+            </Text>
+          </View>
         </View>
       </View>
     </View>
@@ -355,9 +385,18 @@ export default function DesignItemsScreen() {
 
   return (
     <TwoToneWrapper title={dbDesignName || designName || 'Design Stock'} showBack headerContent={headerDesignCard}>
+      <View style={[{ flex: 1, width: '100%' }, isTablet && { maxWidth: 780, alignSelf: 'center' }]}>
       
       {/* Interactive Toolbar: Size Filter Chips + Quick Sort Button */}
-      <View style={s.filterBarContainer}>
+      <View 
+        style={[
+          s.filterBarContainer,
+          {
+            backgroundColor: isDark ? 'rgba(28, 20, 24, 0.88)' : 'rgba(255, 255, 255, 0.85)',
+            borderBottomColor: isDark ? 'rgba(212, 175, 55, 0.20)' : 'rgba(92, 22, 35, 0.08)',
+          }
+        ]}
+      >
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.filterScroll}>
           <TouchableOpacity
             testID="sort-modal-trigger"
@@ -377,7 +416,7 @@ export default function DesignItemsScreen() {
             </Text>
           </TouchableOpacity>
 
-          <View style={s.dividerVertical} />
+          <View style={[s.dividerVertical, { backgroundColor: isDark ? 'rgba(255, 255, 255, 0.15)' : 'rgba(92, 22, 35, 0.15)' }]} />
 
           <TouchableOpacity
             testID="filter-size-all"
@@ -387,7 +426,10 @@ export default function DesignItemsScreen() {
             }}
             style={[
               s.filterChip,
-              selectedSizeFilter === 'ALL' && [s.filterChipActive, { backgroundColor: colors.vjAccent, borderColor: colors.vjAccent }]
+              {
+                backgroundColor: selectedSizeFilter === 'ALL' ? colors.vjAccent : (isDark ? 'rgba(255, 255, 255, 0.08)' : '#FFFFFF'),
+                borderColor: selectedSizeFilter === 'ALL' ? colors.vjAccent : (isDark ? 'rgba(255, 255, 255, 0.14)' : 'rgba(92, 22, 35, 0.14)'),
+              }
             ]}
           >
             <Text style={[s.filterChipText, { color: selectedSizeFilter === 'ALL' ? '#FFFFFF' : colors.vjText }]}>
@@ -407,14 +449,17 @@ export default function DesignItemsScreen() {
                 }}
                 style={[
                   s.filterChip,
-                  isSelected && [s.filterChipActive, { backgroundColor: colors.vjAccent, borderColor: colors.vjAccent }]
+                  {
+                    backgroundColor: isSelected ? colors.vjAccent : (isDark ? 'rgba(255, 255, 255, 0.08)' : '#FFFFFF'),
+                    borderColor: isSelected ? colors.vjAccent : (isDark ? 'rgba(255, 255, 255, 0.14)' : 'rgba(92, 22, 35, 0.14)'),
+                  }
                 ]}
               >
                 <Text style={[s.filterChipText, { color: isSelected ? '#FFFFFF' : colors.vjText }]}>
                   {size.label}
                 </Text>
-                <View style={[s.sizeCountBadge, isSelected && s.sizeCountBadgeActive]}>
-                  <Text style={[s.sizeCountText, isSelected && s.sizeCountTextActive]}>
+                <View style={[s.sizeCountBadge, isSelected ? s.sizeCountBadgeActive : { backgroundColor: isDark ? 'rgba(255, 255, 255, 0.10)' : 'rgba(92, 22, 35, 0.06)' }]}>
+                  <Text style={[s.sizeCountText, isSelected ? s.sizeCountTextActive : { color: isDark ? '#E5E7EB' : 'rgba(92, 22, 35, 0.65)' }]}>
                     {size.count}
                   </Text>
                 </View>
@@ -434,11 +479,15 @@ export default function DesignItemsScreen() {
           data={processedItems}
           keyExtractor={(item: ItemSearchResult) => item.itemId}
           renderItem={({ item }: { item: ItemSearchResult }) => (
-            <ItemRow item={item} colors={colors} onPress={handleItemPress} onPrint={handlePrint} />
+            <ItemRow item={item} colors={colors} isDark={isDark} onPress={handleItemPress} onPrint={handlePrint} />
           )}
           // @ts-ignore: estimatedItemSize required by FlashList
           estimatedItemSize={175}
-          contentContainerStyle={{ paddingTop: 14, paddingBottom: Math.max(insets.bottom + 60, 90), paddingHorizontal: 14 }}
+          contentContainerStyle={{ 
+            paddingTop: 14, 
+            paddingBottom: Math.max(insets.bottom + 60, 90), 
+            paddingHorizontal: isTablet ? 24 : 14 
+          }}
           ListEmptyComponent={
             <View style={s.emptyContainer}>
               <Package size={48} color={colors.vjAccent} style={{ opacity: 0.3 }} />
@@ -452,6 +501,7 @@ export default function DesignItemsScreen() {
           }
         />
       )}
+      </View>
 
       {/* Sort Options Modal */}
       <Modal visible={isSortModalOpen} transparent animationType="fade">
@@ -462,9 +512,15 @@ export default function DesignItemsScreen() {
         >
           <TouchableOpacity 
             activeOpacity={1} 
-            style={[s.sortModalCard, { backgroundColor: colors.vjBg, borderColor: colors.border }]}
+            style={[
+              s.sortModalCard, 
+              { 
+                backgroundColor: isDark ? '#1C1418' : colors.vjBg, 
+                borderColor: isDark ? 'rgba(212, 175, 55, 0.35)' : colors.border 
+              }
+            ]}
           >
-            <View style={s.sortModalHeader}>
+            <View style={[s.sortModalHeader, { borderBottomColor: isDark ? 'rgba(255, 255, 255, 0.10)' : 'rgba(92, 22, 35, 0.08)' }]}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                 <ArrowUpDown size={18} color={colors.vjAccent} />
                 <Text style={[s.sortModalTitle, { color: colors.vjText }]}>Sort Items</Text>
@@ -488,7 +544,14 @@ export default function DesignItemsScreen() {
                     }}
                     style={[
                       s.sortOptionCard,
-                      isSelected && { borderColor: colors.vjAccent, backgroundColor: `${colors.vjAccent}12` }
+                      {
+                        backgroundColor: isSelected 
+                          ? `${colors.vjAccent}18` 
+                          : (isDark ? 'rgba(255, 255, 255, 0.06)' : '#FFFFFF'),
+                        borderColor: isSelected 
+                          ? colors.vjAccent 
+                          : (isDark ? 'rgba(255, 255, 255, 0.10)' : 'rgba(92, 22, 35, 0.08)')
+                      }
                     ]}
                     activeOpacity={0.7}
                   >
@@ -602,9 +665,7 @@ const s = StyleSheet.create({
 
   filterBarContainer: {
     paddingVertical: 11,
-    backgroundColor: 'rgba(255,255,255,0.7)',
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(92,22,35,0.08)',
   },
   filterScroll: {
     paddingHorizontal: 14,
@@ -615,7 +676,6 @@ const s = StyleSheet.create({
   dividerVertical: {
     width: 1,
     height: 24,
-    backgroundColor: 'rgba(92,22,35,0.15)',
     marginHorizontal: 2,
   },
   sortTriggerBtn: {
@@ -641,9 +701,7 @@ const s = StyleSheet.create({
     paddingHorizontal: 13,
     paddingVertical: 7,
     borderRadius: 14,
-    backgroundColor: '#FFFFFF',
     borderWidth: 1.2,
-    borderColor: 'rgba(92,22,35,0.14)',
   },
   filterChipActive: {
     shadowColor: '#5C1623',
@@ -660,7 +718,6 @@ const s = StyleSheet.create({
     paddingHorizontal: 6,
     paddingVertical: 1.5,
     borderRadius: 8,
-    backgroundColor: 'rgba(92,22,35,0.06)',
   },
   sizeCountBadgeActive: {
     backgroundColor: 'rgba(255,255,255,0.28)',
@@ -668,7 +725,6 @@ const s = StyleSheet.create({
   sizeCountText: {
     fontSize: 10,
     fontWeight: '800',
-    color: 'rgba(92,22,35,0.65)',
   },
   sizeCountTextActive: {
     color: '#FFFFFF',
@@ -677,12 +733,10 @@ const s = StyleSheet.create({
   // MODERN STOCK CARD STYLES
   itemCard: {
     flexDirection: 'row',
-    marginBottom: 10,
-    borderRadius: 18,
+    marginBottom: 12,
+    borderRadius: 20,
     overflow: 'hidden',
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1.5,
-    borderColor: 'rgba(212, 175, 55, 0.28)',
+    borderWidth: 1.2,
     shadowColor: '#5C1623',
     shadowOffset: { width: 0, height: 3 },
     shadowOpacity: 0.06,
@@ -692,8 +746,6 @@ const s = StyleSheet.create({
   metalStripe: {
     width: 5,
     alignSelf: 'stretch',
-    borderTopLeftRadius: 18,
-    borderBottomLeftRadius: 18,
   },
   cardBody: {
     flex: 1,
@@ -714,16 +766,15 @@ const s = StyleSheet.create({
   nameAndSizeRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    flexWrap: 'wrap',
+    gap: 10,
   },
   skuRowBelow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 1,
+    marginTop: 2,
   },
   designNameText: {
-    fontSize: 16,
+    fontSize: 15.5,
     fontWeight: '900',
     letterSpacing: 0.2,
   },
@@ -731,17 +782,15 @@ const s = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    backgroundColor: 'rgba(92, 22, 35, 0.05)',
     paddingHorizontal: 7,
-    paddingVertical: 3,
+    paddingVertical: 2.5,
     borderRadius: 7,
     borderWidth: 1,
-    borderColor: 'rgba(92, 22, 35, 0.08)',
   },
   skuText: {
     fontFamily: 'monospace',
     fontWeight: '800',
-    fontSize: 12.5,
+    fontSize: 11.5,
     letterSpacing: 0.5,
   },
   sizeBadge: {
@@ -751,7 +800,7 @@ const s = StyleSheet.create({
     borderWidth: 1,
   },
   sizeBadgeText: {
-    fontSize: 11,
+    fontSize: 10.5,
     fontWeight: '800',
   },
   headerCornerCluster: {
@@ -815,7 +864,6 @@ const s = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    backgroundColor: 'rgba(22, 163, 74, 0.08)',
     paddingHorizontal: 7,
     paddingVertical: 2.5,
     borderRadius: 7,
@@ -832,7 +880,6 @@ const s = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    backgroundColor: 'rgba(92, 22, 35, 0.04)',
     paddingHorizontal: 7,
     paddingVertical: 2.5,
     borderRadius: 6,
@@ -903,7 +950,6 @@ const s = StyleSheet.create({
     marginBottom: 16,
     paddingBottom: 12,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(92,22,35,0.08)',
   },
   sortModalTitle: {
     fontSize: 17,
@@ -917,8 +963,6 @@ const s = StyleSheet.create({
     paddingHorizontal: 14,
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: 'rgba(92,22,35,0.08)',
-    backgroundColor: '#FFFFFF',
     marginBottom: 8,
   },
   sortOptionLabel: {

@@ -2,7 +2,7 @@
 // Aligned with Step 4.5, GEMSTONE-1 (v1.21), and RULE-1A-WEIGHT-DISPLAY (v1.54)
 
 import React, { useState, useCallback, memo, useMemo } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, useWindowDimensions } from 'react-native';
 import { FlashList } from '@shopify/flash-list';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -13,6 +13,7 @@ import { appSettingsStore } from '@/store/phase1/appSettingsStore';
 import { useFirmStore } from '@/store/phase1/useFirmStore';
 import { gemstoneLotRepository } from '@/repositories/phase2/gemstoneLotRepository';
 import { formatRupees, formatCarats } from '@/utils/calculations';
+import { JewelryMonogramEmblem } from '@/utils/jewelryIcons';
 import { formatDate } from '@/utils/formatDate';
 import { Gem, Plus, Diamond, Banknote, ShieldAlert, CheckCircle, Clock, Scale } from 'lucide-react-native';
 import type { GemstoneLot } from '@/types/phase2/phase2.types';
@@ -23,10 +24,12 @@ const formatCurrency = (paise: number | null | undefined) =>
 
 const LotRow = memo(({ 
   item, 
-  colors 
+  colors,
+  isTablet,
 }: { 
   item: GemstoneLot; 
   colors: ReturnType<typeof getThemeColors>; 
+  isTablet?: boolean;
 }) => {
   const isAvailable = item.status === 'AVAILABLE';
   const isSold = item.status === 'SOLD';
@@ -57,27 +60,30 @@ const LotRow = memo(({
   }, [isAvailable, isSold, colors.vjText]);
 
   return (
-    <GlassCard testID={`gemstone-lot-card-${item.id}`} style={[s.card, { borderColor: `${colors.vjAccent}25` }]}>
+    <GlassCard testID={`gemstone-lot-card-${item.id}`} style={[s.card, { borderColor: `${colors.vjAccent}25`, marginBottom: isTablet ? 14 : 12 }]}>
       <View style={s.cardTop}>
-        <View style={{ flex: 1, paddingRight: 8 }}>
-          <Text style={[s.lotName, { color: colors.vjText }]} numberOfLines={1}>
-            {item.name}
-          </Text>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 2 }}>
-            <Text style={[s.supplierName, { color: colors.vjText, opacity: 0.6 }]}>
-              {item.supplierName || 'Self / Direct Lot'}
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1, paddingRight: 8 }}>
+          <JewelryMonogramEmblem designName={item.name} categoryName="Stone" size={isTablet ? 38 : 34} />
+          <View style={{ flex: 1 }}>
+            <Text style={[s.lotName, { color: colors.vjText }]} numberOfLines={1}>
+              {item.name}
             </Text>
-            {item.createdAt && (
-              <>
-                <Text style={{ fontSize: 10, color: `${colors.vjText}4D` }}>•</Text>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
-                  <Clock size={10} color={`${colors.vjText}66`} />
-                  <Text style={{ fontSize: 10.5, color: `${colors.vjText}80`, fontWeight: '600' }}>
-                    {formatDate(item.createdAt)}
-                  </Text>
-                </View>
-              </>
-            )}
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 2 }}>
+              <Text style={[s.supplierName, { color: colors.vjText, opacity: 0.6 }]}>
+                {item.supplierName || 'Self / Direct Lot'}
+              </Text>
+              {item.createdAt && (
+                <>
+                  <Text style={{ fontSize: 10, color: `${colors.vjText}4D` }}>•</Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
+                    <Clock size={10} color={`${colors.vjText}66`} />
+                    <Text style={{ fontSize: 10.5, color: `${colors.vjText}80`, fontWeight: '600' }}>
+                      {formatDate(item.createdAt)}
+                    </Text>
+                  </View>
+                </>
+              )}
+            </View>
           </View>
         </View>
 
@@ -148,11 +154,14 @@ const LotRow = memo(({
 export default function GemstonesInventoryScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { width } = useWindowDimensions();
+  const isTablet = width >= 768;
   const { activeFirmId } = useFirmStore();
   const [data, setData] = useState<GemstoneLot[]>([]);
   const [loading, setLoading] = useState(true);
 
   const activeTheme = appSettingsStore((s: any) => s.theme);
+  const isDark = activeTheme === 'dark';
   const colors = getThemeColors(activeTheme);
 
   useFocusEffect(
@@ -211,13 +220,14 @@ export default function GemstonesInventoryScreen() {
           <FlashList
             data={data}
             keyExtractor={(item) => item.id}
-            renderItem={({ item }) => <LotRow item={item} colors={colors} />}
+            renderItem={({ item }) => <LotRow item={item} colors={colors} isTablet={isTablet} />}
             // @ts-ignore: estimatedItemSize required by FlashList
             estimatedItemSize={140}
             contentContainerStyle={{
               paddingBottom: Math.max(insets.bottom + 120, 140),
               paddingTop: 24,
               paddingHorizontal: 16,
+              ...(isTablet ? { maxWidth: 780, alignSelf: 'center', width: '100%' } : {})
             }}
             showsVerticalScrollIndicator={false}
             ListEmptyComponent={
@@ -235,7 +245,14 @@ export default function GemstonesInventoryScreen() {
 
       <TouchableOpacity 
         testID="gemstones-fab-add"
-        style={[s.fab, { backgroundColor: colors.vjAccent, bottom: Math.max(insets.bottom + 24, 40) }]} 
+        style={[
+          s.fab, 
+          { 
+            backgroundColor: colors.vjAccent, 
+            bottom: Math.max(insets.bottom + 24, 40),
+            right: isTablet ? Math.max((width - 780) / 2 + 24, 24) : 24,
+          }
+        ]} 
         onPress={() => {
           try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
           router.push('/inventory/add-gemstone');

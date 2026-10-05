@@ -22,6 +22,7 @@ import { storageInstance } from '@/utils/storage';
 import * as Haptics from 'expo-haptics';
 import { TwoToneWrapper } from '@/components/common/TwoToneWrapper';
 import { HeaderPill, GlassCard, GlassButton, GlassInput, FixedGlassBar, fixedBarStyles } from '@/components/ui/Glass';
+import { JewelryMonogramEmblem } from '@/utils/jewelryIcons';
 import { appSettingsStore } from '@/store/phase1/appSettingsStore';
 import {
   Gem,
@@ -263,10 +264,20 @@ export default function StonesScreen() {
 
   return (
     <TwoToneWrapper title="Stone Master" showBack headerContent={stoneHeaderPills}>
-      <View style={s.container}>
+      <View style={[s.container, isTablet && { maxWidth: 920, width: '100%', alignSelf: 'center' }]}>
         {/* Top Search & View Switcher */}
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 12 }}>
-          <View style={[s.searchBarContainer, { flex: 1, borderColor: `${colors.vjAccent}35`, marginBottom: 0 }]}>
+          <View 
+            style={[
+              s.searchBarContainer, 
+              { 
+                flex: 1, 
+                backgroundColor: isDark ? 'rgba(255, 255, 255, 0.06)' : '#fff',
+                borderColor: `${colors.vjAccent}35`, 
+                marginBottom: 0 
+              }
+            ]}
+          >
             <Search size={16} color={colors.vjAccent} style={{ marginRight: 8, opacity: 0.8 }} />
             <TextInput
               testID="stone-search-input"
@@ -296,7 +307,10 @@ export default function StonesScreen() {
               testID="view-mode-list-btn"
               onPress={() => setViewMode('list')}
               activeOpacity={0.8}
-              style={[s.toggleIconBtn, viewMode === 'list' && s.toggleIconActive]}
+              style={[
+                s.toggleIconBtn, 
+                viewMode === 'list' && [s.toggleIconActive, isDark && { backgroundColor: 'rgba(212, 175, 55, 0.25)' }]
+              ]}
             >
               <ListIcon
                 size={20}
@@ -308,7 +322,10 @@ export default function StonesScreen() {
               testID="view-mode-grid-btn"
               onPress={() => setViewMode('grid')}
               activeOpacity={0.8}
-              style={[s.toggleIconBtn, viewMode === 'grid' && s.toggleIconActive]}
+              style={[
+                s.toggleIconBtn, 
+                viewMode === 'grid' && [s.toggleIconActive, isDark && { backgroundColor: 'rgba(212, 175, 55, 0.25)' }]
+              ]}
             >
               <LayoutGrid
                 size={20}
@@ -383,9 +400,7 @@ export default function StonesScreen() {
                   >
                     <View style={s.gridCardInner}>
                       <View style={s.gridHeaderRow}>
-                        <View style={[s.stoneIconBadge, { backgroundColor: `${colors.vjAccent}18`, borderColor: `${colors.vjAccent}30` }]}>
-                          <Gem size={16} color={colors.vjAccent} />
-                        </View>
+                        <JewelryMonogramEmblem designName={stone.name} categoryName="Stone" size={34} />
                         <View style={[s.stoneTypeBadge, { backgroundColor: stoneColors.bg, borderColor: stoneColors.border }]}>
                           <Text style={[s.stoneTypeText, { color: stoneColors.text }]}>{stone.type}</Text>
                         </View>
@@ -426,8 +441,8 @@ export default function StonesScreen() {
                   style={{ marginBottom: 10, width: '100%', borderColor: `${colors.vjAccent}25` }}
                 >
                   <View style={s.listCardInner}>
-                    <View style={[s.stoneIconBadgeList, { backgroundColor: `${colors.vjAccent}18`, borderColor: `${colors.vjAccent}30` }]}>
-                      <Gem size={18} color={colors.vjAccent} />
+                    <View style={{ marginRight: 12 }}>
+                      <JewelryMonogramEmblem designName={stone.name} categoryName="Stone" size={44} />
                     </View>
 
                     <View style={s.listTextContainer}>
@@ -465,20 +480,22 @@ export default function StonesScreen() {
         )}
 
         <FixedGlassBar>
-          <TouchableOpacity
-            testID="add-stone-bottom-btn"
-            style={[fixedBarStyles.pillPrimaryBtn, { backgroundColor: colors.vjAccent }]}
-            onPress={() => {
-              try {
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-              } catch {}
-              setShowAddModal(true);
-            }}
-            activeOpacity={0.8}
-          >
-            <Plus size={18} color="#fff" />
-            <Text style={fixedBarStyles.pillPrimaryText}>Add Stone Type</Text>
-          </TouchableOpacity>
+          <View style={[{ width: '100%' }, isTablet && { maxWidth: 680, alignSelf: 'center' }]}>
+            <TouchableOpacity
+              testID="add-stone-bottom-btn"
+              style={[fixedBarStyles.pillPrimaryBtn, { backgroundColor: colors.vjAccent }]}
+              onPress={() => {
+                try {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                } catch {}
+                setShowAddModal(true);
+              }}
+              activeOpacity={0.8}
+            >
+              <Plus size={18} color="#fff" />
+              <Text style={fixedBarStyles.pillPrimaryText}>Add Stone Type</Text>
+            </TouchableOpacity>
+          </View>
         </FixedGlassBar>
       </View>
 
@@ -498,8 +515,8 @@ export default function StonesScreen() {
               style={[
                 s.formModalContent,
                 {
-                  backgroundColor: colors.vjBg,
-                  borderColor: colors.border,
+                  backgroundColor: isDark ? '#1C1418' : colors.vjBg,
+                  borderColor: isDark ? 'rgba(212, 175, 55, 0.35)' : colors.border,
                   maxHeight: height * 0.85,
                 },
               ]}
@@ -519,6 +536,18 @@ export default function StonesScreen() {
                 keyboardShouldPersistTaps="handled"
                 showsVerticalScrollIndicator={false}
               >
+                {/* Real-time Monogram Preview */}
+                <View style={{ alignItems: 'center', marginBottom: 16 }}>
+                  <JewelryMonogramEmblem
+                    designName={newName.trim() || 'Stone'}
+                    categoryName="Stone"
+                    size={56}
+                  />
+                  <Text style={{ fontSize: 12.5, fontWeight: '700', color: colors.vjText, opacity: 0.65, marginTop: 8 }}>
+                    {newName.trim() ? `${newName.trim()} • ${newType}` : `Live Stone Preview (${newType})`}
+                  </Text>
+                </View>
+
                 <View style={s.formGroup}>
                   <GlassInput
                     label="Stone Name *"
@@ -591,8 +620,8 @@ export default function StonesScreen() {
               style={[
                 s.formModalContent,
                 {
-                  backgroundColor: colors.vjBg,
-                  borderColor: colors.border,
+                  backgroundColor: isDark ? '#1C1418' : colors.vjBg,
+                  borderColor: isDark ? 'rgba(212, 175, 55, 0.35)' : colors.border,
                   maxHeight: height * 0.85,
                 },
               ]}
@@ -612,6 +641,18 @@ export default function StonesScreen() {
                 keyboardShouldPersistTaps="handled"
                 showsVerticalScrollIndicator={false}
               >
+                {/* Real-time Monogram Preview */}
+                <View style={{ alignItems: 'center', marginBottom: 16 }}>
+                  <JewelryMonogramEmblem
+                    designName={editName.trim() || 'Stone'}
+                    categoryName="Stone"
+                    size={56}
+                  />
+                  <Text style={{ fontSize: 12.5, fontWeight: '700', color: colors.vjText, opacity: 0.65, marginTop: 8 }}>
+                    {editName.trim() ? `${editName.trim()} • ${editType}` : `Live Stone Preview (${editType})`}
+                  </Text>
+                </View>
+
                 <View style={s.formGroup}>
                   <GlassInput
                     label="Stone Name *"
@@ -677,7 +718,13 @@ export default function StonesScreen() {
         >
           <TouchableOpacity
             activeOpacity={1}
-            style={[s.successModalContent, { backgroundColor: colors.vjBg, borderColor: colors.border }]}
+            style={[
+              s.successModalContent, 
+              { 
+                backgroundColor: isDark ? '#1C1418' : colors.vjBg, 
+                borderColor: isDark ? 'rgba(212, 175, 55, 0.35)' : colors.border 
+              }
+            ]}
           >
             <View style={[s.successIconContainer, { backgroundColor: 'rgba(239, 68, 68, 0.1)' }]}>
               <Trash2 size={36} color="#DC2626" />
@@ -717,7 +764,13 @@ export default function StonesScreen() {
         >
           <TouchableOpacity
             activeOpacity={1}
-            style={[s.successModalContent, { backgroundColor: colors.vjBg, borderColor: colors.border }]}
+            style={[
+              s.successModalContent, 
+              { 
+                backgroundColor: isDark ? '#1C1418' : colors.vjBg, 
+                borderColor: isDark ? 'rgba(212, 175, 55, 0.35)' : colors.border 
+              }
+            ]}
           >
             <View style={[s.successIconContainer, { backgroundColor: 'rgba(239, 68, 68, 0.1)' }]}>
               <Text style={{ fontSize: 40 }}>⚠️</Text>
@@ -740,7 +793,13 @@ export default function StonesScreen() {
         >
           <TouchableOpacity
             activeOpacity={1}
-            style={[s.successModalContent, { backgroundColor: colors.vjBg, borderColor: colors.border }]}
+            style={[
+              s.successModalContent, 
+              { 
+                backgroundColor: isDark ? '#1C1418' : colors.vjBg, 
+                borderColor: isDark ? 'rgba(212, 175, 55, 0.35)' : colors.border 
+              }
+            ]}
           >
             <View style={s.successIconContainer}>
               <CheckCircle size={56} color="#10B981" />

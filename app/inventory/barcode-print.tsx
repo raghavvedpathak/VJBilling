@@ -2,7 +2,7 @@
 // Aligned with STEP 5.1 (50mm x 12mm Dumbbell Tag Specification) and RULE-1A-WEIGHT-DISPLAY (v1.54)
 
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, ActivityIndicator, Alert, TouchableOpacity, Modal, StyleSheet, ScrollView } from 'react-native';
+import { View, Text, ActivityIndicator, Alert, TouchableOpacity, Modal, StyleSheet, ScrollView, useWindowDimensions } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
@@ -12,16 +12,20 @@ import { HeaderPill, GlassCard, GlassButton } from '@/components/ui/Glass';
 import { appSettingsStore } from '@/store/phase1/appSettingsStore';
 import { useFirmStore } from '@/store/phase1/useFirmStore';
 import { barcodeLabelService } from '@/services/phase2/barcodeLabelService';
-import { Printer, Share, CheckCircle, RefreshCcw, Tag, Scale } from 'lucide-react-native';
+import { JewelryMonogramEmblem } from '@/utils/jewelryIcons';
+import { Printer, Share, CheckCircle, RefreshCcw, Tag, Scale, Sparkles } from 'lucide-react-native';
 import QRCode from 'react-native-qrcode-svg';
 import type { BarcodeLabel } from '@/types/phase2/phase2.types';
 import { getThemeColors } from '@/constants/theme';
 
 export default function BarcodePrintScreen() {
   const router = useRouter();
+  const { width } = useWindowDimensions();
+  const isTablet = width >= 768;
   const { itemId } = useLocalSearchParams<{ itemId: string }>();
   const { activeFirmId } = useFirmStore();
   const activeTheme = appSettingsStore((s: any) => s.theme);
+  const isDark = activeTheme === 'dark';
   const colors = getThemeColors(activeTheme);
   
   const [label, setLabel] = useState<BarcodeLabel | null>(null);
@@ -276,26 +280,85 @@ export default function BarcodePrintScreen() {
     <TwoToneWrapper title="Print Barcode Tag" showBack headerContent={barcodeHeaderPills}>
       <ScrollView 
         style={{ flex: 1 }} 
-        contentContainerStyle={{ paddingTop: 16, paddingBottom: 60, paddingHorizontal: 4 }}
+        contentContainerStyle={{
+          paddingTop: 16,
+          paddingBottom: 60,
+          paddingHorizontal: 16,
+          ...(isTablet ? { maxWidth: 740, alignSelf: 'center', width: '100%' } : {}),
+        }}
         showsVerticalScrollIndicator={false}
       >
+        {/* ITEM OVERVIEW BANNER */}
+        <View style={[
+          s.overviewCard,
+          {
+            backgroundColor: isDark ? 'rgba(28, 20, 24, 0.96)' : 'rgba(252, 251, 248, 0.98)',
+            borderColor: isDark ? 'rgba(212, 175, 55, 0.25)' : 'rgba(212, 175, 55, 0.2)',
+          }
+        ]}>
+          <JewelryMonogramEmblem
+            designName={label.frontSide.designName}
+            size={40}
+          />
+          <View style={{ flex: 1 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+              <Text style={[s.overviewDesignName, { color: colors.vjText }]} numberOfLines={1}>
+                {label.frontSide.designName.toUpperCase()}
+              </Text>
+              <View style={s.purityBadge}>
+                <Sparkles size={10} color="#D4AF37" />
+                <Text style={s.purityBadgeText}>{label.frontSide.purityDisplay}</Text>
+              </View>
+            </View>
+            <Text style={[s.overviewSku, { color: isDark ? 'rgba(255,255,255,0.65)' : 'rgba(92,22,35,0.65)' }]}>
+              SKU: <Text style={{ fontFamily: 'monospace', fontWeight: '800' }}>{label.backSide.skuDisplay}</Text> • Firm: {label.backSide.firmCode}
+            </Text>
+          </View>
+        </View>
+
         <Text style={{ fontSize: 13, fontWeight: '800', color: colors.vjText, opacity: 0.75, textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 12 }}>
           Dumbbell Tag Live Preview (50mm × 12mm)
         </Text>
         
-        <GlassCard style={{ padding: 16, marginBottom: 20 }}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#F8FAFC', borderRadius: 14, borderWidth: 1, borderColor: '#E2E8F0', padding: 10, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 2 }}>
+        <GlassCard style={{
+          padding: 16,
+          marginBottom: 20,
+          backgroundColor: isDark ? 'rgba(28, 20, 24, 0.96)' : 'rgba(252, 251, 248, 0.98)',
+          borderColor: isDark ? 'rgba(212, 175, 55, 0.22)' : 'rgba(212, 175, 55, 0.25)',
+        }}>
+          <View style={{
+            flexDirection: 'row',
+            alignItems: 'center',
+            backgroundColor: isDark ? 'rgba(18, 14, 16, 0.95)' : '#F8FAFC',
+            borderRadius: 14,
+            borderWidth: 1,
+            borderColor: isDark ? 'rgba(255,255,255,0.1)' : '#E2E8F0',
+            padding: 10,
+            shadowColor: '#000',
+            shadowOffset: { width: 0, height: 2 },
+            shadowOpacity: 0.08,
+            shadowRadius: 6,
+            elevation: 3,
+          }}>
             
             {/* LEFT WING (DETAILS: Purity after Design Name) */}
-            <View style={{ flex: 1, backgroundColor: '#FFFFFF', borderRadius: 10, borderWidth: 1, borderColor: '#CBD5E1', padding: 10, justifyContent: 'center' }}>
-              <Text style={{ fontSize: 13, fontWeight: '900', color: colors.vjText, marginBottom: 4 }} numberOfLines={1}>
+            <View style={{
+              flex: 1,
+              backgroundColor: '#FFFFFF',
+              borderRadius: 10,
+              borderWidth: 1,
+              borderColor: '#CBD5E1',
+              padding: 10,
+              justifyContent: 'center',
+            }}>
+              <Text style={{ fontSize: 13, fontWeight: '900', color: '#1E293B', marginBottom: 4 }} numberOfLines={1}>
                 {label.frontSide.designName.toUpperCase()}{' '}
                 <Text style={{ color: '#D4AF37' }}>{label.frontSide.purityDisplay}</Text>
               </Text>
               <Text style={{ fontSize: 11, fontWeight: '700', color: '#334155', marginBottom: 2 }}>
                 Gr.Wt : {label.frontSide.grossWeightDisplay}
               </Text>
-              <Text style={{ fontSize: 11, fontWeight: '800', color: colors.vjAccent }}>
+              <Text style={{ fontSize: 11, fontWeight: '800', color: '#B45309' }}>
                 Nt.Wt : {label.frontSide.netWeightDisplay}
               </Text>
             </View>
@@ -309,8 +372,17 @@ export default function BarcodePrintScreen() {
             </View>
 
             {/* RIGHT WING (BARCODE LOBE: 3 Lines) */}
-            <View style={{ flex: 1, backgroundColor: '#FFFFFF', borderRadius: 10, borderWidth: 1, borderColor: '#CBD5E1', padding: 10, alignItems: 'center', justifyContent: 'center' }}>
-              <Text style={{ fontSize: 11, fontWeight: '900', color: colors.vjText, marginBottom: 4 }}>{label.backSide.firmCode}</Text>
+            <View style={{
+              flex: 1,
+              backgroundColor: '#FFFFFF',
+              borderRadius: 10,
+              borderWidth: 1,
+              borderColor: '#CBD5E1',
+              padding: 10,
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}>
+              <Text style={{ fontSize: 11, fontWeight: '900', color: '#1E293B', marginBottom: 4 }}>{label.backSide.firmCode}</Text>
               <View style={{ marginBottom: 4, alignItems: 'center', justifyContent: 'center', backgroundColor: '#FFFFFF', padding: 2 }}>
                 <QRCode 
                   getRef={(c) => { qrRef.current = c; }}
@@ -321,16 +393,26 @@ export default function BarcodePrintScreen() {
                   quietZone={2}
                 />
               </View>
-              <Text style={{ fontSize: 12, fontWeight: '900', color: colors.vjText, fontFamily: 'monospace' }}>{label.backSide.skuDisplay}</Text>
+              <Text style={{ fontSize: 12, fontWeight: '900', color: '#1E293B', fontFamily: 'monospace' }}>{label.backSide.skuDisplay}</Text>
             </View>
 
           </View>
         </GlassCard>
 
         {/* Audit Notification Banner */}
-        <View style={{ backgroundColor: `${colors.vjAccent}10`, padding: 16, borderRadius: 14, borderWidth: 1, borderColor: `${colors.vjAccent}25`, marginBottom: 24, flexDirection: 'row', gap: 12, alignItems: 'flex-start' }}>
+        <View style={{
+          backgroundColor: isDark ? 'rgba(212, 175, 55, 0.12)' : `${colors.vjAccent}10`,
+          padding: 16,
+          borderRadius: 14,
+          borderWidth: 1,
+          borderColor: isDark ? 'rgba(212, 175, 55, 0.28)' : `${colors.vjAccent}25`,
+          marginBottom: 24,
+          flexDirection: 'row',
+          gap: 12,
+          alignItems: 'flex-start',
+        }}>
           <RefreshCcw size={18} color={colors.vjAccent} style={{ marginTop: 2 }} />
-          <Text style={{ flex: 1, fontSize: 13, color: colors.vjText, opacity: 0.8, lineHeight: 19 }}>
+          <Text style={{ flex: 1, fontSize: 13, color: colors.vjText, opacity: 0.85, lineHeight: 19 }}>
             Printing or saving this label will securely log a <Text style={{ fontWeight: '800' }}>BARCODE_REPRINTED</Text> event in the item's timeline for constitutional audit compliance.
           </Text>
         </View>
@@ -338,7 +420,13 @@ export default function BarcodePrintScreen() {
         {/* ACTION BUTTONS DOCK */}
         <View style={s.actionRow}>
           <TouchableOpacity
-            style={[s.shareBtn, { borderColor: `${colors.vjAccent}35` }]}
+            style={[
+              s.shareBtn,
+              {
+                backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : '#FFFFFF',
+                borderColor: isDark ? 'rgba(212, 175, 55, 0.3)' : `${colors.vjAccent}35`,
+              }
+            ]}
             onPress={handleSaveToDevice}
             disabled={isProcessing}
             activeOpacity={0.75}
@@ -368,12 +456,20 @@ export default function BarcodePrintScreen() {
 
       <Modal visible={!!successMessage} transparent animationType="fade">
         <View style={s.modalOverlayCenter}>
-          <View style={[s.successModalContent, { backgroundColor: colors.vjBg }]}>
+          <View style={[
+            s.successModalContent,
+            {
+              backgroundColor: isDark ? '#23181C' : colors.vjBg,
+              borderColor: isDark ? 'rgba(212, 175, 55, 0.25)' : 'rgba(255,255,255,0.5)',
+            }
+          ]}>
             <View style={s.successIconContainer}>
               <CheckCircle size={56} color="#10B981" />
             </View>
             <Text style={[s.successTitle, { color: colors.vjText }]}>Success!</Text>
-            <Text style={s.successSubtitle}>{successMessage}</Text>
+            <Text style={[s.successSubtitle, { color: isDark ? 'rgba(255,255,255,0.65)' : 'rgba(92,22,35,0.6)' }]}>
+              {successMessage}
+            </Text>
             <View style={{ width: '100%', marginTop: 16 }}>
               <GlassButton 
                 title="Done" 
@@ -391,6 +487,40 @@ export default function BarcodePrintScreen() {
 }
 
 const s = StyleSheet.create({
+  overviewCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    padding: 14,
+    borderRadius: 16,
+    borderWidth: 1,
+    marginBottom: 16,
+  },
+  overviewDesignName: {
+    fontSize: 15,
+    fontWeight: '800',
+    flex: 1,
+  },
+  overviewSku: {
+    fontSize: 12,
+    marginTop: 3,
+  },
+  purityBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: 'rgba(212, 175, 55, 0.15)',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: 'rgba(212, 175, 55, 0.3)',
+  },
+  purityBadgeText: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#D4AF37',
+  },
   actionRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -472,7 +602,6 @@ const s = StyleSheet.create({
   },
   successSubtitle: {
     fontSize: 14,
-    color: 'rgba(92,22,35,0.6)',
     textAlign: 'center',
     marginBottom: 24,
   },

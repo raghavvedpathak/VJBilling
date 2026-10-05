@@ -210,12 +210,15 @@ const CATEGORY_RULES: { keywords: string[]; Component: React.FC<JewelryIconProps
 // ======== ALTERNATIVE 1: LUXURY MONOGRAM EMBLEM SYSTEM ========
 
 /**
- * Extracts a high-end 2-letter luxury monogram from any category or design name.
- * Handles English, Marathi/Hindi, single words, and multi-word jewelry names.
+ * Extracts a high-end 2-letter luxury monogram directly from the actual initials of the text.
+ * Pure dynamic initials — zero hardcoded presets or dictionaries.
+ * - Multi-word (e.g. "Gold Ring", "Kundan Tikka", "Baby Nazariya") -> 1st letter of 1st word + 1st letter of 2nd word ("GR", "KT", "BN")
+ * - Single-word (e.g. "Rings", "Bangles", "Chain", "Dokiya") -> First 2 letters ("RI", "BA", "CH", "DO")
  */
 export function extractJewelryMonogram(name?: string): string {
   if (!name || !name.trim()) return 'VJ';
 
+  // Clean string: remove non-alphanumeric except spaces and Indian unicode scripts
   const cleaned = name.trim().replace(/[^a-zA-Z0-9\s\u0900-\u097F]/g, '');
   const words = cleaned.split(/\s+/).filter(Boolean);
 
@@ -226,60 +229,11 @@ export function extractJewelryMonogram(name?: string): string {
   }
 
   const singleWord = words[0] || '';
-  if (singleWord.length === 1) {
+  if (singleWord.length <= 2) {
     return singleWord.toUpperCase();
   }
 
-  // Common jewelry dictionary for single-word categories
-  const lower = singleWord.toLowerCase();
-  const knownInitials: Record<string, string> = {
-    ring: 'RG',
-    rings: 'RG',
-    bangle: 'BG',
-    bangles: 'BG',
-    kada: 'KD',
-    kadas: 'KD',
-    kangan: 'KG',
-    kangans: 'KG',
-    necklace: 'NK',
-    necklaces: 'NK',
-    choker: 'CK',
-    chokers: 'CK',
-    mangalsutra: 'MS',
-    chain: 'CH',
-    chains: 'CH',
-    earring: 'ER',
-    earrings: 'ER',
-    jhumka: 'JK',
-    jhumki: 'JK',
-    tops: 'TP',
-    bali: 'BL',
-    payal: 'PY',
-    anklet: 'AK',
-    anklets: 'AK',
-    bichhiya: 'BC',
-    nath: 'NT',
-    coin: 'CN',
-    coins: 'CN',
-    vedhani: 'VD',
-    biscuit: 'BS',
-    bar: 'BR',
-    utensil: 'UT',
-    utensils: 'UT',
-    diya: 'DY',
-    kalash: 'KL',
-    murti: 'MR',
-    idol: 'ID',
-    gem: 'GM',
-    stone: 'ST',
-    diamond: 'DM',
-    loose: 'LS',
-  };
-
-  if (knownInitials[lower]) {
-    return knownInitials[lower];
-  }
-
+  // Pure dynamic initials: take first 2 letters
   return singleWord.slice(0, 2).toUpperCase();
 }
 
@@ -405,9 +359,7 @@ function findHighConfidenceSvg(
 
 /**
  * Canonical entry point for jewelry icons/monograms across Stock Ledger and Category Items.
- * ALTERNATIVE 3: SMART HYBRID
- * - High-confidence match for standard categories -> returns polished vector SVG Icon.
- * - Custom, regional, or unmapped jewelry names -> returns Luxury Monogram Emblem (zero mismatch).
+ * Returns the luxury 2-letter monogram emblem using pure dynamic initials with zero preset dependencies.
  */
 export function getJewelryCategoryIcon(
   categoryName?: string,
@@ -418,19 +370,7 @@ export function getJewelryCategoryIcon(
 ) {
   const nameToUse = designName || categoryName || '';
   const resolvedMetal = detectMetalFromName(nameToUse, metal);
-  const isSilver = resolvedMetal === 'SILVER';
-  const iconColor = isSilver ? '#94A3B8' : (color || '#D4AF37');
 
-  // 1. Try high-confidence SVG match
-  const SvgComponent = findHighConfidenceSvg(`${categoryName || ''} ${designName || ''}`);
-
-  if (SvgComponent) {
-    // Render the precision matched SVG icon sized nicely inside badge
-    const svgSize = Math.min(size, 26);
-    return <SvgComponent size={svgSize} color={iconColor} />;
-  }
-
-  // 2. Fallback to Luxury 2-Letter Monogram Emblem (never guesses wrong, bespoke luxury styling)
   return (
     <JewelryMonogramEmblem
       categoryName={categoryName}

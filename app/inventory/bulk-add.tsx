@@ -3,7 +3,7 @@
 // FIX-EFFPRICE-GATE-1 (v2.01), FIX-SILVER-PURITY-1 (v1.46), and React.memo row performance
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { View, Text, Alert, Modal, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
+import { View, Text, Alert, Modal, TouchableOpacity, StyleSheet, ActivityIndicator, useWindowDimensions } from 'react-native';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import { useRouter, useFocusEffect } from 'expo-router';
 import * as Haptics from 'expo-haptics';
@@ -12,6 +12,7 @@ import { TwoToneWrapper } from '@/components/common/TwoToneWrapper';
 import { GlassCard, GlassInput, GlassButton, GlassPickerInput, FixedGlassBar, fixedBarStyles } from '@/components/ui/Glass';
 import { GlassPickerModal, GlassPickerOption } from '@/components/ui/GlassPickerModal';
 import { GlassDatePickerModal } from '@/components/ui/GlassDatePickerModal';
+import { JewelryMonogramEmblem } from '@/utils/jewelryIcons';
 import { useFirmStore } from '@/store/phase1/useFirmStore';
 import { useMastersSyncStore } from '@/store/phase2/mastersSyncStore';
 import { appSettingsStore } from '@/store/phase1/appSettingsStore';
@@ -70,10 +71,11 @@ interface BulkItemRowProps {
   stones: Stone[];
   metal: Metal;
   colors: ReturnType<typeof getThemeColors>;
+  isDark: boolean;
   openPickerModal: (config: any) => void;
 }
 
-const BulkItemRow = React.memo(({ index, row, updateRow, removeRow, stones, metal, colors, openPickerModal }: BulkItemRowProps) => {
+const BulkItemRow = React.memo(({ index, row, updateRow, removeRow, stones, metal, colors, isDark, openPickerModal }: BulkItemRowProps) => {
   const computedKarat = useMemo(() => {
     if (metal === 'SILVER') return '';
     return formatKaratBadge(row.purityPercent, metal || 'GOLD') || '';
@@ -137,13 +139,21 @@ const BulkItemRow = React.memo(({ index, row, updateRow, removeRow, stones, meta
     };
   }, [row.grossWeight, row.stoneWeight, row.beadsWeight, row.purityPercent, row.wastagePercent, row.purchaseRate, row.makingCharge, row.stoneCost, metal]);
 
+  const isGold = metal === 'GOLD';
+
   return (
-    <View style={{ zIndex: 1000 - index }}>
+    <View style={{ zIndex: 1000 - index, marginBottom: 16 }}>
       <GlassCard>
         <View style={s.rowHeader}>
-          <Text style={s.rowTitle}>Item #{index + 1}</Text>
+          <View style={[s.rowBadge, { backgroundColor: isDark ? 'rgba(212, 175, 55, 0.20)' : 'rgba(212, 175, 55, 0.15)', borderColor: isDark ? 'rgba(212, 175, 55, 0.40)' : 'rgba(212, 175, 55, 0.35)' }]}>
+            <Text style={[s.rowTitle, { color: isDark ? '#FDE68A' : '#92400E' }]}>Item #{index + 1}</Text>
+          </View>
           {index > 0 && (
-            <TouchableOpacity onPress={() => removeRow(index)}>
+            <TouchableOpacity 
+              onPress={() => removeRow(index)}
+              style={s.trashBtn}
+              activeOpacity={0.7}
+            >
               <Trash2 size={18} color="#EF4444" />
             </TouchableOpacity>
           )}
@@ -152,26 +162,32 @@ const BulkItemRow = React.memo(({ index, row, updateRow, removeRow, stones, meta
         <View style={s.inputGrid}>
           <View style={s.inputCol}>
             <GlassInput 
-              label="Gross (g)*" 
+              label="Gross *" 
+              placeholder="0.000"
               value={row.grossWeight} 
               onChangeText={(t: string) => updateRow(index, 'grossWeight', t)} 
               keyboardType="decimal-pad" 
+              unit="g"
             />
           </View>
           <View style={s.inputCol}>
             <GlassInput 
-              label="Stone (g)" 
+              label="Stone" 
+              placeholder="0.000"
               value={row.stoneWeight} 
               onChangeText={(t: string) => updateRow(index, 'stoneWeight', t)} 
               keyboardType="decimal-pad" 
+              unit="g"
             />
           </View>
           <View style={s.inputCol}>
             <GlassInput 
-              label="Beads (g)" 
+              label="Beads" 
+              placeholder="0.000"
               value={row.beadsWeight} 
               onChangeText={(t: string) => updateRow(index, 'beadsWeight', t)} 
               keyboardType="decimal-pad" 
+              unit="g"
             />
           </View>
         </View>
@@ -181,8 +197,8 @@ const BulkItemRow = React.memo(({ index, row, updateRow, removeRow, stones, meta
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
               <Text style={{ fontSize: 12, fontWeight: '700', color: `${colors.vjText}99`, textTransform: 'uppercase', marginLeft: 4 }}>Purity %*</Text>
               {computedKarat && computedKarat !== 'SILVER' ? (
-                <View style={{ backgroundColor: 'rgba(212,175,55,0.2)', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 }}>
-                  <Text style={{ fontSize: 11, fontWeight: '800', color: '#D4AF37' }}>{computedKarat}</Text>
+                <View style={{ backgroundColor: isDark ? 'rgba(212,175,55,0.25)' : 'rgba(212,175,55,0.2)', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6, borderWidth: 1, borderColor: isDark ? 'rgba(212,175,55,0.40)' : 'transparent' }}>
+                  <Text style={{ fontSize: 11, fontWeight: '800', color: isDark ? '#FDE68A' : '#D4AF37' }}>{computedKarat}</Text>
                 </View>
               ) : null}
             </View>
@@ -191,18 +207,22 @@ const BulkItemRow = React.memo(({ index, row, updateRow, removeRow, stones, meta
               value={row.purityPercent} 
               onChangeText={(t: string) => updateRow(index, 'purityPercent', t)} 
               keyboardType="decimal-pad" 
+              unit="%"
             />
           </View>
           <View style={s.inputCol}>
             <GlassInput 
-              label="Wastage %" 
+              label="Wastage" 
+              placeholder="0.00"
               value={row.wastagePercent} 
               onChangeText={(t: string) => updateRow(index, 'wastagePercent', t)} 
               keyboardType="decimal-pad" 
+              unit="%"
             />
           </View>
         </View>
 
+        {/* Quick Purity Preset Chips */}
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 12 }}>
           {getPurityPresets(metal || 'GOLD').map((preset) => {
             const isSelected = isPresetMatchingPurity(row.purityPercent, preset.val);
@@ -213,17 +233,27 @@ const BulkItemRow = React.memo(({ index, row, updateRow, removeRow, stones, meta
                   try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
                   updateRow(index, 'purityPercent', preset.val);
                 }}
+                activeOpacity={0.75}
                 style={{
-                  backgroundColor: isSelected ? '#D4AF37' : 'rgba(212,175,55,0.12)',
-                  paddingHorizontal: 8,
-                  paddingVertical: 4,
-                  borderRadius: 6,
+                  backgroundColor: isSelected 
+                    ? (isGold ? '#D4AF37' : '#94A3B8') 
+                    : (isDark ? 'rgba(255, 255, 255, 0.08)' : (isGold ? 'rgba(212, 175, 55, 0.12)' : 'rgba(148, 163, 184, 0.15)')),
+                  borderColor: isSelected 
+                    ? (isGold ? '#FFE87C' : '#F1F5F9') 
+                    : (isDark ? 'rgba(212, 175, 55, 0.30)' : (isGold ? 'rgba(212, 175, 55, 0.35)' : 'rgba(148, 163, 184, 0.35)')),
+                  borderWidth: 1.2,
+                  paddingHorizontal: 9,
+                  paddingVertical: 4.5,
+                  borderRadius: 7,
                 }}
               >
                 <Text style={{
                   fontSize: 11,
-                  fontWeight: '700',
-                  color: isSelected ? '#FFF' : colors.vjText,
+                  fontWeight: '800',
+                  color: isSelected 
+                    ? (isGold ? '#FFFFFF' : '#0F172A') 
+                    : (isDark ? '#E5E7EB' : colors.vjText),
+                  letterSpacing: 0.3,
                 }}>
                   {preset.label}
                 </Text>
@@ -235,26 +265,32 @@ const BulkItemRow = React.memo(({ index, row, updateRow, removeRow, stones, meta
         <View style={s.inputGrid}>
           <View style={s.inputCol}>
             <GlassInput 
-              label={`Rate (${getCurrencySymbol()})`} 
+              label="Purchase Rate" 
+              placeholder="0.00"
               value={row.purchaseRate} 
               onChangeText={(t: string) => updateRow(index, 'purchaseRate', t)} 
               keyboardType="decimal-pad" 
+              unit={`${getCurrencySymbol()}/g`}
             />
           </View>
           <View style={s.inputCol}>
             <GlassInput 
-              label={`Making (${getCurrencySymbol()})`} 
+              label="Making Charge" 
+              placeholder="0.00"
               value={row.makingCharge} 
               onChangeText={(t: string) => updateRow(index, 'makingCharge', t)} 
               keyboardType="decimal-pad" 
+              unit={getCurrencySymbol()}
             />
           </View>
           <View style={s.inputCol}>
             <GlassInput 
-              label={`Stn Cost (${getCurrencySymbol()})`} 
+              label="Stone Cost" 
+              placeholder="0.00"
               value={row.stoneCost} 
               onChangeText={(t: string) => updateRow(index, 'stoneCost', t)} 
               keyboardType="decimal-pad" 
+              unit={getCurrencySymbol()}
             />
           </View>
         </View>
@@ -263,7 +299,7 @@ const BulkItemRow = React.memo(({ index, row, updateRow, removeRow, stones, meta
           <View style={s.inputCol}>
             <GlassInput 
               label="Location" 
-              placeholder="Tray / Location" 
+              placeholder="Tray / Counter" 
               value={row.location} 
               onChangeText={(t: string) => updateRow(index, 'location', t)} 
               autoCapitalize="characters" 
@@ -272,7 +308,7 @@ const BulkItemRow = React.memo(({ index, row, updateRow, removeRow, stones, meta
           <View style={s.inputCol}>
             <GlassInput 
               label="Size Value" 
-              placeholder="e.g. 18"
+              placeholder="e.g. 18" 
               value={row.sizeValue} 
               onChangeText={(t: string) => updateRow(index, 'sizeValue', t)} 
               keyboardType="decimal-pad" 
@@ -340,94 +376,102 @@ const BulkItemRow = React.memo(({ index, row, updateRow, removeRow, stones, meta
         </View>
 
         {calculations.isValid && (
-          <View style={{ marginBottom: 8, marginTop: 14, zIndex: 10 }}>
-            <GlassCard style={{ backgroundColor: 'rgba(252,251,248, 0.98)', borderColor: '#D4AF37', borderWidth: 1.5, padding: 16 }}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12, paddingBottom: 10, borderBottomWidth: 1, borderBottomColor: 'rgba(0,0,0,0.05)' }}>
+          <View style={{ marginBottom: 4, marginTop: 14, zIndex: 10 }}>
+            <GlassCard 
+              style={{ 
+                backgroundColor: isDark ? 'rgba(28, 20, 24, 0.96)' : 'rgba(252, 251, 248, 0.98)', 
+                borderColor: isDark ? 'rgba(212, 175, 55, 0.45)' : '#D4AF37', 
+                borderWidth: 1.5, 
+                padding: 16,
+                borderRadius: 20,
+              }}
+            >
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12, paddingBottom: 10, borderBottomWidth: 1, borderBottomColor: isDark ? 'rgba(255, 255, 255, 0.10)' : 'rgba(0, 0, 0, 0.06)' }}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                  <View style={{ width: 28, height: 28, borderRadius: 8, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(245, 158, 11, 0.15)', borderWidth: 1, borderColor: 'rgba(245, 158, 11, 0.3)' }}>
-                    <Calculator size={16} color="#D4AF37" />
+                  <View style={{ width: 28, height: 28, borderRadius: 8, alignItems: 'center', justifyContent: 'center', backgroundColor: isDark ? 'rgba(212, 175, 55, 0.20)' : 'rgba(245, 158, 11, 0.15)', borderWidth: 1, borderColor: 'rgba(212, 175, 55, 0.35)' }}>
+                    <Calculator size={16} color={isDark ? '#FDE68A' : '#D4AF37'} />
                   </View>
                   <View>
-                    <Text style={{ fontSize: 12, fontWeight: '900', textTransform: 'uppercase', letterSpacing: 0.8, color: colors.vjAccent }}>Live Cost Breakdown</Text>
-                    <Text style={{ fontSize: 10, color: `${colors.vjText}80`, fontWeight: '600' }}>Real-Time Inventory Accounting</Text>
+                    <Text style={{ fontSize: 12, fontWeight: '900', textTransform: 'uppercase', letterSpacing: 0.8, color: isDark ? '#FDE68A' : colors.vjAccent }}>Live Cost Breakdown</Text>
+                    <Text style={{ fontSize: 10, color: isDark ? 'rgba(255, 255, 255, 0.55)' : `${colors.vjText}80`, fontWeight: '600' }}>Real-Time Inventory Accounting</Text>
                   </View>
                 </View>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 999, backgroundColor: 'rgba(16, 185, 129, 0.1)', borderWidth: 1, borderColor: 'rgba(16, 185, 129, 0.2)' }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 999, backgroundColor: isDark ? 'rgba(16, 185, 129, 0.20)' : 'rgba(16, 185, 129, 0.1)', borderWidth: 1, borderColor: 'rgba(16, 185, 129, 0.3)' }}>
                   <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: '#10B981' }} />
-                  <Text style={{ fontSize: 9, fontWeight: '900', color: '#047857', letterSpacing: 0.8 }}>LIVE</Text>
+                  <Text style={{ fontSize: 9, fontWeight: '900', color: isDark ? '#34D399' : '#047857', letterSpacing: 0.8 }}>LIVE</Text>
                 </View>
               </View>
 
               <View style={{ flexDirection: 'row', gap: 10, marginBottom: 12 }}>
-                <View style={{ flex: 1, padding: 10, borderRadius: 12, backgroundColor: 'rgba(0,0,0,0.02)', borderWidth: 1, borderColor: 'rgba(0,0,0,0.05)' }}>
-                  <Text style={{ fontSize: 10, fontWeight: '700', color: `${colors.vjText}80`, textTransform: 'uppercase', letterSpacing: 0.5 }}>Net Weight</Text>
-                  <Text style={{ fontSize: 16, fontWeight: '900', color: colors.vjText, fontFamily: 'monospace', marginTop: 2 }}>{calculations.netWeight.toFixed(3)} g</Text>
-                  <Text style={{ fontSize: 9, color: `${colors.vjText}90`, fontWeight: '600', marginTop: 2 }} numberOfLines={1}>
+                <View style={{ flex: 1, padding: 10, borderRadius: 12, backgroundColor: isDark ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0,0,0,0.02)', borderWidth: 1, borderColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0,0,0,0.05)' }}>
+                  <Text style={{ fontSize: 10, fontWeight: '700', color: isDark ? 'rgba(255, 255, 255, 0.60)' : `${colors.vjText}80`, textTransform: 'uppercase', letterSpacing: 0.5 }}>Net Weight</Text>
+                  <Text style={{ fontSize: 16, fontWeight: '900', color: isDark ? '#FFFFFF' : colors.vjText, fontFamily: 'monospace', marginTop: 2 }}>{calculations.netWeight.toFixed(3)} g</Text>
+                  <Text style={{ fontSize: 9, color: isDark ? 'rgba(255, 255, 255, 0.70)' : `${colors.vjText}90`, fontWeight: '600', marginTop: 2 }} numberOfLines={1}>
                     {calculations.weightBreakdown}
                   </Text>
                 </View>
 
-                <View style={{ flex: 1, padding: 10, borderRadius: 12, backgroundColor: 'rgba(0,0,0,0.02)', borderWidth: 1, borderColor: 'rgba(0,0,0,0.05)' }}>
+                <View style={{ flex: 1, padding: 10, borderRadius: 12, backgroundColor: isDark ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0,0,0,0.02)', borderWidth: 1, borderColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0,0,0,0.05)' }}>
                   <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <Text style={{ fontSize: 10, fontWeight: '700', color: `${colors.vjText}80`, textTransform: 'uppercase', letterSpacing: 0.5 }}>Total Touch</Text>
-                    <Text style={{ fontSize: 12, fontWeight: '900', color: colors.vjAccent, fontFamily: 'monospace' }}>{calculations.totalTouch.toFixed(2)}%</Text>
+                    <Text style={{ fontSize: 10, fontWeight: '700', color: isDark ? 'rgba(255, 255, 255, 0.60)' : `${colors.vjText}80`, textTransform: 'uppercase', letterSpacing: 0.5 }}>Total Touch</Text>
+                    <Text style={{ fontSize: 12, fontWeight: '900', color: isDark ? '#FDE68A' : colors.vjAccent, fontFamily: 'monospace' }}>{calculations.totalTouch.toFixed(2)}%</Text>
                   </View>
-                  <View style={{ marginTop: 4, backgroundColor: `${colors.vjAccent}15`, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4, alignSelf: 'flex-start' }}>
-                    <Text style={{ fontSize: 9, fontWeight: '900', color: colors.vjAccent, fontFamily: 'monospace' }}>
+                  <View style={{ marginTop: 4, backgroundColor: isDark ? 'rgba(212, 175, 55, 0.20)' : `${colors.vjAccent}15`, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4, alignSelf: 'flex-start' }}>
+                    <Text style={{ fontSize: 9, fontWeight: '900', color: isDark ? '#FDE68A' : colors.vjAccent, fontFamily: 'monospace' }}>
                       {calculations.purityRaw}% Purity + {calculations.wastageRaw}% Wastage
                     </Text>
                   </View>
                 </View>
               </View>
 
-              <View style={{ marginBottom: 12, padding: 12, borderRadius: 16, backgroundColor: 'rgba(0,0,0,0.02)', borderWidth: 1, borderColor: 'rgba(0,0,0,0.05)' }}>
-                <Text style={{ fontSize: 10, fontWeight: '900', textTransform: 'uppercase', letterSpacing: 0.8, color: `${colors.vjText}99`, marginBottom: 8 }}>
+              <View style={{ marginBottom: 12, padding: 12, borderRadius: 16, backgroundColor: isDark ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0,0,0,0.02)', borderWidth: 1, borderColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0,0,0,0.05)' }}>
+                <Text style={{ fontSize: 10, fontWeight: '900', textTransform: 'uppercase', letterSpacing: 0.8, color: isDark ? 'rgba(255, 255, 255, 0.75)' : `${colors.vjText}99`, marginBottom: 8 }}>
                   Fine Metal Accounting ({metal || 'GOLD'})
                 </Text>
                 
                 <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 4 }}>
-                  <View style={{ flex: 1, padding: 8, borderRadius: 12, backgroundColor: 'rgba(16, 185, 129, 0.1)', borderWidth: 1, borderColor: 'rgba(16, 185, 129, 0.2)', alignItems: 'center' }}>
-                    <Text style={{ fontSize: 9, fontWeight: '900', color: '#047857', textTransform: 'uppercase' }}>Vault Fine</Text>
-                    <Text style={{ fontSize: 12, fontWeight: '900', color: '#047857', fontFamily: 'monospace', marginTop: 2 }}>{calculations.vaultTruth.toFixed(3)} g</Text>
-                    <Text style={{ fontSize: 8, fontWeight: '600', color: 'rgba(4, 120, 87, 0.7)', marginTop: 2 }}>Physical</Text>
+                  <View style={{ flex: 1, padding: 8, borderRadius: 12, backgroundColor: isDark ? 'rgba(16, 185, 129, 0.18)' : 'rgba(16, 185, 129, 0.1)', borderWidth: 1, borderColor: 'rgba(16, 185, 129, 0.25)', alignItems: 'center' }}>
+                    <Text style={{ fontSize: 9, fontWeight: '900', color: isDark ? '#34D399' : '#047857', textTransform: 'uppercase' }}>Vault Fine</Text>
+                    <Text style={{ fontSize: 12, fontWeight: '900', color: isDark ? '#34D399' : '#047857', fontFamily: 'monospace', marginTop: 2 }}>{calculations.vaultTruth.toFixed(3)} g</Text>
+                    <Text style={{ fontSize: 8, fontWeight: '600', color: isDark ? '#6EE7B7' : 'rgba(4, 120, 87, 0.7)', marginTop: 2 }}>Physical</Text>
                   </View>
 
-                  <Text style={{ fontSize: 12, fontWeight: '900', color: `${colors.vjText}60` }}>+</Text>
+                  <Text style={{ fontSize: 12, fontWeight: '900', color: isDark ? 'rgba(255, 255, 255, 0.50)' : `${colors.vjText}60` }}>+</Text>
 
-                  <View style={{ flex: 1, padding: 8, borderRadius: 12, backgroundColor: 'rgba(239, 68, 68, 0.1)', borderWidth: 1, borderColor: 'rgba(239, 68, 68, 0.2)', alignItems: 'center' }}>
-                    <Text style={{ fontSize: 9, fontWeight: '900', color: '#B91C1C', textTransform: 'uppercase' }}>Wastage</Text>
-                    <Text style={{ fontSize: 12, fontWeight: '900', color: '#B91C1C', fontFamily: 'monospace', marginTop: 2 }}>{calculations.wastageMetal.toFixed(3)} g</Text>
-                    <Text style={{ fontSize: 8, fontWeight: '600', color: 'rgba(185, 28, 28, 0.7)', marginTop: 2 }}>Supplier</Text>
+                  <View style={{ flex: 1, padding: 8, borderRadius: 12, backgroundColor: isDark ? 'rgba(239, 68, 68, 0.18)' : 'rgba(239, 68, 68, 0.1)', borderWidth: 1, borderColor: 'rgba(239, 68, 68, 0.25)', alignItems: 'center' }}>
+                    <Text style={{ fontSize: 9, fontWeight: '900', color: isDark ? '#F87171' : '#B91C1C', textTransform: 'uppercase' }}>Wastage</Text>
+                    <Text style={{ fontSize: 12, fontWeight: '900', color: isDark ? '#F87171' : '#B91C1C', fontFamily: 'monospace', marginTop: 2 }}>{calculations.wastageMetal.toFixed(3)} g</Text>
+                    <Text style={{ fontSize: 8, fontWeight: '600', color: isDark ? '#FCA5A5' : 'rgba(185, 28, 28, 0.7)', marginTop: 2 }}>Supplier</Text>
                   </View>
 
-                  <Text style={{ fontSize: 12, fontWeight: '900', color: `${colors.vjText}60` }}>=</Text>
+                  <Text style={{ fontSize: 12, fontWeight: '900', color: isDark ? 'rgba(255, 255, 255, 0.50)' : `${colors.vjText}60` }}>=</Text>
 
-                  <View style={{ flex: 1, padding: 8, borderRadius: 12, backgroundColor: 'rgba(212, 175, 55, 0.15)', borderWidth: 1, borderColor: 'rgba(212, 175, 55, 0.3)', alignItems: 'center' }}>
-                    <Text style={{ fontSize: 9, fontWeight: '900', color: '#92400E', textTransform: 'uppercase' }}>Billed Fine</Text>
-                    <Text style={{ fontSize: 12, fontWeight: '900', color: '#92400E', fontFamily: 'monospace', marginTop: 2 }}>{calculations.costTruth.toFixed(3)} g</Text>
-                    <Text style={{ fontSize: 8, fontWeight: '600', color: 'rgba(146, 64, 14, 0.7)', marginTop: 2 }}>Cost Truth</Text>
+                  <View style={{ flex: 1, padding: 8, borderRadius: 12, backgroundColor: isDark ? 'rgba(212, 175, 55, 0.20)' : 'rgba(212, 175, 55, 0.15)', borderWidth: 1, borderColor: 'rgba(212, 175, 55, 0.35)', alignItems: 'center' }}>
+                    <Text style={{ fontSize: 9, fontWeight: '900', color: isDark ? '#FDE68A' : '#92400E', textTransform: 'uppercase' }}>Billed Fine</Text>
+                    <Text style={{ fontSize: 12, fontWeight: '900', color: isDark ? '#FDE68A' : '#92400E', fontFamily: 'monospace', marginTop: 2 }}>{calculations.costTruth.toFixed(3)} g</Text>
+                    <Text style={{ fontSize: 8, fontWeight: '600', color: isDark ? '#FDE68A' : 'rgba(146, 64, 14, 0.7)', marginTop: 2 }}>Cost Truth</Text>
                   </View>
                 </View>
               </View>
 
               {calculations.hasCostData && (
-                <View style={{ padding: 12, borderRadius: 16, backgroundColor: 'rgba(212, 175, 55, 0.1)', borderWidth: 1, borderColor: 'rgba(212, 175, 55, 0.3)' }}>
+                <View style={{ padding: 12, borderRadius: 16, backgroundColor: isDark ? 'rgba(212, 175, 55, 0.15)' : 'rgba(212, 175, 55, 0.1)', borderWidth: 1, borderColor: isDark ? 'rgba(212, 175, 55, 0.35)' : 'rgba(212, 175, 55, 0.3)' }}>
                   {calculations.hasRateData && (
-                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingBottom: 6, borderBottomWidth: 1, borderBottomColor: 'rgba(212, 175, 55, 0.15)' }}>
-                      <Text style={{ fontSize: 11, color: `${colors.vjText}B0`, fontWeight: '700' }}>Effective Price / g:</Text>
-                      <Text style={{ fontSize: 12, fontWeight: '900', color: colors.vjText, fontFamily: 'monospace' }}>
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingBottom: 6, borderBottomWidth: 1, borderBottomColor: isDark ? 'rgba(212, 175, 55, 0.25)' : 'rgba(212, 175, 55, 0.15)' }}>
+                      <Text style={{ fontSize: 11, color: isDark ? 'rgba(255, 255, 255, 0.75)' : `${colors.vjText}B0`, fontWeight: '700' }}>Effective Price / g:</Text>
+                      <Text style={{ fontSize: 12, fontWeight: '900', color: isDark ? '#FFFFFF' : colors.vjText, fontFamily: 'monospace' }}>
                         {getCurrencySymbol()} {calculations.pricePerGram.toLocaleString('en-IN', { maximumFractionDigits: 2 })}
                       </Text>
                     </View>
                   )}
                   <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingTop: 8 }}>
                     <View style={{ flex: 1, paddingRight: 8 }}>
-                      <Text style={{ fontSize: 12, fontWeight: '900', color: colors.vjText, textTransform: 'uppercase', letterSpacing: 0.5 }}>EST. Total</Text>
-                      <Text style={{ fontSize: 10, color: `${colors.vjText}99`, fontWeight: '600', marginTop: 2 }}>
+                      <Text style={{ fontSize: 12, fontWeight: '900', color: isDark ? '#FFFFFF' : colors.vjText, textTransform: 'uppercase', letterSpacing: 0.5 }}>EST. Total</Text>
+                      <Text style={{ fontSize: 10, color: isDark ? 'rgba(255, 255, 255, 0.65)' : `${colors.vjText}99`, fontWeight: '600', marginTop: 2 }}>
                         {calculations.financialBreakdown}
                       </Text>
                     </View>
-                    <Text style={{ fontSize: 18, fontWeight: '900', fontFamily: 'monospace', color: '#92400E' }}>
+                    <Text style={{ fontSize: 18, fontWeight: '900', fontFamily: 'monospace', color: isDark ? '#FDE68A' : '#92400E' }}>
                       {getCurrencySymbol()} {calculations.totalAmount.toLocaleString('en-IN', { maximumFractionDigits: 2 })}
                     </Text>
                   </View>
@@ -443,9 +487,13 @@ const BulkItemRow = React.memo(({ index, row, updateRow, removeRow, stones, meta
 
 export default function BulkAddScreen() {
   const router = useRouter();
+  const { width, height } = useWindowDimensions();
+  const isTablet = width >= 768 || Math.min(width, height) >= 600;
+
   const { activeFirmId } = useFirmStore();
   const activeTheme = appSettingsStore((s: any) => s.theme);
   const colors = getThemeColors(activeTheme);
+  const isDark = activeTheme === 'dark';
 
   const [designs, setDesigns] = useState<Design[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -699,7 +747,7 @@ export default function BulkAddScreen() {
 
   return (
     <TwoToneWrapper title="Bulk Add Stock" showBack>
-      <View style={{ flex: 1 }}>
+      <View style={[{ flex: 1 }, isTablet && { maxWidth: 740, alignSelf: 'center', width: '100%' }]}>
         <KeyboardAwareScrollView 
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
@@ -708,7 +756,7 @@ export default function BulkAddScreen() {
           enableAutomaticScroll={true}
           extraScrollHeight={120}
           extraHeight={140}
-          contentContainerStyle={{ paddingBottom: 190 }}
+          contentContainerStyle={{ paddingBottom: 190, paddingTop: 10 }}
         >
           <View style={{ zIndex: 2000 }}>
             <GlassCard style={{ marginBottom: 16 }}>
@@ -734,12 +782,12 @@ export default function BulkAddScreen() {
               </View>
 
               <View style={{ marginBottom: 16 }}>
-                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
                   <Text style={{ fontSize: 12, fontWeight: '700', color: `${colors.vjText}99`, textTransform: 'uppercase' }}>Design *</Text>
                   {designStock && designStock.count > 0 && (
-                    <View style={{ backgroundColor: 'rgba(16, 185, 129, 0.15)', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 12, borderWidth: 1, borderColor: 'rgba(16, 185, 129, 0.3)' }}>
-                      <Text style={{ fontSize: 10, fontWeight: '800', color: '#047857' }}>
-                        STOCK: {designStock.count} ({ (designStock.totalNetWeightMg / 1000).toFixed(3) } g)
+                    <View style={{ backgroundColor: isDark ? 'rgba(16, 185, 129, 0.20)' : 'rgba(16, 185, 129, 0.15)', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 12, borderWidth: 1, borderColor: 'rgba(16, 185, 129, 0.3)' }}>
+                      <Text style={{ fontSize: 10, fontWeight: '800', color: isDark ? '#34D399' : '#047857' }}>
+                        VAULT STOCK: {designStock.count} ({ (designStock.totalNetWeightMg / 1000).toFixed(3) } g)
                       </Text>
                     </View>
                   )}
@@ -748,6 +796,13 @@ export default function BulkAddScreen() {
                   placeholder="Search & select design..."
                   selectedLabel={selectedDesign?.name}
                   selectedSublabel={selectedDesign?.metal ? `Metal: ${selectedDesign.metal}` : undefined}
+                  icon={selectedDesign ? (
+                    <JewelryMonogramEmblem 
+                      designName={selectedDesign.name} 
+                      metal={selectedDesign.metal} 
+                      size={28} 
+                    />
+                  ) : undefined}
                   onPress={async () => {
                     let dList = designs;
                     if (activeFirmId) {
@@ -891,6 +946,7 @@ export default function BulkAddScreen() {
               stones={stones} 
               metal={selectedDesign?.metal || 'GOLD'}
               colors={colors}
+              isDark={isDark}
               openPickerModal={(config: any) => setPickerModal(config)}
             />
           ))}
@@ -927,12 +983,22 @@ export default function BulkAddScreen() {
 
       <Modal visible={!!successCount} transparent animationType="fade">
         <View style={styles.modalOverlay}>
-          <View style={[styles.successModalContent, { backgroundColor: colors.vjBg }]}>
+          <View 
+            style={[
+              styles.successModalContent, 
+              { 
+                backgroundColor: isDark ? '#1C1418' : '#FCFBF8', 
+                borderColor: isDark ? 'rgba(212, 175, 55, 0.40)' : 'rgba(212, 175, 55, 0.35)' 
+              }
+            ]}
+          >
             <View style={s.successIconContainer}>
               <CheckCircle size={56} color="#10B981" />
             </View>
             <Text style={[styles.successTitle, { color: colors.vjText }]}>Batch Created!</Text>
-            <Text style={styles.successSubtitle}>Successfully generated {successCount} items in drafts.</Text>
+            <Text style={[styles.successSubtitle, { color: isDark ? 'rgba(255, 255, 255, 0.65)' : 'rgba(92,22,35,0.6)' }]}>
+              Successfully generated {successCount} items in drafts.
+            </Text>
             
             <View style={{ width: '100%', marginTop: 16 }}>
               <GlassButton 
@@ -970,12 +1036,54 @@ export default function BulkAddScreen() {
 }
 
 const s = StyleSheet.create({
-  itemsHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12, marginTop: 8, marginLeft: 4 },
-  itemsTitle: { fontSize: 18, fontWeight: '800' },
-  rowHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
-  rowTitle: { fontSize: 14, fontWeight: '800', color: '#D4AF37', textTransform: 'uppercase', letterSpacing: 1 },
-  inputGrid: { flexDirection: 'row', gap: 8, marginBottom: 12 },
-  inputCol: { flex: 1 },
+  itemsHeader: { 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    gap: 8, 
+    marginBottom: 14, 
+    marginTop: 10, 
+    marginLeft: 4 
+  },
+  itemsTitle: { 
+    fontSize: 18, 
+    fontWeight: '800' 
+  },
+  rowHeader: { 
+    flexDirection: 'row', 
+    justifyContent: 'space-between', 
+    alignItems: 'center', 
+    marginBottom: 16 
+  },
+  rowBadge: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 8,
+    borderWidth: 1,
+  },
+  rowTitle: { 
+    fontSize: 12, 
+    fontWeight: '900', 
+    textTransform: 'uppercase', 
+    letterSpacing: 0.8 
+  },
+  trashBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(239, 68, 68, 0.1)',
+    borderWidth: 1,
+    borderColor: 'rgba(239, 68, 68, 0.25)',
+  },
+  inputGrid: { 
+    flexDirection: 'row', 
+    gap: 8, 
+    marginBottom: 12 
+  },
+  inputCol: { 
+    flex: 1 
+  },
   successIconContainer: {
     marginBottom: 16,
     backgroundColor: 'rgba(16, 185, 129, 0.1)',
@@ -987,7 +1095,7 @@ const s = StyleSheet.create({
 const styles = StyleSheet.create({
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.6)',
+    backgroundColor: 'rgba(0,0,0,0.65)',
     justifyContent: 'center',
     alignItems: 'center',
     padding: 24,
@@ -998,8 +1106,7 @@ const styles = StyleSheet.create({
     borderRadius: 24,
     padding: 32,
     alignItems: 'center',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.5)',
+    borderWidth: 1.5,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 10 },
     shadowOpacity: 0.25,
@@ -1013,7 +1120,6 @@ const styles = StyleSheet.create({
   },
   successSubtitle: {
     fontSize: 14,
-    color: 'rgba(92,22,35,0.6)',
     textAlign: 'center',
     marginBottom: 24,
   },

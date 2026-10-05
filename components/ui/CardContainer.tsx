@@ -116,6 +116,7 @@ export interface MenuTileProps {
   disabled?: boolean;
   variant?: 'default' | 'dashboard';
   testID?: string;
+  containerStyle?: any;
 }
 
 export function MenuTile({
@@ -132,6 +133,7 @@ export function MenuTile({
   disabled,
   variant = 'default',
   testID,
+  containerStyle,
 }: MenuTileProps) {
   const activeTheme = appSettingsStore((s: any) => s.theme);
   const colors = getThemeColors(activeTheme);
@@ -139,7 +141,7 @@ export function MenuTile({
   const isDashboard = variant === 'dashboard';
 
   return (
-    <View style={{ width: '48%' }}>
+    <View style={[{ width: '48%' }, containerStyle]}>
       <TouchableOpacity
         testID={testID}
         disabled={disabled}

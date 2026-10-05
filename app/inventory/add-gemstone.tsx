@@ -2,7 +2,7 @@
 // Aligned with Step 4.5 / GEMSTONE-1 (v1.21), FIX-V1-2 (v1.23), and MastersSyncStore
 
 import React, { useState, useMemo, useCallback, useEffect } from 'react';
-import { View, Text, Alert, Modal, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { View, Text, Alert, Modal, StyleSheet, TouchableOpacity, ActivityIndicator, useWindowDimensions } from 'react-native';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import { useRouter, useFocusEffect } from 'expo-router';
 import * as Haptics from 'expo-haptics';
@@ -21,14 +21,18 @@ import {
   getCurrencySymbol,
   rupeesToPaise,
 } from '@/utils/calculations';
+import { JewelryMonogramEmblem } from '@/utils/jewelryIcons';
 import { Gem, Diamond, Banknote, CheckCircle, Plus, FileText } from 'lucide-react-native';
 import type { Stone } from '@/types/phase2/phase2.types';
 import { getThemeColors } from '@/constants/theme';
 
 export default function AddGemstoneScreen() {
   const router = useRouter();
+  const { width } = useWindowDimensions();
+  const isTablet = width >= 768;
   const { activeFirmId } = useFirmStore();
   const activeTheme = appSettingsStore((s: any) => s.theme);
+  const isDark = activeTheme === 'dark';
   const colors = getThemeColors(activeTheme);
 
   const [stones, setStones] = useState<Stone[]>([]);
@@ -163,7 +167,12 @@ export default function AddGemstoneScreen() {
   return (
     <TwoToneWrapper title="New Gemstone Lot" showBack>
       <KeyboardAwareScrollView
-        contentContainerStyle={{ paddingTop: 32, paddingBottom: 190 }}
+        contentContainerStyle={{ 
+          paddingTop: 24, 
+          paddingBottom: 190,
+          paddingHorizontal: 16,
+          ...(isTablet ? { maxWidth: 740, alignSelf: 'center', width: '100%' } : {})
+        }}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="on-drag"
@@ -173,9 +182,18 @@ export default function AddGemstoneScreen() {
         extraHeight={140}
       >
         <GlassCard style={{ marginBottom: 16 }}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 16 }}>
-            <Gem size={20} color="#D4AF37" />
-            <Text style={{ fontSize: 18, fontWeight: '700', color: colors.vjText }}>Stone Definition</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 16 }}>
+            {selectedStone ? (
+              <JewelryMonogramEmblem designName={selectedStone.name} categoryName="Stone" size={34} />
+            ) : (
+              <Gem size={22} color="#D4AF37" />
+            )}
+            <View>
+              <Text style={{ fontSize: 18, fontWeight: '700', color: colors.vjText }}>Stone Definition</Text>
+              <Text style={{ fontSize: 11, fontWeight: '600', color: `${colors.vjText}80` }}>
+                {selectedStone ? `${selectedStone.name} · ${selectedStone.type}` : 'Precious & Semi-precious Gem Lot'}
+              </Text>
+            </View>
           </View>
 
           <GlassPickerInput
@@ -240,6 +258,7 @@ export default function AddGemstoneScreen() {
                 label="Total Carats *"
                 placeholder="0.00"
                 keyboardType="decimal-pad"
+                unit="ct"
                 value={carats}
                 onChangeText={setCarats}
               />
@@ -249,6 +268,7 @@ export default function AddGemstoneScreen() {
                 label="Quantity / Pcs *"
                 placeholder="1"
                 keyboardType="number-pad"
+                unit="pcs"
                 value={quantity}
                 onChangeText={setQuantity}
               />
@@ -263,14 +283,22 @@ export default function AddGemstoneScreen() {
           </View>
 
           <GlassInput
-            label={`Rate Per Carat (${getCurrencySymbol()})`}
+            label="Rate Per Carat"
             placeholder="e.g. 50000"
             keyboardType="decimal-pad"
+            unit={`${getCurrencySymbol()}/ct`}
             value={ratePerCarat}
             onChangeText={setRatePerCarat}
           />
 
-          <View style={{ backgroundColor: colors.vjText, padding: 16, borderRadius: 12, marginTop: 8 }}>
+          <View style={{ 
+            backgroundColor: isDark ? '#26151B' : colors.vjText, 
+            padding: 16, 
+            borderRadius: 14, 
+            marginTop: 8,
+            borderWidth: 1,
+            borderColor: isDark ? 'rgba(212,175,55,0.3)' : 'transparent'
+          }}>
             <Text style={{ fontSize: 12, color: 'rgba(255,255,255,0.7)', textTransform: 'uppercase', fontWeight: '700', marginBottom: 4 }}>
               Estimated Lot Value
             </Text>
@@ -323,12 +351,12 @@ export default function AddGemstoneScreen() {
 
       <Modal visible={!!successMessage} transparent animationType="fade">
         <View style={s.modalOverlayCenter}>
-          <View style={s.successModalContent}>
+          <View style={[s.successModalContent, isDark && { backgroundColor: '#1C1418', borderColor: 'rgba(212,175,55,0.3)' }]}>
             <View style={s.successIconContainer}>
               <CheckCircle size={56} color="#10B981" />
             </View>
-            <Text style={s.successTitle}>Success!</Text>
-            <Text style={s.successSubtitle}>{successMessage}</Text>
+            <Text style={[s.successTitle, { color: colors.vjText }]}>Success!</Text>
+            <Text style={[s.successSubtitle, { color: `${colors.vjText}99` }]}>{successMessage}</Text>
 
             <View style={{ width: '100%', marginTop: 16 }}>
               <GlassButton

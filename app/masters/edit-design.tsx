@@ -2,13 +2,14 @@
 // Aligned with Step 3.5, Step 16, FEAT-LOOSE-STOCK-1 (v2.24), and MastersSyncStore
 
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, Alert, Modal, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, Alert, Modal, TouchableOpacity, ActivityIndicator, useWindowDimensions } from 'react-native';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import { TwoToneWrapper } from '@/components/common/TwoToneWrapper';
 import { HeaderPill, GlassCard, GlassButton, GlassInput, GlassMetalBadge, FixedGlassBar, fixedBarStyles } from '@/components/ui/Glass';
+import { JewelryMonogramEmblem } from '@/utils/jewelryIcons';
 import { appSettingsStore } from '@/store/phase1/appSettingsStore';
 import { Edit2, CheckCircle, ShieldCheck, Tag, Save, Barcode, Layers } from 'lucide-react-native';
 import { useFirmStore } from '@/store/phase1/useFirmStore';
@@ -45,7 +46,10 @@ export default function EditDesignScreen() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
+  const { width } = useWindowDimensions();
+  const isTablet = width >= 768;
   const activeTheme = appSettingsStore((s: any) => s.theme);
+  const isDark = activeTheme === 'dark';
   const colors = getThemeColors(activeTheme);
 
   // ID-Driven Database Sync on Mount
@@ -135,7 +139,8 @@ export default function EditDesignScreen() {
           showsVerticalScrollIndicator={false} 
           contentContainerStyle={{ 
             paddingTop: 24, 
-            paddingBottom: Math.max(insets.bottom + 120, 160) 
+            paddingBottom: Math.max(insets.bottom + 120, 160),
+            alignItems: isTablet ? 'center' : undefined,
           }} 
           keyboardShouldPersistTaps="handled"
           keyboardDismissMode="on-drag"
@@ -144,115 +149,141 @@ export default function EditDesignScreen() {
           extraScrollHeight={120}
           extraHeight={140}
         >
-          <GlassCard style={{ padding: 20, marginBottom: 16, borderColor: `${colors.vjAccent}25` }}>
-            {designCode ? (
+          <View style={[{ width: '100%' }, isTablet && { maxWidth: 720 }]}>
+            <GlassCard style={{ padding: 24, marginBottom: 16, borderColor: `${colors.vjAccent}25` }}>
+              {/* Interactive Real-Time Monogram & Metal Preview */}
+              <View style={s.previewContainer}>
+                <JewelryMonogramEmblem 
+                  designName={newName.trim() || 'Design'} 
+                  metal={metal} 
+                  size={60} 
+                />
+                <Text style={[s.previewText, { color: colors.vjText }]}>
+                  {newName.trim() 
+                    ? `${newName.trim()} • ${metal} • ${stockType === 'LOOSE' ? 'Loose Stock' : 'Serialized'}` 
+                    : `Design Preview (${metal})`}
+                </Text>
+              </View>
+
+              {designCode ? (
+                <View style={s.formGroup}>
+                  <Text style={[s.label, { color: colors.vjText, opacity: 0.6 }]}>Design Code (System ID)</Text>
+                  <View 
+                    style={[
+                      s.codeBox, 
+                      { 
+                        backgroundColor: isDark ? 'rgba(212, 175, 55, 0.08)' : `${colors.vjAccent}12`, 
+                        borderColor: isDark ? 'rgba(212, 175, 55, 0.28)' : `${colors.vjAccent}30` 
+                      }
+                    ]}
+                  >
+                    <Tag size={14} color={colors.vjAccent} style={{ marginRight: 6 }} />
+                    <Text style={[s.codeText, { color: colors.vjText }]}>{designCode}</Text>
+                  </View>
+                </View>
+              ) : null}
+
               <View style={s.formGroup}>
-                <Text style={[s.label, { color: colors.vjText, opacity: 0.6 }]}>Design Code (System ID)</Text>
-                <View style={[s.codeBox, { backgroundColor: `${colors.vjAccent}12`, borderColor: `${colors.vjAccent}30` }]}>
-                  <Tag size={14} color={colors.vjAccent} style={{ marginRight: 6 }} />
-                  <Text style={[s.codeText, { color: colors.vjText }]}>{designCode}</Text>
+                <GlassInput 
+                  label="Design Name *"
+                  value={newName}
+                  onChangeText={setNewName}
+                  placeholder="e.g. Classic Band"
+                  autoCapitalize="words"
+                  maxLength={50}
+                />
+                <Text style={[s.helpText, { color: colors.vjText, opacity: 0.5 }]}>
+                  No special characters. Max 2 words.
+                </Text>
+              </View>
+
+              {/* Metal Type (Immutable) */}
+              <View style={s.formGroup}>
+                <Text style={[s.label, { color: colors.vjText, opacity: 0.6 }]}>Metal Type (Immutable)</Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4 }}>
+                  <GlassMetalBadge metal={metal} />
                 </View>
               </View>
-            ) : null}
 
-            <View style={s.formGroup}>
-              <GlassInput 
-                label="Design Name *"
-                value={newName}
-                onChangeText={setNewName}
-                placeholder="e.g. Classic Band"
-                autoCapitalize="words"
-                maxLength={50}
-              />
-              <Text style={[s.helpText, { color: colors.vjText, opacity: 0.5 }]}>
-                No special characters. Max 2 words.
-              </Text>
-            </View>
-
-            {/* Metal Type (Immutable) */}
-            <View style={s.formGroup}>
-              <Text style={[s.label, { color: colors.vjText, opacity: 0.6 }]}>Metal Type (Immutable)</Text>
-              <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4 }}>
-                <GlassMetalBadge metal={metal} />
-              </View>
-            </View>
-
-            {/* Stock Tracking Model (Immutable) */}
-            <View style={s.formGroup}>
-              <Text style={[s.label, { color: colors.vjText, opacity: 0.6 }]}>
-                Stock Tracking Model (Immutable)
-              </Text>
-              <View 
-                style={[
-                  s.immutableStockBadge, 
-                  { 
-                    backgroundColor: `${colors.vjAccent}12`, 
-                    borderColor: `${colors.vjAccent}30` 
-                  }
-                ]}
-              >
-                {stockType === 'LOOSE' ? (
-                  <Layers size={16} color={colors.vjAccent} style={{ marginRight: 8 }} />
-                ) : (
-                  <Barcode size={16} color={colors.vjAccent} style={{ marginRight: 8 }} />
-                )}
-                <View style={{ flex: 1 }}>
-                  <Text style={[s.immutableStockTitle, { color: colors.vjText }]}>
-                    {stockType === 'LOOSE' ? 'Loose Stock' : 'Serialized Inventory'}
-                  </Text>
-                  <Text style={[s.immutableStockSubtitle, { color: colors.vjText, opacity: 0.65 }]}>
-                    {stockType === 'LOOSE' 
-                      ? 'Aggregated bulk lot weights without individual barcode tags' 
-                      : 'Individual items tracked with SKUs, barcodes, and HUID'}
-                  </Text>
+              {/* Stock Tracking Model (Immutable) */}
+              <View style={s.formGroup}>
+                <Text style={[s.label, { color: colors.vjText, opacity: 0.6 }]}>
+                  Stock Tracking Model (Immutable)
+                </Text>
+                <View 
+                  style={[
+                    s.immutableStockBadge, 
+                    { 
+                      backgroundColor: isDark ? 'rgba(212, 175, 55, 0.08)' : `${colors.vjAccent}12`, 
+                      borderColor: isDark ? 'rgba(212, 175, 55, 0.28)' : `${colors.vjAccent}30` 
+                    }
+                  ]}
+                >
+                  {stockType === 'LOOSE' ? (
+                    <Layers size={16} color={colors.vjAccent} style={{ marginRight: 8 }} />
+                  ) : (
+                    <Barcode size={16} color={colors.vjAccent} style={{ marginRight: 8 }} />
+                  )}
+                  <View style={{ flex: 1 }}>
+                    <Text style={[s.immutableStockTitle, { color: colors.vjText }]}>
+                      {stockType === 'LOOSE' ? 'Loose Stock' : 'Serialized Inventory'}
+                    </Text>
+                    <Text style={[s.immutableStockSubtitle, { color: colors.vjText, opacity: 0.65 }]}>
+                      {stockType === 'LOOSE' 
+                        ? 'Aggregated bulk lot weights without individual barcode tags' 
+                        : 'Individual items tracked with SKUs, barcodes, and HUID'}
+                    </Text>
+                  </View>
                 </View>
               </View>
-            </View>
 
-            <View style={s.formGroup}>
-              <GlassInput 
-                label="Default HSN Code (Optional)"
-                value={defaultHsn}
-                onChangeText={setDefaultHsn}
-                placeholder="e.g. 7113"
-                keyboardType="number-pad"
-                maxLength={10}
-              />
-            </View>
-          </GlassCard>
+              <View style={s.formGroup}>
+                <GlassInput 
+                  label="Default HSN Code (Optional)"
+                  value={defaultHsn}
+                  onChangeText={setDefaultHsn}
+                  placeholder="e.g. 7113"
+                  keyboardType="number-pad"
+                  maxLength={10}
+                />
+              </View>
+            </GlassCard>
+          </View>
         </KeyboardAwareScrollView>
 
         <FixedGlassBar>
-          <TouchableOpacity
-            testID="cancel-edit-design-btn"
-            style={fixedBarStyles.pillSecondaryBtn}
-            onPress={() => {
-              try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
-              router.back();
-            }}
-            disabled={isSubmitting}
-          >
-            <Text style={[fixedBarStyles.pillSecondaryText, { color: colors.vjText }]}>Cancel</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            testID="save-edit-design-btn"
-            style={[
-              fixedBarStyles.pillPrimaryBtn, 
-              { backgroundColor: colors.vjAccent },
-              (!newName.trim() || isSubmitting) && { opacity: 0.5 }
-            ]}
-            onPress={handleEditSubmit}
-            disabled={isSubmitting || !newName.trim()}
-          >
-            {isSubmitting ? (
-              <ActivityIndicator color="#fff" size="small" />
-            ) : (
-              <>
-                <Save size={18} color="#fff" />
-                <Text style={fixedBarStyles.pillPrimaryText}>Update Design</Text>
-              </>
-            )}
-          </TouchableOpacity>
+          <View style={[{ width: '100%', flexDirection: 'row', gap: 12 }, isTablet && { maxWidth: 680, alignSelf: 'center' }]}>
+            <TouchableOpacity
+              testID="cancel-edit-design-btn"
+              style={[fixedBarStyles.pillSecondaryBtn, { flex: 1 }]}
+              onPress={() => {
+                try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
+                router.back();
+              }}
+              disabled={isSubmitting}
+            >
+              <Text style={[fixedBarStyles.pillSecondaryText, { color: colors.vjText }]}>Cancel</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              testID="save-edit-design-btn"
+              style={[
+                fixedBarStyles.pillPrimaryBtn, 
+                { flex: 1, backgroundColor: colors.vjAccent },
+                (!newName.trim() || isSubmitting) && { opacity: 0.5 }
+              ]}
+              onPress={handleEditSubmit}
+              disabled={isSubmitting || !newName.trim()}
+            >
+              {isSubmitting ? (
+                <ActivityIndicator color="#fff" size="small" />
+              ) : (
+                <>
+                  <Save size={18} color="#fff" />
+                  <Text style={fixedBarStyles.pillPrimaryText}>Update Design</Text>
+                </>
+              )}
+            </TouchableOpacity>
+          </View>
         </FixedGlassBar>
       </View>
 
@@ -265,7 +296,13 @@ export default function EditDesignScreen() {
         >
           <TouchableOpacity 
             activeOpacity={1} 
-            style={[s.successModalContent, { backgroundColor: colors.vjBg, borderColor: colors.border }]}
+            style={[
+              s.successModalContent, 
+              { 
+                backgroundColor: isDark ? '#1C1418' : colors.vjBg, 
+                borderColor: isDark ? 'rgba(212,175,55,0.35)' : colors.border 
+              }
+            ]}
           >
             <View style={s.successIconContainer}>
               <CheckCircle size={56} color="#10B981" />
@@ -288,6 +325,16 @@ export default function EditDesignScreen() {
 
 const s = StyleSheet.create({
   container: { flex: 1 },
+  previewContainer: {
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  previewText: {
+    fontSize: 12.5,
+    fontWeight: '700',
+    marginTop: 8,
+    opacity: 0.65,
+  },
   formGroup: { marginBottom: 18 },
   label: { fontSize: 12, fontWeight: '700', textTransform: 'uppercase', marginBottom: 8 },
   helpText: { fontSize: 10, marginTop: 4, fontStyle: 'italic' },
