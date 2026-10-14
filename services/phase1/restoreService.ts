@@ -297,8 +297,9 @@ export const restoreService = {
         tx.delete(auditLogsTable).run();
         tx.update(auditDeleteGateTable).set({ gateOpen: 0 }).where(eq(auditDeleteGateTable.id, 1)).run();
 
-        // Clear registered extensions first (e.g. Phase 2 inventory child tables before Phase 1 parent tables)
-        for (const [id, handler] of getRestoreHandlers().entries()) {
+        // Clear registered extensions first in reverse dependency order (e.g. Phase 4 -> Phase 3 -> Phase 2 before Phase 1)
+        const handlers = Array.from(getRestoreHandlers().entries());
+        for (const [id, handler] of [...handlers].reverse()) {
           try {
             handler.clear(tx);
           } catch (err) {
@@ -324,8 +325,8 @@ export const restoreService = {
             .onConflictDoUpdate({ target: safeModeStateTable.id, set: backup.payload.safeModeState }).run();
         }
 
-        // Restore registered extensions (e.g. Phase 2 inventory tables)
-        for (const [id, handler] of getRestoreHandlers().entries()) {
+        // Restore registered extensions in forward dependency order (Phase 2 -> Phase 3 -> Phase 4)
+        for (const [id, handler] of handlers) {
           try {
             handler.restore(tx, backup.payload);
           } catch (err) {
@@ -398,7 +399,7 @@ export const restoreService = {
       );
     }
 
-    const currentMaxSchema = BACKUP_SCHEMA_VERSION ?? 9;
+    const currentMaxSchema = BACKUP_SCHEMA_VERSION ?? 10;
 
     if (schemaVersion > currentMaxSchema) {
       throw new Error(
@@ -415,7 +416,21 @@ export const restoreService = {
         payload: JSON.stringify({ backupSchema: schemaVersion, currentSchema: currentMaxSchema }),
       });
       console.warn(`[Restore] RESTORE_OLD_SCHEMA: Restoring backup v${schemaVersion} into app v${currentMaxSchema}.`);
-      return { warning: `RESTORE_OLD_SCHEMA: backup v${schemaVersion} < app ${currentMaxSchema}. Proceed with user acknowledgement.` };
+
+      let warning = `RESTORE_OLD_SCHEMA: backup v${schemaVersion} < app ${currentMaxSchema}. Proceed with user acknowledgement.`;
+      if (schemaVersion === 5) {
+        warning =
+          'This backup was created before Gold Intelligence features were available.\n' +
+          'Refinery batches, melt batches, and karigar issue history will NOT be in this backup.\n' +
+          'All current Phase 4 data will be permanently lost on restore.';
+      } else if (schemaVersion < 5) {
+        warning =
+          `This backup was created before Gold Intelligence features were available (schema v${schemaVersion} < 5).\n` +
+          'Earlier phase warning escalation applies; refinery batches, melt batches, and karigar issue history will NOT be in this backup.\n' +
+          'All current Phase 4 data will be permanently lost on restore.';
+      }
+
+      return { warning };
     }
   },
 };

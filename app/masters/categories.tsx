@@ -258,17 +258,8 @@ export default function CategoriesScreen() {
               <Text style={[s.emptySubtitle, { color: colors.vjText }]}>
                 {searchQuery
                   ? `No categories match "${searchQuery}". Clear your search query to see all items.`
-                  : 'Organize your precious jewelry inventory by creating your first product category.'}
+                  : 'Organize your precious jewelry inventory by creating your first product category. Tap the button below to get started.'}
               </Text>
-              {!searchQuery && (
-                <View style={{ width: 220, marginTop: 16 }}>
-                  <GlassButton
-                    title="Add First Category"
-                    onPress={() => router.push('/masters/create-category')}
-                    icon={<Plus size={18} color="#fff" />}
-                  />
-                </View>
-              )}
             </View>
           ) : (
             <ScrollView
@@ -382,20 +373,18 @@ export default function CategoriesScreen() {
         </View>
 
         <FixedGlassBar>
-          <View style={[{ width: '100%' }, isTablet && { maxWidth: 640, alignSelf: 'center' }]}>
-            <TouchableOpacity
-              testID="create-category-bottom-btn"
-              style={fixedBarStyles.pillPrimaryBtn}
-              onPress={() => {
-                try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
-                router.push('/masters/create-category');
-              }}
-              activeOpacity={0.8}
-            >
-              <Plus size={18} color="#fff" />
-              <Text style={fixedBarStyles.pillPrimaryText}>Create Category</Text>
-            </TouchableOpacity>
-          </View>
+          <TouchableOpacity
+            testID="create-category-bottom-btn"
+            style={fixedBarStyles.pillPrimaryBtn}
+            onPress={() => {
+              try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
+              router.push('/masters/create-category');
+            }}
+            activeOpacity={0.8}
+          >
+            <Plus size={18} color="#fff" />
+            <Text style={fixedBarStyles.pillPrimaryText}>Create Category</Text>
+          </TouchableOpacity>
         </FixedGlassBar>
       </View>
 

@@ -30,6 +30,8 @@ import { karigarMasterService } from '@/services/phase3/karigarMasterService';
 import { Karigar, KarigarBalanceSummary } from '@/types/phase3/phase3.types';
 import { getThemeColors } from '@/constants/theme';
 import { SettleMetalModal } from '@/components/phase3/SettleMetalModal';
+import { KarigarGoldIssueModal } from '@/components/phase4/KarigarGoldIssueModal';
+import { KarigarGoldReturnModal } from '@/components/phase4/KarigarGoldReturnModal';
 import { getUserFriendlyErrorMessage } from '@/constants/errorMessageMap';
 import { getCurrencySymbol } from '@/utils/currency';
 import {
@@ -48,6 +50,8 @@ import {
   Sparkles,
   ArrowRightLeft,
   ShieldCheck,
+  Plus,
+  RotateCcw,
 } from 'lucide-react-native';
 
 export default function KarigarsMasterScreen() {
@@ -91,6 +95,22 @@ export default function KarigarsMasterScreen() {
   // Settlement Modal States
   const [settleModalVisible, setSettleModalVisible] = useState(false);
   const [settlingKarigar, setSettlingKarigar] = useState<Karigar | null>(null);
+
+  // Phase 4: Issue & Return Modal States
+  const [issueModalVisible, setIssueModalVisible] = useState(false);
+  const [issuingKarigar, setIssuingKarigar] = useState<Karigar | null>(null);
+  const [returnModalVisible, setReturnModalVisible] = useState(false);
+  const [returningKarigar, setReturningKarigar] = useState<Karigar | null>(null);
+
+  const openIssueModal = (k: Karigar) => {
+    setIssuingKarigar(k);
+    setIssueModalVisible(true);
+  };
+
+  const openReturnModal = (k: Karigar) => {
+    setReturningKarigar(k);
+    setReturnModalVisible(true);
+  };
 
   const loadKarigars = useCallback(async () => {
     if (!activeFirmId) return;
@@ -316,32 +336,66 @@ export default function KarigarsMasterScreen() {
 
         {/* Action Buttons */}
         <View style={[styles.actionsRow, { borderTopColor: colors.border }]}>
-          {/* Settle Metal Button (v4.7) */}
-          <TouchableOpacity
-            style={[
-              styles.settleBtn,
-              {
-                backgroundColor: hasMetalOutstanding ? 'rgba(245, 158, 11, 0.14)' : colors.border + '25',
-                borderColor: hasMetalOutstanding ? 'rgba(245, 158, 11, 0.35)' : colors.border + '50',
-              },
-            ]}
-            disabled={!hasMetalOutstanding}
-            onPress={() => {
-              try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
-              openSettleModal(item);
-            }}
-            activeOpacity={0.8}
-          >
-            <ArrowRightLeft size={13} color={hasMetalOutstanding ? '#D97706' : colors.textSecondary} />
-            <Text
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+            {/* Issue Gold Button (Phase 4) */}
+            <TouchableOpacity
               style={[
-                styles.settleBtnText,
-                { color: hasMetalOutstanding ? '#D97706' : colors.textSecondary },
+                styles.actionBtnSecondary,
+                { backgroundColor: 'rgba(16, 185, 129, 0.12)', borderColor: 'rgba(16, 185, 129, 0.3)' },
               ]}
+              onPress={() => {
+                try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
+                openIssueModal(item);
+              }}
+              activeOpacity={0.8}
             >
-              Settle Metal
-            </Text>
-          </TouchableOpacity>
+              <Plus size={12} color="#10B981" />
+              <Text style={[styles.actionBtnSecondaryText, { color: '#10B981' }]}>Issue</Text>
+            </TouchableOpacity>
+
+            {/* Return Gold Button (Phase 4) */}
+            <TouchableOpacity
+              style={[
+                styles.actionBtnSecondary,
+                { backgroundColor: 'rgba(59, 130, 246, 0.12)', borderColor: 'rgba(59, 130, 246, 0.3)' },
+              ]}
+              onPress={() => {
+                try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
+                openReturnModal(item);
+              }}
+              activeOpacity={0.8}
+            >
+              <RotateCcw size={12} color="#3B82F6" />
+              <Text style={[styles.actionBtnSecondaryText, { color: '#3B82F6' }]}>Return</Text>
+            </TouchableOpacity>
+
+            {/* Settle Metal Button (v4.7) */}
+            <TouchableOpacity
+              style={[
+                styles.settleBtn,
+                {
+                  backgroundColor: hasMetalOutstanding ? 'rgba(245, 158, 11, 0.14)' : colors.border + '25',
+                  borderColor: hasMetalOutstanding ? 'rgba(245, 158, 11, 0.35)' : colors.border + '50',
+                },
+              ]}
+              disabled={!hasMetalOutstanding}
+              onPress={() => {
+                try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
+                openSettleModal(item);
+              }}
+              activeOpacity={0.8}
+            >
+              <ArrowRightLeft size={12} color={hasMetalOutstanding ? '#D97706' : colors.textSecondary} />
+              <Text
+                style={[
+                  styles.settleBtnText,
+                  { color: hasMetalOutstanding ? '#D97706' : colors.textSecondary },
+                ]}
+              >
+                Settle
+              </Text>
+            </TouchableOpacity>
+          </View>
 
           <View style={styles.rightActions}>
             <TouchableOpacity
@@ -453,6 +507,24 @@ export default function KarigarsMasterScreen() {
           onClose={() => setSettleModalVisible(false)}
           karigar={settlingKarigar}
           currentMetalBalanceMg={settlingKarigar ? balances[settlingKarigar.id]?.metalBalanceMg || 0 : 0}
+          onSuccess={loadKarigars}
+        />
+
+        {/* Phase 4: Issue Gold Modal */}
+        <KarigarGoldIssueModal
+          visible={issueModalVisible}
+          onClose={() => setIssueModalVisible(false)}
+          karigar={issuingKarigar}
+          firmId={activeFirmId || ''}
+          onSuccess={loadKarigars}
+        />
+
+        {/* Phase 4: Return Gold Modal */}
+        <KarigarGoldReturnModal
+          visible={returnModalVisible}
+          onClose={() => setReturnModalVisible(false)}
+          karigar={returningKarigar}
+          firmId={activeFirmId || ''}
           onSuccess={loadKarigars}
         />
 
@@ -771,13 +843,26 @@ const styles = StyleSheet.create({
     paddingTop: 8,
     borderTopWidth: 1,
   },
+  actionBtnSecondary: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+    borderRadius: 7,
+    borderWidth: 1,
+  },
+  actionBtnSecondaryText: {
+    fontSize: 11,
+    fontWeight: '800',
+  },
   settleBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 5,
-    paddingHorizontal: 11,
-    paddingVertical: 6,
-    borderRadius: 8,
+    gap: 4,
+    paddingHorizontal: 9,
+    paddingVertical: 5,
+    borderRadius: 7,
     borderWidth: 1,
   },
   settleBtnText: {

@@ -165,19 +165,25 @@ const s = StyleSheet.create({
   fixedPillCard: {
     width: '100%',
     maxWidth: 580,
+    alignSelf: 'center',
     borderRadius: 36,
     overflow: 'hidden',
     borderWidth: 1.5,
   },
   fixedPillBlurContent: {
+    width: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
     paddingHorizontal: 8,
     paddingVertical: 8,
     borderRadius: 36,
     backgroundColor: 'transparent',
   },
   fixedBottomBarRow: {
+    width: '100%',
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
     gap: 10,
   },
 });

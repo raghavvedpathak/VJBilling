@@ -555,6 +555,15 @@ export function useDatabase(shouldStart: boolean = true) {
           console.warn('[DB Client] Step M Migrations check:', e);
         }
 
+        // 10. PHASE 4 STEP M — MIGRATION & DEPLOYMENT ORDER (0006_phase4_gold_intelligence.sql)
+        try {
+          const { stepMMigrationPhase4Service } = require('@/services/phase4/stepMMigrationPhase4Service');
+          stepMMigrationPhase4Service.runAllStepMMigrations(expoDb);
+          console.log('[DB Client] Phase 4 Step M Migrations complete.');
+        } catch (e) {
+          console.warn('[DB Client] Phase 4 Step M Migrations check:', e);
+        }
+
         // -----------------------------------------------------------------------
         // MIGRATION ZERO SEED FALLBACK (NPE Safe & Complete)
         // -----------------------------------------------------------------------

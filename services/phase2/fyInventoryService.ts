@@ -10,7 +10,7 @@ import { fyInventoryRepository } from '@/repositories/phase2/fyInventoryReposito
 import { leaseService } from '@/services/phase1/leaseService';
 import { safeModeService } from '@/services/phase1/safeModeService';
 import { phase2VerifyService } from '@/services/phase2/inventoryVerifyService';
-import { fyCoreService } from '@/services/phase1/fyService';
+import { fyCoreService, fyCloseHooks } from '@/services/phase1/fyService';
 import { getDeviceId } from '@/utils/deviceId';
 import { now } from '@/utils/now';
 import type { DrizzleTransaction, VerifyIssue } from '@/types/phase2/phase2.types';
@@ -151,7 +151,7 @@ export async function closeFY(fyId: string, firmId: string): Promise<void> {
 
     const targetDb = getDb();
 
-    targetDb.transaction((tx: any) => {
+    await targetDb.transaction(async (tx: any) => {
       const fy =
         fyRepository.getById(tx, firmId, fyId) ??
         fyRepository.getById(tx, fyId, firmId) ??
@@ -166,6 +166,34 @@ export async function closeFY(fyId: string, firmId: string): Promise<void> {
       // Phase 2 Fine Metal Inventory Balances via native repository aggregation
       const fineBalances = fyInventoryRepository.getYearEndFineBalances(tx, firmId);
 
+      // GAP-FY-HOOK-TYPE v1.8 — FYCloseHook return type and registration pattern
+      // closeFY() hook loop — accumulates results before writing FY_CLOSE_FINE_BALANCE audit:
+      let karigarOutstandingFineMg = fineBalances.karigarOutstandingFineMg ?? 0;
+      let refineryOutstandingFineMg = fineBalances.refineryOutstandingFineMg ?? 0;
+      for (const hook of fyCloseHooks) {
+        const result = await hook(tx, firmId, fyId);
+        if (result && typeof result === 'object') {
+          if (result.karigarOutstandingFineMg !== undefined) {
+            karigarOutstandingFineMg = result.karigarOutstandingFineMg;
+          }
+          if (result.refineryOutstandingFineMg !== undefined) {
+            refineryOutstandingFineMg = result.refineryOutstandingFineMg;
+          }
+        }
+      }
+
+      const totalOpeningFineMg =
+        karigarOutstandingFineMg +
+        refineryOutstandingFineMg +
+        (fineBalances.openGoldLotFineMg ?? 0);
+
+      const fineBalanceComponents = {
+        ...fineBalances,
+        karigarOutstandingFineMg,
+        refineryOutstandingFineMg,
+        totalOpeningFineMg,
+      };
+
       auditRepository.log(tx, {
         eventType: 'FY_CLOSE_FINE_BALANCE',
         firmId,
@@ -174,12 +202,12 @@ export async function closeFY(fyId: string, firmId: string): Promise<void> {
         payload: {
           fyId,
           closedAt: now(),
-          fineBalanceComponents: fineBalances,
+          fineBalanceComponents,
         },
       });
 
       // Core Phase 1 status transition, archive indexing, hook dispatch, and audit prune
-      fyCoreService.closeCoreFY(tx, firmId, fyId, deviceId);
+      fyCoreService.closeCoreFY(tx, firmId, fyId, deviceId, true);
     });
   } finally {
     await leaseService.release(leaseId);
@@ -187,6 +215,7 @@ export async function closeFY(fyId: string, firmId: string): Promise<void> {
 }
 
 export const registerFYCloseHook = fyCoreService.registerFYCloseHook;
+export const clearFYCloseHooks = fyCoreService.clearFYCloseHooks;
 export const resolveTransactionFyId = fyCoreService.resolveTransactionFyId;
 export const getActiveFY = fyCoreService.getActiveFY;
 export const createInitialFY = fyCoreService.createInitialFY;
@@ -197,6 +226,7 @@ export const fyInventoryService = {
   computeFYInventoryBalances,
   closeFY,
   registerFYCloseHook,
+  clearFYCloseHooks,
   resolveTransactionFyId,
   getActiveFY,
   createInitialFY,

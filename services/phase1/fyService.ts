@@ -12,8 +12,15 @@ import { getDeviceId } from '@/utils/deviceId';
 import { now } from '@/utils/now';
 import * as Crypto from 'expo-crypto';
 import { appSettingsStore } from '@/store/phase1/appSettingsStore';
-import type { DrizzleTransaction, FinancialYear } from '@/types/phase1/fy.types';
+import type {
+  DrizzleTransaction,
+  FinancialYear,
+  FYCloseHook,
+  FYCloseHookResult,
+} from '@/types/phase1/fy.types';
 import { ERR } from '@/constants/errorCodes';
+
+export type { FYCloseHook, FYCloseHookResult };
 
 type DbOrTx = any;
 
@@ -25,11 +32,15 @@ function getDb(customTx?: any): DbOrTx {
   return (fallback as any)?.db ? (fallback as any).db : fallback;
 }
 
-// Hooks must be strictly synchronous to execute safely inside the JSI transaction boundary
-const fyCloseHooks: Array<(tx: DrizzleTransaction, firmId: string, fyId: string) => void> = [];
+// GAP-FY-HOOK-TYPE v1.8 — FYCloseHook return type and registration pattern
+export const fyCloseHooks: Array<FYCloseHook> = [];
 
-export function registerFYCloseHook(fn: (tx: DrizzleTransaction, firmId: string, fyId: string) => void): void {
+export function registerFYCloseHook(fn: FYCloseHook): void {
   fyCloseHooks.push(fn);
+}
+
+export function clearFYCloseHooks(): void {
+  fyCloseHooks.length = 0;
 }
 
 /**
@@ -41,7 +52,8 @@ export function closeCoreFY(
   tx: DrizzleTransaction,
   firmId: string,
   fyId: string,
-  resolvedDeviceId?: string
+  resolvedDeviceId?: string,
+  skipHooks: boolean = false
 ): void {
   const targetTx = getDb(tx);
   const fy =
@@ -61,9 +73,20 @@ export function closeCoreFY(
     (fyRepository as any).updateStatus(targetTx, fyId, 'CLOSED');
   }
 
-  // Dispatch registered extension hooks (e.g. Phase 4 refinery/karigar settlement)
-  for (const hook of fyCloseHooks) {
-    hook(targetTx, firmId, fyId);
+  // Dispatch registered extension hooks if not skipped
+  if (!skipHooks) {
+    for (const hook of fyCloseHooks) {
+      try {
+        const res = hook(targetTx, firmId, fyId);
+        if (res && typeof (res as any).catch === 'function') {
+          (res as any).catch((err: any) => {
+            console.error('[closeCoreFY] FY close hook error:', err);
+          });
+        }
+      } catch (err) {
+        console.error('[closeCoreFY] FY close hook error:', err);
+      }
+    }
   }
 
   const deviceId = resolvedDeviceId || 'DEV-DEVICE-ID';
@@ -155,6 +178,7 @@ export const fyCoreService = {
   createInitialFY,
   resolveTransactionFyId,
   registerFYCloseHook,
+  clearFYCloseHooks,
   closeCoreFY,
 };
 

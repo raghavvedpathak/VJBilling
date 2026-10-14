@@ -167,6 +167,57 @@ export const auditRepository = {
       `[AuditRepo] deleteByRetention called for firm=${firmId} fy=${fyId}.`
     );
   },
+
+  /**
+   * FIX-AUDIT-REPO v1.8 — auditRepository.findLatest() canonical definition
+   * Finds the latest audit log entry for the specified filter.
+   * Supports findLatest(tx, filter) and findLatest(filter).
+   */
+  async findLatest(
+    arg1: any,
+    arg2?: { eventType: string; firmId: string }
+  ): Promise<any> {
+    let tx: any = null;
+    let filter: { eventType: string; firmId: string };
+
+    if (arg2) {
+      tx = arg1;
+      filter = arg2;
+    } else {
+      filter = arg1;
+    }
+
+    const conn = getDb(tx);
+    const query = conn
+      .select()
+      .from(auditLogs)
+      .where(
+        and(
+          eq(auditLogs.eventType, filter.eventType as any),
+          eq(auditLogs.firmId, filter.firmId)
+        )
+      )
+      .orderBy(desc(auditLogs.createdAt))
+      .limit(1);
+
+    const rows = typeof query.all === 'function' ? query.all() : await query;
+    const row = rows[0] ?? null;
+    if (!row) return null;
+
+    let payload = row.payload;
+    if (typeof payload === 'string') {
+      try {
+        payload = JSON.parse(payload);
+      } catch {
+        payload = {};
+      }
+    }
+
+    return {
+      ...row,
+      payload,
+    };
+  },
 };
 
 export const log = auditRepository.log.bind(auditRepository);
@@ -176,4 +227,5 @@ export const getSystemLogs = auditRepository.getSystemLogs.bind(auditRepository)
 export const hasEvent = auditRepository.hasEvent.bind(auditRepository);
 export const countByFy = auditRepository.countByFy.bind(auditRepository);
 export const deleteByRetention = auditRepository.deleteByRetention.bind(auditRepository);
+export const findLatest = auditRepository.findLatest.bind(auditRepository);
 export default auditRepository;

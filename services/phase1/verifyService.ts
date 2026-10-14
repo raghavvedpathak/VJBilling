@@ -21,6 +21,7 @@ import { ERR } from '@/constants/errorCodes';
 import { inventoryVerifyService } from '@/services/phase2/inventoryVerifyService';
 import { inventoryVerifyRepository } from '@/repositories/phase2/inventoryVerifyRepository';
 import { billingVerifyService } from '@/services/phase3/billingVerifyService';
+import { goldIntelligenceVerifyService } from '@/services/phase4/goldIntelligenceVerifyService';
 
 const CACHE_KEY_STATUS = 'vjbilling_last_verify_status';
 const CACHE_KEY_AT     = 'vjbilling_last_verify_at';
@@ -289,6 +290,14 @@ export const verifyService = {
         findings.push(...p3Findings);
       } catch {
         // Safe fallback if Phase 3 tables/service are not available in isolated test environments
+      }
+
+      // Phase 4: Gold Intelligence & Metal Integrity Checks (Step 12)
+      try {
+        const p4Findings = await goldIntelligenceVerifyService.runGoldIntelligenceChecks(fid);
+        findings.push(...p4Findings);
+      } catch {
+        // Safe fallback if Phase 4 tables/service are not available in isolated test environments
       }
     }
 

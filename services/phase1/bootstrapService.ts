@@ -21,6 +21,7 @@ import { differenceInDays, differenceInMinutes, parseISO } from 'date-fns';
 import { purgeExpiredAuditLogs } from '@/services/phase1/auditRetentionService';
 import { appSettingsStore } from '@/store/phase1/appSettingsStore';
 import { taxMasterService } from '@/services/phase3/taxMasterService';
+import { registerPhase4FYCloseHook } from '@/services/phase4/bootstrapPhase4';
 import quickCrypto, { Buffer } from 'react-native-quick-crypto';
 
 export const PRE_MIGRATION_SNAPSHOT_PATH = STORAGE_PATHS.PRE_MIGRATION_SNAPSHOT;
@@ -206,6 +207,14 @@ export const bootstrapService = {
       } catch (e) {
         console.warn('[Bootstrap] Tax Master seedDefaults check:', e);
       }
+
+      // Step 9b: Phase 4 FY Close Hook Registration (GAP-FY-HOOK-TYPE v1.8)
+      // MANDATORY HOOK REGISTRATION ORDER IN bootstrapDatabase():
+      // 1. Phase 4 registers karigar + refinery balance hook (reads from karigar_ledger, refinery_batches)
+      // 2. FY_CLOSE_FINE_BALANCE audit event written using accumulated hook results
+      // 3. Phase 7 WAC snapshot hook registered LAST (reads FY_CLOSE_FINE_BALANCE payload)
+      // NEVER reorder. Phase 4 hook MUST execute before Phase 7 WAC hook.
+      registerPhase4FYCloseHook();
 
       // Step 9 (pre-verify): G62 Post-Restore Logo Integrity Check
       const pendingLogoCheck = storage.getString('vjbilling_post_restore_logo_check_pending');

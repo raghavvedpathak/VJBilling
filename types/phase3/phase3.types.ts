@@ -381,7 +381,8 @@ export type KarigarLedgerType =
   | 'LABOUR_PAYABLE'
   | 'LABOUR_PAID'
   | 'METAL_SETTLED_AS_MONEY'
-  | 'LABOUR_IN_GOLD';
+  | 'LABOUR_IN_GOLD'
+  | 'METAL_OUT_REVERSAL';
 
 export interface Karigar {
   id: string;
@@ -393,6 +394,9 @@ export interface Karigar {
   bankName: string | null;
   bankAccount: string | null;
   ifsc: string | null;
+  allowedWastagePct?: number | null; // Phase 4 extension (Step 0)
+  wastageType?: string | null; // Phase 4 extension (Step 0 / Step 7: PERCENT | FIXED_MG)
+  wastageFixedMg?: number | null; // Phase 4 extension (Step 7)
   isArchived: number; // 0 | 1
   isDeleted: number; // 0 | 1
   createdAt: string; // ISO-8601
@@ -409,6 +413,9 @@ export interface NewKarigar {
   bankName?: string | null | undefined;
   bankAccount?: string | null | undefined;
   ifsc?: string | null | undefined;
+  allowedWastagePct?: number | null | undefined;
+  wastageType?: string | null | undefined;
+  wastageFixedMg?: number | null | undefined;
   isArchived?: number | undefined;
   isDeleted?: number | undefined;
   createdAt?: string | undefined;
@@ -424,6 +431,9 @@ export interface CreateKarigarInput {
   bankName?: string | null | undefined;
   bankAccount?: string | null | undefined;
   ifsc?: string | null | undefined;
+  allowedWastagePct?: number | null | undefined;
+  wastageType?: string | null | undefined;
+  wastageFixedMg?: number | null | undefined;
 }
 
 export interface UpdateKarigarInput {
@@ -434,6 +444,9 @@ export interface UpdateKarigarInput {
   bankName?: string | null | undefined;
   bankAccount?: string | null | undefined;
   ifsc?: string | null | undefined;
+  allowedWastagePct?: number | null | undefined;
+  wastageType?: string | null | undefined;
+  wastageFixedMg?: number | null | undefined;
 }
 
 export interface KarigarLedgerEntry {

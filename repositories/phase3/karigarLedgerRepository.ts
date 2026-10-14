@@ -244,6 +244,9 @@ export const karigarLedgerRepository = {
           // Fine weight gold deducted for labour payment — no purity multiplier
           fineBalanceMg -= entry.weightMg;
           break;
+        case 'METAL_OUT_REVERSAL':
+          fineBalanceMg -= Math.round((entry.weightMg * entry.purityPct) / 100);
+          break;
         default:
           // Money types (LABOUR_PAYABLE, LABOUR_PAID) do not affect metal balance
           break;
@@ -410,6 +413,9 @@ export const karigarLedgerRepository = {
         case 'LABOUR_IN_GOLD':
           // Fine weight gold deducted for labour payment — no purity multiplier
           fineLabourGoldMg += entry.weightMg;
+          break;
+        case 'METAL_OUT_REVERSAL':
+          fineReturnedMg += Math.round((entry.weightMg * (entry.purityPct ?? 0)) / 100);
           break;
         default:
           break;

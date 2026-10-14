@@ -97,6 +97,41 @@ export const ERROR_MESSAGES: Record<string, string> = {
   [ERR.DEFAULT_BANK_ACCOUNT_CANNOT_BE_ARCHIVED]: 'The default bank account cannot be archived while other active accounts exist. Please set another default bank account first.',
   [ERR.INVALID_SHARE_METHOD]: 'Invalid share method specified. Supported methods are WhatsApp, Email, or Print.',
   [ERR.EMAIL_NOT_AVAILABLE]: 'Email service is not available or configured on this device.',
+
+  // --- Phase 4 Step E Canonical User-Facing Error Messages ---
+  [ERR.INVALID_LOT_SOURCE]: 'Only melt output gold lots can be issued to a karigar. Raw customer gold must be melted and assayed first.',
+  [ERR.KARIGAR_ISSUE_EXCEEDS_LOT]: 'Issued weight cannot exceed the total weight of the selected gold lot.',
+  [ERR.KARIGAR_ISSUE_WEIGHT_INVALID]: 'Weight issued to karigar must be greater than zero.',
+  [ERR.KARIGAR_LOOP_LIMIT_EXCEEDED]: 'Maximum issue-return cycle count reached (3 times) for this karigar and lot combination.',
+  [ERR.KARIGAR_RETURN_WEIGHT_INVALID]: 'Return gross weight from karigar must be greater than zero.',
+  [ERR.KARIGAR_REVERSAL_HAS_RETURNS]: 'Cannot reverse gold issue because return records already exist for this issue.',
+  [ERR.KARIGAR_REVERSAL_NOT_ISSUED]: 'Only gold issues in ISSUED status can be reversed.',
+  [ERR.INVALID_TEXT_CONTENT]: 'Text contains invalid characters or unsafe content. Please remove special characters and try again.',
+  [ERR.REFINERY_OUTPUT_WEIGHT_INVALID]: 'Refinery output gross weight must be greater than zero.',
+  [ERR.REFINERY_OUTPUT_PURITY_INVALID]: 'Refinery output purity percentage must be between 0 and 100.',
+  [ERR.REFINERY_OUTPUT_EXCEEDS_INPUT]: 'Refinery output fine gold cannot exceed 110% of total fine gold sent.',
+  [ERR.REFINERY_BATCH_NOT_SENT]: 'Output can only be received for a refinery batch that is in SENT status.',
+  [ERR.REFINERY_BATCH_NOT_RECEIVED]: 'Lots can only be settled for a refinery batch that has been received.',
+  [ERR.REFINERY_BATCH_NO_LOTS]: 'Cannot send an empty refinery batch. At least one lot must be added.',
+  [ERR.REFINERY_BATCH_NOT_ALL_SETTLED]: 'All constituent lots must be settled before closing the refinery batch.',
+  [ERR.REFINERY_LOT_ALREADY_SETTLED]: 'This refinery lot has already been settled.',
+  [ERR.MELT_BATCH_NOT_CREATED]: 'Only melt batches in CREATED status can be closed.',
+  [ERR.MELT_OUTPUT_WEIGHT_INVALID]: 'Melt output gross weight must be greater than zero.',
+  [ERR.REFINERY_SETTLEMENT_VARIANCE]: 'Refinery settlement fine weight deviates by more than 20% from its proportional share.',
+
+  // --- Phase 4 Verify-My-Data Integrity Checks (Step 12) ---
+  [ERR.OLD_METAL_SENT_TO_REFINERY_WITHOUT_OPEN_BATCH]: 'Old metal lot marked SENT_TO_REFINERY is not linked to any open refinery batch. System has entered Safe Mode.',
+  [ERR.MELT_OUTPUT_LOT_IN_REFINERY_BATCH]: 'Old metal lot produced from melting was incorrectly assigned to a refinery batch. System has entered Safe Mode.',
+  [ERR.MELT_BATCH_CLOSED_WITHOUT_OUTPUT_LOT]: 'A closed melt batch has no recorded output lot. System has entered Safe Mode.',
+  [ERR.REFINERY_BATCH_SENT_OVERDUE]: 'A refinery batch has been sent for over 30 days without output received.',
+  [ERR.REFINERY_BATCH_RECEIVED_NOT_CLOSED]: 'A refinery batch was received but has not been closed and settled.',
+  [ERR.KARIGAR_ISSUE_OVERDUE]: 'Gold issued to karigar has had no returns for over 30 days.',
+  [ERR.KARIGAR_NEGATIVE_METAL_BALANCE]: 'A karigar has a negative metal balance, which is physically impossible. System has entered Safe Mode.',
+  [ERR.MELT_BATCH_CREATED_OVERDUE]: 'A melt batch has remained open for over 7 days.',
+  [ERR.NEGATIVE_FINE_BALANCE]: 'Total fine metal balance is negative, indicating an event sequence error. System has entered Safe Mode.',
+  [ERR.REFINERY_BATCH_LOT_SHARES_DISCREPANCY]: 'Refinery output lot fine metal distribution differs from total batch output by more than 1mg.',
+  [ERR.KARIGAR_ISSUE_CLOSED_NO_LABOUR_IN_GOLD]: 'A closed karigar issue does not have a corresponding labour gold entry recorded.',
+  [ERR.KARIGAR_ISSUE_INVALID_SOURCE_LOT]: 'Raw unmelted old metal was issued directly to a karigar instead of assayed melt output. System has entered Safe Mode.',
 };
 
 /**

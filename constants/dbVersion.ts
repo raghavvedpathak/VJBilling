@@ -2,5 +2,5 @@
 // Database migration version (Phase 2 Inventory Truth Layer)
 export const SCHEMA_VERSION = 2;
 
-// Backup payload schema version (Phase 3 v5.35/v5.37 FEAT-LOOSE-STOCK-SALE-1 / FIX-SCHEMAVERSYNC-1)
-export const BACKUP_SCHEMA_VERSION = 9;
+// Backup payload schema version (Phase 4 Step 21 FIX-P4-BACKUP-2 v1.16: bumped to 10)
+export const BACKUP_SCHEMA_VERSION = 10;

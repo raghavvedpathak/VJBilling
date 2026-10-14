@@ -259,7 +259,7 @@ export async function validate8PointDryRunRestore(backup: any): Promise<DryRunRe
   let p2Passed = true;
   let p2Msg = 'Schema version compatible';
   const schemaVer = backup.schemaVersion ?? backup.payload?.schemaVersion;
-  const maxSchema = BACKUP_SCHEMA_VERSION ?? 9;
+  const maxSchema = BACKUP_SCHEMA_VERSION ?? 10;
   if (schemaVer === undefined || schemaVer === null || typeof schemaVer !== 'number' || schemaVer <= 0) {
     p2Passed = false;
     p2Msg = `Invalid schemaVersion: ${schemaVer}`;

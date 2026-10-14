@@ -354,17 +354,8 @@ export default function StonesScreen() {
             <Text style={[s.emptySubtitle, { color: colors.vjText }]}>
               {searchQuery
                 ? `No stones match "${searchQuery}". Clear your search query to view all items.`
-                : 'Configure gemstone and diamond definitions to track studded jewelry accurately.'}
+                : 'Configure gemstone and diamond definitions to track studded jewelry accurately. Tap the button below to get started.'}
             </Text>
-            {!searchQuery && (
-              <View style={{ width: 220, marginTop: 16 }}>
-                <GlassButton
-                  title="Add First Stone"
-                  onPress={() => setShowAddModal(true)}
-                  icon={<Plus size={18} color="#fff" />}
-                />
-              </View>
-            )}
           </View>
         ) : (
           <ScrollView
@@ -480,22 +471,20 @@ export default function StonesScreen() {
         )}
 
         <FixedGlassBar>
-          <View style={[{ width: '100%' }, isTablet && { maxWidth: 680, alignSelf: 'center' }]}>
-            <TouchableOpacity
-              testID="add-stone-bottom-btn"
-              style={[fixedBarStyles.pillPrimaryBtn, { backgroundColor: colors.vjAccent }]}
-              onPress={() => {
-                try {
-                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                } catch {}
-                setShowAddModal(true);
-              }}
-              activeOpacity={0.8}
-            >
-              <Plus size={18} color="#fff" />
-              <Text style={fixedBarStyles.pillPrimaryText}>Add Stone Type</Text>
-            </TouchableOpacity>
-          </View>
+          <TouchableOpacity
+            testID="add-stone-bottom-btn"
+            style={[fixedBarStyles.pillPrimaryBtn, { backgroundColor: colors.vjAccent }]}
+            onPress={() => {
+              try {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              } catch {}
+              setShowAddModal(true);
+            }}
+            activeOpacity={0.8}
+          >
+            <Plus size={18} color="#fff" />
+            <Text style={fixedBarStyles.pillPrimaryText}>Add Stone Type</Text>
+          </TouchableOpacity>
         </FixedGlassBar>
       </View>
 

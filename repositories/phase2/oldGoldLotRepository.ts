@@ -1,7 +1,7 @@
 // repositories/phase2/oldGoldLotRepository.ts — Phase 2 v2.34 Canonical Repository
 // Aligned with FIX-OLDMETAL-RENAME-1 (v2.32), FIX-OLDMETAL-VOID-1 (v2.33), FIX-OLDGOLD-TXNLINK-1 (v2.31), FIX-P2-SYNC-CONTRACT-1 (v1.81)
 
-import { eq, and, or, inArray, desc } from 'drizzle-orm';
+import { eq, and, or, inArray, desc, ne, isNull } from 'drizzle-orm';
 import * as Crypto from 'expo-crypto';
 import { db } from '@/db/client';
 import { oldMetalLots } from '@/db/schema';
@@ -49,6 +49,10 @@ export interface OldMetalLotRepository {
   // --- getPendingRefineryLots (FEAT-GAP5-REFINERYPENDING-1 v1.66) ---
   getPendingRefineryLots(firmId: string): Promise<OldMetalLot[]>;
   getPendingRefineryLots(tx: DrizzleTransaction, firmId: string): OldMetalLot[];
+
+  // --- findEligible (P3-FIX-1 / Step 3 / Step 5) ---
+  findEligible(firmId: string): Promise<OldMetalLot[]>;
+  findEligible(tx: DrizzleTransaction, firmId: string): OldMetalLot[];
 }
 
 export const oldMetalLotRepository: OldMetalLotRepository = {
@@ -125,7 +129,13 @@ export const oldMetalLotRepository: OldMetalLotRepository = {
 
   insert(tx: DrizzleTransaction, data: NewOldMetalLot): OldMetalLot {
     const id = data.id ?? Crypto.randomUUID();
-    const row = { ...data, id };
+    const timestamp = now();
+    const row = {
+      ...data,
+      id,
+      createdAt: data.createdAt ?? timestamp,
+      updatedAt: data.updatedAt ?? timestamp,
+    };
     tx.insert(oldMetalLots).values(row).run();
     const result = tx.select().from(oldMetalLots).where(eq(oldMetalLots.id, id)).get();
     return result as OldMetalLot;
@@ -273,6 +283,38 @@ export const oldMetalLotRepository: OldMetalLotRepository = {
         and(
           eq(oldMetalLots.firmId, firmId),
           inArray(oldMetalLots.status, ['RECEIVED', 'PENDING', 'SENT_TO_REFINERY'])
+        )
+      )
+      .orderBy(desc(oldMetalLots.receivedDate), desc(oldMetalLots.createdAt))
+      .all() as OldMetalLot[];
+  },
+
+  // P3-FIX-1 / Step 3 & Step 5: findEligible
+  // WHERE firm_id = firmId AND status = 'RECEIVED' AND (metalSource IS NULL OR metalSource != 'MELT_OUTPUT')
+  findEligible(first: DrizzleTransaction | string, second?: string): any {
+    if (typeof first === 'string') {
+      return db
+        .select()
+        .from(oldMetalLots)
+        .where(
+          and(
+            eq(oldMetalLots.firmId, first),
+            eq(oldMetalLots.status, 'RECEIVED'),
+            or(isNull(oldMetalLots.metalSource), ne(oldMetalLots.metalSource, 'MELT_OUTPUT'))
+          )
+        )
+        .orderBy(desc(oldMetalLots.receivedDate), desc(oldMetalLots.createdAt));
+    }
+    const tx = first as DrizzleTransaction;
+    const firmId = second!;
+    return tx
+      .select()
+      .from(oldMetalLots)
+      .where(
+        and(
+          eq(oldMetalLots.firmId, firmId),
+          eq(oldMetalLots.status, 'RECEIVED'),
+          or(isNull(oldMetalLots.metalSource), ne(oldMetalLots.metalSource, 'MELT_OUTPUT'))
         )
       )
       .orderBy(desc(oldMetalLots.receivedDate), desc(oldMetalLots.createdAt))

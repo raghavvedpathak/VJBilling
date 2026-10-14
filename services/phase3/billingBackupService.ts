@@ -252,7 +252,7 @@ export function assembleBackupPayload(tx?: DbOrTx): Record<string, any> {
   const billingData = exportBillingData(targetTx);
 
   const payload: Record<string, any> = {
-    schemaVersion: BACKUP_SCHEMA_VERSION ?? 9,
+    schemaVersion: BACKUP_SCHEMA_VERSION ?? 10,
     exportedAt,
     // Phase 1
     firms: firmsRows,

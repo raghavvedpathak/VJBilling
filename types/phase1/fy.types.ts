@@ -9,3 +9,15 @@ export type NewFinancialYear = typeof financialYears.$inferInsert;
 export type FYStatus = 'ACTIVE' | 'CLOSED';
 
 export type DrizzleTransaction = Parameters<Parameters<typeof db.transaction>[0]>[0];
+
+// GAP-FY-HOOK-TYPE v1.8 — FYCloseHook return type and registration pattern
+export type FYCloseHookResult = {
+  karigarOutstandingFineMg?: number; // set by Phase 4 hook
+  refineryOutstandingFineMg?: number; // set by Phase 4 hook
+};
+
+export type FYCloseHook = (
+  tx: DrizzleTransaction,
+  firmId: string,
+  fyId: string
+) => Promise<FYCloseHookResult | void> | FYCloseHookResult | void;

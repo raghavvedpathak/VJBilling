@@ -199,8 +199,9 @@ export default function Dashboard() {
             icon={<Landmark size={22} color="#D97706" />} 
             iconBg="rgba(217, 119, 6, 0.12)"
             borderColor="rgba(217, 119, 6, 0.2)"
-            badgeText="PHASE 4"
-            disabled 
+            badgeText="LIVE"
+            badgeVariant="active"
+            onPress={() => router.push('/vault')} 
           />
 
           <MenuTile 

@@ -93,6 +93,9 @@ export const karigarMasterService = {
         bankName: input.bankName?.trim() || null,
         bankAccount: input.bankAccount?.trim() || null,
         ifsc: input.ifsc?.trim()?.toUpperCase() || null,
+        allowedWastagePct: input.allowedWastagePct ?? 0.0,
+        wastageType: input.wastageType ?? 'PERCENT',
+        wastageFixedMg: input.wastageFixedMg ?? null,
         isArchived: 0,
         isDeleted: 0,
       });

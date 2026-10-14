@@ -49,6 +49,9 @@ export const karigarMasterRepository = {
       bankName: karigarData.bankName ?? null,
       bankAccount: karigarData.bankAccount ?? null,
       ifsc: karigarData.ifsc ?? null,
+      allowedWastagePct: karigarData.allowedWastagePct ?? 0.0,
+      wastageType: karigarData.wastageType ?? 'PERCENT',
+      wastageFixedMg: karigarData.wastageFixedMg ?? null,
       isArchived: karigarData.isArchived ?? 0,
       isDeleted: karigarData.isDeleted ?? 0,
       createdAt: karigarData.createdAt || timestamp,
@@ -224,6 +227,9 @@ export const karigarMasterRepository = {
     if (updates.bankName !== undefined) patch.bankName = updates.bankName?.trim() || null;
     if (updates.bankAccount !== undefined) patch.bankAccount = updates.bankAccount?.trim() || null;
     if (updates.ifsc !== undefined) patch.ifsc = updates.ifsc?.trim()?.toUpperCase() || null;
+    if (updates.allowedWastagePct !== undefined) patch.allowedWastagePct = updates.allowedWastagePct;
+    if (updates.wastageType !== undefined) patch.wastageType = updates.wastageType?.trim() || 'PERCENT';
+    if (updates.wastageFixedMg !== undefined) patch.wastageFixedMg = updates.wastageFixedMg;
 
     conn
       .update(karigar)

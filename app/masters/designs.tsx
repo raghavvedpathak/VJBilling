@@ -291,17 +291,8 @@ export default function DesignsScreen() {
               <Text style={[s.emptySubtitle, { color: colors.vjText }]}>
                 {searchQuery
                   ? `No design patterns match "${searchQuery}". Clear your search query to see all items.`
-                  : 'Create your gold and silver jewelry patterns to organize items with low-stock alerts.'}
+                  : 'Create your gold and silver jewelry patterns to organize items with low-stock alerts. Tap the button below to get started.'}
               </Text>
-              {!searchQuery && (
-                <View style={{ width: 220, marginTop: 16 }}>
-                  <GlassButton
-                    title="Add First Design"
-                    onPress={() => router.push('/masters/create-design')}
-                    icon={<Plus size={18} color="#fff" />}
-                  />
-                </View>
-              )}
             </View>
           ) : (
             <ScrollView
@@ -444,20 +435,18 @@ export default function DesignsScreen() {
         </View>
 
         <FixedGlassBar>
-          <View style={[{ width: '100%' }, isTablet && { maxWidth: 640, alignSelf: 'center' }]}>
-            <TouchableOpacity
-              testID="create-design-bottom-btn"
-              style={[fixedBarStyles.pillPrimaryBtn, { backgroundColor: colors.vjAccent }]}
-              onPress={() => {
-                try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
-                router.push('/masters/create-design');
-              }}
-              activeOpacity={0.8}
-            >
-              <Plus size={18} color="#fff" />
-              <Text style={fixedBarStyles.pillPrimaryText}>Create Design</Text>
-            </TouchableOpacity>
-          </View>
+          <TouchableOpacity
+            testID="create-design-bottom-btn"
+            style={[fixedBarStyles.pillPrimaryBtn, { backgroundColor: colors.vjAccent }]}
+            onPress={() => {
+              try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
+              router.push('/masters/create-design');
+            }}
+            activeOpacity={0.8}
+          >
+            <Plus size={18} color="#fff" />
+            <Text style={fixedBarStyles.pillPrimaryText}>Create Design</Text>
+          </TouchableOpacity>
         </FixedGlassBar>
       </View>
 

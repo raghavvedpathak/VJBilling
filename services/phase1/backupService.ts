@@ -163,16 +163,81 @@ export async function createBackup(password?: string): Promise<BackupResult> {
     }
 
     const exportedAt = new Date().toISOString();
-    const payloadStr = JSON.stringify({
-      schemaVersion: BACKUP_SCHEMA_VERSION ?? 9,
+
+    const tables: Record<string, any[]> = {
+      // Phase 1 (5 tables)
+      firms: payload.firms ?? [],
+      financial_years: payload.financialYears ?? payload.financial_years ?? [],
+      audit_log: payload.auditLogs ?? payload.audit_log ?? [],
+      safe_mode_state: payload.safeModeState ? (Array.isArray(payload.safeModeState) ? payload.safeModeState : [payload.safeModeState]) : [],
+      settings: payload.settings ?? [],
+
+      // Phase 2 (14 tables)
+      categories: payload.categories ?? [],
+      designs: payload.designs ?? [],
+      stones: payload.stones ?? [],
+      designPurityThresholds: payload.designPurityThresholds ?? [],
+      designCategoryMap: payload.designCategoryMap ?? [],
+      gemstoneLots: payload.gemstoneLots ?? [],
+      hsnCodes: payload.hsnCodes ?? [],
+      items: payload.items ?? [],
+      looseStockLots: payload.looseStockLots ?? [],
+      looseStockEvents: payload.looseStockEvents ?? [],
+      itemEvents: payload.itemEvents ?? [],
+      oldMetalLots: payload.oldMetalLots ?? payload.oldGoldLots ?? [],
+      sequenceCounters: payload.sequenceCounters ?? [],
+      bisLogos: payload.bisLogos ?? [],
+
+      // Phase 3 (16 tables)
+      customers: payload.customers ?? [],
+      suppliers: payload.suppliers ?? [],
+      karigar: payload.karigar ?? [],
+      karigar_ledger: payload.karigar_ledger ?? payload.karigarLedger ?? [],
+      bank_accounts: payload.bank_accounts ?? payload.bankAccounts ?? [],
+      invoice_number_config: payload.invoice_number_config ?? payload.invoiceNumberConfig ?? [],
+      tax_groups: payload.tax_groups ?? payload.taxGroups ?? [],
+      tax_rates: payload.tax_rates ?? payload.taxRates ?? [],
+      tax_group_components: payload.tax_group_components ?? payload.taxGroupComponents ?? [],
+      sale_invoices: payload.sale_invoices ?? payload.saleInvoices ?? [],
+      sale_invoice_items: payload.sale_invoice_items ?? payload.saleInvoiceItems ?? [],
+      purchase_invoices: payload.purchase_invoices ?? payload.purchaseInvoices ?? [],
+      purchase_invoice_items: payload.purchase_invoice_items ?? payload.purchaseInvoiceItems ?? [],
+      payments: payload.payments ?? [],
+      ledger_entries: payload.ledger_entries ?? payload.ledgerEntries ?? [],
+      credit_notes: payload.credit_notes ?? payload.creditNotes ?? [],
+      debit_notes: payload.debit_notes ?? payload.debitNotes ?? [],
+      migration_log: payload.migration_log ?? payload.migrationLog ?? [],
+      invoice_print_settings: payload.invoice_print_settings ?? payload.invoicePrintSettings ?? [],
+      estimate_invoices: payload.estimate_invoices ?? payload.estimateInvoices ?? [],
+      estimate_items: payload.estimate_items ?? payload.estimateItems ?? [],
+      supplier_metal_payments: payload.supplier_metal_payments ?? payload.supplierMetalPayments ?? [],
+
+      // Phase 4 (7 tables)
+      refinery_batches: payload.refinery_batches ?? payload.refineryBatches ?? [],
+      refinery_batch_lots: payload.refinery_batch_lots ?? payload.refineryBatchLots ?? [],
+      refinery_output_lots: payload.refinery_output_lots ?? payload.refineryOutputLots ?? [],
+      melt_batches: payload.melt_batches ?? payload.meltBatches ?? [],
+      melt_batch_inputs: payload.melt_batch_inputs ?? payload.meltBatchInputs ?? [],
+      karigar_issues: payload.karigar_issues ?? payload.karigarIssues ?? [],
+      karigar_returns: payload.karigar_returns ?? payload.karigarReturns ?? [],
+    };
+
+    const firmId = payload.firms?.[0]?.id ?? null;
+
+    const plaintextPayload = {
+      schemaVersion: BACKUP_SCHEMA_VERSION ?? 10,
+      appVersion: APP_VERSION,
       exportedAt,
+      firmId,
+      tables,
       ...payload,
       logoAssets,
-    });
+    };
+    const payloadStr = JSON.stringify(plaintextPayload);
     const checksum = quickCrypto.createHash('sha256').update(payloadStr).digest('hex');
 
     const envelope = {
-      schemaVersion: BACKUP_SCHEMA_VERSION ?? 9,
+      schemaVersion: BACKUP_SCHEMA_VERSION ?? 10,
       appVersion: APP_VERSION,
       exportedAt,
       deviceId: deviceIdStr,

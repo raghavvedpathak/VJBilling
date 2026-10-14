@@ -9,6 +9,7 @@ import { TwoToneWrapper } from '@/components/common/TwoToneWrapper';
 import { verifyService, type VerifyFinding } from '@/services/phase1/verifyService';
 import { inventoryVerifyService } from '@/services/phase2/inventoryVerifyService';
 import { billingVerifyService } from '@/services/phase3/billingVerifyService';
+import { goldIntelligenceVerifyService } from '@/services/phase4/goldIntelligenceVerifyService';
 import { verifyStore } from '@/store/phase1/verifyStore';
 import { HeaderPill, GlassCard, GlassButton } from '@/components/ui/Glass'; 
 import { appSettingsStore } from '@/store/phase1/appSettingsStore';
@@ -170,6 +171,19 @@ export default function VerifyDataScreen() {
       if (billingVerifyService && typeof billingVerifyService.runBillingChecks === 'function') {
         const phase3Result = await billingVerifyService.runBillingChecks(activeFirmId);
         phase3Result.forEach((finding) => {
+          const isDuplicate = allFindings.some(
+            (f) => f.check === finding.check && f.detail === finding.detail
+          );
+          if (!isDuplicate) {
+            allFindings.push(finding);
+          }
+        });
+      }
+
+      // Phase 4: Gold Intelligence & Metal Integrity Checks (Step 12)
+      if (goldIntelligenceVerifyService && typeof goldIntelligenceVerifyService.runGoldIntelligenceChecks === 'function') {
+        const phase4Result = await goldIntelligenceVerifyService.runGoldIntelligenceChecks(activeFirmId);
+        phase4Result.forEach((finding) => {
           const isDuplicate = allFindings.some(
             (f) => f.check === finding.check && f.detail === finding.detail
           );

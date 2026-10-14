@@ -108,6 +108,9 @@ export const karigar = sqliteTable('karigar', {
   bankName: text('bank_name'),
   bankAccount: text('bank_account'),
   ifsc: text('ifsc'),
+  allowedWastagePct: real('allowed_wastage_pct').notNull().default(0.0), // P4-M5 / WASTAGE-PCT-TYPE v1.9: REAL default 0.0
+  wastageType: text('wastage_type', { enum: ['PERCENT', 'FIXED_MG'] }).notNull().default('PERCENT'), // P4-M5: PERCENT | FIXED_MG
+  wastageFixedMg: integer('wastage_fixed_mg'), // P4-M5: fixed mg wastage if FIXED_MG
   isArchived: integer('is_archived').notNull().default(0),
   isDeleted: integer('is_deleted').notNull().default(0),
   createdAt: text('created_at').notNull(),
@@ -144,6 +147,7 @@ export const karigarLedger = sqliteTable('karigar_ledger', {
       'LABOUR_PAID',
       'METAL_SETTLED_AS_MONEY',
       'LABOUR_IN_GOLD',
+      'METAL_OUT_REVERSAL',
     ],
   }).notNull(),
   weightMg: integer('weight_mg').notNull().default(0),

@@ -14,6 +14,8 @@ import '@/services/phase2/inventoryBackupService';
 import '@/services/phase2/inventoryRestoreService';
 import '@/services/phase3/billingBackupService';
 import '@/services/phase3/billingRestoreService';
+import '@/services/phase4/goldIntelligenceBackupService';
+import '@/services/phase4/goldIntelligenceRestoreService';
 import { storage } from '@/utils/storage';
 import { GlassCard, GlassButton, GlassInput, HeaderPill } from '@/components/ui/Glass';
 import { RestorePreviewModal } from '@/components/phase1/RestorePreviewModal';

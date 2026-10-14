@@ -13,6 +13,9 @@ export {
   getActiveFY,
   createInitialFY,
   registerFYCloseHook,
+  clearFYCloseHooks,
+  type FYCloseHook,
+  type FYCloseHookResult,
 } from './phase1/fyService';
 export * from './phase1/leaseService';
 export * from './phase1/pinService';
@@ -90,3 +93,12 @@ export * from './phase3/transactionShareService';
 export * from './phase3/billingBackupService';
 export * from './phase3/billingRestoreService';
 export * from './phase3/stepMMigrationService';
+
+export * from './phase4/refineryBatchService';
+export * from './phase4/meltBatchService';
+export * from './phase4/metalFlowService';
+export * from './phase4/karigarFlowService';
+export * from './phase4/bootstrapPhase4';
+export * from './phase4/goldIntelligenceVerifyService';
+export * from './phase4/goldIntelligenceBackupService';
+export * from './phase4/goldIntelligenceRestoreService';
