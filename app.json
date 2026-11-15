@@ -7,6 +7,7 @@
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
+    "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.vjbilling.app",
@@ -51,7 +52,12 @@
             "minSdkVersion": 24,
             "compileSdkVersion": 36,
             "targetSdkVersion": 35,
-            "enableProguardInReleaseBuilds": true
+            "enableProguardInReleaseBuilds": true,
+            "packagingOptions": {
+              "pickFirst": [
+                "**/libcrypto.so"
+              ]
+            }
           }
         }
       ],
