@@ -7,6 +7,9 @@
 import { storage } from '@/utils/storage';
 import { ERR } from '@/constants/errorCodes';
 import quickCrypto, { Buffer } from 'react-native-quick-crypto';
+import { safeTransaction } from '@/db/safeTransaction';
+import { auditRepository } from '@/repositories/phase1/auditRepository';
+import { getDeviceId } from '@/utils/deviceId';
 
 const PIN_HASH_KEY = 'vjbilling_pin_hash';
 const PIN_SALT_KEY = 'vjbilling_pin_salt';
@@ -141,4 +144,39 @@ export async function removePin(currentPin?: string, alreadyVerified: boolean = 
   storage.delete(PIN_FAILED_KEY);
   storage.delete(PIN_LOCKOUT_KEY);
   storage.delete(PIN_SKIPPED_KEY);
+}
+
+export function logPinSet(pinLength: number): void {
+  try {
+    const deviceId = getDeviceId();
+    safeTransaction((tx) => {
+      auditRepository.log(tx, {
+        eventType: 'PIN_SET',
+        firmId: null,
+        deviceId,
+        payload: JSON.stringify({
+          pinLength,
+          setAt: new Date().toISOString(),
+        }),
+      });
+    });
+  } catch {}
+}
+
+export function logPinChanged(oldPinLength: number, newPinLength: number): void {
+  try {
+    const deviceId = getDeviceId();
+    safeTransaction((tx) => {
+      auditRepository.log(tx, {
+        eventType: 'PIN_CHANGED',
+        firmId: null,
+        deviceId,
+        payload: JSON.stringify({
+          oldPinLength,
+          newPinLength,
+          changedAt: new Date().toISOString(),
+        }),
+      });
+    });
+  } catch {}
 }

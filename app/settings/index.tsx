@@ -36,6 +36,7 @@ import { appSettingsStore } from '@/store/phase1/appSettingsStore';
 import { ThemeSelectorModal } from '@/components/phase1/ThemeSelectorModal';
 import { DateFormatModal } from '@/components/phase1/DateFormatModal';
 import { format as formatDateFns } from 'date-fns';
+import { getCurrencySymbol } from '@/utils/currency';
 import {
   Building2,
   HardDriveDownload,
@@ -353,7 +354,7 @@ export default function SettingsScreen() {
             <GlassSettingsTile
               icon={<RupeeCoin3D size={28} />}
               title="Currency & Locale"
-              subtitle="Indian Rupee (INR ₹) — Non-configurable"
+              subtitle={`Indian Rupee (${getCurrencySymbol()}) — Non-configurable`}
               rightElement={<BhartiyaFlagEmblem width={24} height={16} />}
               disabled
             />

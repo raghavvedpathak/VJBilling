@@ -16,9 +16,6 @@ import * as Haptics from 'expo-haptics';
 import { TwoToneWrapper } from '@/components/common/TwoToneWrapper';
 import { HeaderPill, GlassCard } from '@/components/ui/Glass';
 import { appSettingsStore } from '@/store/phase1/appSettingsStore';
-import { safeTransaction } from '@/db/safeTransaction';
-import { auditRepository } from '@/repositories/phase1/auditRepository';
-import { getDeviceId } from '@/utils/deviceId';
 import {
   KeyRound,
   CheckCircle2,
@@ -34,6 +31,8 @@ import {
   changePin,
   verifyPin,
   getPinLength,
+  logPinSet,
+  logPinChanged,
 } from '@/services/phase1/pinService';
 import { getThemeColors } from '@/constants/theme';
 
@@ -44,14 +43,6 @@ type FlowState =
   | 'CHANGE_CURRENT'
   | 'CHANGE_NEW'
   | 'CHANGE_CONFIRM';
-
-function getSafeDeviceId(): string {
-  try {
-    return getDeviceId();
-  } catch {
-    return 'DEV-DEVICE-ID';
-  }
-}
 
 export default function PinSettingsScreen() {
   const [hasPin, setHasPin] = useState(false);
@@ -129,21 +120,8 @@ export default function PinSettingsScreen() {
       } else if (flow === 'TURN_ON_CONFIRM') {
         if (completedPin === tempPin) {
           await setPin(completedPin);
-          // FIX-V744-3: Settings PIN_SET written with a live tx
-          try {
-            const deviceId = getSafeDeviceId();
-            safeTransaction((tx) => {
-              auditRepository.log(tx, {
-                eventType: 'PIN_SET',
-                firmId: null,
-                deviceId,
-                payload: JSON.stringify({
-                  pinLength: targetLength,
-                  setAt: new Date().toISOString(),
-                }),
-              });
-            });
-          } catch {}
+          // FIX-V744-3: Settings PIN_SET written via service layer
+          logPinSet(targetLength);
           try {
             Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
           } catch {}
@@ -189,22 +167,8 @@ export default function PinSettingsScreen() {
       } else if (flow === 'CHANGE_CONFIRM') {
         if (completedPin === tempPin) {
           await changePin(currentPin, completedPin, true);
-          // FIX-V729-2 & FIX-V744-3: PIN_CHANGED written with a live tx
-          try {
-            const deviceId = getSafeDeviceId();
-            safeTransaction((tx) => {
-              auditRepository.log(tx, {
-                eventType: 'PIN_CHANGED',
-                firmId: null,
-                deviceId,
-                payload: JSON.stringify({
-                  oldPinLength: oldPinLen,
-                  newPinLength: targetLength,
-                  changedAt: new Date().toISOString(),
-                }),
-              });
-            });
-          } catch {}
+          // FIX-V729-2 & FIX-V744-3: PIN_CHANGED written via service layer
+          logPinChanged(oldPinLen, targetLength);
           try {
             Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
           } catch {}

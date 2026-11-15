@@ -47,7 +47,10 @@ export {
 export * from './phase2/gemstoneLotService';
 export * from './phase2/inventoryDrillDownService';
 export * from './phase2/inventorySearchService';
-export * from './phase2/inventoryVerifyService';
+export {
+  inventoryVerifyService,
+  phase2VerifyService,
+} from './phase2/inventoryVerifyService';
 export * from './phase2/itemService';
 export {
   karigarService,
