@@ -1,22 +1,36 @@
 // services/phase1/backupService.ts
-// Phase 1 (v7.39) Canonical Implementation — Native Accelerated
-// Fast Native PBKDF2 + AES-256-GCM via react-native-quick-crypto (<40ms)
-// Silent Direct Device Storage (Internal documentDirectory + SAF Documents Mirror)
+// Phase 1 v7.47 Canonical Implementation (FIX-V740-1, FIX-V742-3, FIX-V742-5, FIX-V742-10, FIX-V744-7, FIX-V745-1..3, FIX-V747-3..4)
 
 import * as FileSystem from 'expo-file-system/legacy';
 import { StorageAccessFramework } from 'expo-file-system/legacy';
+import * as Sharing from 'expo-sharing';
 import * as Haptics from 'expo-haptics';
-import quickCrypto, { Buffer } from 'react-native-quick-crypto';
 import { storage } from '@/utils/storage';
-import { db } from '@/db/client';
-import { 
-  firms, financialYears, auditLogs, safeModeState, appSettings, bisLogos
+import { safeTransaction } from '@/db/safeTransaction';
+import {
+  firms,
+  financialYears,
+  auditLogs,
+  safeModeState,
+  appSettings,
+  bisLogos,
 } from '@/db/schema/phase1_core';
 import { leaseService } from '@/services/phase1/leaseService';
 import { auditRepository } from '@/repositories/phase1/auditRepository';
 import { getDeviceId } from '@/utils/deviceId';
-import { getDeviceDerivedKeyMaterial } from '@/utils/deviceKey';
-import { SCHEMA_VERSION, BACKUP_SCHEMA_VERSION, APP_VERSION } from '@/constants';
+import { encryptBackup, type BackupKdfMode } from '@/utils/backupCrypto';
+import {
+  SCHEMA_VERSION,
+  BACKUP_SCHEMA_VERSION,
+  APP_VERSION,
+  ERR,
+  MIN_BACKUP_PASSWORD_LENGTH,
+  BACKUP_FILE_PREFIX,
+  AUTO_BACKUP_FILE_REGEX,
+  AUTO_BACKUP_KEEP,
+  type BackupKind,
+  type BackupTrigger,
+} from '@/constants';
 
 export const BACKUP_DIR = (FileSystem.documentDirectory ?? '') + 'backups/';
 
@@ -45,40 +59,59 @@ export function getRestoreHandlers(): Map<string, RestoreHandler> {
   return restoreHandlers;
 }
 
-export interface BackupResult { 
-  fileName: string; 
-  filePath: string; 
-  fileSizeBytes: number; 
+export interface BackupResult {
+  fileName: string;
+  filePath: string;
+  fileSizeBytes: number;
   mirroredToPublicStorage: boolean;
+}
+
+export interface BackupOptions {
+  share?: boolean | undefined;
+  kind?: BackupKind | undefined;
+  trigger?: BackupTrigger | undefined;
+  leaseTtlMinutes?: number | undefined;
+}
+
+export interface BackupInnerPayload {
+  deviceId: string;
+  schemaVersion: number;
+  appVersion: string;
+  exportedAt: string;
+  firmId: string | null;
+  firms: (typeof firms.$inferSelect)[];
+  financialYears: (typeof financialYears.$inferSelect)[];
+  settings: (typeof appSettings.$inferSelect)[];
+  auditLogs: (typeof auditLogs.$inferSelect)[];
+  bisLogos: (typeof bisLogos.$inferSelect)[];
+  safeModeState: typeof safeModeState.$inferSelect | null;
+  writerLeases: any[];
+  logoAssets?: {
+    firmLogos: Array<{ firmId: string; base64: string }>;
+    bisLogos: Array<{ bisLogoId: string; base64: string }>;
+  };
+  tables?: Record<string, any[]>;
+  [key: string]: any;
 }
 
 export interface BackupEnvelope {
   schemaVersion: number;
   appVersion: string;
   exportedAt: string;
-  deviceId: string;
-  encryptionVersion: 1;
+  deviceId: string; // Present on envelope for compatibility; also encrypted inside v2 payload
+  encryptionVersion: 1 | 2;
   passwordProtected: boolean;
-  iv: string;
+  kdf?: BackupKdfMode;
+  kdfIterations?: number;
   salt: string;
+  keyWrapIv?: string;
+  wrappedKey?: string;
+  iv: string;
   ciphertext: string;
-  payload: {
-    firms: (typeof firms.$inferSelect)[];
-    financialYears: (typeof financialYears.$inferSelect)[];
-    settings: (typeof appSettings.$inferSelect)[];
-    auditLogs: (typeof auditLogs.$inferSelect)[];
-    bisLogos: (typeof bisLogos.$inferSelect)[];
-    safeModeState: typeof safeModeState.$inferSelect | null;
-    writerLeases: any[];
-    logoAssets?: {
-      firmLogos: Array<{ firmId: string; base64: string }>;
-      bisLogos: Array<{ bisLogoId: string; base64: string }>;
-    };
-    [key: string]: any;
-  };
+  payload: BackupInnerPayload;
 }
 
-async function getOrCreateSafFolder(parentUri: string, name: string): Promise<string> {
+export async function getOrCreateSafFolder(parentUri: string, name: string): Promise<string> {
   const children = await StorageAccessFramework.readDirectoryAsync(parentUri);
   for (const childUri of children) {
     const decodedName = decodeURIComponent(childUri.split('/').pop() ?? '');
@@ -89,34 +122,49 @@ async function getOrCreateSafFolder(parentUri: string, name: string): Promise<st
   return await StorageAccessFramework.makeDirectoryAsync(parentUri, name);
 }
 
-export async function createBackup(password?: string): Promise<BackupResult> {
-  // G40: createBackup() does NOT call assertNotInSafeMode()
+export async function createBackup(
+  password?: string,
+  opts: BackupOptions = {}
+): Promise<BackupResult> {
+  // v7.42 FIX-V742-10: Reject empty or short passwords (< 8 chars); never treat "" as "no password"
+  if (password !== undefined && password.length < MIN_BACKUP_PASSWORD_LENGTH) {
+    throw new Error(
+      `${ERR.INVALID_SETTINGS_VALUE}: backup password must be at least ${MIN_BACKUP_PASSWORD_LENGTH} characters`
+    );
+  }
+
+  const kind: BackupKind = opts.kind ?? 'MANUAL';
+  const trigger: BackupTrigger = opts.trigger ?? 'NOW';
+  const shouldShare = opts.share !== false && kind === 'MANUAL';
+
+  // G40: createBackup() does NOT call assertNotInSafeMode() — backup is a read operation
   await leaseService.assertNoActiveLease();
-  const leaseId = await leaseService.acquire('BACKUP');
+  const leaseId = await leaseService.acquire('BACKUP', undefined, opts.leaseTtlMinutes);
 
   try {
-    // 1. Synchronous JSI transaction callback DB reads
-    const payload = db.transaction((tx) => {
+    // 1. Synchronous JSI transaction callback DB reads (FIX-V717-1, FIX-V740-8)
+    const payload = safeTransaction((tx) => {
       const firmsRows = tx.select().from(firms).all();
       const financialYearsRows = tx.select().from(financialYears).all();
       const settingsRows = tx.select().from(appSettings).all();
       const auditLogsRows = tx.select().from(auditLogs).all();
       const safeModeStateRows = tx.select().from(safeModeState).all();
       const bisLogosRows = tx.select().from(bisLogos).all();
-      
+
       const corePayload: Record<string, any> = {
         firms: firmsRows,
         financialYears: financialYearsRows,
         settings: settingsRows,
         auditLogs: auditLogsRows,
         bisLogos: bisLogosRows,
-        safeModeState: safeModeStateRows.length > 0
-          ? safeModeStateRows[0]
-          : { id: 1, isActive: 0, reason: null, activatedAt: null, clearedAt: null },
+        safeModeState:
+          safeModeStateRows.length > 0
+            ? safeModeStateRows[0]
+            : { id: 1, isActive: 0, reason: null, activatedAt: null, clearedAt: null },
         writerLeases: [],
       };
 
-      // Collect registered extension data (e.g. Phase 2 inventory tables)
+      // Collect registered extension data (Phase 2–4 tables)
       for (const [id, exporter] of backupExporters.entries()) {
         try {
           const extensionData = exporter(tx);
@@ -142,7 +190,9 @@ export async function createBackup(password?: string): Promise<BackupResult> {
           encoding: FileSystem.EncodingType.Base64,
         });
         logoAssets.firmLogos.push({ firmId: firm.id, base64 });
-      } catch {}
+      } catch {
+        /* missing/unreadable logo skipped silently */
+      }
     }
 
     for (const logo of payload.bisLogos) {
@@ -152,7 +202,9 @@ export async function createBackup(password?: string): Promise<BackupResult> {
           encoding: FileSystem.EncodingType.Base64,
         });
         logoAssets.bisLogos.push({ bisLogoId: logo.id, base64 });
-      } catch {}
+      } catch {
+        /* missing/unreadable logo skipped silently */
+      }
     }
 
     let deviceIdStr: string;
@@ -163,16 +215,21 @@ export async function createBackup(password?: string): Promise<BackupResult> {
     }
 
     const exportedAt = new Date().toISOString();
+    const effectiveSchemaVersion = BACKUP_SCHEMA_VERSION ?? SCHEMA_VERSION;
 
     const tables: Record<string, any[]> = {
-      // Phase 1 (5 tables)
+      // Phase 1
       firms: payload.firms ?? [],
       financial_years: payload.financialYears ?? payload.financial_years ?? [],
       audit_log: payload.auditLogs ?? payload.audit_log ?? [],
-      safe_mode_state: payload.safeModeState ? (Array.isArray(payload.safeModeState) ? payload.safeModeState : [payload.safeModeState]) : [],
+      safe_mode_state: payload.safeModeState
+        ? Array.isArray(payload.safeModeState)
+          ? payload.safeModeState
+          : [payload.safeModeState]
+        : [],
       settings: payload.settings ?? [],
 
-      // Phase 2 (14 tables)
+      // Phase 2
       categories: payload.categories ?? [],
       designs: payload.designs ?? [],
       stones: payload.stones ?? [],
@@ -188,7 +245,7 @@ export async function createBackup(password?: string): Promise<BackupResult> {
       sequenceCounters: payload.sequenceCounters ?? [],
       bisLogos: payload.bisLogos ?? [],
 
-      // Phase 3 (16 tables)
+      // Phase 3
       customers: payload.customers ?? [],
       suppliers: payload.suppliers ?? [],
       karigar: payload.karigar ?? [],
@@ -210,9 +267,10 @@ export async function createBackup(password?: string): Promise<BackupResult> {
       invoice_print_settings: payload.invoice_print_settings ?? payload.invoicePrintSettings ?? [],
       estimate_invoices: payload.estimate_invoices ?? payload.estimateInvoices ?? [],
       estimate_items: payload.estimate_items ?? payload.estimateItems ?? [],
-      supplier_metal_payments: payload.supplier_metal_payments ?? payload.supplierMetalPayments ?? [],
+      supplier_metal_payments:
+        payload.supplier_metal_payments ?? payload.supplierMetalPayments ?? [],
 
-      // Phase 4 (7 tables)
+      // Phase 4
       refinery_batches: payload.refinery_batches ?? payload.refineryBatches ?? [],
       refinery_batch_lots: payload.refinery_batch_lots ?? payload.refineryBatchLots ?? [],
       refinery_output_lots: payload.refinery_output_lots ?? payload.refineryOutputLots ?? [],
@@ -224,77 +282,79 @@ export async function createBackup(password?: string): Promise<BackupResult> {
 
     const firmId = payload.firms?.[0]?.id ?? null;
 
-    const plaintextPayload = {
-      schemaVersion: BACKUP_SCHEMA_VERSION ?? 10,
+    // FIX-V740-1: deviceId lives inside the encrypted payload (also kept on envelope for test compatibility)
+    const innerPayload: BackupInnerPayload = {
+      deviceId: deviceIdStr,
+      schemaVersion: effectiveSchemaVersion,
       appVersion: APP_VERSION,
       exportedAt,
       firmId,
+      firms: payload.firms,
+      financialYears: payload.financialYears,
+      settings: payload.settings,
+      auditLogs: payload.auditLogs,
+      bisLogos: payload.bisLogos,
+      safeModeState: payload.safeModeState,
+      writerLeases: payload.writerLeases,
       tables,
       ...payload,
       logoAssets,
     };
-    const payloadStr = JSON.stringify(plaintextPayload);
-    const checksum = quickCrypto.createHash('sha256').update(payloadStr).digest('hex');
 
-    const envelope = {
-      schemaVersion: BACKUP_SCHEMA_VERSION ?? 10,
+    const headerMeta = {
+      schemaVersion: effectiveSchemaVersion,
       appVersion: APP_VERSION,
       exportedAt,
-      deviceId: deviceIdStr,
-      checksum,
-      encryptionVersion: 1 as const,
-      passwordProtected: !!password,
     };
-    const keySourceMaterial = password 
-      ? Buffer.from(password, 'utf8') 
-      : Buffer.from(await getDeviceDerivedKeyMaterial());
 
-    const saltBytes = quickCrypto.randomBytes(16);
-    const ivBytes = quickCrypto.randomBytes(12);
-
-    // Native C++ PBKDF2 (100,000 iterations in ~20ms)
-    const key = quickCrypto.pbkdf2Sync(
-      keySourceMaterial,
-      saltBytes,
-      100_000,
-      32,
-      'sha256'
+    // 3. Encrypt payload via canonical v2 AEAD key-wrapping (FIX-V740-1, FIX-V745-1)
+    const encryptedFields = await encryptBackup(
+      JSON.stringify(innerPayload),
+      headerMeta,
+      password
     );
 
-    // Native C++ AES-256-GCM
-    const cipher = quickCrypto.createCipheriv('aes-256-gcm', key, ivBytes);
-    const encryptedBody = Buffer.concat([
-      cipher.update(Buffer.from(payloadStr, 'utf8')),
-      cipher.final(),
-    ]);
-    const authTag = cipher.getAuthTag();
-
-    // Standard WebCrypto concatenation: [Ciphertext (N bytes)][AuthTag (16 bytes)]
-    const combinedCiphertext = Buffer.concat([encryptedBody, authTag]);
-
     const encryptedBlob = JSON.stringify({
-      ...envelope,
-      iv: ivBytes.toString('base64'),
-      salt: saltBytes.toString('base64'),
-      ciphertext: combinedCiphertext.toString('base64'),
+      ...headerMeta,
+      deviceId: deviceIdStr,
+      ...encryptedFields,
     });
 
-    const timestamp = envelope.exportedAt.replace(/[:.]/g, '-').replace('T', '_').substring(0, 19);
-    const fileName = `vjbilling_${timestamp}.vjb`;
+    const timestamp = exportedAt.replace(/[:.]/g, '-').replace('T', '_').substring(0, 19);
+    const prefix = BACKUP_FILE_PREFIX[kind] ?? BACKUP_FILE_PREFIX.MANUAL;
+    const fileName = `${prefix}${timestamp}.vjb`;
     const filePath = BACKUP_DIR + fileName;
 
-    // 3. Primary write to app internal document directory (Auto-creates directory if missing)
+    // 4. Primary write to app internal document directory
     await FileSystem.makeDirectoryAsync(BACKUP_DIR, { intermediates: true });
     await FileSystem.writeAsStringAsync(filePath, encryptedBlob, {
       encoding: FileSystem.EncodingType.UTF8,
     });
 
     const fileInfo = await FileSystem.getInfoAsync(filePath);
-    const fileSizeBytes = (fileInfo.exists && 'size' in fileInfo)
-      ? (fileInfo as any).size ?? 0
-      : encryptedBlob.length;
+    const fileSizeBytes =
+      fileInfo.exists && 'size' in fileInfo
+        ? ((fileInfo as any).size ?? 0)
+        : encryptedBlob.length;
 
-    // 4. v7.33 FIX-V733-4 / FIX-V733-5: Best-effort public storage mirror (Android SAF Documents/VJ Billing/backups/)
+    // 5. Optional system share sheet (FIX-V742-3: skipped when share === false or non-manual kind)
+    let shared = false;
+    if (shouldShare) {
+      try {
+        const canShare = await Sharing.isAvailableAsync();
+        if (canShare) {
+          await Sharing.shareAsync(filePath, {
+            mimeType: 'application/octet-stream',
+            dialogTitle: 'Save VJ Billing Backup',
+          });
+          shared = true;
+        }
+      } catch {
+        shared = false;
+      }
+    }
+
+    // 6. v7.33 FIX-V733-4 / FIX-V733-5: Best-effort public storage mirror (Android SAF Documents/VJ Billing/backups/)
     let mirroredToPublicStorage = false;
     try {
       const publicDirUri = storage.getString('vjbilling_public_backup_dir_uri');
@@ -316,20 +376,28 @@ export async function createBackup(password?: string): Promise<BackupResult> {
       mirroredToPublicStorage = false;
     }
 
-    try {
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    } catch {}
+    if (trigger !== 'BACKGROUND') {
+      try {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      } catch {}
+    }
 
-    // 5. G41: Audit write OUTSIDE transaction (Call Site 3)
-    await auditRepository.log(null, {
+    // 7. G41: Audit write OUTSIDE transaction (Call Site 2; FIX-V744-7, FIX-V745-2, FIX-V747-4)
+    auditRepository.log(null, {
       eventType: 'BACKUP_CREATED',
       firmId: null,
-      deviceId: envelope.deviceId,
-      payload: JSON.stringify({ exportedAt: envelope.exportedAt, fileName, fileSizeBytes }),
+      deviceId: deviceIdStr,
+      payload: JSON.stringify({
+        exportedAt,
+        fileName,
+        fileSizeBytes,
+        shared,
+        kind,
+        trigger,
+      }),
     });
 
     return { fileName, filePath, fileSizeBytes, mirroredToPublicStorage };
-
   } catch (error) {
     console.error('[Backup] Error:', error);
     throw error;
@@ -338,8 +406,43 @@ export async function createBackup(password?: string): Promise<BackupResult> {
   }
 }
 
+/**
+ * v7.45 FIX-V745-3: Retains the 7 newest automatic backup files (vjbilling_auto_*.vjb)
+ * in both internal BACKUP_DIR and the public SAF folder after a confirmed success.
+ * Never touches manual or FY-close backups.
+ */
+export async function pruneAutoBackups(justWritten: string): Promise<void> {
+  const names = (await FileSystem.readDirectoryAsync(BACKUP_DIR))
+    .filter((n) => AUTO_BACKUP_FILE_REGEX.test(n))
+    .sort()
+    .reverse();
+  if (names.includes(justWritten)) {
+    for (const n of names.slice(AUTO_BACKUP_KEEP)) {
+      await FileSystem.deleteAsync(BACKUP_DIR + n, { idempotent: true });
+    }
+  }
+
+  const dirUri = storage.getString('vjbilling_public_backup_dir_uri');
+  if (!dirUri) return;
+  const appFolder = await getOrCreateSafFolder(dirUri, 'VJ Billing');
+  const folder = await getOrCreateSafFolder(appFolder, 'backups');
+  const entries = (await StorageAccessFramework.readDirectoryAsync(folder))
+    .map((uri) => ({
+      uri,
+      name: (decodeURIComponent(uri).split('/').pop() ?? '').replace(/\.bin$/, ''),
+    }))
+    .filter((e) => AUTO_BACKUP_FILE_REGEX.test(e.name))
+    .sort((a, b) => b.name.localeCompare(a.name));
+  if (!entries.some((e) => e.name === justWritten)) return;
+  for (const e of entries.slice(AUTO_BACKUP_KEEP)) {
+    await StorageAccessFramework.deleteAsync(e.uri).catch(() => {});
+  }
+}
+
 export const backupService = {
   createBackup,
+  pruneAutoBackups,
+  getOrCreateSafFolder,
 };
 
 export default backupService;

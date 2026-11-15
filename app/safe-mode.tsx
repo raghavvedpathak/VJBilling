@@ -1,4 +1,5 @@
-// app/safe-mode.tsx — Phase 2 v2.11 Canonical Safe Mode Screen
+// app/safe-mode.tsx — Phase 1 v7.47 & Phase 2 Canonical Safe Mode Screen
+// Implements Step 10 (PATH 1 Verify Retry, PATH 2 Restore, G40 Safe Mode Backup Export)
 
 import React, { useState } from 'react';
 import {
@@ -9,10 +10,11 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
-import { ShieldAlert, HardDriveUpload, RefreshCw } from 'lucide-react-native';
+import { ShieldAlert, HardDriveUpload, HardDriveDownload, RefreshCw } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
 import { safeModeStore } from '@/store/phase1/safeModeStore';
 import { bootstrapService } from '@/services/phase1/bootstrapService';
+import { backupService } from '@/services/phase1/backupService';
 import { GlassCard, GlassButton } from '@/components/ui/Glass';
 
 export default function SafeModeScreen() {
@@ -21,8 +23,9 @@ export default function SafeModeScreen() {
   const activatedAt = safeModeStore((s: any) => s.activatedAt);
 
   const [retrying, setRetrying] = useState(false);
+  const [backingUp, setBackingUp] = useState(false);
 
-  // RETRY — Runs full bootstrap verification sequence.
+  // PATH 1: RETRY — Runs full bootstrap & verifyService.runVerify() sequence.
   const handleRetry = async () => {
     try {
       setRetrying(true);
@@ -53,6 +56,31 @@ export default function SafeModeScreen() {
     }
   };
 
+  // G40 Exception 2: Backup is a read operation and is explicitly permitted during Safe Mode
+  const handleCreateSafetyBackup = async () => {
+    try {
+      setBackingUp(true);
+      const res = await backupService.createBackup(undefined, {
+        share: true,
+        kind: 'MANUAL',
+        trigger: 'NOW',
+      });
+      Alert.alert(
+        'Safety Backup Created',
+        `Saved ${res.fileName} (${Math.round(res.fileSizeBytes / 1024)} KB).${
+          res.mirroredToPublicStorage
+            ? '\nAlso copied to Documents/VJ Billing/backups/'
+            : ''
+        }`
+      );
+    } catch (e: any) {
+      Alert.alert('Backup Failed', e?.message ?? 'Could not create safety backup.');
+    } finally {
+      setBackingUp(false);
+    }
+  };
+
+  // PATH 2: Restore resolution path
   const handleRestoreFromBackup = () => {
     Alert.alert(
       'Emergency Restore',
@@ -74,7 +102,12 @@ export default function SafeModeScreen() {
       className="flex-1 bg-vj-danger/10"
     >
       <ScrollView
-        contentContainerStyle={{ paddingTop: 32, flexGrow: 1, justifyContent: 'center', padding: 24 }}
+        contentContainerStyle={{
+          paddingTop: 32,
+          flexGrow: 1,
+          justifyContent: 'center',
+          padding: 24,
+        }}
       >
         {/* ICON */}
         <View className="items-center mb-8">
@@ -113,16 +146,27 @@ export default function SafeModeScreen() {
         {/* ACTIONS */}
         <View className="gap-4 mt-6">
           <GlassButton
-            title={retrying ? 'Running Diagnostics...' : 'Retry Diagnostics'}
+            title={retrying ? 'Running Diagnostics...' : 'Retry Diagnostics (Verify)'}
             onPress={handleRetry}
             loading={retrying}
+            disabled={backingUp}
             variant="danger"
             icon={<RefreshCw size={20} color="white" />}
           />
 
           <GlassButton
+            title={backingUp ? 'Creating Backup...' : 'Export Safety Backup'}
+            onPress={handleCreateSafetyBackup}
+            loading={backingUp}
+            disabled={retrying}
+            variant="secondary"
+            icon={<HardDriveDownload size={20} color="#1f2937" />}
+          />
+
+          <GlassButton
             title="Restore from Backup"
             onPress={handleRestoreFromBackup}
+            disabled={retrying || backingUp}
             variant="secondary"
             icon={<HardDriveUpload size={20} color="#ef4444" />}
           />

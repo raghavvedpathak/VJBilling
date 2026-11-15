@@ -1,19 +1,55 @@
-// app/settings/edit-firm.tsx — Phase 2 v2.11 Canonical Screen
+// app/settings/firm-edit.tsx — Phase 1 v7.47 & Phase 2 Canonical Firm Edit Screen
+// Implements Step 4, Step 7, G45–G47, G58, G59, G69, G70, FIX-V735-1, FIX-V743-1, FIX-V744-4
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { View, Text, TouchableOpacity, ScrollView, Alert, Image, ActivityIndicator, Modal } from 'react-native';
+import {
+  View,
+  Text,
+  TouchableOpacity,
+  ScrollView,
+  Alert,
+  Image,
+  ActivityIndicator,
+  Modal,
+  TextInput,
+} from 'react-native';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
-import * as FileSystem from 'expo-file-system/legacy';
 import { TwoToneWrapper } from '@/components/common/TwoToneWrapper';
 import { firmService } from '@/services/phase1/firmService';
 import { useFirmStore } from '@/store/phase1/useFirmStore';
 import { bisLogoRepository } from '@/repositories/phase1/bisLogoRepository';
-import { INDIAN_STATES } from '@/utils/indianStates'; 
-import { GlassCard, GlassInput, GlassButton, FixedGlassBar, fixedBarStyles } from '@/components/ui/Glass';
-import { Save, Building2, User, MapPin, Hash, Phone, ShieldCheck, ImagePlus, Tag, CheckCircle2, ArrowLeft, ChevronDown, X, Lock } from 'lucide-react-native';
-import { validateGSTIN, formatGSTINInput, getGSTINKeyboardType } from '@/utils/validateGSTIN';
+import { INDIAN_STATES } from '@/utils/indianStates';
+import {
+  GlassCard,
+  GlassInput,
+  GlassButton,
+  FixedGlassBar,
+  fixedBarStyles,
+} from '@/components/ui/Glass';
+import {
+  Save,
+  Building2,
+  User,
+  MapPin,
+  Hash,
+  Phone,
+  ShieldCheck,
+  ImagePlus,
+  Tag,
+  CheckCircle2,
+  ArrowLeft,
+  ChevronDown,
+  X,
+  Lock,
+  Search,
+} from 'lucide-react-native';
+import {
+  validateGSTIN,
+  formatGSTINInput,
+  getGSTINKeyboardType,
+} from '@/utils/validateGSTIN';
 import { validatePincode } from '@/utils/validatePincode';
 import { useUnsavedChangesGuard } from '@/hooks/useUnsavedChangesGuard';
 import { processAndSaveFirmImage } from '@/utils/processFirmImage';
@@ -22,13 +58,14 @@ import { COLORS } from '@/constants/theme';
 export default function EditFirmScreen() {
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { firms, switchFirm } = useFirmStore();
-  
+  const { firms } = useFirmStore();
+
   const [loading, setLoading] = useState(false);
   const [initialLoad, setInitialLoad] = useState(true);
   const [originalFirm, setOriginalFirm] = useState<any>(null);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [showStatePicker, setShowStatePicker] = useState(false);
+  const [stateSearchQuery, setStateSearchQuery] = useState('');
 
   const [form, setForm] = useState({
     name: '',
@@ -49,6 +86,15 @@ export default function EditFirmScreen() {
     stateName: '',
   });
 
+  // v7.0 G70: Searchable state picker over INDIAN_STATES
+  const filteredStates = useMemo(() => {
+    const q = stateSearchQuery.trim().toLowerCase();
+    if (!q) return INDIAN_STATES;
+    return INDIAN_STATES.filter(
+      (s) => s.code.includes(q) || s.name.toLowerCase().includes(q)
+    );
+  }, [stateSearchQuery]);
+
   const handleGstinChange = (text: string) => {
     const formatted = formatGSTINInput(text);
     let updatedStateCode = form.stateCode;
@@ -56,14 +102,14 @@ export default function EditFirmScreen() {
 
     if (!originalFirm?.gstin && formatted.length >= 2) {
       const stateCodePrefix = formatted.slice(0, 2);
-      const matchedState = INDIAN_STATES.find(s => s.code === stateCodePrefix);
+      const matchedState = INDIAN_STATES.find((s) => s.code === stateCodePrefix);
       if (matchedState) {
         updatedStateCode = matchedState.code;
         updatedStateName = matchedState.name;
       }
     }
 
-    setForm(prev => ({
+    setForm((prev) => ({
       ...prev,
       gstin: formatted,
       stateCode: updatedStateCode,
@@ -88,10 +134,10 @@ export default function EditFirmScreen() {
           name: firmToEdit.name,
           firmCode: firmToEdit.firmCode,
           proprietor: firmToEdit.proprietor,
-          logoUri: firmToEdit.firmLogoRef || null, 
+          logoUri: firmToEdit.firmLogoRef || null,
           gstin: firmToEdit.gstin || '',
           bisLicence: firmToEdit.bisLicence || '',
-          bisLogoUri: activeBisLogoUri, 
+          bisLogoUri: activeBisLogoUri,
           phone1: firmToEdit.phone1,
           phone2: firmToEdit.phone2 || '',
           phone3: firmToEdit.phone3 || '',
@@ -100,7 +146,7 @@ export default function EditFirmScreen() {
           city: firmToEdit.city,
           stateCode: firmToEdit.stateCode || '',
           stateName: firmToEdit.stateName || '',
-          pincode: firmToEdit.pincode
+          pincode: firmToEdit.pincode,
         });
       }
       setInitialLoad(false);
@@ -109,40 +155,43 @@ export default function EditFirmScreen() {
 
   const isDirty = useMemo(() => {
     if (!originalFirm) return false;
-    const origBis = originalFirm.resolvedBisUri ?? originalFirm.bisLogoRef ?? null;
-    return form.name !== originalFirm.name || 
-           form.proprietor !== originalFirm.proprietor || 
-           form.phone1 !== originalFirm.phone1 ||
-           form.phone2 !== (originalFirm.phone2 || '') ||
-           form.phone3 !== (originalFirm.phone3 || '') ||
-           form.addressLine1 !== originalFirm.addressLine1 ||
-           form.addressLine2 !== (originalFirm.addressLine2 || '') ||
-           form.city !== originalFirm.city ||
-           form.pincode !== originalFirm.pincode ||
-           form.logoUri !== (originalFirm.firmLogoRef || null) ||
-           form.bisLogoUri !== origBis ||
-           form.bisLicence !== (originalFirm.bisLicence || '') ||
-           form.gstin !== (originalFirm.gstin || '') ||
-           form.stateCode !== (originalFirm.stateCode || '');
+    const origBis =
+      originalFirm.resolvedBisUri ?? originalFirm.bisLogoRef ?? null;
+    return (
+      form.name !== originalFirm.name ||
+      form.proprietor !== originalFirm.proprietor ||
+      form.phone1 !== originalFirm.phone1 ||
+      form.phone2 !== (originalFirm.phone2 || '') ||
+      form.phone3 !== (originalFirm.phone3 || '') ||
+      form.addressLine1 !== originalFirm.addressLine1 ||
+      form.addressLine2 !== (originalFirm.addressLine2 || '') ||
+      form.city !== originalFirm.city ||
+      form.pincode !== originalFirm.pincode ||
+      form.logoUri !== (originalFirm.firmLogoRef || null) ||
+      form.bisLogoUri !== origBis ||
+      form.bisLicence !== (originalFirm.bisLicence || '') ||
+      form.gstin !== (originalFirm.gstin || '') ||
+      form.stateCode !== (originalFirm.stateCode || '')
+    );
   }, [form, originalFirm]);
 
   const { UnsavedModal } = useUnsavedChangesGuard(isDirty);
 
   const pickImage = async (field: 'logoUri' | 'bisLogoUri') => {
-    Alert.alert(
-      "Select Image Source",
-      "Choose where to pick the image from:",
-      [
-        { text: "Camera", onPress: () => handleImageSelection(field, 'camera') },
-        { text: "Gallery", onPress: () => handleImageSelection(field, 'gallery') },
-        { text: "Cancel", style: "cancel" }
-      ]
-    );
+    Alert.alert('Select Image Source', 'Choose where to pick the image from:', [
+      { text: 'Camera', onPress: () => handleImageSelection(field, 'camera') },
+      { text: 'Gallery', onPress: () => handleImageSelection(field, 'gallery') },
+      { text: 'Cancel', style: 'cancel' },
+    ]);
   };
 
-  const handleImageSelection = async (field: 'logoUri' | 'bisLogoUri', source: 'camera' | 'gallery') => {
+  const handleImageSelection = async (
+    field: 'logoUri' | 'bisLogoUri',
+    source: 'camera' | 'gallery'
+  ) => {
+    // G58: allowsEditing: true, aspect: undefined (free crop), quality: 0.8
     const options: ImagePicker.ImagePickerOptions = {
-      mediaTypes: ['images'], 
+      mediaTypes: ['images'],
       allowsEditing: true,
       quality: 0.8,
     };
@@ -151,56 +200,93 @@ export default function EditFirmScreen() {
     if (source === 'camera') {
       const permission = await ImagePicker.requestCameraPermissionsAsync();
       if (!permission.granted) {
-        Alert.alert("Permission Required", "Camera access is needed to capture store / BIS hallmark logos.");
+        Alert.alert(
+          'Permission Required',
+          'Camera access is needed to capture store / BIS hallmark logos.'
+        );
         return;
       }
       result = await ImagePicker.launchCameraAsync(options);
     } else {
       const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (!permission.granted) {
-        Alert.alert("Permission Required", "Photo library access is needed to select store / BIS hallmark logos.");
+        Alert.alert(
+          'Permission Required',
+          'Photo library access is needed to select store / BIS hallmark logos.'
+        );
         return;
       }
       result = await ImagePicker.launchImageLibraryAsync(options);
     }
 
     if (!result.canceled && result.assets && result.assets.length > 0) {
-      setForm(prev => ({ ...prev, [field]: result.assets[0].uri }));
+      const asset = result.assets[0];
+      const mime = asset.mimeType?.toLowerCase();
+      const uriLower = asset.uri.toLowerCase();
+      const isAllowedMime =
+        !mime ||
+        mime === 'image/jpeg' ||
+        mime === 'image/jpg' ||
+        mime === 'image/png' ||
+        uriLower.endsWith('.jpg') ||
+        uriLower.endsWith('.jpeg') ||
+        uriLower.endsWith('.png');
+
+      if (!isAllowedMime) {
+        Alert.alert('Invalid Image Format', 'Only PNG or JPEG images are accepted.');
+        return;
+      }
+
+      setForm((prev) => ({ ...prev, [field]: asset.uri }));
     }
   };
 
-  const validateBis = (licence: string) => /^[A-Z0-9\/\-]{8,}$/.test(licence.trim().toUpperCase());
+  const validateBis = (licence: string) =>
+    /^[A-Z0-9\/\-]{8,}$/.test(licence.trim().toUpperCase());
 
   const handleUpdate = async () => {
-    if (!form.name.trim() || !form.proprietor.trim() || !form.phone1.trim() || !form.addressLine1.trim() || !form.city.trim() || !form.pincode.trim()) {
-      Alert.alert("Missing Fields", "Required fields cannot be empty.");
+    if (
+      !form.name.trim() ||
+      !form.proprietor.trim() ||
+      !form.phone1.trim() ||
+      !form.addressLine1.trim() ||
+      !form.city.trim() ||
+      !form.pincode.trim()
+    ) {
+      Alert.alert('Missing Fields', 'Required fields cannot be empty.');
       return;
     }
 
     if (!/^[0-9]{10}$/.test(form.phone1.trim())) {
-      Alert.alert("Invalid Phone", "Primary Mobile must be exactly 10 digits.");
+      Alert.alert('Invalid Phone', 'Primary Mobile must be exactly 10 digits.');
       return;
     }
 
     if (form.phone2 && !/^[0-9]{10}$/.test(form.phone2.trim())) {
-      Alert.alert("Invalid Phone", "Phone 2 must be exactly 10 digits.");
+      Alert.alert('Invalid Phone', 'Phone 2 must be exactly 10 digits.');
       return;
     }
 
     if (form.phone3 && !/^[0-9]{10}$/.test(form.phone3.trim())) {
-      Alert.alert("Invalid Phone", "Phone 3 must be exactly 10 digits.");
+      Alert.alert('Invalid Phone', 'Phone 3 must be exactly 10 digits.');
       return;
     }
 
     try {
       validatePincode(form.pincode);
     } catch (err: any) {
-      Alert.alert("Invalid Pincode", err.message || "Please enter a valid 6-digit pincode.");
+      Alert.alert(
+        'Invalid Pincode',
+        err.message || 'Please enter a valid 6-digit pincode.'
+      );
       return;
     }
 
     if (form.bisLicence && !validateBis(form.bisLicence)) {
-      Alert.alert("Invalid BIS Licence", "Please enter a valid BIS Licence Number.");
+      Alert.alert(
+        'Invalid BIS Licence',
+        'Please enter a valid BIS Licence Number.'
+      );
       return;
     }
 
@@ -210,13 +296,16 @@ export default function EditFirmScreen() {
         const gstinStatePrefix = form.gstin.trim().slice(0, 2);
         if (gstinStatePrefix !== form.stateCode) {
           Alert.alert(
-            "State Mismatch",
+            'State Mismatch',
             `GSTIN state prefix (${gstinStatePrefix}) must match chosen jurisdiction state code (${form.stateCode}).`
           );
           return;
         }
       } catch (err: any) {
-        Alert.alert("Invalid GSTIN", err.message || "Please enter a valid 15-character GSTIN.");
+        Alert.alert(
+          'Invalid GSTIN',
+          err.message || 'Please enter a valid 15-character GSTIN.'
+        );
         return;
       }
     }
@@ -225,11 +314,13 @@ export default function EditFirmScreen() {
       try {
         setLoading(true);
         if (!id) return;
-        
+
         const updatePayload: any = {
           name: form.name.trim(),
           proprietor: form.proprietor.trim(),
-          bisLicence: form.bisLicence ? form.bisLicence.trim().toUpperCase() : null,
+          bisLicence: form.bisLicence
+            ? form.bisLicence.trim().toUpperCase()
+            : null,
           phone1: form.phone1.trim(),
           phone2: form.phone2 ? form.phone2.trim() : null,
           phone3: form.phone3 ? form.phone3.trim() : null,
@@ -239,22 +330,45 @@ export default function EditFirmScreen() {
           pincode: form.pincode.trim(),
         };
 
-        // Process new images if changed
+        // G58: Deterministic path logos/firm_{firmId}.jpg overwrites in place (never delete after saving!)
         if (form.logoUri !== (originalFirm?.firmLogoRef || null)) {
           if (form.logoUri) {
-            const savedLogoPath = await processAndSaveFirmImage(form.logoUri, 'firm', id);
-            if (savedLogoPath) updatePayload.firmLogoRef = savedLogoPath;
+            const savedLogoPath = await processAndSaveFirmImage(
+              form.logoUri,
+              'firm',
+              id
+            );
+            if (!savedLogoPath) {
+              Alert.alert(
+                'Image Too Large',
+                'Image too large. Please choose a smaller image.'
+              );
+              return;
+            }
+            updatePayload.firmLogoRef = savedLogoPath;
           } else {
             updatePayload.firmLogoRef = null;
           }
         }
 
-        // BIS logo processing: pass bisLogoUri to trigger canonical bis_logos registration
-        const origBis = originalFirm?.resolvedBisUri ?? originalFirm?.bisLogoRef ?? null;
+        // BIS logo processing: soft-delete only in DB (Step 2 bis_logos: file on disk is NOT deleted)
+        const origBis =
+          originalFirm?.resolvedBisUri ?? originalFirm?.bisLogoRef ?? null;
         if (form.bisLogoUri !== origBis) {
           if (form.bisLogoUri) {
-            const savedBisLogoPath = await processAndSaveFirmImage(form.bisLogoUri, 'bis_firm', id);
-            if (savedBisLogoPath) updatePayload.bisLogoUri = savedBisLogoPath;
+            const savedBisLogoPath = await processAndSaveFirmImage(
+              form.bisLogoUri,
+              'bis_firm',
+              id
+            );
+            if (!savedBisLogoPath) {
+              Alert.alert(
+                'Image Too Large',
+                'Image too large. Please choose a smaller image.'
+              );
+              return;
+            }
+            updatePayload.bisLogoUri = savedBisLogoPath;
           } else {
             updatePayload.bisLogoRef = null;
           }
@@ -269,30 +383,26 @@ export default function EditFirmScreen() {
         }
 
         await firmService.updateFirm(id, updatePayload);
-
-        // Safe cleanup of obsolete files
-        if (form.logoUri !== (originalFirm?.firmLogoRef || null) && originalFirm?.firmLogoRef) {
-          try { await FileSystem.deleteAsync(originalFirm.firmLogoRef, { idempotent: true }); } catch {}
-        }
-        const origBisFile = originalFirm?.resolvedBisUri || (originalFirm?.bisLogoRef?.startsWith('file:') ? originalFirm.bisLogoRef : null);
-        if (form.bisLogoUri !== origBis && origBisFile) {
-          try { await FileSystem.deleteAsync(origBisFile, { idempotent: true }); } catch {}
-        }
-
-        await switchFirm(id);
         setShowSuccessModal(true);
       } catch (error: any) {
-        Alert.alert("Update Failed", error.message);
+        Alert.alert('Update Failed', error.message);
       } finally {
         setLoading(false);
       }
     };
 
-    if ((originalFirm?.bisLogoRef || originalFirm?.resolvedBisUri) && !form.bisLicence) {
+    // Step 4: BIS Logo State Transition on Firm Edit requires confirmation dialog before proceeding
+    if (
+      (originalFirm?.bisLogoRef || originalFirm?.resolvedBisUri) &&
+      !form.bisLicence
+    ) {
       Alert.alert(
-        "Archive BIS Logo?",
-        "Removing the BIS Licence will automatically archive your BIS Logo. Proceed?",
-        [{ text: "Cancel", style: "cancel" }, { text: "Yes, Archive", style: "destructive", onPress: executeUpdate }]
+        'Archive BIS Logo?',
+        'Removing the BIS Licence will automatically archive your BIS Logo. Proceed?',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Yes, Archive', style: 'destructive', onPress: executeUpdate },
+        ]
       );
       return;
     }
@@ -300,24 +410,36 @@ export default function EditFirmScreen() {
     await executeUpdate();
   };
 
-  if (initialLoad) return <ActivityIndicator size="large" className="mt-10" color={COLORS.vjAccent} />;
+  if (initialLoad) {
+    return (
+      <ActivityIndicator
+        size="large"
+        className="mt-10"
+        color={COLORS.vjAccent}
+      />
+    );
+  }
 
   const hasBisLicence = Boolean(form.bisLicence && form.bisLicence.trim());
 
   return (
     <TwoToneWrapper title="Edit Firm" showBack>
       <View style={{ flex: 1 }}>
-        <KeyboardAwareScrollView 
-          showsVerticalScrollIndicator={false} 
-          keyboardShouldPersistTaps="handled" 
+        <KeyboardAwareScrollView
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
           keyboardDismissMode="on-drag"
           enableOnAndroid={true}
           enableAutomaticScroll={true}
           extraScrollHeight={120}
           extraHeight={140}
-          contentContainerStyle={{ paddingBottom: 190, paddingTop: 16, paddingHorizontal: 14 }}
+          contentContainerStyle={{
+            paddingBottom: 190,
+            paddingTop: 16,
+            paddingHorizontal: 14,
+          }}
         >
-          {/* CARD 0: STORE LOGO & BIS CERTIFICATION */}
+          {/* CARD 0: STORE LOGO & BIS CERTIFICATION (G47, G58, G59) */}
           <GlassCard>
             <View className="flex-row items-center gap-2 mb-4 pb-2.5 border-b border-vj-text/10">
               <View className="bg-amber-500/15 p-2 rounded-xl border border-amber-500/25">
@@ -329,84 +451,106 @@ export default function EditFirmScreen() {
             </View>
 
             <View className="flex-row items-center justify-around gap-4 py-2">
-              {/* 1. FIRM BRAND LOGO */}
+              {/* SECTION 1 — FIRM LOGO (G47 & G59: max 120x120, object-fit: contain) */}
               <View className="items-center">
                 <TouchableOpacity
                   onPress={() => pickImage('logoUri')}
                   activeOpacity={0.8}
-                  className="h-24 w-24 rounded-2xl justify-center items-center overflow-hidden border-2 border-amber-500/30 mb-2 bg-black/5"
+                  className="h-28 w-28 rounded-2xl justify-center items-center overflow-hidden border-2 border-amber-500/30 mb-2 bg-black/5 p-1"
                 >
                   {form.logoUri ? (
-                    <Image 
-                      source={{ uri: form.logoUri }} 
-                      style={{ width: '100%', height: '100%' }} 
-                      resizeMode="cover"
+                    <Image
+                      source={{ uri: form.logoUri }}
+                      style={{ width: '100%', height: '100%' }}
+                      resizeMode="contain"
                       onError={() => {
-                        console.warn('[FirmEdit] Failed to load firm logo thumbnail.');
+                        console.warn(
+                          '[FirmEdit] Failed to load firm logo thumbnail.'
+                        );
                         setForm((prev) => ({ ...prev, logoUri: null }));
-                      }} 
+                      }}
                     />
                   ) : (
                     <View className="w-full h-full justify-center items-center bg-black/5">
                       <View className="items-center justify-center">
                         <ImagePlus size={22} color={COLORS.vjAccent} />
                         <Text className="text-[9px] text-vj-text/70 font-black tracking-widest uppercase mt-1 text-center px-1">
-                          NO LOGO
+                          No logo uploaded
                         </Text>
                       </View>
                     </View>
                   )}
                 </TouchableOpacity>
-                
-                <TouchableOpacity 
-                  onPress={() => pickImage('logoUri')} 
+
+                <TouchableOpacity
+                  onPress={() => pickImage('logoUri')}
                   className="px-3 py-1.5 rounded-full bg-amber-500/15 border border-amber-500/30"
                 >
                   <Text className="text-[10px] text-vj-text font-bold tracking-widest uppercase">
-                    {form.logoUri ? "CHANGE LOGO" : "UPLOAD LOGO"}
+                    {form.logoUri ? 'Change Logo' : 'Upload Logo'}
                   </Text>
                 </TouchableOpacity>
               </View>
 
-              {/* 2. BIS HALLMARK LOGO */}
-              {hasBisLicence && (
-                <View className="items-center">
-                  <TouchableOpacity
-                    onPress={() => pickImage('bisLogoUri')}
-                    activeOpacity={0.8}
-                    className="h-24 w-24 rounded-2xl justify-center items-center overflow-hidden border-2 border-amber-400/50 mb-2 bg-black/5 p-2"
-                  >
-                    {form.bisLogoUri ? (
-                      <Image 
-                        source={{ uri: form.bisLogoUri }} 
-                        style={{ width: '100%', height: '100%' }} 
-                        resizeMode="contain"
-                        onError={() => {
-                          console.warn('[FirmEdit] Failed to load BIS logo thumbnail.');
-                          setForm((prev) => ({ ...prev, bisLogoUri: null }));
-                        }} 
-                      />
-                    ) : (
-                      <View className="items-center justify-center">
-                        <ShieldCheck size={24} color={COLORS.vjAccent} />
-                        <Text className="text-[9px] text-amber-700 font-bold uppercase mt-1 text-center">
-                          BIS LOGO
-                        </Text>
-                      </View>
-                    )}
-                  </TouchableOpacity>
-                  
-                  <TouchableOpacity 
-                    onPress={() => pickImage('bisLogoUri')} 
-                    className="px-3 py-1.5 rounded-full bg-amber-500/15 border border-amber-400/40"
-                  >
-                    <Text className="text-[10px] text-vj-text font-bold tracking-widest uppercase">
-                      {form.bisLogoUri ? "CHANGE BIS" : "UPLOAD BIS"}
-                    </Text>
-                  </TouchableOpacity>
-                </View>
-              )}
+              {/* SECTION 2 — BIS LOGO (G47 & G59) */}
+              <View className="items-center">
+                <TouchableOpacity
+                  onPress={() => {
+                    if (hasBisLicence) pickImage('bisLogoUri');
+                  }}
+                  disabled={!hasBisLicence}
+                  activeOpacity={0.8}
+                  className={`h-28 w-28 rounded-2xl justify-center items-center overflow-hidden border-2 mb-2 bg-black/5 p-2 ${
+                    hasBisLicence
+                      ? 'border-amber-400/50'
+                      : 'border-gray-300 opacity-50'
+                  }`}
+                >
+                  {hasBisLicence && form.bisLogoUri ? (
+                    <Image
+                      source={{ uri: form.bisLogoUri }}
+                      style={{ width: '100%', height: '100%' }}
+                      resizeMode="contain"
+                      onError={() => {
+                        console.warn(
+                          '[FirmEdit] Failed to load BIS logo thumbnail.'
+                        );
+                        setForm((prev) => ({ ...prev, bisLogoUri: null }));
+                      }}
+                    />
+                  ) : (
+                    <View className="items-center justify-center">
+                      <ShieldCheck size={24} color={COLORS.vjAccent} />
+                      <Text className="text-[9px] text-amber-700 font-bold uppercase mt-1 text-center">
+                        No logo uploaded
+                      </Text>
+                    </View>
+                  )}
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  onPress={() => {
+                    if (hasBisLicence) pickImage('bisLogoUri');
+                  }}
+                  disabled={!hasBisLicence}
+                  className={`px-3 py-1.5 rounded-full border ${
+                    hasBisLicence
+                      ? 'bg-amber-500/15 border-amber-400/40'
+                      : 'bg-gray-200 border-gray-300 opacity-50'
+                  }`}
+                >
+                  <Text className="text-[10px] text-vj-text font-bold tracking-widest uppercase">
+                    {form.bisLogoUri ? 'Change Logo' : 'Upload Logo'}
+                  </Text>
+                </TouchableOpacity>
+              </View>
             </View>
+
+            {!hasBisLicence && (
+              <Text className="text-[11px] text-vj-text/60 italic text-center mt-2">
+                Add BIS licence number first to enable BIS logo upload.
+              </Text>
+            )}
           </GlassCard>
 
           {/* CARD 1: STORE PROFILE */}
@@ -420,20 +564,34 @@ export default function EditFirmScreen() {
               </Text>
             </View>
 
-            <GlassInput label="Firm Name *" value={form.name} onChangeText={(t) => setForm({...form, name: t})} icon={<Building2 size={18} color={COLORS.vjAccent} />} />
-            
+            <GlassInput
+              label="Firm Name *"
+              value={form.name}
+              onChangeText={(t) => setForm({ ...form, name: t })}
+              icon={<Building2 size={18} color={COLORS.vjAccent} />}
+            />
+
             <View className="mb-4">
-              <Text className="text-vj-text/70 font-bold text-xs uppercase tracking-wider mb-2 ml-1">Firm Code (Locked)</Text>
+              <Text className="text-vj-text/70 font-bold text-xs uppercase tracking-wider mb-2 ml-1">
+                Firm Code (Locked)
+              </Text>
               <View className="flex-row items-center justify-between bg-gray-100/60 rounded-2xl px-4 py-3.5 border border-gray-300">
                 <View className="flex-row items-center gap-2.5">
                   <Tag size={18} color="#6B7280" />
-                  <Text className="text-gray-700 font-bold text-base">{form.firmCode}</Text>
+                  <Text className="text-gray-700 font-bold text-base">
+                    {form.firmCode}
+                  </Text>
                 </View>
                 <Lock size={16} color="#9CA3AF" />
               </View>
             </View>
 
-            <GlassInput label="Proprietor *" value={form.proprietor} onChangeText={(t) => setForm({...form, proprietor: t})} icon={<User size={18} color={COLORS.vjAccent} />} />
+            <GlassInput
+              label="Proprietor *"
+              value={form.proprietor}
+              onChangeText={(t) => setForm({ ...form, proprietor: t })}
+              icon={<User size={18} color={COLORS.vjAccent} />}
+            />
           </GlassCard>
 
           {/* CARD 2: COMPLIANCE & TAX */}
@@ -448,14 +606,14 @@ export default function EditFirmScreen() {
             </View>
 
             {!originalFirm?.gstin ? (
-              <GlassInput 
-                label="GSTIN (Optional)" 
-                value={form.gstin} 
-                onChangeText={handleGstinChange} 
+              <GlassInput
+                label="GSTIN (One-Time Registration)"
+                value={form.gstin}
+                onChangeText={handleGstinChange}
                 keyboardType={getGSTINKeyboardType(form.gstin.length)}
-                placeholder="15-digit GSTIN" 
-                maxLength={15} 
-                icon={<Hash size={18} color={COLORS.vjAccent} />} 
+                placeholder="15-digit GSTIN"
+                maxLength={15}
+                icon={<Hash size={18} color={COLORS.vjAccent} />}
                 autoCapitalize="characters"
                 autoCorrect={false}
                 spellCheck={false}
@@ -463,33 +621,28 @@ export default function EditFirmScreen() {
               />
             ) : (
               <View className="mb-4">
-                <Text className="text-vj-text/70 font-bold text-xs uppercase tracking-wider mb-2 ml-1">GSTIN (Statutory Lock)</Text>
+                <Text className="text-vj-text/70 font-bold text-xs uppercase tracking-wider mb-2 ml-1">
+                  GSTIN (Statutory Lock)
+                </Text>
                 <View className="flex-row items-center justify-between bg-gray-100/60 rounded-2xl px-4 py-3.5 border border-gray-300">
                   <View className="flex-row items-center gap-2.5">
                     <Hash size={18} color="#6B7280" />
-                    <Text className="text-gray-700 font-bold text-base">{form.gstin}</Text>
+                    <Text className="text-gray-700 font-bold text-base">
+                      {form.gstin}
+                    </Text>
                   </View>
                   <Lock size={16} color="#9CA3AF" />
                 </View>
               </View>
             )}
 
-            <GlassInput label="BIS Licence" value={form.bisLicence} onChangeText={(t) => setForm({...form, bisLicence: t})} icon={<ShieldCheck size={18} color={COLORS.vjAccent} />} autoCapitalize="characters" />
-            
-            {!form.bisLicence ? (
-              <View className="mt-1 px-1">
-                <Text className="text-[11px] text-vj-text/50 font-medium italic">
-                  Enter BIS Licence to enable BIS Hallmark logo upload in header.
-                </Text>
-              </View>
-            ) : (
-              <View className="mt-1 px-1 flex-row items-center gap-1.5">
-                <ShieldCheck size={14} color={COLORS.vjAccent} />
-                <Text className="text-[11px] text-amber-800 font-bold">
-                  BIS Hallmark Logo upload unlocked in header above ↑
-                </Text>
-              </View>
-            )}
+            <GlassInput
+              label="BIS Licence"
+              value={form.bisLicence}
+              onChangeText={(t) => setForm({ ...form, bisLicence: t })}
+              icon={<ShieldCheck size={18} color={COLORS.vjAccent} />}
+              autoCapitalize="characters"
+            />
           </GlassCard>
 
           {/* CARD 3: CONTACT NUMBERS */}
@@ -503,13 +656,34 @@ export default function EditFirmScreen() {
               </Text>
             </View>
 
-            <GlassInput label="Primary Mobile *" value={form.phone1} onChangeText={(t) => setForm({...form, phone1: t})} icon={<Phone size={18} color={COLORS.vjAccent} />} keyboardType="numeric" maxLength={10} />
+            <GlassInput
+              label="Primary Mobile *"
+              value={form.phone1}
+              onChangeText={(t) => setForm({ ...form, phone1: t })}
+              icon={<Phone size={18} color={COLORS.vjAccent} />}
+              keyboardType="numeric"
+              maxLength={10}
+            />
             <View className="flex-row gap-3">
               <View className="flex-1">
-                <GlassInput label="Phone 2" value={form.phone2} onChangeText={(t) => setForm({...form, phone2: t})} placeholder="Optional" keyboardType="numeric" maxLength={10} />
+                <GlassInput
+                  label="Phone 2"
+                  value={form.phone2}
+                  onChangeText={(t) => setForm({ ...form, phone2: t })}
+                  placeholder="Optional"
+                  keyboardType="numeric"
+                  maxLength={10}
+                />
               </View>
               <View className="flex-1">
-                <GlassInput label="Phone 3" value={form.phone3} onChangeText={(t) => setForm({...form, phone3: t})} placeholder="Optional" keyboardType="numeric" maxLength={10} />
+                <GlassInput
+                  label="Phone 3"
+                  value={form.phone3}
+                  onChangeText={(t) => setForm({ ...form, phone3: t })}
+                  placeholder="Optional"
+                  keyboardType="numeric"
+                  maxLength={10}
+                />
               </View>
             </View>
           </GlassCard>
@@ -525,15 +699,40 @@ export default function EditFirmScreen() {
               </Text>
             </View>
 
-            <GlassInput label="Line 1 *" value={form.addressLine1} onChangeText={(t) => setForm({...form, addressLine1: t})} icon={<MapPin size={18} color={COLORS.vjAccent} />} />
-            <GlassInput label="Line 2" value={form.addressLine2} onChangeText={(t) => setForm({...form, addressLine2: t})} />
-            
+            <GlassInput
+              label="Line 1 *"
+              value={form.addressLine1}
+              onChangeText={(t) => setForm({ ...form, addressLine1: t })}
+              icon={<MapPin size={18} color={COLORS.vjAccent} />}
+            />
+            <GlassInput
+              label="Line 2"
+              value={form.addressLine2}
+              onChangeText={(t) => setForm({ ...form, addressLine2: t })}
+            />
+
             <View className="mb-4">
-              <Text className="text-vj-text/70 font-bold text-xs uppercase tracking-wider mb-2 ml-1">State / Jurisdiction</Text>
-              <TouchableOpacity 
-                onPress={() => { if (!originalFirm?.gstin) setShowStatePicker(true); else Alert.alert("Locked", "State cannot be changed when GSTIN is registered."); }} 
+              <Text className="text-vj-text/70 font-bold text-xs uppercase tracking-wider mb-2 ml-1">
+                State / Jurisdiction
+              </Text>
+              <TouchableOpacity
+                onPress={() => {
+                  if (!originalFirm?.gstin) {
+                    setStateSearchQuery('');
+                    setShowStatePicker(true);
+                  } else {
+                    Alert.alert(
+                      'Locked',
+                      'State cannot be changed when GSTIN is registered.'
+                    );
+                  }
+                }}
                 activeOpacity={0.8}
-                className={`flex-row items-center justify-between rounded-2xl px-4 py-4 border ${originalFirm?.gstin ? 'bg-gray-100/60 border-gray-300' : 'bg-white border-vj-text/30'}`}
+                className={`flex-row items-center justify-between rounded-2xl px-4 py-4 border ${
+                  originalFirm?.gstin
+                    ? 'bg-gray-100/60 border-gray-300'
+                    : 'bg-white border-vj-text/30'
+                }`}
               >
                 <View className="flex-row items-center gap-2">
                   <View className="px-2.5 py-0.5 rounded-md bg-amber-500/15 border border-amber-500/25">
@@ -541,20 +740,40 @@ export default function EditFirmScreen() {
                       {form.stateCode}
                     </Text>
                   </View>
-                  <Text className={originalFirm?.gstin ? 'text-gray-500 font-semibold text-base' : 'text-vj-text font-semibold text-base'}>
+                  <Text
+                    className={
+                      originalFirm?.gstin
+                        ? 'text-gray-500 font-semibold text-base'
+                        : 'text-vj-text font-semibold text-base'
+                    }
+                  >
                     {form.stateName}
                   </Text>
                 </View>
-                {originalFirm?.gstin ? <Lock size={16} color="#9CA3AF" /> : <ChevronDown size={20} color={COLORS.vjAccent} />}
+                {originalFirm?.gstin ? (
+                  <Lock size={16} color="#9CA3AF" />
+                ) : (
+                  <ChevronDown size={20} color={COLORS.vjAccent} />
+                )}
               </TouchableOpacity>
             </View>
 
             <View className="flex-row gap-3">
               <View className="flex-1">
-                <GlassInput label="City *" value={form.city} onChangeText={(t) => setForm({...form, city: t})} />
+                <GlassInput
+                  label="City *"
+                  value={form.city}
+                  onChangeText={(t) => setForm({ ...form, city: t })}
+                />
               </View>
               <View className="flex-1">
-                <GlassInput label="Pincode *" value={form.pincode} onChangeText={(t) => setForm({...form, pincode: t})} keyboardType="numeric" maxLength={6} />
+                <GlassInput
+                  label="Pincode *"
+                  value={form.pincode}
+                  onChangeText={(t) => setForm({ ...form, pincode: t })}
+                  keyboardType="numeric"
+                  maxLength={6}
+                />
               </View>
             </View>
           </GlassCard>
@@ -573,14 +792,16 @@ export default function EditFirmScreen() {
             ) : (
               <>
                 <Save size={18} color="#fff" />
-                <Text style={fixedBarStyles.pillPrimaryText}>Save Firm Changes</Text>
+                <Text style={fixedBarStyles.pillPrimaryText}>
+                  Save Firm Changes
+                </Text>
               </>
             )}
           </TouchableOpacity>
         </FixedGlassBar>
       </View>
 
-      {/* STATE PICKER MODAL */}
+      {/* SEARCHABLE STATE PICKER MODAL (v7.0 G70) */}
       <Modal
         visible={showStatePicker}
         animationType="fade"
@@ -589,22 +810,49 @@ export default function EditFirmScreen() {
         onRequestClose={() => setShowStatePicker(false)}
       >
         <View className="flex-1 bg-black/50 justify-end">
-          <View className="bg-vj-bg rounded-t-3xl h-2/3 p-6 border-t border-white/50">
+          <View className="bg-vj-bg rounded-t-3xl h-3/4 p-6 border-t border-white/50">
             <View className="flex-row justify-between items-center mb-4 border-b border-black/10 pb-4">
-              <Text className="text-xl font-bold text-vj-text">Select Jurisdiction</Text>
-              <TouchableOpacity onPress={() => setShowStatePicker(false)} className="p-1 bg-black/5 rounded-full">
+              <Text className="text-xl font-bold text-vj-text">
+                Select Jurisdiction
+              </Text>
+              <TouchableOpacity
+                onPress={() => setShowStatePicker(false)}
+                className="p-1 bg-black/5 rounded-full"
+              >
                 <X size={20} color={COLORS.vjText} />
               </TouchableOpacity>
             </View>
-            <ScrollView showsVerticalScrollIndicator={false}>
-              {INDIAN_STATES.map((s) => (
-                <TouchableOpacity 
-                  key={s.code} 
+
+            <View className="flex-row items-center bg-white rounded-xl px-3.5 py-2.5 border border-black/15 mb-3">
+              <Search size={18} color={COLORS.vjText} />
+              <TextInput
+                value={stateSearchQuery}
+                onChangeText={setStateSearchQuery}
+                placeholder="Search state name or 2-digit GST code..."
+                placeholderTextColor="rgba(46,29,0,0.4)"
+                className="flex-1 ml-2.5 text-vj-text font-semibold text-sm"
+              />
+            </View>
+
+            <ScrollView
+              showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
+            >
+              {filteredStates.map((s) => (
+                <TouchableOpacity
+                  key={s.code}
                   className="py-4 border-b border-black/5 flex-row justify-between items-center"
-                  onPress={() => { setForm({...form, stateCode: s.code, stateName: s.name}); setShowStatePicker(false); }}
+                  onPress={() => {
+                    setForm({ ...form, stateCode: s.code, stateName: s.name });
+                    setShowStatePicker(false);
+                  }}
                 >
-                  <Text className="text-base font-medium text-vj-text">{s.code} - {s.name}</Text>
-                  {form.stateCode === s.code && <CheckCircle2 size={18} color="#15803d" />}
+                  <Text className="text-base font-medium text-vj-text">
+                    {s.code} - {s.name}
+                  </Text>
+                  {form.stateCode === s.code && (
+                    <CheckCircle2 size={18} color="#15803d" />
+                  )}
                 </TouchableOpacity>
               ))}
             </ScrollView>
@@ -619,15 +867,20 @@ export default function EditFirmScreen() {
             <View className="bg-vj-success/20 p-6 rounded-full mb-6 border border-vj-success/30">
               <CheckCircle2 size={48} color="#15803d" />
             </View>
-            <Text className="text-2xl font-bold text-vj-text mb-2 text-center tracking-tight">Update Successful</Text>
+            <Text className="text-2xl font-bold text-vj-text mb-2 text-center tracking-tight">
+              Update Successful
+            </Text>
             <Text className="text-vj-text/60 text-center mb-8 font-medium">
               The firm details have been updated securely.
             </Text>
             <View className="w-full">
-              <GlassButton 
-                title="Return to List" 
-                icon={<ArrowLeft size={20} color="#FCFBF8" />} 
-                onPress={() => { setShowSuccessModal(false); router.back(); }} 
+              <GlassButton
+                title="Return to List"
+                icon={<ArrowLeft size={20} color="#FCFBF8" />}
+                onPress={() => {
+                  setShowSuccessModal(false);
+                  router.back();
+                }}
               />
             </View>
           </View>
@@ -636,7 +889,6 @@ export default function EditFirmScreen() {
 
       {/* UNSAVED CHANGES MODAL */}
       {UnsavedModal}
-
     </TwoToneWrapper>
   );
 }

@@ -1,7 +1,5 @@
 // tests/__mocks__/setup.ts
 // Jest native module mocks — pure JS only, zero native compilation required.
-// NOTE: db/client mock lives in phase1_fortress.test.ts because jest.mock() module
-// resolution must be in the same file as the test.
 
 import { AppState, Alert } from 'react-native';
 
@@ -24,15 +22,37 @@ if (typeof globalThis.crypto === 'undefined' || !globalThis.crypto?.subtle) {
 
 const mockKvStore: Record<string, string> = { vjbilling_device_id: 'test-device-123' };
 const mockAsyncStore: Record<string, string> = { vjbilling_device_id: 'test-device-123' };
+const mockSecureStore: Record<string, string> = {};
 
-// ─── 1. MOCK: expo-sqlite ─────────────────────────────────────────────────────
+// ─── 1. MOCK: expo-sqlite & expo-secure-store ─────────────────────────────────
 
 jest.mock('expo-sqlite', () => ({
   openDatabaseSync: () => ({
     execSync: () => {},
     runSync: () => {},
-    getFirstSync: () => ({ count: 0 }),
+    getFirstSync: (query?: string) => {
+      if (typeof query === 'string' && query.includes('cipher_version')) {
+        return { cipher_version: '4.5.0' };
+      }
+      if (typeof query === 'string' && query.includes('foreign_keys')) {
+        return { foreign_keys: 1 };
+      }
+      return { count: 0, n: 0 };
+    },
     getAllSync: () => [],
+    closeSync: () => {},
+  }),
+  deleteDatabaseAsync: jest.fn().mockResolvedValue(undefined),
+}));
+
+jest.mock('expo-secure-store', () => ({
+  WHEN_UNLOCKED_THIS_DEVICE_ONLY: 1,
+  getItemAsync: jest.fn(async (key: string) => mockSecureStore[key] ?? null),
+  setItemAsync: jest.fn(async (key: string, val: string) => {
+    mockSecureStore[key] = val;
+  }),
+  deleteItemAsync: jest.fn(async (key: string) => {
+    delete mockSecureStore[key];
   }),
 }));
 
@@ -42,9 +62,10 @@ jest.mock('drizzle-orm/expo-sqlite', () => ({
 
 jest.mock('drizzle-orm/expo-sqlite/migrator', () => ({
   useMigrations: () => ({ success: true, error: null }),
+  migrate: jest.fn().mockResolvedValue(undefined),
 }));
 
-// ─── 2. MOCK: expo-crypto ─────────────────────────────────────────────────────
+// ─── 2. MOCK: expo-crypto & react-native-quick-crypto ─────────────────────────
 
 jest.mock('expo-crypto', () => {
   const cryptoModule = require('crypto');
@@ -59,7 +80,7 @@ jest.mock('expo-crypto', () => {
     digestStringAsync: async (_algo: any, data: string) => {
       return cryptoModule.createHash('sha256').update(data).digest('hex');
     },
-    CryptoDigestAlgorithm: { 
+    CryptoDigestAlgorithm: {
       SHA256: 'SHA-256',
       SHA384: 'SHA-384',
       SHA512: 'SHA-512',
@@ -67,13 +88,12 @@ jest.mock('expo-crypto', () => {
   };
 });
 
-// ─── 2b. MOCK: react-native-quick-crypto ──────────────────────────────────────
-
 jest.mock('react-native-quick-crypto', () => {
   const cryptoModule = require('crypto');
   return {
     ...cryptoModule,
-    default: cryptoModule,
+    install: jest.fn(),
+    default: { ...cryptoModule, install: jest.fn() },
     Buffer: global.Buffer || require('buffer').Buffer,
   };
 });
@@ -87,10 +107,16 @@ jest.mock('react-native-mmkv', () => {
     }),
     getString: jest.fn((key: string) => mockKvStore[key] ?? undefined),
     getBoolean: jest.fn((key: string) => mockKvStore[key] === 'true'),
-    getNumber: jest.fn((key: string) => (mockKvStore[key] !== undefined ? Number(mockKvStore[key]) : undefined)),
+    getNumber: jest.fn((key: string) =>
+      mockKvStore[key] !== undefined ? Number(mockKvStore[key]) : undefined
+    ),
     contains: jest.fn((key: string) => key in mockKvStore),
-    remove: jest.fn((key: string) => { delete mockKvStore[key]; }),
-    delete: jest.fn((key: string) => { delete mockKvStore[key]; }),
+    remove: jest.fn((key: string) => {
+      delete mockKvStore[key];
+    }),
+    delete: jest.fn((key: string) => {
+      delete mockKvStore[key];
+    }),
     clearAll: jest.fn(() => {
       Object.keys(mockKvStore).forEach((k) => delete mockKvStore[k]);
     }),
@@ -116,7 +142,9 @@ const mockFileSystem = {
   cacheDirectory: '/tmp/vjbilling-test/',
   getInfoAsync: jest.fn().mockImplementation(async (uri: string) => ({
     exists: uri === (global as any).__mockWriteFileUri,
-    size: (global as any).__mockWriteFileContent ? (global as any).__mockWriteFileContent.length : 0,
+    size: (global as any).__mockWriteFileContent
+      ? (global as any).__mockWriteFileContent.length
+      : 0,
   })),
   writeAsStringAsync: jest.fn().mockImplementation(async (uri: string, content: string) => {
     (global as any).__mockWriteFileUri = uri;
@@ -128,19 +156,30 @@ const mockFileSystem = {
     }
     return '{}';
   }),
+  readDirectoryAsync: jest.fn().mockResolvedValue([]),
   deleteAsync: jest.fn().mockResolvedValue(undefined),
   makeDirectoryAsync: jest.fn().mockResolvedValue(undefined),
   copyAsync: jest.fn().mockResolvedValue(undefined),
+  moveAsync: jest.fn().mockResolvedValue(undefined),
   EncodingType: {
     UTF8: 'utf8',
     Base64: 'base64',
   },
   StorageAccessFramework: {
     getUriForDirectoryInRoot: jest.fn().mockReturnValue('content://mock/root'),
-    requestDirectoryPermissionsAsync: jest.fn().mockResolvedValue({ granted: true, directoryUri: 'content://mock/dir' }),
+    requestDirectoryPermissionsAsync: jest
+      .fn()
+      .mockResolvedValue({ granted: true, directoryUri: 'content://mock/dir' }),
     readDirectoryAsync: jest.fn().mockResolvedValue([]),
-    makeDirectoryAsync: jest.fn().mockImplementation(async (parentUri: string, dirName: string) => `${parentUri}/${dirName}`),
-    createFileAsync: jest.fn().mockImplementation(async (parentUri: string, fileName: string) => `${parentUri}/${fileName}`),
+    makeDirectoryAsync: jest
+      .fn()
+      .mockImplementation(async (parentUri: string, dirName: string) => `${parentUri}/${dirName}`),
+    createFileAsync: jest
+      .fn()
+      .mockImplementation(
+        async (parentUri: string, fileName: string) => `${parentUri}/${fileName}`
+      ),
+    deleteAsync: jest.fn().mockResolvedValue(undefined),
   },
 };
 
@@ -150,12 +189,18 @@ jest.mock('expo-file-system', () => mockFileSystem);
 // ─── 6. MOCK: @react-native-async-storage/async-storage ──────────────────────
 
 jest.mock('@react-native-async-storage/async-storage', () => ({
-  setItem: async (key: string, value: string) => { mockAsyncStore[key] = value; },
+  setItem: async (key: string, value: string) => {
+    mockAsyncStore[key] = value;
+  },
   getItem: async (key: string) => mockAsyncStore[key] ?? null,
-  removeItem: async (key: string) => { delete mockAsyncStore[key]; },
+  removeItem: async (key: string) => {
+    delete mockAsyncStore[key];
+  },
   getAllKeys: async () => Object.keys(mockAsyncStore),
   multiGet: async (keys: string[]) => keys.map((k) => [k, mockAsyncStore[k] ?? null]),
-  clear: async () => { Object.keys(mockAsyncStore).forEach((k) => delete mockAsyncStore[k]); },
+  clear: async () => {
+    Object.keys(mockAsyncStore).forEach((k) => delete mockAsyncStore[k]);
+  },
 }));
 
 // ─── 7. MOCK: react-native ───────────────────────────────────────────────────
@@ -163,11 +208,40 @@ jest.mock('@react-native-async-storage/async-storage', () => ({
 jest.spyOn(AppState, 'addEventListener').mockImplementation(() => ({ remove: jest.fn() }) as any);
 jest.spyOn(Alert, 'alert').mockImplementation(jest.fn());
 
-// ─── 8. MOCK: expo-sharing ──────────────────────────────────────────────────
+// ─── 8. MOCK: expo-sharing, expo-updates, expo-notifications, background ──────
 
 jest.mock('expo-sharing', () => ({
   isAvailableAsync: jest.fn().mockResolvedValue(false),
   shareAsync: jest.fn().mockResolvedValue(undefined),
+}));
+
+jest.mock('expo-updates', () => ({
+  reloadAsync: jest.fn().mockResolvedValue(undefined),
+}));
+
+jest.mock('expo-notifications', () => ({
+  AndroidImportance: { HIGH: 4 },
+  AndroidNotificationVisibility: { PRIVATE: 0 },
+  SchedulableTriggerInputTypes: { DATE: 'date' },
+  setNotificationHandler: jest.fn(),
+  setNotificationChannelAsync: jest.fn().mockResolvedValue(undefined),
+  getPermissionsAsync: jest.fn().mockResolvedValue({ granted: true, canAskAgain: true }),
+  requestPermissionsAsync: jest.fn().mockResolvedValue({ granted: true }),
+  scheduleNotificationAsync: jest.fn().mockResolvedValue('mock-notif-id'),
+  cancelScheduledNotificationAsync: jest.fn().mockResolvedValue(undefined),
+  dismissNotificationAsync: jest.fn().mockResolvedValue(undefined),
+  getAllScheduledNotificationsAsync: jest.fn().mockResolvedValue([]),
+}));
+
+jest.mock('expo-background-task', () => ({
+  BackgroundTaskResult: { Success: 1, Failed: 2 },
+  registerTaskAsync: jest.fn().mockResolvedValue(undefined),
+  unregisterTaskAsync: jest.fn().mockResolvedValue(undefined),
+}));
+
+jest.mock('expo-task-manager', () => ({
+  defineTask: jest.fn(),
+  isTaskRegisteredAsync: jest.fn().mockResolvedValue(false),
 }));
 
 // ─── 10. MOCK: expo-haptics ──────────────────────────────────────────────────
@@ -197,7 +271,7 @@ jest.mock('expo-document-picker', () => ({
   }),
 }));
 
-// ─── 12. MOCK: react-native-nitro-modules ─────────────────────────────────────
+// ─── 12. MOCK: react-native-nitro-modules & worklets ─────────────────────────
 
 jest.mock('react-native-nitro-modules', () => ({
   NitroModules: {
@@ -206,8 +280,6 @@ jest.mock('react-native-nitro-modules', () => ({
     hasNativeModule: jest.fn(() => false),
   },
 }));
-
-// ─── 13. MOCK: react-native-worklets ──────────────────────────────────────────
 
 jest.mock('react-native-worklets', () => ({
   useWorkletCallback: (fn: any) => fn,

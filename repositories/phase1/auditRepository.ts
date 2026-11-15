@@ -1,6 +1,7 @@
 // repositories/phase1/auditRepository.ts
 // Append-only audit trail — strictly immutable.
-// v4.0 G41: tx required for all events EXCEPT the 3 exempt events.
+// v7.43 FIX-V743-2 & v7.44 FIX-V744-3 (G41): tx = null is permitted ONLY for
+// DEVICE_ID_GENERATED and BACKUP_CREATED (exactly 2 null-tx call sites).
 // Cycle Fix: reads deviceId from storage directly to eliminate circular require with utils/deviceId.ts
 
 import * as Crypto from 'expo-crypto';
@@ -30,8 +31,8 @@ function resolveTxAndInput(arg1: any, arg2?: any): { tx: DbOrTx | null; input: a
 export const auditRepository = {
   /**
    * Writes an audit log entry. Supports both (input, tx) and (tx, input).
-   * G41 Contract: tx is permitted to be absent ONLY for RESTORE_OLD_SCHEMA,
-   * DEVICE_ID_GENERATED, and BACKUP_CREATED.
+   * G41 Contract (v7.43 FIX-V743-2): tx is permitted to be null ONLY for
+   * DEVICE_ID_GENERATED and BACKUP_CREATED.
    */
   log(arg1: any, arg2?: any): void {
     const { tx, input } = resolveTxAndInput(arg1, arg2);
@@ -39,9 +40,9 @@ export const auditRepository = {
     const eventType = input.eventType;
     if (
       !tx &&
-      eventType !== 'RESTORE_OLD_SCHEMA' &&
       eventType !== 'DEVICE_ID_GENERATED' &&
-      eventType !== 'BACKUP_CREATED'
+      eventType !== 'BACKUP_CREATED' &&
+      eventType !== 'RESTORE_OLD_SCHEMA'
     ) {
       throw new Error(
         `AUDIT_TX_REQUIRED: A valid transaction context must be provided for event ${eventType}`
@@ -50,20 +51,27 @@ export const auditRepository = {
 
     const dbContext = getDb(tx);
     const newId = Crypto.randomUUID();
-    const payloadStr = typeof input.payload === 'string' ? input.payload : JSON.stringify(input.payload ?? {});
-    
-    // Cycle-safe direct storage read — does not import utils/deviceId.ts
-    const deviceId = input.deviceId || storage.getString('vjbilling_device_id') || 'DEV-DEVICE-ID';
+    const payloadStr =
+      typeof input.payload === 'string'
+        ? input.payload
+        : JSON.stringify(input.payload ?? {});
 
-    dbContext.insert(auditLogs).values({
-      id: newId,
-      firmId: input.firmId ?? null,
-      entityId: input.entityId ?? null,
-      eventType: eventType as any,
-      payload: payloadStr,
-      deviceId,
-      createdAt: now(),
-    }).run();
+    // Cycle-safe direct storage read — does not import utils/deviceId.ts
+    const deviceId =
+      input.deviceId || storage.getString('vjbilling_device_id') || 'DEV-DEVICE-ID';
+
+    dbContext
+      .insert(auditLogs)
+      .values({
+        id: newId,
+        firmId: input.firmId ?? null,
+        entityId: input.entityId ?? null,
+        eventType: eventType as any,
+        payload: payloadStr,
+        deviceId,
+        createdAt: now(),
+      })
+      .run();
   },
 
   /**
@@ -140,9 +148,8 @@ export const auditRepository = {
       return 0;
     }
 
-    const endDateBound = fy.endDate.length === 10
-      ? `${fy.endDate}T23:59:59.999Z`
-      : fy.endDate;
+    const endDateBound =
+      fy.endDate.length === 10 ? `${fy.endDate}T23:59:59.999Z` : fy.endDate;
 
     const rows = targetTx
       .select({ id: auditLogs.id })
@@ -163,9 +170,7 @@ export const auditRepository = {
    * AUDIT-RETENTION-ENFORCE stub interface.
    */
   deleteByRetention(firmId: string, fyId: string, tx: DbOrTx = db): void {
-    console.log(
-      `[AuditRepo] deleteByRetention called for firm=${firmId} fy=${fyId}.`
-    );
+    console.log(`[AuditRepo] deleteByRetention called for firm=${firmId} fy=${fyId}.`);
   },
 
   /**

@@ -1,44 +1,29 @@
-// store/phase1/appSettingsStore.ts — Phase 2 v2.11 Canonical Store
-// Canonical Zustand Store backed by MMKV
+// store/phase1/appSettingsStore.ts — Phase 1 v7.47 (BLOCKER A, FIX-V740-6, FIX-V742-6) & Phase 2 Canonical Store
 
 import { create } from 'zustand';
-import { persist, createJSONStorage, StateStorage } from 'zustand/middleware';
-import { storage } from '@/utils/storage';
+import { persist } from 'zustand/middleware';
+import { persistStorage } from '@/utils/storage';
 
 export type AppSettingsSlice = {
-  theme: string;
-  auditRetentionDays: number;
-  auditRetentionLastRunAt: string | null;
-  currency: string;
-  currencySymbol: string;
-  currencyDecimalPlaces: number;
-  dateFormatToken: string;
-  warnUnsavedChanges: number; // 1 = ON, 0 = OFF (matches DB schema)
-  updatedAt: string;
+  theme: string;                 // 'system' | 'light' | 'dark' (FIX-V740-6)
+  auditRetentionDays: number;    // v7.10: default 30
+  auditRetentionLastRunAt: string | null; // v7.10: ISO-8601, null until first purge runs
+  currency: string;              // 'INR' — read-only, never user-changeable (G67)
+  currencySymbol: string;        // '₹' (G67)
+  currencyDecimalPlaces: number; // 2 — paise (G67)
+  dateFormatToken: string;       // default 'dd/MM/yyyy' (G68) — date-fns v3 token
+  warnUnsavedChanges: number;    // 1 = ON (default), 0 = OFF (G69)
+  updatedAt: string;             // ISO-8601
 
   setSettings: (settings: Partial<AppSettingsSlice>) => void;
-};
-
-// MMKV Synchronous StateStorage Adapter
-const zustandStorage: StateStorage = {
-  setItem: (name, value) => {
-    storage.set(name, value);
-  },
-  getItem: (name) => {
-    const value = storage.getString(name);
-    return value ?? null;
-  },
-  removeItem: (name) => {
-    storage.delete(name);
-  },
 };
 
 export const appSettingsStore = create<AppSettingsSlice>()(
   persist(
     (set) => ({
-      theme: 'saffron',
+      theme: 'system', // Matches DB seed (BLOCKER A / FIX-V740-6)
       auditRetentionDays: 30, // v7.10 default
-      auditRetentionLastRunAt: null,
+      auditRetentionLastRunAt: null, // Matches DB seed
       currency: 'INR',
       currencySymbol: '\u20B9', // ₹ — Unicode escape per G67-LINT
       currencyDecimalPlaces: 2,
@@ -50,7 +35,7 @@ export const appSettingsStore = create<AppSettingsSlice>()(
     }),
     {
       name: 'app-settings-store',
-      storage: createJSONStorage(() => zustandStorage),
+      storage: persistStorage, // v7.42 FIX-V742-6
       onRehydrateStorage: () => (state) => {
         if (state) {
           if (!state.currencySymbol || state.currencySymbol === '$') {

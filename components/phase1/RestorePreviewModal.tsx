@@ -1,40 +1,63 @@
-// components/RestorePreviewModal.tsx — Phase 1 (v7.38) & Phase 2 Canonical Component (FIX-V726-3, FIX-V736-1)
+// components/phase1/RestorePreviewModal.tsx — Phase 1 v7.47 & Phase 2 Canonical Component
+// Implements FIX-VSEC-5 (cross-device warning), FIX-V726-3, FIX-V736-1, FIX-V741-5 (old-schema warning)
 
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, Modal, TouchableOpacity, ScrollView, KeyboardAvoidingView, Platform } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  Modal,
+  TouchableOpacity,
+  ScrollView,
+  KeyboardAvoidingView,
+  Platform,
+} from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { GlassCard, GlassButton, GlassInput } from '@/components/ui/Glass';
-import { 
-  DatabaseBackup, 
-  ShieldAlert, 
-  Building2, 
-  Package, 
-  Layers, 
-  FileSpreadsheet, 
-  Calendar, 
-  Clock, 
+import {
+  DatabaseBackup,
+  ShieldAlert,
+  Building2,
+  Package,
+  Layers,
+  FileSpreadsheet,
+  Calendar,
+  Clock,
   HardDrive,
   X,
   AlertTriangle,
   Coins,
   Lock,
-  ImageOff
+  ImageOff,
+  Smartphone,
 } from 'lucide-react-native';
 import { COLORS } from '@/constants/theme';
+import { BACKUP_SCHEMA_VERSION, SCHEMA_VERSION } from '@/constants';
+import { getDeviceId } from '@/utils/deviceId';
 import { BackupEnvelope } from '@/services/phase1/backupService';
 
 export interface RestorePreviewModalProps {
   visible: boolean;
   backup: BackupEnvelope | null;
   fileContent?: string | null;
+  schemaWarning?: string | null;
   isRestoring?: boolean;
   onConfirm: (password?: string) => void;
   onCancel: () => void;
 }
 
+function getSafeCurrentDeviceId(): string | null {
+  try {
+    return getDeviceId();
+  } catch {
+    return null;
+  }
+}
+
 export function RestorePreviewModal({
   visible,
   backup,
+  schemaWarning,
   isRestoring = false,
   onConfirm,
   onCancel,
@@ -50,18 +73,19 @@ export function RestorePreviewModal({
   if (!visible || !backup) return null;
 
   const isPasswordProtected = backup.passwordProtected === true;
-  const isConfirmDisabled = isRestoring || (isPasswordProtected && password.trim().length === 0);
+  const isConfirmDisabled =
+    isRestoring || (isPasswordProtected && password.trim().length === 0);
 
   const firms = backup.payload?.firms || [];
   const primaryFirm = firms[0];
   const exportedDate = backup.exportedAt ? new Date(backup.exportedAt) : new Date();
-  
+
   const formattedDate = exportedDate.toLocaleDateString('en-IN', {
     day: '2-digit',
     month: 'short',
     year: 'numeric',
   });
-  
+
   const formattedTime = exportedDate.toLocaleTimeString('en-IN', {
     hour: '2-digit',
     minute: '2-digit',
@@ -76,20 +100,46 @@ export function RestorePreviewModal({
   const auditCount = backup.payload?.auditLogs?.length || 0;
   const isSafeModeActive = backup.payload?.safeModeState?.isActive === 1;
 
+  // FIX-VSEC-5: Cross-device origin check (backup.deviceId vs current getDeviceId())
+  const backupDeviceId = backup.payload?.deviceId ?? backup.deviceId ?? null;
+  const currentDeviceId = getSafeCurrentDeviceId();
+  const isCrossDevice =
+    !!backupDeviceId &&
+    backupDeviceId !== 'UNKNOWN' &&
+    !!currentDeviceId &&
+    backupDeviceId !== currentDeviceId;
+
+  // FIX-V741-5: Old-schema warning surfaced before confirm
+  const currentMaxSchema = BACKUP_SCHEMA_VERSION ?? SCHEMA_VERSION;
+  const isOldSchema =
+    typeof backup.schemaVersion === 'number' && backup.schemaVersion < currentMaxSchema;
+  const effectiveSchemaWarning =
+    schemaWarning ||
+    (isOldSchema
+      ? `Older backup format detected (schema v${backup.schemaVersion} < app v${currentMaxSchema}). Data will be migrated on restore.`
+      : null);
+
   // v7.36 FIX-V736-1: Detect presence of embedded logo binaries
-  const hasEmbeddedLogos = !!(backup.payload?.logoAssets && (
-    (backup.payload.logoAssets.firmLogos && backup.payload.logoAssets.firmLogos.length > 0) ||
-    (backup.payload.logoAssets.bisLogos && backup.payload.logoAssets.bisLogos.length > 0)
-  ));
+  const hasEmbeddedLogos = !!(
+    backup.payload?.logoAssets &&
+    ((backup.payload.logoAssets.firmLogos &&
+      backup.payload.logoAssets.firmLogos.length > 0) ||
+      (backup.payload.logoAssets.bisLogos &&
+        backup.payload.logoAssets.bisLogos.length > 0))
+  );
 
   const handleConfirmPress = () => {
     if (isConfirmDisabled) return;
-    try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); } catch (e) {}
+    try {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    } catch {}
     onConfirm(isPasswordProtected ? password : undefined);
   };
 
   const handleCancelPress = () => {
-    try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch (e) {}
+    try {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    } catch {}
     onCancel();
   };
 
@@ -101,14 +151,13 @@ export function RestorePreviewModal({
       statusBarTranslucent={true}
       onRequestClose={handleCancelPress}
     >
-      <KeyboardAvoidingView 
+      <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         keyboardVerticalOffset={Platform.OS === 'ios' ? 12 : 0}
         style={s.overlay}
       >
         <View style={s.container}>
           <GlassCard style={s.modalCard}>
-            
             {/* MANDATORY WATERMARK BANNER */}
             <View style={s.watermarkBanner}>
               <Text style={s.watermarkText}>PREVIEW — NOT RESTORED YET</Text>
@@ -126,15 +175,20 @@ export function RestorePreviewModal({
                 </View>
               </View>
 
-              {!isRestoring && (
-                <TouchableOpacity activeOpacity={0.7} onPress={handleCancelPress} style={s.closeBtn}>
-                  <X size={20} color="rgba(46,29,0,0.5)" />
-                </TouchableOpacity>
-              )}
+              <TouchableOpacity
+                activeOpacity={0.7}
+                onPress={handleCancelPress}
+                style={s.closeBtn}
+              >
+                <X size={20} color="rgba(46,29,0,0.5)" />
+              </TouchableOpacity>
             </View>
 
-            <ScrollView showsVerticalScrollIndicator={false} style={s.scrollArea} keyboardShouldPersistTaps="handled">
-              
+            <ScrollView
+              showsVerticalScrollIndicator={false}
+              style={s.scrollArea}
+              keyboardShouldPersistTaps="handled"
+            >
               {/* Metadata Pills */}
               <View style={s.metaPillContainer}>
                 <View style={s.metaPill}>
@@ -145,9 +199,19 @@ export function RestorePreviewModal({
                   <Clock size={12} color="#B8860B" />
                   <Text style={s.metaPillText}>{formattedTime}</Text>
                 </View>
-                <View style={[s.metaPill, { backgroundColor: 'rgba(5, 150, 105, 0.12)', borderColor: 'rgba(5, 150, 105, 0.25)' }]}>
+                <View
+                  style={[
+                    s.metaPill,
+                    {
+                      backgroundColor: 'rgba(5, 150, 105, 0.12)',
+                      borderColor: 'rgba(5, 150, 105, 0.25)',
+                    },
+                  ]}
+                >
                   <HardDrive size={12} color="#059669" />
-                  <Text style={[s.metaPillText, { color: '#059669' }]}>v{backup.appVersion || '1.0.0'}</Text>
+                  <Text style={[s.metaPillText, { color: '#059669' }]}>
+                    v{backup.appVersion || '1.0.0'} • Schema v{backup.schemaVersion}
+                  </Text>
                 </View>
               </View>
 
@@ -159,13 +223,17 @@ export function RestorePreviewModal({
                   </View>
                   <View style={s.firmInfo}>
                     <View style={s.firmNameRow}>
-                      <Text style={s.firmName} numberOfLines={1}>{primaryFirm.name}</Text>
+                      <Text style={s.firmName} numberOfLines={1}>
+                        {primaryFirm.name}
+                      </Text>
                       <View style={s.firmCodeBadge}>
                         <Text style={s.firmCodeText}>{primaryFirm.firmCode}</Text>
                       </View>
                     </View>
                     {primaryFirm.proprietor ? (
-                      <Text style={s.firmProprietor}>Proprietor: {primaryFirm.proprietor}</Text>
+                      <Text style={s.firmProprietor}>
+                        Proprietor: {primaryFirm.proprietor}
+                      </Text>
                     ) : null}
                   </View>
                 </View>
@@ -186,14 +254,18 @@ export function RestorePreviewModal({
                     <Layers size={16} color="#059669" />
                     <Text style={s.gridTileLabel}>Catalog</Text>
                   </View>
-                  <Text style={s.gridTileValue}>{categoryCount} Cat / {designCount} Des</Text>
+                  <Text style={s.gridTileValue}>
+                    {categoryCount} Cat / {designCount} Des
+                  </Text>
                 </View>
                 <View style={s.gridTile}>
                   <View style={s.gridTileHeader}>
                     <Coins size={16} color="#E11D48" />
                     <Text style={s.gridTileLabel}>Stones & URD</Text>
                   </View>
-                  <Text style={s.gridTileValue}>{gemstoneLotCount} Gem / {urdCount} URD</Text>
+                  <Text style={s.gridTileValue}>
+                    {gemstoneLotCount} Gem / {urdCount} URD
+                  </Text>
                 </View>
                 <View style={s.gridTile}>
                   <View style={s.gridTileHeader}>
@@ -218,12 +290,33 @@ export function RestorePreviewModal({
                 </View>
               )}
 
+              {/* CROSS-DEVICE ORIGIN AMBER WARNING (FIX-VSEC-5) */}
+              {isCrossDevice && (
+                <View style={s.logoNoticeCard}>
+                  <Smartphone size={16} color="#D97706" />
+                  <Text style={s.logoNoticeText}>
+                    Cross-device backup detected (Device ID …
+                    {String(backupDeviceId).slice(-8)}). Restoring will link this device to
+                    the backup’s audit trail.
+                  </Text>
+                </View>
+              )}
+
+              {/* OLD SCHEMA AMBER WARNING (FIX-V741-5) */}
+              {effectiveSchemaWarning && (
+                <View style={s.logoNoticeCard}>
+                  <AlertTriangle size={16} color="#D97706" />
+                  <Text style={s.logoNoticeText}>{effectiveSchemaWarning}</Text>
+                </View>
+              )}
+
               {/* LOGO EXCLUSION NOTICE — ONLY SHOWN FOR PRE-v7.36 BACKUPS (v7.36 FIX-V736-1) */}
               {!hasEmbeddedLogos && (
                 <View style={s.logoNoticeCard}>
                   <ImageOff size={16} color="#D97706" />
                   <Text style={s.logoNoticeText}>
-                    Logo images are not included in this backup and will need to be re-uploaded after restoring on a new device.
+                    Logo images are not included in this backup and will need to be
+                    re-uploaded after restoring on a new device.
                   </Text>
                 </View>
               )}
@@ -233,7 +326,8 @@ export function RestorePreviewModal({
                 <View style={s.safeModeAlert}>
                   <ShieldAlert size={18} color={COLORS.danger} />
                   <Text style={s.safeModeAlertText}>
-                    SAFE MODE ACTIVE IN BACKUP: Restoring will activate Safe Mode integrity verification.
+                    SAFE MODE ACTIVE IN BACKUP: Restoring will activate Safe Mode integrity
+                    verification.
                   </Text>
                 </View>
               )}
@@ -242,31 +336,30 @@ export function RestorePreviewModal({
               <View style={s.warningCard}>
                 <AlertTriangle size={18} color="#D97706" />
                 <Text style={s.warningText}>
-                  Restoring will permanently replace all current store data on this device with the contents of this backup file.
+                  Restoring will permanently replace all current store data on this device
+                  with the contents of this backup file.
                 </Text>
               </View>
-
             </ScrollView>
 
-            {/* Modal Actions */}
+            {/* Modal Actions (FIX-V7411-14: Cancel stays available) */}
             <View style={s.actionRow}>
               <GlassButton
-                title={isRestoring ? "Restoring Database..." : "OVERWRITE & RESTORE"}
+                title={isRestoring ? 'Restoring Database...' : 'OVERWRITE & RESTORE'}
                 onPress={handleConfirmPress}
                 variant="danger"
                 loading={isRestoring}
                 disabled={isConfirmDisabled}
-                icon={isRestoring ? undefined : <DatabaseBackup size={18} color="white" />}
+                icon={
+                  isRestoring ? undefined : <DatabaseBackup size={18} color="white" />
+                }
               />
-              {!isRestoring && (
-                <GlassButton
-                  title="Cancel"
-                  onPress={handleCancelPress}
-                  variant="secondary"
-                />
-              )}
+              <GlassButton
+                title="Cancel"
+                onPress={handleCancelPress}
+                variant="secondary"
+              />
             </View>
-
           </GlassCard>
         </View>
       </KeyboardAvoidingView>

@@ -1,8 +1,8 @@
-// store/phase1/useFirmStore.ts — Phase 1 & 2 Canonical Firm Store (Step 7, Step 8, v5.1 S3)
+// store/phase1/useFirmStore.ts — Phase 1 v7.47 (Step 7, Step 8, v5.1 S3, FIX-V742-6) & Phase 2 Canonical Firm Store
 
 import { create } from 'zustand';
-import { persist, createJSONStorage, StateStorage } from 'zustand/middleware';
-import { storage } from '@/utils/storage';
+import { persist } from 'zustand/middleware';
+import { persistStorage } from '@/utils/storage';
 import { firms } from '@/db/schema';
 
 export type Firm = typeof firms.$inferSelect;
@@ -15,20 +15,6 @@ export interface FirmState {
   clearActiveFirm: () => void;
   switchFirm: (id: string) => void;
 }
-
-// MMKV Synchronous StateStorage Adapter
-const zustandStorage: StateStorage = {
-  setItem: (name, value) => {
-    storage.set(name, value);
-  },
-  getItem: (name) => {
-    const value = storage.getString(name);
-    return value ?? null;
-  },
-  removeItem: (name) => {
-    storage.delete(name);
-  },
-};
 
 export const useFirmStore = create<FirmState>()(
   persist(
@@ -46,7 +32,7 @@ export const useFirmStore = create<FirmState>()(
     }),
     {
       name: 'firm-store',
-      storage: createJSONStorage(() => zustandStorage),
+      storage: persistStorage, // v7.42 FIX-V742-6
     }
   )
 );

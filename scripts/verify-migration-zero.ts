@@ -1,11 +1,5 @@
 // scripts/verify-migration-zero.ts
-// v7.8 FIX-V78-1 — CI validation script for migration zero SQL
-// v7.9 FIX-V79-2 — Canonical implementation
-// v7.12 FIX-V712-3 / v7.22 FIX-V722-3/4 — Table & seed validation additions
-// v7.39 FIX-V739-1/2/3 — Canonical 12-index audit alignment
-//
-// Run: npx ts-node scripts/verify-migration-zero.ts
-// Add to CI pipeline — exits non-zero on any failure.
+// v7.8 FIX-V78-1 / v7.9 FIX-V79-2 / v7.12 FIX-V712-3 / v7.22 FIX-V722-3/4 / v7.39 FIX-V739-1..3 / v7.40 FIX-V740-5
 
 import * as fs from 'fs';
 import * as path from 'path';
@@ -80,14 +74,14 @@ function findMigrationZeroContent(): string {
   if (files.length === 0) {
     throw new Error(
       `Migration zero SQL file (0000_*.sql) not found in ${MIGRATIONS_DIR}.\n` +
-      `Run: npx drizzle-kit generate — then complete scripts/post-generate-checklist.md.`
+        `Run: npx drizzle-kit generate — then complete scripts/post-generate-checklist.md.`
     );
   }
 
   if (files.length > 1) {
     throw new Error(
       `Multiple migration zero candidates found: ${files.join(', ')}.\n` +
-      `There should be exactly one 0000_*.sql file.`
+        `There should be exactly one 0000_*.sql file.`
     );
   }
 
@@ -147,22 +141,32 @@ function verify(): void {
     }
   }
 
+  // v7.40 FIX-V740-5: Verify >= 7 FOREIGN KEY references to firms and audit_retention_days >= 30 CHECK
+  const fkCount = (sqlContent.match(/REFERENCES\s+[`"]?firms[`"]?/gi) ?? []).length;
+  if (fkCount < 7) {
+    failures.push(`MISSING FOREIGN KEYS to firms: found ${fkCount}, expected at least 7`);
+  }
+  if (!sqlContent.includes('audit_retention_days') || !/>=\s*30/.test(sqlContent)) {
+    failures.push('MISSING CHECK: audit_retention_days >= 30');
+  }
+
   if (failures.length > 0) {
     console.error('verify-migration-zero FAILED:\n');
     failures.forEach((f: string) => console.error('  ✗ ' + f));
     console.error(
       `\n${failures.length} item(s) missing. ` +
-      `Complete scripts/post-generate-checklist.md before committing.`
+        `Complete scripts/post-generate-checklist.md before committing.`
     );
     process.exit(1);
   }
 
   console.log(
     `verify-migration-zero PASSED (` +
-    `${REQUIRED_INDEXES.length} indexes, ` +
-    `${REQUIRED_TRIGGERS.length} triggers, ` +
-    `${REQUIRED_COMMENTS.length} boundary comments, ` +
-    `${REQUIRED_TABLE_AND_SEED.length} table+seed checks verified).`
+      `${REQUIRED_INDEXES.length} indexes, ` +
+      `${REQUIRED_TRIGGERS.length} triggers, ` +
+      `${REQUIRED_COMMENTS.length} boundary comments, ` +
+      `${REQUIRED_TABLE_AND_SEED.length} table+seed checks, ` +
+      `${fkCount} firm FKs & retention CHECK verified).`
   );
 }
 

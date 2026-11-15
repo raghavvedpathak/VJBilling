@@ -1,6 +1,7 @@
-// utils/storage.ts — Phase 1 & 2 Canonical Synchronous Storage Service
+// utils/storage.ts — Phase 1 v7.47 (FIX-V7411-4, FIX-V742-6) & Phase 2–4 Canonical Synchronous Storage Service
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { createJSONStorage, type StateStorage } from 'zustand/middleware';
 
 export interface StorageService {
   // Synchronous Core API (MMKV-Compliant)
@@ -13,7 +14,7 @@ export interface StorageService {
   clearAll: () => void;
   getAllKeys: () => string[];
 
-  // Legacy / Zustand StateStorage Compatibility Helpers
+  // Zustand StateStorage Compatibility Helpers
   setItem: (key: string, value: string) => void;
   getItem: (key: string) => string | null;
   removeItem: (key: string) => void;
@@ -22,12 +23,11 @@ export interface StorageService {
 let storageInstance: StorageService;
 
 try {
-  // 1. Production / Native Build: MMKV Engine (v4 Nitro / v3)
+  // 1. Production / Native Build: MMKV v4 Nitro Engine (FIX-V733-10, FIX-V7411-4)
   const { createMMKV, MMKV } = require('react-native-mmkv');
-  
-  const mmkv = typeof createMMKV === 'function' 
-    ? createMMKV({ id: 'vjbilling-storage' }) 
-    : new MMKV({ id: 'vjbilling-storage' });
+
+  // FIX-V7411-4: Call createMMKV() with NO arguments to open the default instance
+  const mmkv = typeof createMMKV === 'function' ? createMMKV() : new MMKV();
 
   // v7.33 FIX-V733-10: Prioritize .remove() for MMKV v4; fallback to .delete() for v3
   const safeDelete = (key: string) => {
@@ -44,7 +44,8 @@ try {
     delete: (key) => safeDelete(key),
     getBoolean: (key) => mmkv.getBoolean(key) ?? false,
     getNumber: (key) => mmkv.getNumber(key),
-    contains: (key) => (typeof mmkv.contains === 'function' ? mmkv.contains(key) : mmkv.getString(key) !== undefined),
+    contains: (key) =>
+      typeof mmkv.contains === 'function' ? mmkv.contains(key) : mmkv.getString(key) !== undefined,
     clearAll: () => {
       if (typeof mmkv.clearAll === 'function') {
         mmkv.clearAll();
@@ -57,22 +58,18 @@ try {
     getItem: (key) => mmkv.getString(key) ?? null,
     removeItem: (key) => safeDelete(key),
   };
-  
-  console.log('[Storage] MMKV Native Storage Initialized');
-
-} catch (e: any) {
-  // 2. Fallback: In-Memory Synchronous Cache + AsyncStorage Background Sync (Expo Go / Web / Test)
-  console.warn('[Storage] MMKV native module not found. Initializing In-Memory Synchronous Fallback.');
-
+} catch {
+  // 2. Fallback: In-Memory Synchronous Cache + AsyncStorage Sync (Jest Test Environment Only)
   const memoryStore: Record<string, string> = {};
 
-  // Pre-hydrate memory store asynchronously in background
-  AsyncStorage.getAllKeys().then(async (keys) => {
-    const pairs = await AsyncStorage.multiGet(keys);
-    pairs.forEach(([k, v]) => {
-      if (v !== null) memoryStore[k] = v;
-    });
-  }).catch(() => {});
+  AsyncStorage.getAllKeys()
+    .then(async (keys) => {
+      const pairs = await AsyncStorage.multiGet(keys);
+      pairs.forEach(([k, v]) => {
+        if (v !== null) memoryStore[k] = v;
+      });
+    })
+    .catch(() => {});
 
   storageInstance = {
     getString: (key) => memoryStore[key],
@@ -108,4 +105,14 @@ try {
 
 export const storage = storageInstance;
 export { storageInstance };
+
+const zustandStorage: StateStorage = {
+  getItem: (name) => storageInstance.getString(name) ?? null,
+  setItem: (name, value) => storageInstance.set(name, value),
+  removeItem: (name) => storageInstance.delete(name),
+};
+
+// FIX-V7411-4 & FIX-V742-6: Canonical Zustand persist storage adapter
+export const persistStorage = createJSONStorage(() => zustandStorage);
+
 export default storageInstance;

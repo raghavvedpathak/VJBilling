@@ -1,9 +1,12 @@
-// services/index.ts — Phase 1 & Phase 2 Barrel Exports
+// services/index.ts — Phase 1–4 Barrel Exports
 
 export * from './phase1/auditRetentionService';
 export * from './phase1/auditService';
+export * from './phase1/autoBackupService';
+export * from './phase1/backupNotificationService';
 export * from './phase1/backupService';
 export * from './phase1/bootstrapService';
+export * from './phase1/factoryResetService';
 export * from './phase1/firmService';
 export {
   fyCoreService,
@@ -17,6 +20,7 @@ export {
   type FYCloseHook,
   type FYCloseHookResult,
 } from './phase1/fyService';
+export * from './phase1/headlessService';
 export * from './phase1/leaseService';
 export * from './phase1/pinService';
 export * from './phase1/restoreService';
@@ -24,6 +28,8 @@ export * from './phase1/safeModeService';
 export * from './phase1/settingsService';
 export {
   verifyService,
+  runVerify,
+  runAll,
   type VerifyStatus,
   type VerifyFinding,
   type VerifyResult,

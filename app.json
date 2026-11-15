@@ -7,6 +7,7 @@
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
+    "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.vjbilling.app",
@@ -34,7 +35,16 @@
       "expo-router",
       "expo-font",
       "expo-sharing",
-      "expo-sqlite",
+      "expo-secure-store",
+      "expo-notifications",
+      "expo-background-task",
+      "expo-task-manager",
+      [
+        "expo-sqlite",
+        {
+          "useSQLCipher": true
+        }
+      ],
       [
         "expo-build-properties",
         {

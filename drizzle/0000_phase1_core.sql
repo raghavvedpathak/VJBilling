@@ -16,7 +16,8 @@ CREATE TABLE `app_settings` (
 	`currency_decimal_places` integer DEFAULT 2 NOT NULL,
 	`date_format_token` text DEFAULT 'dd/MM/yyyy' NOT NULL,
 	`warn_unsaved_changes` integer DEFAULT 1 NOT NULL,
-	`updated_at` text NOT NULL
+	`updated_at` text NOT NULL,
+	CONSTRAINT "audit_retention_min_30" CHECK("audit_retention_days" >= 30)
 );
 --> statement-breakpoint
 CREATE TABLE `firms` (
@@ -52,7 +53,8 @@ CREATE TABLE `financial_years` (
 	`start_date` text NOT NULL,
 	`end_date` text NOT NULL,
 	`status` text NOT NULL,
-	`created_at` text NOT NULL
+	`created_at` text NOT NULL,
+	FOREIGN KEY (`firm_id`) REFERENCES `firms`(`id`) ON UPDATE no action ON DELETE no action
 );
 --> statement-breakpoint
 CREATE TABLE `writer_leases` (
@@ -61,7 +63,8 @@ CREATE TABLE `writer_leases` (
 	`firm_id` text,
 	`acquired_at` text NOT NULL,
 	`expires_at` text NOT NULL,
-	`device_id` text NOT NULL
+	`device_id` text NOT NULL,
+	FOREIGN KEY (`firm_id`) REFERENCES `firms`(`id`) ON UPDATE no action ON DELETE no action
 );
 --> statement-breakpoint
 CREATE TABLE `audit_logs` (
@@ -71,7 +74,8 @@ CREATE TABLE `audit_logs` (
 	`entity_id` text,
 	`device_id` text NOT NULL,
 	`payload` text,
-	`created_at` text NOT NULL
+	`created_at` text NOT NULL,
+	FOREIGN KEY (`firm_id`) REFERENCES `firms`(`id`) ON UPDATE no action ON DELETE no action
 );
 --> statement-breakpoint
 CREATE TABLE `audit_delete_gate` (
@@ -86,7 +90,8 @@ CREATE TABLE `bis_logos` (
 	`is_archived` integer DEFAULT 0 NOT NULL,
 	`archived_at` text,
 	`archived_reason` text,
-	`created_at` text NOT NULL
+	`created_at` text NOT NULL,
+	FOREIGN KEY (`firm_id`) REFERENCES `firms`(`id`) ON UPDATE no action ON DELETE no action
 );
 --> statement-breakpoint
 CREATE TABLE `schema_version` (
@@ -103,7 +108,8 @@ CREATE TABLE `tax_rates` (
 	`tax_type` text NOT NULL,
 	`is_active` integer DEFAULT 1 NOT NULL,
 	`created_at` text NOT NULL,
-	`updated_at` text NOT NULL
+	`updated_at` text NOT NULL,
+	FOREIGN KEY (`firm_id`) REFERENCES `firms`(`id`) ON UPDATE no action ON DELETE no action
 );
 --> statement-breakpoint
 CREATE TABLE `tax_groups` (
@@ -113,14 +119,17 @@ CREATE TABLE `tax_groups` (
 	`group_name` text NOT NULL,
 	`is_active` integer DEFAULT 1 NOT NULL,
 	`created_at` text NOT NULL,
-	`updated_at` text NOT NULL
+	`updated_at` text NOT NULL,
+	FOREIGN KEY (`firm_id`) REFERENCES `firms`(`id`) ON UPDATE no action ON DELETE no action
 );
 --> statement-breakpoint
 CREATE TABLE `tax_group_components` (
 	-- TODO: PHASE 3 STEP 0 BOUNDARY. DO NOT import or query this table from Phase 1 service code. Any Phase 1 usage is a build violation.
 	`id` text PRIMARY KEY NOT NULL,
 	`tax_group_id` text NOT NULL,
-	`tax_rate_id` text NOT NULL
+	`tax_rate_id` text NOT NULL,
+	FOREIGN KEY (`tax_group_id`) REFERENCES `tax_groups`(`id`) ON UPDATE no action ON DELETE no action,
+	FOREIGN KEY (`tax_rate_id`) REFERENCES `tax_rates`(`id`) ON UPDATE no action ON DELETE no action
 );
 --> statement-breakpoint
 CREATE TABLE `sync_devices` (
@@ -152,7 +161,9 @@ CREATE TABLE `audit_archive_index` (
 	`fy_label` text NOT NULL,
 	`archive_date` text NOT NULL,
 	`row_count` integer NOT NULL,
-	`storage_ref` text
+	`storage_ref` text,
+	FOREIGN KEY (`firm_id`) REFERENCES `firms`(`id`) ON UPDATE no action ON DELETE no action,
+	FOREIGN KEY (`fy_id`) REFERENCES `financial_years`(`id`) ON UPDATE no action ON DELETE no action
 );
 
 --> statement-breakpoint

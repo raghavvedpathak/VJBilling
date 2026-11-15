@@ -21,6 +21,9 @@ local.properties
 .env
 .env.local
 
+# Detox developer-local configuration (FIX-VSEC-6: MUST NOT be committed)
+.detoxrc.js
+
 # System files
 .DS_Store
 Thumbs.db

@@ -1,11 +1,13 @@
-// repositories/firmRepository.ts
+// repositories/phase1/firmRepository.ts
 // Strict DB access layer — no business logic here.
 // isArchived and isActive are plain integers in schema (0=false, 1=true).
 // NEVER pass boolean true/false to these columns — always use 1 or 0.
+// v7.46 FIX-V746-6 / v7.47 FIX-V747-2: countFirmsReadOnly() added.
 
 import { eq, desc } from 'drizzle-orm';
 import * as Crypto from 'expo-crypto';
 import db, { db as dbNamed } from '@/db/client';
+import { getSqlite } from '@/db';
 import { firms } from '@/db/schema';
 import { now } from '@/utils/now';
 
@@ -39,13 +41,17 @@ function resolveTxAndId(arg1: any, arg2: any): { tx: DbOrTx; id: string } {
 export const firmRepository = {
   /**
    * Primary insert method — supports both (tx, data) and (data, tx) parameter orders.
-   * Constitutional Invariant: Defaults isActive to 1 ONLY for the first active firm.
+   * Constitutional Invariant: Defaults isActive to 1 ONLY for the first firm (FIX-V742-9).
    */
   insert(arg1: any, arg2?: any): Firm {
     let tx: DbOrTx;
     let data: Partial<NewFirm> = {};
 
-    if (arg1 && typeof arg1 === 'object' && ('name' in arg1 || 'firmCode' in arg1 || 'proprietor' in arg1)) {
+    if (
+      arg1 &&
+      typeof arg1 === 'object' &&
+      ('name' in arg1 || 'firmCode' in arg1 || 'proprietor' in arg1)
+    ) {
       data = arg1;
       tx = getDb(arg2);
     } else {
@@ -55,8 +61,9 @@ export const firmRepository = {
 
     const newId = data.id || Crypto.randomUUID();
     const timestamp = now();
-    const activeCount = this.countActiveFirms(tx);
-    const resolvedIsActive = data.isActive !== undefined ? data.isActive : (activeCount === 0 ? 1 : 0);
+    const existingCount = this.countFirms(tx);
+    const resolvedIsActive =
+      data.isActive !== undefined ? data.isActive : existingCount === 0 ? 1 : 0;
 
     // If newly inserted firm is set to active, ensure all others are set inactive
     if (resolvedIsActive === 1) {
@@ -81,7 +88,10 @@ export const firmRepository = {
   /**
    * Alias for insert
    */
-  create(input: Omit<NewFirm, 'id' | 'createdAt' | 'updatedAt' | 'isActive' | 'isArchived'>, tx?: DbOrTx): Firm {
+  create(
+    input: Omit<NewFirm, 'id' | 'createdAt' | 'updatedAt' | 'isActive' | 'isArchived'>,
+    tx?: DbOrTx
+  ): Firm {
     return this.insert(tx, input);
   },
 
@@ -103,7 +113,7 @@ export const firmRepository = {
   },
 
   /**
-   * Count ALL firms (active + archived) — used for max-3-firms gate.
+   * Count ALL firms (active + archived) — used for max-3-firms gate (G43).
    */
   countFirms(tx?: DbOrTx): number {
     const targetTx = getDb(tx);
@@ -112,7 +122,23 @@ export const firmRepository = {
   },
 
   /**
-   * Count non-archived firms (isArchived = 0).
+   * v7.46 FIX-V746-6 / v7.47 FIX-V747-2: Plain SELECT on the open SQLite handle.
+   * No transaction, so the NO_DATA check in runAutoBackupIfDue() cannot touch the audit or lease path.
+   */
+  countFirmsReadOnly(): number {
+    try {
+      const row = getSqlite().getFirstSync<{ n: number }>('SELECT COUNT(*) AS n FROM firms');
+      if (row && typeof row.n === 'number') {
+        return row.n;
+      }
+    } catch {
+      // Fallback for Jest test suites that mock Drizzle directly without opening getSqlite()
+    }
+    return this.countFirms();
+  },
+
+  /**
+   * Count non-archived firms (isArchived = 0) (G43).
    */
   countActiveFirms(tx?: DbOrTx): number {
     const targetTx = getDb(tx);
@@ -125,7 +151,7 @@ export const firmRepository = {
   },
 
   /**
-   * Returns DB-level active firm's ID (isActive = 1).
+   * Returns DB-level active firm's ID (isActive = 1) (v2.7 Fix).
    */
   getActiveFirmId(tx?: DbOrTx): string | null {
     const targetTx = getDb(tx);
@@ -190,3 +216,5 @@ export const firmRepository = {
     return this.update(tx, id, { isArchived: 0 });
   },
 };
+
+export default firmRepository;

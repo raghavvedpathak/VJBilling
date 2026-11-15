@@ -1,6 +1,7 @@
-// utils/currency.ts — Phase 2 v2.11 Canonical Currency & Number-to-Words
+// utils/currency.ts — Phase 1 v7.47 (G67, FIX-V78-2, FIX-V742-7, FIX-V744-6) & Phase 2–4 Canonical Currency Utility
 
 import { appSettingsStore } from '@/store/phase1/appSettingsStore';
+import { ERR } from '@/constants/errorCodes';
 
 const ONES = [
   '', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine',
@@ -32,19 +33,21 @@ function threeDigitWords(n: number): string {
   return parts.join(' ');
 }
 
+export const MAX_AMOUNT_PAISE = 99_999_999_999; // v7.42 FIX-V742-7: ₹99,99,99,999.99
+
 /**
  * Converts integer paise to Bhartiya denomination words.
- * Max limit: 999999999 paise (₹99,99,999.99)
+ * Max limit: 99,999,999,999 paise (₹99,99,99,999.99 — FIX-V742-7)
  */
 export function amountToWords(paise: number): string {
   if (!Number.isInteger(paise)) {
-    throw new Error('AMOUNT_NOT_INTEGER: paise must be an integer');
+    throw new Error(`${ERR.AMOUNT_NOT_INTEGER}: paise must be an integer`);
   }
   if (paise < 0) {
-    throw new Error('AMOUNT_NEGATIVE: paise cannot be negative');
+    throw new Error(`${ERR.AMOUNT_NEGATIVE}: paise cannot be negative`);
   }
-  if (paise > 999999999) {
-    throw new Error('AMOUNT_TOO_LARGE: maximum is ₹99,99,999.99 (999999999 paise)');
+  if (paise > MAX_AMOUNT_PAISE) {
+    throw new Error(`${ERR.AMOUNT_TOO_LARGE}: maximum is ₹99,99,99,999.99 (99999999999 paise)`);
   }
 
   if (paise === 0) {
@@ -79,6 +82,7 @@ export function amountToWords(paise: number): string {
     }
   }
 
+  // v7.8 FIX-V78-2: .trim() prevents trailing space when rupees === 0 (paise-only amounts)
   const rupeeWords = ('Rupees ' + parts.join(' ')).trim();
 
   if (remainingPaise > 0) {

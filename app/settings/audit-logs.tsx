@@ -33,6 +33,8 @@ const EVENT_MAPPING: Record<string, string> = {
   'SAFE_MODE_ACTIVATED': 'Safe Mode Activated',
   'SAFE_MODE_CLEARED': 'Safe Mode Cleared',
   'BACKUP_CREATED': 'Database Backup Created',
+  'AUTO_BACKUP_FAILED': 'Automatic Backup Failed',
+  'AUTO_BACKUP_SETTING_CHANGED': 'Automatic Backup Setting Updated',
   'RESTORE_COMPLETED': 'Database Successfully Restored',
   'RESTORE_FAILED': 'Database Restore Failed',
   'RESTORE_OLD_SCHEMA': 'Older Backup Restored',
@@ -187,9 +189,13 @@ function getEventMeta(type: string, colors: ReturnType<typeof getThemeColors>) {
 function getHumanSummary(eventType: string, payload: Record<string, any>): string {
   switch (eventType) {
     case 'BACKUP_CREATED':
-      return `Backup file "${payload.fileName || 'vjbilling_backup.vjb'}" (${formatBytes(payload.fileSizeBytes)}) was created successfully.`;
+      return `Backup file "${payload.fileName || 'vjbilling_backup.vjb'}" (${formatBytes(payload.fileSizeBytes)}, ${payload.kind || 'MANUAL'}, trigger: ${payload.trigger || 'NOW'}) was created successfully.`;
+    case 'AUTO_BACKUP_FAILED':
+      return `Automatic backup did not complete (Reason: ${payload.reason || 'BACKUP_ERROR'}, streak: ${payload.failCount || 1}).`;
+    case 'AUTO_BACKUP_SETTING_CHANGED':
+      return `Automatic daily backup was turned ${payload.enabled ? 'ON' : 'OFF'}.`;
     case 'RESTORE_COMPLETED':
-      return `Database was successfully restored from backup (contains ${payload.firmCount || 1} firm profile(s)).`;
+      return `Database was successfully restored from backup (contains ${payload.firmCount || 1} firm profile(s)${payload.oldSchema ? ', migrated from older schema' : ''}).`;
     case 'RESTORE_FAILED':
       return `Database restore failed. Reason: ${payload.reason || 'Decryption error or corrupted file'}.`;
     case 'FIRM_CREATED':
@@ -247,6 +253,18 @@ function getHumanSummary(eventType: string, payload: Record<string, any>): strin
 const KEY_LABEL_MAPPING: Record<string, string> = {
   fileName: 'Backup File Name',
   fileSizeBytes: 'Backup File Size',
+  shared: 'Exported / Shared',
+  kind: 'Backup Kind',
+  trigger: 'Trigger Mechanism',
+  oldSchema: 'Migrated from Legacy Schema',
+  failCount: 'Failure Count',
+  failedAt: 'Failure Timestamp',
+  enabled: 'Enabled Status',
+  publicFolderGranted: 'Public Storage Granted',
+  notificationsGranted: 'Notifications Granted',
+  confirmedFirmCode: 'Confirmed Store Code',
+  oldPinLength: 'Previous PIN Length',
+  newPinLength: 'New PIN Length',
   exportedAt: 'Exported Date & Time',
   restoredAt: 'Restored Date & Time',
   backupDate: 'Backup Date',
@@ -504,6 +522,9 @@ export default function AuditLogScreen() {
   const { activeFirmId } = useFirmStore();
   const dateFormatToken = appSettingsStore((s: any) => s.dateFormatToken);
   const activeTheme = appSettingsStore((s: any) => s.theme);
+  const auditRetentionDays = appSettingsStore(
+    (s: any) => s.settings?.auditRetentionDays ?? s.auditRetentionDays ?? 90
+  );
   const colors = getThemeColors(activeTheme);
 
   const toggleHandlerRef = useRef<(id: string) => void>(() => {});
@@ -572,7 +593,7 @@ export default function AuditLogScreen() {
   const auditHeaderPills = (
     <View style={s.headerPillRow}>
       <HeaderPill icon={<FileText size={12} color={colors.vjBg} />} label={`${filteredLogs.length} Records`} />
-      <HeaderPill icon={<CalendarClock size={12} color="#4ADE80" />} label="30-Day Retention" variant="success" />
+      <HeaderPill icon={<CalendarClock size={12} color="#4ADE80" />} label={`${auditRetentionDays}-Day Retention`} variant="success" />
     </View>
   );
 

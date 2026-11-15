@@ -1,10 +1,10 @@
-// store/phase1/safeModeStore.ts — Phase 2 v2.11 Canonical Store
+// store/phase1/safeModeStore.ts — Phase 1 v7.47 (Step 8, v5.1 S3, FIX-V742-6) & Phase 2 Canonical Store
 
 import { create } from 'zustand';
-import { persist, createJSONStorage, StateStorage } from 'zustand/middleware';
-import { storage } from '@/utils/storage';
+import { persist } from 'zustand/middleware';
+import { persistStorage } from '@/utils/storage';
 
-export type SafeModeTrigger = 
+export type SafeModeTrigger =
   | 'RESTORE_VALIDATION_FAILED'
   | 'VERIFY_CRITICAL_ISSUE'
   | 'MIGRATION_FAILED'
@@ -14,38 +14,24 @@ export type SafeModeTrigger =
   | 'STORAGE_CORRUPTION_DETECTED'
   | 'UNKNOWN_ERROR';
 
-type SafeModeSlice = { 
-  isActive: boolean; 
-  reason: SafeModeTrigger | null; 
-  activatedAt: string | null; 
+type SafeModeSlice = {
+  isActive: boolean;
+  reason: SafeModeTrigger | null;
+  activatedAt: string | null;
   setState: (state: Partial<SafeModeSlice>) => void;
-};
-
-// MMKV Synchronous StateStorage Adapter
-const zustandStorage: StateStorage = {
-  setItem: (name, value) => {
-    storage.set(name, value);
-  },
-  getItem: (name) => {
-    const value = storage.getString(name);
-    return value ?? null;
-  },
-  removeItem: (name) => {
-    storage.delete(name);
-  },
 };
 
 export const safeModeStore = create<SafeModeSlice>()(
   persist(
-    (set) => ({ 
-      isActive: false, 
-      reason: null, 
-      activatedAt: null, 
-      setState: (newState) => set((state) => ({ ...state, ...newState }))
+    (set) => ({
+      isActive: false,
+      reason: null,
+      activatedAt: null,
+      setState: (newState) => set((state) => ({ ...state, ...newState })),
     }),
-    { 
-      name: 'safe-mode-store', 
-      storage: createJSONStorage(() => zustandStorage) 
+    {
+      name: 'safe-mode-store',
+      storage: persistStorage, // v7.42 FIX-V742-6
     }
   )
 );

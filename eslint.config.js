@@ -54,29 +54,35 @@ module.exports = [
           paths: [
             {
               name: '@/db',
-              message: 'PHASE 1 CONSTITUTIONAL VIOLATION: UI screens and components must never touch the database directly. Use the repository or service layer instead (G65).',
+              message:
+                'PHASE 1 CONSTITUTIONAL VIOLATION: UI screens and components must never touch the database directly. Use the repository or service layer instead (G65).',
             },
             {
               name: '@/db/client',
-              message: 'PHASE 1 CONSTITUTIONAL VIOLATION: UI screens and components must never touch the database directly. Use the repository or service layer instead (G65).',
+              message:
+                'PHASE 1 CONSTITUTIONAL VIOLATION: UI screens and components must never touch the database directly. Use the repository or service layer instead (G65).',
             },
             {
               name: '@/db/schema',
-              message: 'PHASE 1 CONSTITUTIONAL VIOLATION: UI screens and components must never import schema directly. Use domain types instead (G65).',
+              message:
+                'PHASE 1 CONSTITUTIONAL VIOLATION: UI screens and components must never import schema directly. Use domain types instead (G65).',
             },
             {
               name: 'drizzle-orm',
-              message: 'PHASE 1 CONSTITUTIONAL VIOLATION: Direct ORM queries in UI components are prohibited (G65).',
+              message:
+                'PHASE 1 CONSTITUTIONAL VIOLATION: Direct ORM queries in UI components are prohibited (G65).',
             },
             {
               name: 'expo-sqlite',
-              message: 'PHASE 1 CONSTITUTIONAL VIOLATION: Direct SQLite access in UI components is prohibited (G65).',
+              message:
+                'PHASE 1 CONSTITUTIONAL VIOLATION: Direct SQLite access in UI components is prohibited (G65).',
             },
           ],
           patterns: [
             {
               group: ['**/db/*', '@/db/*', '**/db'],
-              message: 'PHASE 1 CONSTITUTIONAL VIOLATION: UI screens and components must never touch the database directly. Use the repository or service layer instead (G65).',
+              message:
+                'PHASE 1 CONSTITUTIONAL VIOLATION: UI screens and components must never touch the database directly. Use the repository or service layer instead (G65).',
             },
           ],
         },
@@ -86,9 +92,46 @@ module.exports = [
         {
           // Matches String Literals, JSX Text nodes (<Text>₹</Text>), and Template Strings (`₹${x}`)
           selector: ':matches(Literal, JSXText, TemplateElement)[value=/(\\u20B9|₹|\\bINR\\b)/]',
-          message: "CURRENCY_HARDCODE: Never hardcode ₹ or 'INR'. Use getCurrencySymbol() or formatRupees() from utils/currency.ts (G67).",
+          message:
+            "CURRENCY_HARDCODE: Never hardcode ₹ or 'INR'. Use getCurrencySymbol() or formatRupees() from utils/currency.ts (G67).",
         },
       ],
+    },
+  },
+
+  // 5. Synchronous Transaction Enforcement (FIX-V740-8)
+  {
+    files: ['services/**/*.ts', 'repositories/**/*.ts', 'stores/**/*.ts', 'utils/**/*.ts'],
+    rules: {
+      'no-restricted-properties': [
+        'error',
+        {
+          object: 'db',
+          property: 'transaction',
+          message: 'Use safeTransaction() from @/db/safeTransaction (FIX-V740-8)',
+        },
+      ],
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector: "CallExpression[callee.name='safeTransaction'] > ArrowFunctionExpression[async=true]",
+          message: 'ASYNC_TX_CALLBACK: transaction callback must not be async',
+        },
+        {
+          selector: "CallExpression[callee.name='safeTransaction'] > FunctionExpression[async=true]",
+          message: 'ASYNC_TX_CALLBACK: transaction callback must not be async',
+        },
+        {
+          selector: "CallExpression[callee.name='safeTransaction'] AwaitExpression",
+          message: 'ASYNC_TX_CALLBACK: no await inside a transaction callback',
+        },
+      ],
+    },
+  },
+  {
+    files: ['db/safeTransaction.ts'],
+    rules: {
+      'no-restricted-properties': 'off',
     },
   },
 ];

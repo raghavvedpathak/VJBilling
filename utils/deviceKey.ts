@@ -1,42 +1,24 @@
 // ================================================================
 // utils/deviceKey.ts
-// v7.26 FIX-V726-6 [build-blocker]: Canonical device-derived key utility
-// Shared by createBackup(), restore(), and pre-migration snapshot encryption.
-// Decoupled from utils/deviceId.ts to eliminate require cycles.
+// v7.26 FIX-V726-6 / v7.41 FIX-V741-5: Legacy v1 device-derived key utility
+// Retained for decrypting legacy encryptionVersion: 1 backups.
 // ================================================================
 
 import { storage } from '@/utils/storage';
-import * as Crypto from 'expo-crypto';
-
-function hexToBytes(hex: string): Uint8Array {
-  const bytes = new Uint8Array(hex.length / 2);
-  for (let i = 0; i < hex.length; i += 2) {
-    bytes[i / 2] = parseInt(hex.substring(i, i + 2), 16);
-  }
-  return bytes;
-}
+import { ERR } from '@/constants/errorCodes';
 
 /**
  * Derives a consistent 32-byte Uint8Array from the Device ID (or provided overrideDeviceId)
- * for raw key material in AES-256-GCM / PBKDF2 operations.
+ * for legacy v1 backup decryption.
  */
 export async function getDeviceDerivedKeyMaterial(overrideDeviceId?: string): Promise<Uint8Array> {
   const deviceId = overrideDeviceId || storage.getString('vjbilling_device_id');
-  if (!deviceId) throw new Error('DEVICE_ID_NOT_INITIALIZED');
+  if (!deviceId) throw new Error(ERR.DEVICE_ID_NOT_INITIALIZED);
   const rawKeyString = 'vjbilling_device_key_v1:' + deviceId;
 
-  if (typeof crypto !== 'undefined' && crypto?.subtle?.digest) {
-    const enc = new TextEncoder();
-    const raw = await crypto.subtle.digest('SHA-256', enc.encode(rawKeyString));
-    return new Uint8Array(raw);
-  }
-
-  const hexHash = await Crypto.digestStringAsync(
-    Crypto.CryptoDigestAlgorithm.SHA256,
-    rawKeyString
-  );
-  
-  return hexToBytes(hexHash);
+  const enc = new TextEncoder();
+  const raw = await crypto.subtle.digest('SHA-256', enc.encode(rawKeyString));
+  return new Uint8Array(raw);
 }
 
 export default getDeviceDerivedKeyMaterial;

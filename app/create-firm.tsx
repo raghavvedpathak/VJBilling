@@ -1,4 +1,5 @@
-// app/create-firm.tsx — Phase 2 v2.11 Canonical Firm Creation Screen
+// app/create-firm.tsx — Phase 1 v7.47 & Phase 2 Canonical Firm Creation Screen
+// Implements G45–G47, G58, G59, G69, G70 (searchable state picker), FIX-V714-7, FIX-V742-9
 
 import React, { useState, useMemo } from 'react';
 import {
@@ -10,16 +11,26 @@ import {
   Image,
   Modal,
   ActivityIndicator,
+  TextInput,
 } from 'react-native';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import { useRouter } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import { TwoToneWrapper } from '@/components/common/TwoToneWrapper';
-import { GlassCard, GlassInput, GlassButton, FixedGlassBar, fixedBarStyles } from '@/components/ui/Glass';
+import {
+  GlassCard,
+  GlassInput,
+  GlassButton,
+  FixedGlassBar,
+  fixedBarStyles,
+} from '@/components/ui/Glass';
 import { firmService } from '@/services/phase1/firmService';
-import { useFirmStore } from '@/store/phase1/useFirmStore';
 import { INDIAN_STATES } from '@/utils/indianStates';
-import { formatGSTINInput, getGSTINKeyboardType, validateGSTIN } from '@/utils/validateGSTIN';
+import {
+  formatGSTINInput,
+  getGSTINKeyboardType,
+  validateGSTIN,
+} from '@/utils/validateGSTIN';
 import { validatePincode } from '@/utils/validatePincode';
 import { processAndSaveFirmImage } from '@/utils/processFirmImage';
 import { useUnsavedChangesGuard } from '@/hooks/useUnsavedChangesGuard';
@@ -38,21 +49,22 @@ import {
   ChevronDown,
   X,
   AlertTriangle,
+  Search,
 } from 'lucide-react-native';
 import { COLORS } from '@/constants/theme';
 
 // ============================================================================
 // G58 SPEC CONSTANTS
-// max 1024x1024, max 2MB, quality 0.8
+// max 1024x1024, max 2MB, quality 0.8, aspect: undefined (free crop)
 // ============================================================================
 const LOGO_QUALITY = 0.8;
 
 export default function CreateFirmScreen() {
   const router = useRouter();
-  const { setActiveFirm } = useFirmStore();
   const [loading, setLoading] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [showStatePicker, setShowStatePicker] = useState(false);
+  const [stateSearchQuery, setStateSearchQuery] = useState('');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const [form, setForm] = useState({
@@ -74,6 +86,15 @@ export default function CreateFirmScreen() {
     pincode: '',
   });
 
+  // v7.0 G70: Searchable state picker over INDIAN_STATES (39 entries)
+  const filteredStates = useMemo(() => {
+    const q = stateSearchQuery.trim().toLowerCase();
+    if (!q) return INDIAN_STATES;
+    return INDIAN_STATES.filter(
+      (s) => s.code.includes(q) || s.name.toLowerCase().includes(q)
+    );
+  }, [stateSearchQuery]);
+
   const handleGstinChange = (text: string) => {
     const formatted = formatGSTINInput(text);
     let updatedStateCode = form.stateCode;
@@ -82,14 +103,14 @@ export default function CreateFirmScreen() {
     // Auto-detect and sync state if 2 valid state digits are typed
     if (formatted.length >= 2) {
       const stateCodePrefix = formatted.slice(0, 2);
-      const matchedState = INDIAN_STATES.find(s => s.code === stateCodePrefix);
+      const matchedState = INDIAN_STATES.find((s) => s.code === stateCodePrefix);
       if (matchedState) {
         updatedStateCode = matchedState.code;
         updatedStateName = matchedState.name;
       }
     }
 
-    setForm(prev => ({
+    setForm((prev) => ({
       ...prev,
       gstin: formatted,
       stateCode: updatedStateCode,
@@ -109,18 +130,18 @@ export default function CreateFirmScreen() {
   const { UnsavedModal } = useUnsavedChangesGuard(isDirty);
 
   const pickImage = async (field: 'firmLogoUri' | 'bisLogoUri') => {
-    Alert.alert(
-      "Select Image Source",
-      "Choose where to pick the image from:",
-      [
-        { text: "Camera", onPress: () => handleImageSelection(field, 'camera') },
-        { text: "Gallery", onPress: () => handleImageSelection(field, 'gallery') },
-        { text: "Cancel", style: "cancel" }
-      ]
-    );
+    Alert.alert('Select Image Source', 'Choose where to pick the image from:', [
+      { text: 'Camera', onPress: () => handleImageSelection(field, 'camera') },
+      { text: 'Gallery', onPress: () => handleImageSelection(field, 'gallery') },
+      { text: 'Cancel', style: 'cancel' },
+    ]);
   };
 
-  const handleImageSelection = async (field: 'firmLogoUri' | 'bisLogoUri', source: 'camera' | 'gallery') => {
+  const handleImageSelection = async (
+    field: 'firmLogoUri' | 'bisLogoUri',
+    source: 'camera' | 'gallery'
+  ) => {
+    // G58: allowsEditing: true, free crop (omitted aspect), quality: 0.8
     const options: ImagePicker.ImagePickerOptions = {
       mediaTypes: ['images'],
       allowsEditing: true,
@@ -131,25 +152,50 @@ export default function CreateFirmScreen() {
     if (source === 'camera') {
       const permission = await ImagePicker.requestCameraPermissionsAsync();
       if (!permission.granted) {
-        Alert.alert("Permission Required", "Camera access is needed to capture store / BIS hallmark logos.");
+        Alert.alert(
+          'Permission Required',
+          'Camera access is needed to capture store / BIS hallmark logos.'
+        );
         return;
       }
       result = await ImagePicker.launchCameraAsync(options);
     } else {
       const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (!permission.granted) {
-        Alert.alert("Permission Required", "Photo library access is needed to select store / BIS hallmark logos.");
+        Alert.alert(
+          'Permission Required',
+          'Photo library access is needed to select store / BIS hallmark logos.'
+        );
         return;
       }
       result = await ImagePicker.launchImageLibraryAsync(options);
     }
 
     if (!result.canceled && result.assets && result.assets.length > 0) {
-      setForm((prev) => ({ ...prev, [field]: result.assets[0].uri }));
+      const asset = result.assets[0];
+      // G58: Accepted MIME types: image/png and image/jpeg only
+      const mime = asset.mimeType?.toLowerCase();
+      const uriLower = asset.uri.toLowerCase();
+      const isAllowedMime =
+        !mime ||
+        mime === 'image/jpeg' ||
+        mime === 'image/jpg' ||
+        mime === 'image/png' ||
+        uriLower.endsWith('.jpg') ||
+        uriLower.endsWith('.jpeg') ||
+        uriLower.endsWith('.png');
+
+      if (!isAllowedMime) {
+        Alert.alert('Invalid Image Format', 'Only PNG or JPEG images are accepted.');
+        return;
+      }
+
+      setForm((prev) => ({ ...prev, [field]: asset.uri }));
     }
   };
 
-  const validateBis = (licence: string) => /^[A-Z0-9\/\-]{8,}$/.test(licence.trim().toUpperCase());
+  const validateBis = (licence: string) =>
+    /^[A-Z0-9\/\-]{8,}$/.test(licence.trim().toUpperCase());
 
   const handleSave = async () => {
     if (
@@ -197,11 +243,13 @@ export default function CreateFirmScreen() {
         validateGSTIN(form.gstin);
         const gstinStatePrefix = form.gstin.trim().slice(0, 2);
         if (gstinStatePrefix !== form.stateCode) {
-          setErrorMessage(`GSTIN state prefix (${gstinStatePrefix}) must match chosen jurisdiction state code (${form.stateCode}).`);
+          setErrorMessage(
+            `GSTIN state prefix (${gstinStatePrefix}) must match chosen jurisdiction state code (${form.stateCode}).`
+          );
           return;
         }
       } catch (err: any) {
-        setErrorMessage(err.message || "Please enter a valid 15-character GSTIN.");
+        setErrorMessage(err.message || 'Please enter a valid 15-character GSTIN.');
         return;
       }
     }
@@ -209,7 +257,7 @@ export default function CreateFirmScreen() {
     try {
       setLoading(true);
 
-      // Create firm with bisLogoUri = null to avoid writing temporary cache URI to bis_logos table
+      // Create firm (FIX-V742-9: first firm sets isActive=1 and firmStore.activeFirmId automatically)
       const newFirm = await firmService.createFirm({
         name: form.name.trim(),
         firmCode: form.firmCode.trim().toUpperCase(),
@@ -228,18 +276,36 @@ export default function CreateFirmScreen() {
         pincode: form.pincode.trim(),
       });
 
-      // Save firm brand logo and update firm record
+      // Save firm brand logo and update firm record (G58: deterministic path logos/firm_{firmId}.jpg)
       if (form.firmLogoUri) {
-        const savedLogoPath = await processAndSaveFirmImage(form.firmLogoUri, 'firm', newFirm.id);
-        if (savedLogoPath) {
+        const savedLogoPath = await processAndSaveFirmImage(
+          form.firmLogoUri,
+          'firm',
+          newFirm.id
+        );
+        if (!savedLogoPath) {
+          Alert.alert(
+            'Image Too Large',
+            'Image too large. Please choose a smaller image.'
+          );
+        } else {
           await firmService.updateFirm(newFirm.id, { firmLogoRef: savedLogoPath });
         }
       }
 
       // Save BIS hallmark logo to permanent location and register via firmService.updateFirm
       if (form.bisLogoUri && form.bisLicence) {
-        const savedBisLogoPath = await processAndSaveFirmImage(form.bisLogoUri, 'bis_firm', newFirm.id);
-        if (savedBisLogoPath) {
+        const savedBisLogoPath = await processAndSaveFirmImage(
+          form.bisLogoUri,
+          'bis_firm',
+          newFirm.id
+        );
+        if (!savedBisLogoPath) {
+          Alert.alert(
+            'Image Too Large',
+            'Image too large. Please choose a smaller image.'
+          );
+        } else {
           await firmService.updateFirm(newFirm.id, {
             bisLogoUri: savedBisLogoPath,
             bisLicence: form.bisLicence.trim().toUpperCase(),
@@ -247,7 +313,12 @@ export default function CreateFirmScreen() {
         }
       }
 
-      setActiveFirm(newFirm.id);
+      // FIX-V714-7 & FIX-V742-9: If this is a 2nd or 3rd firm (isActive === 0), switch via firmService.switchFirm()
+      // so DB is_active and FIRM_SWITCHED audit log stay synchronized with Zustand firmStore.
+      if (newFirm.isActive !== 1) {
+        await firmService.switchFirm(newFirm.id);
+      }
+
       setShowSuccessModal(true);
     } catch (error: any) {
       setErrorMessage(error.message);
@@ -269,7 +340,11 @@ export default function CreateFirmScreen() {
           enableAutomaticScroll={true}
           extraScrollHeight={120}
           extraHeight={140}
-          contentContainerStyle={{ paddingTop: 16, paddingBottom: 190, paddingHorizontal: 14 }}
+          contentContainerStyle={{
+            paddingTop: 16,
+            paddingBottom: 190,
+            paddingHorizontal: 14,
+          }}
         >
           {/* CARD 0: STORE LOGO & BIS CERTIFICATION */}
           <GlassCard>
@@ -283,7 +358,7 @@ export default function CreateFirmScreen() {
             </View>
 
             <View className="flex-row items-center justify-around gap-4 py-2">
-              {/* 1. FIRM BRAND LOGO */}
+              {/* 1. FIRM BRAND LOGO (G59: max 120x120 thumbnail, object-fit: contain) */}
               <View className="items-center">
                 <TouchableOpacity
                   onPress={() => pickImage('firmLogoUri')}
@@ -294,7 +369,7 @@ export default function CreateFirmScreen() {
                     <Image
                       source={{ uri: form.firmLogoUri }}
                       style={{ width: '100%', height: '100%' }}
-                      resizeMode="cover"
+                      resizeMode="contain"
                       onError={() => {
                         console.warn('[CreateFirm] Failed to load logo preview thumbnail.');
                         setForm((prev) => ({ ...prev, firmLogoUri: null }));
@@ -305,19 +380,19 @@ export default function CreateFirmScreen() {
                       <View className="items-center justify-center">
                         <ImagePlus size={22} color="#D4AF37" />
                         <Text className="text-[9px] text-vj-text/70 font-black tracking-widest uppercase mt-1 text-center px-1">
-                          STORE LOGO
+                          No logo uploaded
                         </Text>
                       </View>
                     </View>
                   )}
                 </TouchableOpacity>
 
-                <TouchableOpacity 
-                  onPress={() => pickImage('firmLogoUri')} 
+                <TouchableOpacity
+                  onPress={() => pickImage('firmLogoUri')}
                   className="px-3 py-1.5 rounded-full bg-amber-500/15 border border-amber-500/30"
                 >
                   <Text className="text-[10px] text-vj-text font-bold tracking-widest uppercase">
-                    {form.firmLogoUri ? "CHANGE LOGO" : "UPLOAD LOGO"}
+                    {form.firmLogoUri ? 'Change Logo' : 'Upload Logo'}
                   </Text>
                 </TouchableOpacity>
               </View>
@@ -344,18 +419,18 @@ export default function CreateFirmScreen() {
                       <View className="items-center justify-center">
                         <ShieldCheck size={24} color="#D4AF37" />
                         <Text className="text-[9px] text-amber-700 font-bold uppercase mt-1 text-center">
-                          BIS LOGO
+                          No logo uploaded
                         </Text>
                       </View>
                     )}
                   </TouchableOpacity>
 
-                  <TouchableOpacity 
-                    onPress={() => pickImage('bisLogoUri')} 
+                  <TouchableOpacity
+                    onPress={() => pickImage('bisLogoUri')}
                     className="px-3 py-1.5 rounded-full bg-amber-500/15 border border-amber-400/40"
                   >
                     <Text className="text-[10px] text-vj-text font-bold tracking-widest uppercase">
-                      {form.bisLogoUri ? "CHANGE BIS" : "UPLOAD BIS"}
+                      {form.bisLogoUri ? 'Change Logo' : 'Upload Logo'}
                     </Text>
                   </TouchableOpacity>
                 </View>
@@ -420,7 +495,7 @@ export default function CreateFirmScreen() {
               spellCheck={false}
               autoComplete="off"
             />
-            
+
             <View className="mb-4 p-3.5 bg-amber-500/10 rounded-2xl border border-amber-500/25 flex-row items-center gap-2.5">
               <AlertTriangle size={18} color="#D97706" />
               <Text className="text-[11px] text-amber-900 font-extrabold flex-1 leading-tight uppercase tracking-wide">
@@ -439,7 +514,7 @@ export default function CreateFirmScreen() {
             {!form.bisLicence ? (
               <View className="mt-1 px-1">
                 <Text className="text-[11px] text-vj-text/50 font-medium italic">
-                  Enter BIS Licence to enable BIS Hallmark logo upload in header.
+                  Add BIS licence number first to enable BIS logo upload.
                 </Text>
               </View>
             ) : (
@@ -504,13 +579,16 @@ export default function CreateFirmScreen() {
               onChangeText={(t) => setForm({ ...form, addressLine2: t })}
             />
 
-            {/* State Selector Trigger */}
+            {/* State Selector Trigger (v7.0 G70: Searchable Picker, free-text prohibited) */}
             <View className="mb-4">
               <Text className="text-vj-text/70 font-bold text-xs uppercase tracking-wider mb-2 ml-1">
                 State / Jurisdiction *
               </Text>
               <TouchableOpacity
-                onPress={() => setShowStatePicker(true)}
+                onPress={() => {
+                  setStateSearchQuery('');
+                  setShowStatePicker(true);
+                }}
                 activeOpacity={0.8}
                 className="flex-row items-center justify-between bg-white rounded-2xl px-4 py-4 border border-vj-text/30"
               >
@@ -562,14 +640,16 @@ export default function CreateFirmScreen() {
             ) : (
               <>
                 <Save size={18} color="#fff" />
-                <Text style={fixedBarStyles.pillPrimaryText}>Establish Firm Identity</Text>
+                <Text style={fixedBarStyles.pillPrimaryText}>
+                  Establish Firm Identity
+                </Text>
               </>
             )}
           </TouchableOpacity>
         </FixedGlassBar>
       </View>
 
-      {/* STATE PICKER MODAL */}
+      {/* SEARCHABLE STATE PICKER MODAL (v7.0 G70) */}
       <Modal
         visible={showStatePicker}
         animationType="fade"
@@ -578,9 +658,11 @@ export default function CreateFirmScreen() {
         onRequestClose={() => setShowStatePicker(false)}
       >
         <View className="flex-1 bg-black/50 justify-end">
-          <View className="bg-vj-bg rounded-t-3xl h-2/3 p-6 shadow-xl">
+          <View className="bg-vj-bg rounded-t-3xl h-3/4 p-6 shadow-xl">
             <View className="flex-row justify-between items-center mb-4 border-b border-black/10 pb-4">
-              <Text className="text-xl font-bold text-vj-text">Select Jurisdiction</Text>
+              <Text className="text-xl font-bold text-vj-text">
+                Select Jurisdiction
+              </Text>
               <TouchableOpacity
                 onPress={() => setShowStatePicker(false)}
                 className="p-1 bg-black/5 rounded-full"
@@ -588,8 +670,24 @@ export default function CreateFirmScreen() {
                 <X size={20} color={COLORS.vjText} />
               </TouchableOpacity>
             </View>
-            <ScrollView showsVerticalScrollIndicator={false}>
-              {INDIAN_STATES.map((s) => (
+
+            {/* Search Input (v7.0 G70) */}
+            <View className="flex-row items-center bg-white rounded-xl px-3.5 py-2.5 border border-black/15 mb-3">
+              <Search size={18} color={COLORS.vjText} />
+              <TextInput
+                value={stateSearchQuery}
+                onChangeText={setStateSearchQuery}
+                placeholder="Search state name or 2-digit GST code..."
+                placeholderTextColor="rgba(46,29,0,0.4)"
+                className="flex-1 ml-2.5 text-vj-text font-semibold text-sm"
+              />
+            </View>
+
+            <ScrollView
+              showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
+            >
+              {filteredStates.map((s) => (
                 <TouchableOpacity
                   key={s.code}
                   className="py-4 border-b border-black/5 flex-row justify-between items-center"
@@ -601,7 +699,9 @@ export default function CreateFirmScreen() {
                   <Text className="text-base font-medium text-vj-text">
                     {s.code} - {s.name}
                   </Text>
-                  {form.stateCode === s.code && <CheckCircle2 size={18} color="#15803d" />}
+                  {form.stateCode === s.code && (
+                    <CheckCircle2 size={18} color="#15803d" />
+                  )}
                 </TouchableOpacity>
               ))}
             </ScrollView>
@@ -620,9 +720,8 @@ export default function CreateFirmScreen() {
               Identity Established
             </Text>
             <Text className="text-vj-text/60 text-center mb-8 font-medium">
-              Your firm{' '}
-              <Text className="font-bold text-vj-text">{form.name}</Text> has been
-              successfully registered on this device.
+              Your firm <Text className="font-bold text-vj-text">{form.name}</Text>{' '}
+              has been successfully registered on this device.
             </Text>
             <View className="w-full">
               <GlassButton
@@ -667,7 +766,6 @@ export default function CreateFirmScreen() {
 
       {/* UNSAVED CHANGES MODAL */}
       {UnsavedModal}
-
     </TwoToneWrapper>
   );
 }

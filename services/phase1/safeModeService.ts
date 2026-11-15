@@ -1,7 +1,8 @@
-// services/phase1/safeModeService.ts — Canonical Safe Mode Service
-// v7.39 Specification Compliant
+// services/phase1/safeModeService.ts — Canonical Safe Mode Service (v7.47)
+// Implements Step 10, G42, FIX-V718-5/6, FIX-V740-8
 
 import db, { db as dbNamed } from '@/db/client';
+import { safeTransaction } from '@/db/safeTransaction';
 import { schemaVersion } from '@/db/schema';
 import { safeModeRepository } from '@/repositories/phase1/safeModeRepository';
 import { auditRepository } from '@/repositories/phase1/auditRepository';
@@ -29,57 +30,43 @@ function getTargetDb(customTx?: any): any {
 }
 
 export const safeModeService = {
-  async activate(reason: SafeModeTrigger, details?: object) {
+  async activate(reason: SafeModeTrigger, details?: object): Promise<void> {
     const currentTime = now();
     const deviceId = getSafeDeviceId();
-    const targetDb = getTargetDb();
 
-    targetDb.transaction((tx: any) => {
+    safeTransaction((tx) => {
       safeModeRepository.upsert(tx, {
         id: 1, // Singleton row: id always = 1
         isActive: 1,
-        reason: reason,
+        reason,
         activatedAt: currentTime,
         clearedAt: null,
       });
 
       const auditPayload = { reason, ...details };
 
-      // Support both canonical auditRepository.log(tx, ...) and legacy .create(..., tx)
-      if (typeof (auditRepository as any).log === 'function') {
-        (auditRepository as any).log(tx, {
-          eventType: 'SAFE_MODE_ACTIVATED',
-          firmId: null,
-          payload: JSON.stringify(auditPayload),
-          deviceId,
-        });
-      } else if (typeof (auditRepository as any).create === 'function') {
-        (auditRepository as any).create(
-          {
-            firmId: null,
-            eventType: 'SAFE_MODE_ACTIVATED',
-            payload: JSON.stringify(auditPayload),
-            deviceId,
-          },
-          tx
-        );
-      }
+      auditRepository.log(tx, {
+        eventType: 'SAFE_MODE_ACTIVATED',
+        firmId: null,
+        payload: JSON.stringify(auditPayload),
+        deviceId,
+      });
     });
 
     // v7.18 FIX-V718-5: SETSTATE-OUTSIDE-TX COROLLARY
     safeModeStore.setState({
       isActive: true,
-      reason: reason,
+      reason,
       activatedAt: currentTime,
     });
   },
 
-  async clear() {
+  // INTERNAL ONLY — called only by verifyService or restoreService
+  async clear(): Promise<void> {
     const currentTime = now();
     const deviceId = getSafeDeviceId();
-    const targetDb = getTargetDb();
 
-    targetDb.transaction((tx: any) => {
+    safeTransaction((tx) => {
       safeModeRepository.upsert(tx, {
         id: 1, // Singleton row: id always = 1
         isActive: 0,
@@ -88,25 +75,12 @@ export const safeModeService = {
         clearedAt: currentTime,
       });
 
-      // Support both canonical auditRepository.log(tx, ...) and legacy .create(..., tx)
-      if (typeof (auditRepository as any).log === 'function') {
-        (auditRepository as any).log(tx, {
-          eventType: 'SAFE_MODE_CLEARED',
-          firmId: null,
-          payload: JSON.stringify({}),
-          deviceId,
-        });
-      } else if (typeof (auditRepository as any).create === 'function') {
-        (auditRepository as any).create(
-          {
-            firmId: null,
-            eventType: 'SAFE_MODE_CLEARED',
-            payload: JSON.stringify({}),
-            deviceId,
-          },
-          tx
-        );
-      }
+      auditRepository.log(tx, {
+        eventType: 'SAFE_MODE_CLEARED',
+        firmId: null,
+        payload: JSON.stringify({}),
+        deviceId,
+      });
     });
 
     // v7.18 FIX-V718-6: SETSTATE-OUTSIDE-TX COROLLARY
@@ -117,19 +91,21 @@ export const safeModeService = {
     });
   },
 
-  loadState() {
+  loadState(): void {
     const state = safeModeRepository.get();
-    
+
     // v7.7 / v7.8 FIX-V78-4: SAFE-MODE-ROW-GUARD
     if (!state) {
       try {
         const targetDb = getTargetDb();
         const svRows = targetDb.select().from(schemaVersion).limit(1).all?.() || [];
         const hasSchemaVersion = Array.isArray(svRows) ? svRows.length > 0 : !!svRows;
-        
+
         if (hasSchemaVersion) {
-          console.error('[SafeMode] Corruption detected: schema_version exists but safe_mode_state row missing.');
-          this.activate('STORAGE_CORRUPTION_DETECTED' as SafeModeTrigger, {
+          console.error(
+            '[SafeMode] Corruption detected: schema_version exists but safe_mode_state row missing.'
+          );
+          void this.activate('STORAGE_CORRUPTION_DETECTED' as SafeModeTrigger, {
             missingTable: 'safe_mode_state',
             schemaVersionConfirmed: true,
           });
@@ -148,14 +124,18 @@ export const safeModeService = {
     });
   },
 
-  assertNotInSafeMode() {
+  assertNotInSafeMode(): void {
     if (!bootstrapComplete.value) {
-      throw new Error(`${ERR.BOOTSTRAP_INCOMPLETE}: assertNotInSafeMode called before bootstrap finished`);
+      throw new Error(
+        `${ERR.BOOTSTRAP_INCOMPLETE}: assertNotInSafeMode called before bootstrap finished`
+      );
     }
 
     const { isActive } = safeModeStore.getState();
     if (isActive) {
-      throw new Error(`${ERR.SAFE_MODE_ACTIVE}: Write operations are blocked to protect data integrity.`);
+      throw new Error(
+        `${ERR.SAFE_MODE_ACTIVE}: Write operations are blocked to protect data integrity.`
+      );
     }
   },
 };

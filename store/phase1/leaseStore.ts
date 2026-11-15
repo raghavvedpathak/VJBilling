@@ -1,12 +1,12 @@
-// store/phase1/leaseStore.ts — Phase 1 & 2 Canonical Lease Store (Step 8, v5.1 S3)
+// store/phase1/leaseStore.ts — Phase 1 v7.47 (Step 8, v5.1 S3, FIX-V742-6) & Phase 2 Canonical Lease Store
 
 import { create } from 'zustand';
-import { persist, createJSONStorage, StateStorage } from 'zustand/middleware';
-import { storage } from '@/utils/storage';
+import { persist } from 'zustand/middleware';
+import { persistStorage } from '@/utils/storage';
 
 export interface ActiveLease {
   id: string;
-  type?: string;      // Canonical Step 8 property
+  type?: string; // Canonical Step 8 property
   leaseType?: string; // Schema column alias
   acquiredAt?: string;
 }
@@ -16,20 +16,6 @@ export interface LeaseState {
   setActiveLease: (lease: ActiveLease | null) => void;
 }
 
-// MMKV Synchronous StateStorage Adapter
-const zustandStorage: StateStorage = {
-  setItem: (name, value) => {
-    storage.set(name, value);
-  },
-  getItem: (name) => {
-    const value = storage.getString(name);
-    return value ?? null;
-  },
-  removeItem: (name) => {
-    storage.delete(name);
-  },
-};
-
 export const useLeaseStore = create<LeaseState>()(
   persist(
     (set) => ({
@@ -38,7 +24,7 @@ export const useLeaseStore = create<LeaseState>()(
     }),
     {
       name: 'lease-store',
-      storage: createJSONStorage(() => zustandStorage),
+      storage: persistStorage, // v7.42 FIX-V742-6
     }
   )
 );

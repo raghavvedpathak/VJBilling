@@ -1,5 +1,6 @@
-// app/welcome.tsx — Phase 1 (v7.39) & Phase 2 Modern Welcome & Store Hub
-// Step 16 Decision Tree: If no firms and backup detected -> Prioritize Restore Card
+// app/welcome.tsx — Phase 1 v7.47 & Phase 2 Modern Welcome & Store Hub
+// Implements Step 16 Decision Tree, FIX-V714-7 (firmService.switchFirm), G43 (totalFirmCount >= 3),
+// FIX-V741-5 (schemaWarning), FIX-V745-7 (always offer file picker + SAF folder scan)
 
 import React, { useState, useCallback } from 'react';
 import {
@@ -16,21 +17,26 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter, useFocusEffect } from 'expo-router';
 import * as FileSystem from 'expo-file-system/legacy';
+import { StorageAccessFramework } from 'expo-file-system/legacy';
 import * as Haptics from 'expo-haptics';
 import { TwoToneWrapper } from '@/components/common/TwoToneWrapper';
 import { GlassCard, GlassButton, HeaderPill } from '@/components/ui/Glass';
 import { restoreService } from '@/services/phase1/restoreService';
+import { firmService } from '@/services/phase1/firmService';
 import '@/services/phase2/inventoryRestoreService';
 import { useSession } from '@/hooks/useSession';
 import { useFirmStore } from '@/store/phase1/useFirmStore';
 import { firmRepository, Firm } from '@/repositories/phase1/firmRepository';
 import { RestorePreviewModal } from '@/components/phase1/RestorePreviewModal';
-import { BackupEnvelope } from '@/services/phase1/backupService';
+import { BackupEnvelope, getOrCreateSafFolder } from '@/services/phase1/backupService';
 import { appSettingsStore } from '@/store/phase1/appSettingsStore';
+import { storage } from '@/utils/storage';
+import { ANY_BACKUP_FILE_REGEX } from '@/constants/backup';
 import { COLORS, getThemeColors } from '@/constants/theme';
 import {
   ShieldCheck,
   HardDriveUpload,
+  FolderSearch,
   Plus,
   Building2,
   ArrowRight,
@@ -44,7 +50,7 @@ export default function WelcomeScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { refreshSession } = useSession();
-  const { switchFirm, setFirms } = useFirmStore();
+  const { setFirms } = useFirmStore();
   const activeTheme = appSettingsStore((s) => s.theme);
   const colors = getThemeColors(activeTheme);
   const isDark = activeTheme === 'dark';
@@ -53,11 +59,13 @@ export default function WelcomeScreen() {
   const [hasBackup, setHasBackup] = useState(false);
   const [restoring, setRestoring] = useState(false);
   const [existingFirms, setExistingFirms] = useState<Firm[]>([]);
+  const [totalFirmCount, setTotalFirmCount] = useState(0);
   const [enteringFirmId, setEnteringFirmId] = useState<string | null>(null);
 
   const [previewModalVisible, setPreviewModalVisible] = useState(false);
   const [previewBackup, setPreviewBackup] = useState<BackupEnvelope | null>(null);
   const [previewFileContent, setPreviewFileContent] = useState<string | null>(null);
+  const [previewWarning, setPreviewWarning] = useState<string | null>(null);
 
   useFocusEffect(
     useCallback(() => {
@@ -70,6 +78,8 @@ export default function WelcomeScreen() {
 
           if (isMounted) {
             setExistingFirms(activeFirms);
+            // G43: Track total firms (active + archived) for the 3-firm creation limit
+            setTotalFirmCount(allFirms.length);
             setFirms(allFirms);
           }
 
@@ -82,7 +92,11 @@ export default function WelcomeScreen() {
             const backupDirInfo = await FileSystem.getInfoAsync(backupDir);
             if (backupDirInfo.exists) {
               const backupFiles = await FileSystem.readDirectoryAsync(backupDir);
-              if (backupFiles.some((f: string) => f.endsWith('.vjb'))) {
+              if (
+                backupFiles.some(
+                  (f: string) => ANY_BACKUP_FILE_REGEX.test(f) || f.endsWith('.vjb')
+                )
+              ) {
                 vjbExists = true;
               }
             }
@@ -91,7 +105,11 @@ export default function WelcomeScreen() {
           if (!vjbExists && docDir) {
             try {
               const rootFiles = await FileSystem.readDirectoryAsync(docDir);
-              if (rootFiles.some((f: string) => f.endsWith('.vjb'))) {
+              if (
+                rootFiles.some(
+                  (f: string) => ANY_BACKUP_FILE_REGEX.test(f) || f.endsWith('.vjb')
+                )
+              ) {
                 vjbExists = true;
               }
             } catch {}
@@ -117,11 +135,14 @@ export default function WelcomeScreen() {
     }, [setFirms])
   );
 
+  // FIX-V714-7: Call firmService.switchFirm(firmId) so Dual Guard, DB is_active update, and FIRM_SWITCHED audit run
   const handleEnterFirm = async (firmId: string) => {
     try {
-      try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); } catch (e) {}
+      try {
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      } catch {}
       setEnteringFirmId(firmId);
-      await switchFirm(firmId);
+      await firmService.switchFirm(firmId);
       await refreshSession();
       if (router.canDismiss()) {
         router.dismissAll();
@@ -135,15 +156,98 @@ export default function WelcomeScreen() {
 
   const handleRestore = async () => {
     try {
-      try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch (e) {}
+      try {
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      } catch {}
       const result = await restoreService.inspectBackupFile();
       if (!result) return;
 
       setPreviewBackup(result.backup);
       setPreviewFileContent(result.fileContent);
+      setPreviewWarning(result.warning ?? null);
       setPreviewModalVisible(true);
     } catch (error: any) {
       Alert.alert('Invalid Backup File', error.message || 'Failed to parse backup file.');
+    }
+  };
+
+  // FIX-V745-7: Scan public folder for backups after reinstall
+  const handleFindInFolder = async () => {
+    try {
+      try {
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      } catch {}
+      const perm = await StorageAccessFramework.requestDirectoryPermissionsAsync();
+      if (!perm.granted) return;
+
+      storage.set('vjbilling_public_backup_dir_uri', perm.directoryUri);
+      let targetFolderUri = perm.directoryUri;
+      try {
+        const vjFolder = await getOrCreateSafFolder(perm.directoryUri, 'VJ Billing');
+        targetFolderUri = await getOrCreateSafFolder(vjFolder, 'backups');
+      } catch {
+        targetFolderUri = perm.directoryUri;
+      }
+
+      const children = await StorageAccessFramework.readDirectoryAsync(targetFolderUri);
+      const vjbEntries = children
+        .map((uri) => ({
+          uri,
+          name: decodeURIComponent(uri.split('/').pop() ?? '').replace(/\.bin$/, ''),
+        }))
+        .filter((e) => ANY_BACKUP_FILE_REGEX.test(e.name) || e.name.endsWith('.vjb'))
+        .sort((a, b) => b.name.localeCompare(a.name));
+
+      if (vjbEntries.length === 0) {
+        Alert.alert(
+          'No Backups Found',
+          'No .vjb backup files were found in the selected folder. Try selecting a file directly.'
+        );
+        return;
+      }
+
+      const newest = vjbEntries[0];
+      const fileContent = await FileSystem.readAsStringAsync(newest.uri, {
+        encoding: FileSystem.EncodingType.UTF8,
+      });
+      const parsed = JSON.parse(fileContent);
+
+      if (parsed.passwordProtected === true) {
+        setPreviewBackup({
+          ...parsed,
+          payload: parsed.payload ?? {
+            firms: [],
+            financialYears: [],
+            settings: [],
+            auditLogs: [],
+            bisLogos: [],
+            safeModeState: null,
+            writerLeases: [],
+          },
+        });
+        setPreviewFileContent(fileContent);
+        setPreviewWarning(null);
+        setPreviewModalVisible(true);
+        return;
+      }
+
+      const { decryptBackup } = await import('@/utils/backupCrypto');
+      const innerStr = await decryptBackup(parsed);
+      const inner = JSON.parse(innerStr);
+      const fullEnvelope: BackupEnvelope = {
+        ...parsed,
+        deviceId: inner.deviceId ?? parsed.deviceId ?? 'UNKNOWN',
+        payload: inner,
+      };
+      const schemaCheck = await restoreService.validateBackupSchema(fullEnvelope);
+      setPreviewBackup(fullEnvelope);
+      setPreviewFileContent(fileContent);
+      setPreviewWarning(
+        schemaCheck && 'warning' in schemaCheck ? schemaCheck.warning ?? null : null
+      );
+      setPreviewModalVisible(true);
+    } catch (error: any) {
+      Alert.alert('Folder Scan Failed', error.message || 'Could not read backups from folder.');
     }
   };
 
@@ -179,25 +283,38 @@ export default function WelcomeScreen() {
     );
   }
 
-  const isMaxFirmsReached = existingFirms.length >= 3;
+  // G43: Maximum is 3 total firms (active + archived), matching createFirm()'s countFirms(tx) guard
+  const isMaxFirmsReached = totalFirmCount >= 3;
 
   // Theme-aware dynamic card color tokens
   const baseCardBg = isDark ? 'rgba(28, 20, 24, 0.88)' : 'rgba(255, 255, 255, 0.90)';
   const baseCardBorder = isDark ? 'rgba(212, 175, 55, 0.35)' : 'rgba(212, 175, 55, 0.45)';
 
   const restoreCardBg = hasBackup
-    ? (isDark ? 'rgba(6, 78, 59, 0.32)' : 'rgba(236, 253, 245, 0.92)')
+    ? isDark
+      ? 'rgba(6, 78, 59, 0.32)'
+      : 'rgba(236, 253, 245, 0.92)'
     : baseCardBg;
   const restoreCardBorder = hasBackup
-    ? (isDark ? 'rgba(52, 211, 153, 0.45)' : 'rgba(16, 185, 129, 0.55)')
-    : (isDark ? 'rgba(124, 58, 237, 0.35)' : 'rgba(124, 58, 237, 0.30)');
+    ? isDark
+      ? 'rgba(52, 211, 153, 0.45)'
+      : 'rgba(16, 185, 129, 0.55)'
+    : isDark
+      ? 'rgba(124, 58, 237, 0.35)'
+      : 'rgba(124, 58, 237, 0.30)';
 
-  const establishCardBg = (existingFirms.length === 0 && !hasBackup)
-    ? (isDark ? 'rgba(120, 53, 15, 0.25)' : 'rgba(255, 251, 235, 0.92)')
-    : baseCardBg;
-  const establishCardBorder = (existingFirms.length === 0 && !hasBackup)
-    ? (isDark ? 'rgba(245, 158, 11, 0.45)' : 'rgba(212, 175, 55, 0.55)')
-    : baseCardBorder;
+  const establishCardBg =
+    existingFirms.length === 0 && !hasBackup
+      ? isDark
+        ? 'rgba(120, 53, 15, 0.25)'
+        : 'rgba(255, 251, 235, 0.92)'
+      : baseCardBg;
+  const establishCardBorder =
+    existingFirms.length === 0 && !hasBackup
+      ? isDark
+        ? 'rgba(245, 158, 11, 0.45)'
+        : 'rgba(212, 175, 55, 0.55)'
+      : baseCardBorder;
 
   const welcomeHeader = (
     <View className="items-center pb-2 pt-1">
@@ -230,12 +347,12 @@ export default function WelcomeScreen() {
         <View className="flex-row items-center gap-2 mt-1">
           <HeaderPill
             icon={<Building2 size={12} color="#4ADE80" />}
-            label={`${existingFirms.length} OF 3 STORES ACTIVE`}
+            label={`${existingFirms.length} ACTIVE (${totalFirmCount}/3 TOTAL)`}
             variant="success"
           />
           <HeaderPill
             icon={<Database size={12} color={colors.vjBg} />}
-            label="SQLITE v7"
+            label="SQLCIPHER v7"
           />
         </View>
       ) : (
@@ -246,7 +363,7 @@ export default function WelcomeScreen() {
           />
           <HeaderPill
             icon={<Database size={12} color={colors.vjBg} />}
-            label="SQLITE v7"
+            label="SQLCIPHER v7"
           />
         </View>
       )}
@@ -271,19 +388,30 @@ export default function WelcomeScreen() {
               style={{
                 padding: 10,
                 borderRadius: 14,
-                backgroundColor: isDark ? 'rgba(255, 255, 255, 0.06)' : 'rgba(0, 0, 0, 0.04)',
+                backgroundColor: isDark
+                  ? 'rgba(255, 255, 255, 0.06)'
+                  : 'rgba(0, 0, 0, 0.04)',
                 borderWidth: 1,
-                borderColor: isDark ? 'rgba(255, 255, 255, 0.12)' : 'rgba(0, 0, 0, 0.08)',
+                borderColor: isDark
+                  ? 'rgba(255, 255, 255, 0.12)'
+                  : 'rgba(0, 0, 0, 0.08)',
               }}
             >
               <Store size={22} color={colors.vjText} style={{ opacity: 0.5 }} />
             </View>
             <View className="flex-1">
               <Text style={{ color: colors.vjText, fontWeight: '800', fontSize: 14 }}>
-                Maximum Store Capacity (3/3)
+                Maximum Store Capacity ({totalFirmCount}/3)
               </Text>
-              <Text style={{ color: `${colors.vjText}99`, fontSize: 11.5, fontWeight: '600', marginTop: 1 }}>
-                All 3 active store slots are allocated. Manage or archive stores in Settings.
+              <Text
+                style={{
+                  color: `${colors.vjText}99`,
+                  fontSize: 11.5,
+                  fontWeight: '600',
+                  marginTop: 1,
+                }}
+              >
+                All 3 total firm slots are allocated. Manage or unarchive stores in Settings.
               </Text>
             </View>
           </View>
@@ -308,9 +436,13 @@ export default function WelcomeScreen() {
             style={{
               padding: 12,
               borderRadius: 16,
-              backgroundColor: isDark ? 'rgba(212, 175, 55, 0.18)' : 'rgba(245, 158, 11, 0.12)',
+              backgroundColor: isDark
+                ? 'rgba(212, 175, 55, 0.18)'
+                : 'rgba(245, 158, 11, 0.12)',
               borderWidth: 1.5,
-              borderColor: isDark ? 'rgba(212, 175, 55, 0.40)' : 'rgba(212, 175, 55, 0.35)',
+              borderColor: isDark
+                ? 'rgba(212, 175, 55, 0.40)'
+                : 'rgba(212, 175, 55, 0.35)',
               alignItems: 'center',
               justifyContent: 'center',
             }}
@@ -328,9 +460,13 @@ export default function WelcomeScreen() {
                     paddingHorizontal: 8,
                     paddingVertical: 2,
                     borderRadius: 999,
-                    backgroundColor: isDark ? 'rgba(212, 175, 55, 0.20)' : 'rgba(245, 158, 11, 0.15)',
+                    backgroundColor: isDark
+                      ? 'rgba(212, 175, 55, 0.20)'
+                      : 'rgba(245, 158, 11, 0.15)',
                     borderWidth: 1,
-                    borderColor: isDark ? 'rgba(212, 175, 55, 0.40)' : 'rgba(245, 158, 11, 0.30)',
+                    borderColor: isDark
+                      ? 'rgba(212, 175, 55, 0.40)'
+                      : 'rgba(245, 158, 11, 0.30)',
                   }}
                 >
                   <Text
@@ -359,8 +495,8 @@ export default function WelcomeScreen() {
           title="Create Firm"
           onPress={() => router.push('/create-firm')}
           disabled={restoring || enteringFirmId !== null}
-          variant={isPrimary ? "primary" : "secondary"}
-          icon={<Plus size={18} color={isPrimary ? "#FCFBF8" : colors.vjText} />}
+          variant={isPrimary ? 'primary' : 'secondary'}
+          icon={<Plus size={18} color={isPrimary ? '#FCFBF8' : colors.vjText} />}
         />
       </GlassCard>
     );
@@ -385,17 +521,25 @@ export default function WelcomeScreen() {
               padding: 12,
               borderRadius: 16,
               backgroundColor: hasBackup
-                ? (isDark ? 'rgba(16, 185, 129, 0.22)' : 'rgba(16, 185, 129, 0.14)')
-                : (isDark ? 'rgba(124, 58, 237, 0.20)' : 'rgba(124, 58, 237, 0.10)'),
+                ? isDark
+                  ? 'rgba(16, 185, 129, 0.22)'
+                  : 'rgba(16, 185, 129, 0.14)'
+                : isDark
+                  ? 'rgba(124, 58, 237, 0.20)'
+                  : 'rgba(124, 58, 237, 0.10)',
               borderWidth: 1.5,
               borderColor: hasBackup
-                ? (isDark ? 'rgba(52, 211, 153, 0.45)' : 'rgba(16, 185, 129, 0.35)')
-                : (isDark ? 'rgba(167, 139, 250, 0.40)' : 'rgba(124, 58, 237, 0.25)'),
+                ? isDark
+                  ? 'rgba(52, 211, 153, 0.45)'
+                  : 'rgba(16, 185, 129, 0.35)'
+                : isDark
+                  ? 'rgba(167, 139, 250, 0.40)'
+                  : 'rgba(124, 58, 237, 0.25)',
               alignItems: 'center',
               justifyContent: 'center',
             }}
           >
-            <HardDriveUpload size={26} color={hasBackup ? "#10B981" : "#7C3AED"} />
+            <HardDriveUpload size={26} color={hasBackup ? '#10B981' : '#7C3AED'} />
           </View>
           <View className="flex-1">
             <View className="flex-row items-center gap-2 mb-1">
@@ -408,9 +552,13 @@ export default function WelcomeScreen() {
                     paddingHorizontal: 8,
                     paddingVertical: 2,
                     borderRadius: 999,
-                    backgroundColor: isDark ? 'rgba(16, 185, 129, 0.25)' : 'rgba(16, 185, 129, 0.15)',
+                    backgroundColor: isDark
+                      ? 'rgba(16, 185, 129, 0.25)'
+                      : 'rgba(16, 185, 129, 0.15)',
                     borderWidth: 1,
-                    borderColor: isDark ? 'rgba(52, 211, 153, 0.40)' : 'rgba(16, 185, 129, 0.30)',
+                    borderColor: isDark
+                      ? 'rgba(52, 211, 153, 0.40)'
+                      : 'rgba(16, 185, 129, 0.30)',
                     flexDirection: 'row',
                     alignItems: 'center',
                     gap: 4,
@@ -435,9 +583,13 @@ export default function WelcomeScreen() {
                     paddingHorizontal: 8,
                     paddingVertical: 2,
                     borderRadius: 999,
-                    backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.05)',
+                    backgroundColor: isDark
+                      ? 'rgba(255, 255, 255, 0.08)'
+                      : 'rgba(0, 0, 0, 0.05)',
                     borderWidth: 1,
-                    borderColor: isDark ? 'rgba(255, 255, 255, 0.15)' : 'rgba(0, 0, 0, 0.10)',
+                    borderColor: isDark
+                      ? 'rgba(255, 255, 255, 0.15)'
+                      : 'rgba(0, 0, 0, 0.10)',
                   }}
                 >
                   <Text
@@ -456,20 +608,37 @@ export default function WelcomeScreen() {
             </View>
             <Text style={{ color: `${colors.vjText}B3`, fontSize: 12, lineHeight: 16 }}>
               {hasBackup
-                ? "Encrypted .vjb file detected on device. Inspect and restore your existing store data."
-                : "Import an encrypted .vjb backup file from your phone's storage or Google Drive."}
+                ? 'Encrypted .vjb file detected on device. Inspect and restore your existing store data.'
+                : "Import an encrypted .vjb backup file or scan your Documents backup folder."}
             </Text>
           </View>
         </View>
 
-        <GlassButton
-          title={restoring ? "Restoring Database..." : "Select & Restore Backup"}
-          onPress={handleRestore}
-          loading={restoring}
-          disabled={enteringFirmId !== null}
-          variant={isPrimary ? "primary" : "secondary"}
-          icon={!restoring ? <HardDriveUpload size={18} color={isPrimary ? "#FCFBF8" : colors.vjText} /> : undefined}
-        />
+        <View className="gap-2.5">
+          <GlassButton
+            title={restoring ? 'Restoring Database...' : 'Select Backup File (.vjb)'}
+            onPress={handleRestore}
+            loading={restoring}
+            disabled={enteringFirmId !== null}
+            variant={isPrimary ? 'primary' : 'secondary'}
+            icon={
+              !restoring ? (
+                <HardDriveUpload
+                  size={18}
+                  color={isPrimary ? '#FCFBF8' : colors.vjText}
+                />
+              ) : undefined
+            }
+          />
+          {/* FIX-V745-7: Always offer scanning a folder for backups after reinstall */}
+          <GlassButton
+            title="Find Backups in Folder"
+            onPress={handleFindInFolder}
+            disabled={restoring || enteringFirmId !== null}
+            variant="secondary"
+            icon={<FolderSearch size={18} color={colors.vjText} />}
+          />
+        </View>
       </GlassCard>
     );
   };
@@ -512,7 +681,13 @@ export default function WelcomeScreen() {
                   >
                     Active Store Workspaces
                   </Text>
-                  <Text style={{ color: `${colors.vjText}66`, fontWeight: '700', fontSize: 10.5 }}>
+                  <Text
+                    style={{
+                      color: `${colors.vjText}66`,
+                      fontWeight: '700',
+                      fontSize: 10.5,
+                    }}
+                  >
                     Tap to enter
                   </Text>
                 </View>
@@ -540,7 +715,9 @@ export default function WelcomeScreen() {
                             width: 48,
                             height: 48,
                             borderRadius: 16,
-                            backgroundColor: isDark ? 'rgba(212, 175, 55, 0.18)' : 'rgba(212, 175, 55, 0.12)',
+                            backgroundColor: isDark
+                              ? 'rgba(212, 175, 55, 0.18)'
+                              : 'rgba(212, 175, 55, 0.12)',
                             borderWidth: 1.5,
                             borderColor: 'rgba(212, 175, 55, 0.35)',
                             alignItems: 'center',
@@ -585,7 +762,9 @@ export default function WelcomeScreen() {
                                 paddingHorizontal: 7,
                                 paddingVertical: 2,
                                 borderRadius: 6,
-                                backgroundColor: isDark ? 'rgba(212, 175, 55, 0.20)' : 'rgba(212, 175, 55, 0.15)',
+                                backgroundColor: isDark
+                                  ? 'rgba(212, 175, 55, 0.20)'
+                                  : 'rgba(212, 175, 55, 0.15)',
                                 borderWidth: 1,
                                 borderColor: 'rgba(212, 175, 55, 0.35)',
                               }}
@@ -639,11 +818,21 @@ export default function WelcomeScreen() {
                           justifyContent: 'space-between',
                           paddingTop: 10,
                           borderTopWidth: 1,
-                          borderTopColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(212, 175, 55, 0.20)',
+                          borderTopColor: isDark
+                            ? 'rgba(255, 255, 255, 0.08)'
+                            : 'rgba(212, 175, 55, 0.20)',
                         }}
                       >
-                        <Text style={{ fontSize: 13, fontWeight: '800', color: colors.vjAccent }}>
-                          {enteringFirmId === f.id ? 'Entering Workspace...' : 'Enter Store Workspace'}
+                        <Text
+                          style={{
+                            fontSize: 13,
+                            fontWeight: '800',
+                            color: colors.vjAccent,
+                          }}
+                        >
+                          {enteringFirmId === f.id
+                            ? 'Entering Workspace...'
+                            : 'Enter Store Workspace'}
                         </Text>
                         <View
                           style={{
@@ -712,8 +901,15 @@ export default function WelcomeScreen() {
               }}
             >
               <ShieldCheck size={14} color={colors.vjAccent} />
-              <Text style={{ color: colors.vjText, fontSize: 11.5, fontWeight: '700', letterSpacing: 0.3 }}>
-                100% Offline • AES-256 Encrypted • SQLite v7
+              <Text
+                style={{
+                  color: colors.vjText,
+                  fontSize: 11.5,
+                  fontWeight: '700',
+                  letterSpacing: 0.3,
+                }}
+              >
+                100% Offline • AES-256 Encrypted • SQLCipher v7.47
               </Text>
             </View>
           </View>
@@ -724,6 +920,7 @@ export default function WelcomeScreen() {
         visible={previewModalVisible}
         backup={previewBackup}
         fileContent={previewFileContent}
+        schemaWarning={previewWarning}
         isRestoring={restoring}
         onConfirm={handleConfirmRestore}
         onCancel={() => setPreviewModalVisible(false)}

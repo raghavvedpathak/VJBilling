@@ -1,4 +1,5 @@
-// app/settings/verify.tsx — Phase 2 v2.24 Canonical Screen (Unified System Integrity Scan)
+// app/settings/verify.tsx — Phase 1 v7.47 & Phase 2–4 Canonical Screen (Unified System Integrity Scan)
+// Implements Step 11 G63 (calls verifyService.runVerify() once with zero duplicate query execution)
 
 import React, { useState, useEffect, memo } from 'react';
 import { View, Text, StyleSheet, Alert, ActivityIndicator } from 'react-native';
@@ -7,13 +8,9 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import { TwoToneWrapper } from '@/components/common/TwoToneWrapper';
 import { verifyService, type VerifyFinding } from '@/services/phase1/verifyService';
-import { inventoryVerifyService } from '@/services/phase2/inventoryVerifyService';
-import { billingVerifyService } from '@/services/phase3/billingVerifyService';
-import { goldIntelligenceVerifyService } from '@/services/phase4/goldIntelligenceVerifyService';
 import { verifyStore } from '@/store/phase1/verifyStore';
 import { HeaderPill, GlassCard, GlassButton } from '@/components/ui/Glass'; 
 import { appSettingsStore } from '@/store/phase1/appSettingsStore';
-import { useFirmStore } from '@/store/phase1/useFirmStore';
 import { ShieldCheck, AlertTriangle, CheckCircle, XCircle, Activity, Database, Info } from 'lucide-react-native';
 import { COLORS, getThemeColors } from '@/constants/theme';
 
@@ -91,7 +88,6 @@ const VerifyFindingRow = memo(({ item, colors }: VerifyFindingRowProps) => {
 
 export default function VerifyDataScreen() {
   const insets = useSafeAreaInsets();
-  const { activeFirmId } = useFirmStore();
   const [scanning, setScanning] = useState(false);
   const [results, setResults] = useState<VerifyFinding[] | null>(null);
   const [status, setStatus] = useState<'IDLE' | 'CLEAN' | 'ISSUES'>('IDLE');
@@ -117,84 +113,24 @@ export default function VerifyDataScreen() {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     } catch {}
 
-    if (!activeFirmId) {
-      Alert.alert('Firm Required', 'Please select an active firm before running a constitutional scan.');
-      return;
-    }
-
     setScanning(true);
     setResults(null);
     setStatus('IDLE');
 
     try {
-      const allFindings: VerifyFinding[] = [];
-
-      // Phase 1: Core System, SQLite PRAGMAs, Firms & Settings Checks
-      if (verifyService && typeof verifyService.runVerify === 'function') {
-        const coreResult = await verifyService.runVerify(activeFirmId);
-        const coreIssues = Array.isArray(coreResult) 
-          ? coreResult 
-          : (coreResult as any)?.findings || (coreResult as any)?.issues || [];
-        coreIssues.forEach((issue: any) => {
-          allFindings.push({
-            check: issue.code || issue.check || 'CORE_INTEGRITY',
-            severity: (issue.severity as any) || 'CRITICAL',
-            detail: issue.message || issue.detail || 'Phase 1 core system integrity check failed.',
-            firmId: activeFirmId,
-          });
-        });
-      }
-
-      // Phase 2: Inventory Ledger, Masters, Weights, URD & Vault Truth Checks
-      if (inventoryVerifyService && typeof inventoryVerifyService.runInventoryChecks === 'function') {
-        const phase2Result = await inventoryVerifyService.runInventoryChecks(activeFirmId);
-        const p2Issues = Array.isArray(phase2Result) 
-          ? phase2Result 
-          : (phase2Result as any)?.issues || (phase2Result as any)?.findings || [];
-        p2Issues.forEach((issue: any) => {
-          // Avoid duplicate findings if services overlap
-          const isDuplicate = allFindings.some(
-            (f) => f.check === (issue.code || issue.check) && f.detail === (issue.message || issue.detail)
-          );
-          if (!isDuplicate) {
-            allFindings.push({
-              check: issue.code || issue.check || 'INVENTORY_INTEGRITY',
-              severity: (issue.severity as any) || 'WARNING',
-              detail: issue.message || issue.detail || 'Phase 2 inventory discrepancy detected.',
-              firmId: activeFirmId,
-            });
-          }
-        });
-      }
-
-      // Phase 3: Billing, Invoices, Payments & Karigar Integrity Checks
-      if (billingVerifyService && typeof billingVerifyService.runBillingChecks === 'function') {
-        const phase3Result = await billingVerifyService.runBillingChecks(activeFirmId);
-        phase3Result.forEach((finding) => {
-          const isDuplicate = allFindings.some(
-            (f) => f.check === finding.check && f.detail === finding.detail
-          );
-          if (!isDuplicate) {
-            allFindings.push(finding);
-          }
-        });
-      }
-
-      // Phase 4: Gold Intelligence & Metal Integrity Checks (Step 12)
-      if (goldIntelligenceVerifyService && typeof goldIntelligenceVerifyService.runGoldIntelligenceChecks === 'function') {
-        const phase4Result = await goldIntelligenceVerifyService.runGoldIntelligenceChecks(activeFirmId);
-        phase4Result.forEach((finding) => {
-          const isDuplicate = allFindings.some(
-            (f) => f.check === finding.check && f.detail === finding.detail
-          );
-          if (!isDuplicate) {
-            allFindings.push(finding);
-          }
-        });
-      }
+      // Step 11 G63: Calls verifyService.runVerify() once with zero duplicate query execution
+      const verifyResult = await verifyService.runVerify();
+      const allFindings = verifyResult.findings || [];
 
       setResults(allFindings);
       setStatus(allFindings.length > 0 ? 'ISSUES' : 'CLEAN');
+      verifyStore.getState().setScanResults(allFindings);
+
+      if (allFindings.length === 0) {
+        try { Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success); } catch {}
+      } else {
+        try { Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning); } catch {}
+      }
     } catch (e: any) {
       Alert.alert('Scan Failed', e.message || 'System integrity verification encountered an unhandled error.');
     } finally {
