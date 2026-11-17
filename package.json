@@ -139,7 +139,9 @@
     "fast-uri": "^3.1.8",
     "source-map-js": "^1.2.2",
     "browserslist": "^4.29.3",
-    "brace-expansion": "^1.1.21"
+    "brace-expansion": "^1.1.21",
+    "decode-uri-component": "^0.5.1",
+    "stream-json": "^3.9.0"
   },
   "private": true
 }
