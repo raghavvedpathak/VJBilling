@@ -25,7 +25,9 @@
       "package": "com.vjbilling.app",
       "allowBackup": false,
       "permissions": [
-        "CAMERA"
+        "CAMERA",
+        "android.permission.POST_NOTIFICATIONS",
+        "android.permission.RECEIVE_BOOT_COMPLETED"
       ]
     },
     "web": {

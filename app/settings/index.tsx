@@ -1,5 +1,5 @@
-// app/settings/index.tsx — Phase 1 & Phase 2 Canonical Settings Hub
-// Original Card-Tile Design (Restored from GitHub origin)
+// app/settings/index.tsx — Phase 1 v8.0 & Phase 2–4 Canonical Settings Hub
+// Implements G67-UI (opacity: 0.5, pointerEvents: none, accessibilityRole: text), G68, G69, G71, FIX-VSEC-12, FIX-V740-6
 
 import React, { useState, useEffect, useCallback } from 'react';
 import {
@@ -19,7 +19,6 @@ import * as Device from 'expo-device';
 import * as Haptics from 'expo-haptics';
 import { TwoToneWrapper } from '@/components/common/TwoToneWrapper';
 import { useSession } from '@/hooks/useSession';
-import { storage } from '@/utils/storage';
 import { settingsService } from '@/services/phase1/settingsService';
 import { performFactoryResetFiles } from '@/services/phase1/factoryResetService';
 import {
@@ -58,17 +57,13 @@ import {
   X,
 } from 'lucide-react-native';
 import { getThemeColors } from '@/constants/theme';
-import {
-  MIN_AUDIT_RETENTION_DAYS,
-  MAX_AUDIT_RETENTION_DAYS,
-} from '@/constants/auditRetention';
+import { MIN_AUDIT_RETENTION_DAYS, MAX_AUDIT_RETENTION_DAYS } from '@/constants/auditRetention';
 
 export default function SettingsScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { firm } = useSession();
 
-  // Settings State
   const [dateFormat, setDateFormat] = useState('dd/MM/yyyy');
   const [unsavedWarning, setUnsavedWarning] = useState(true);
   const [theme, setTheme] = useState('system');
@@ -76,7 +71,6 @@ export default function SettingsScreen() {
   const [hasPin, setHasPin] = useState(false);
   const [skippedPin, setSkippedPin] = useState(false);
 
-  // Modal State
   const [showDateModal, setShowDateModal] = useState(false);
   const [showThemeModal, setShowThemeModal] = useState(false);
   const [showRetentionModal, setShowRetentionModal] = useState(false);
@@ -92,7 +86,6 @@ export default function SettingsScreen() {
   const colors = getThemeColors(activeStoreTheme);
   const requiredFirmCode = firm?.firmCode || 'DELETE';
 
-  // Sync Preferences from Database & Storage on Mount
   useEffect(() => {
     const loadPreferences = async () => {
       try {
@@ -111,16 +104,10 @@ export default function SettingsScreen() {
       } catch (e) {
         console.error('[Settings] Failed to load DB settings:', e);
       }
-
-      const storedWarning = storage.getString('vjb_unsaved_warning');
-      if (storedWarning) {
-        setUnsavedWarning(storedWarning !== 'false');
-      }
     };
-    loadPreferences();
+    void loadPreferences();
   }, []);
 
-  // Sync PIN Status on Screen Focus
   useFocusEffect(
     useCallback(() => {
       setHasPin(isPinSet());
@@ -128,7 +115,6 @@ export default function SettingsScreen() {
     }, [])
   );
 
-  // 5-second countdown delay for Factory Reset modal
   useEffect(() => {
     let timer: ReturnType<typeof setInterval> | null = null;
     if (showFactoryResetModal && resetDelaySecs > 0) {
@@ -170,16 +156,14 @@ export default function SettingsScreen() {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     } catch {}
     setUnsavedWarning(value);
-    storage.set('vjb_unsaved_warning', value ? 'true' : 'false');
 
     try {
-      await settingsService.updateSettings({
-        warnUnsavedChanges: value ? 1 : 0,
-      });
+      await settingsService.updateSettings({ warnUnsavedChanges: value ? 1 : 0 });
     } catch (e: any) {
-      console.error(
-        '[Settings] Failed to update unsaved warning setting:',
-        e?.message ?? e
+      setUnsavedWarning(!value);
+      Alert.alert(
+        'Cannot Update Settings',
+        e?.message || 'Failed to update unsaved changes preference.'
       );
     }
   };
@@ -191,10 +175,7 @@ export default function SettingsScreen() {
       setShowDateModal(false);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (e: any) {
-      Alert.alert(
-        'Cannot Update Settings',
-        e?.message || 'Failed to update date format.'
-      );
+      Alert.alert('Cannot Update Settings', e?.message || 'Failed to update date format.');
     }
   };
 
@@ -205,10 +186,7 @@ export default function SettingsScreen() {
       setShowThemeModal(false);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (e: any) {
-      Alert.alert(
-        'Cannot Update Settings',
-        e?.message || 'Failed to update theme.'
-      );
+      Alert.alert('Cannot Update Settings', e?.message || 'Failed to update theme.');
     }
   };
 
@@ -231,10 +209,7 @@ export default function SettingsScreen() {
       setShowRetentionModal(false);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (err: any) {
-      Alert.alert(
-        'Save Failed',
-        err?.message || 'Could not save retention policy.'
-      );
+      Alert.alert('Save Failed', err?.message || 'Could not save retention policy.');
     }
   };
 
@@ -246,10 +221,7 @@ export default function SettingsScreen() {
   };
 
   const handleExecuteFactoryReset = async () => {
-    if (
-      resetFirmCodeInput.trim().toUpperCase() !==
-      requiredFirmCode.toUpperCase()
-    ) {
+    if (resetFirmCodeInput.trim().toUpperCase() !== requiredFirmCode.toUpperCase()) {
       Alert.alert(
         'Validation Failed',
         `Please type "${requiredFirmCode}" exactly to confirm.`
@@ -259,7 +231,8 @@ export default function SettingsScreen() {
 
     try {
       setIsResetting(true);
-      await performFactoryResetFiles();
+      // FIX-VSEC-12: Pass confirmedFirmCode so FACTORY_RESET_EXECUTED audit row is written before wipe
+      await performFactoryResetFiles(requiredFirmCode);
       setShowFactoryResetModal(false);
       Alert.alert(
         'Factory Reset Complete',
@@ -273,10 +246,7 @@ export default function SettingsScreen() {
       );
     } catch (err: any) {
       setIsResetting(false);
-      Alert.alert(
-        'Factory Reset Error',
-        err?.message || 'Could not complete factory reset.'
-      );
+      Alert.alert('Factory Reset Error', err?.message || 'Could not complete factory reset.');
     }
   };
 
@@ -300,12 +270,7 @@ export default function SettingsScreen() {
 
       <View style={s.headerPillRow}>
         <HeaderPill
-          icon={
-            <ShieldCheck
-              size={12}
-              color={hasPin ? '#4ADE80' : '#FDBA74'}
-            />
-          }
+          icon={<ShieldCheck size={12} color={hasPin ? '#4ADE80' : '#FDBA74'} />}
           label={hasPin ? 'PIN PROTECTED' : 'PIN NOT SET'}
           variant={hasPin ? 'success' : 'warning'}
         />
@@ -334,8 +299,8 @@ export default function SettingsScreen() {
       >
         <SectionHeader title="General" colors={colors} />
 
-        {/* Fixed Currency Card (Constitutional Requirement, G67-UI) */}
-        <View style={{ marginBottom: 12 }} pointerEvents="none">
+        {/* Fixed Currency Card (G67-UI: opacity 0.5, pointerEvents none, no onPress, no chevron, accessibilityRole='text') */}
+        <View style={{ marginBottom: 12, opacity: 0.5 }} pointerEvents="none">
           <GlassCard style={[s.currencyCard, { borderColor: `${colors.vjAccent}35` }]}>
             <View
               style={s.currencyMainRow}
@@ -349,9 +314,7 @@ export default function SettingsScreen() {
                 <Text style={[s.currencyTitle, { color: colors.vjText }]}>
                   {`Bhartiya Rupee (${getCurrencySymbol()})`}
                 </Text>
-                <Text
-                  style={[s.currencySubtitle, { color: colors.vjText, opacity: 0.65 }]}
-                >
+                <Text style={[s.currencySubtitle, { color: colors.vjText, opacity: 0.65 }]}>
                   Fixed For Bhartiya Jewellers
                 </Text>
                 <View style={s.regionBadgeRow}>
@@ -372,8 +335,8 @@ export default function SettingsScreen() {
             hasPin
               ? 'PIN is set'
               : skippedPin
-              ? 'PIN deferred · Set up store PIN now'
-              : 'Not set — tap to secure your app'
+                ? 'PIN deferred · Set up store PIN now'
+                : 'Not set — tap to secure your app'
           }
           iconBg="rgba(217, 119, 6, 0.12)"
           borderColor="rgba(217, 119, 6, 0.25)"
@@ -395,29 +358,18 @@ export default function SettingsScreen() {
           onPress={() => setShowDateModal(true)}
         />
 
-        {/* Unsaved Changes Form Safeguard */}
         <View style={{ marginBottom: 12 }}>
           <GlassCard style={[s.switchCard, { borderColor: `${colors.vjAccent}25` }]}>
             <View style={s.switchCardRow}>
               <View style={s.switchCardLeft}>
-                <View
-                  style={[
-                    s.switchIconBox,
-                    { backgroundColor: `${colors.vjAccent}15` },
-                  ]}
-                >
+                <View style={[s.switchIconBox, { backgroundColor: `${colors.vjAccent}15` }]}>
                   <AlertCircle size={22} color={colors.vjAccent} />
                 </View>
                 <View style={{ flex: 1, minWidth: 0 }}>
                   <Text style={[s.switchCardTitle, { color: colors.vjText }]}>
                     Unsaved Changes
                   </Text>
-                  <Text
-                    style={[
-                      s.switchCardSubtitle,
-                      { color: colors.vjText, opacity: 0.6 },
-                    ]}
-                  >
+                  <Text style={[s.switchCardSubtitle, { color: colors.vjText, opacity: 0.6 }]}>
                     Warn before exiting forms
                   </Text>
                 </View>
@@ -495,10 +447,7 @@ export default function SettingsScreen() {
           borderColor="rgba(2, 132, 199, 0.25)"
           icon={<MonitorSmartphone size={22} color="#0284C7" />}
           onPress={() =>
-            Alert.alert(
-              'Future Feature',
-              'Device sync is available in a future update.'
-            )
+            Alert.alert('Future Feature', 'Device sync is available in a future update.')
           }
         />
 
@@ -545,9 +494,7 @@ export default function SettingsScreen() {
           iconBg="rgba(180, 83, 9, 0.12)"
           borderColor="rgba(180, 83, 9, 0.25)"
           icon={<Wrench size={22} color="#B45309" />}
-          onPress={() =>
-            Alert.alert('Phase 6 Feature', 'Data Utilities unlock in Phase 6.')
-          }
+          onPress={() => Alert.alert('Phase 6 Feature', 'Data Utilities unlock in Phase 6.')}
         />
 
         <SectionHeader title="Danger Zone" colors={colors} />
@@ -560,11 +507,10 @@ export default function SettingsScreen() {
           onPress={openFactoryResetModal}
         />
 
-        {/* Database & Environment Metadata */}
         <View style={s.footerInfo}>
           <Database size={20} color={colors.vjText} style={{ opacity: 0.45 }} />
           <Text style={[s.footerTextBold, { color: colors.vjText }]}>
-            VJ BILLING • PHASE 1 v7.47 • CONSTITUTIONAL ERP
+            VJ BILLING • PHASE 1 v8.0 • CONSTITUTIONAL ERP
           </Text>
           <Text style={[s.footerText, { color: colors.vjText }]}>
             Firm Code: {firm?.firmCode || 'N/A'}
@@ -575,7 +521,6 @@ export default function SettingsScreen() {
         </View>
       </ScrollView>
 
-      {/* Modular Date Format Modal */}
       <DateFormatModal
         visible={showDateModal}
         activeFormat={dateFormat}
@@ -583,7 +528,6 @@ export default function SettingsScreen() {
         onClose={() => setShowDateModal(false)}
       />
 
-      {/* Modular Theme Modal */}
       <ThemeSelectorModal
         visible={showThemeModal}
         activeTheme={theme}
@@ -591,7 +535,7 @@ export default function SettingsScreen() {
         onClose={() => setShowThemeModal(false)}
       />
 
-      {/* Audit Retention Modal (FIX-V740-6) */}
+      {/* Audit Retention Modal */}
       <Modal
         visible={showRetentionModal}
         transparent
@@ -616,9 +560,8 @@ export default function SettingsScreen() {
             </View>
 
             <Text style={[s.modalDesc, { color: colors.vjText }]}>
-              Enter how many days audit records should be retained before
-              automatic cleanup. Must be between {MIN_AUDIT_RETENTION_DAYS} and{' '}
-              {MAX_AUDIT_RETENTION_DAYS} days.
+              Enter how many days audit records should be retained before automatic cleanup. Must
+              be between {MIN_AUDIT_RETENTION_DAYS} and {MAX_AUDIT_RETENTION_DAYS} days.
             </Text>
 
             <View style={s.inputWrapper}>
@@ -654,7 +597,7 @@ export default function SettingsScreen() {
         </View>
       </Modal>
 
-      {/* FIX-VSEC-12: Dangerous Factory Reset Modal */}
+      {/* FIX-VSEC-12: Factory Reset Modal */}
       <Modal
         visible={showFactoryResetModal}
         transparent
@@ -678,14 +621,13 @@ export default function SettingsScreen() {
             </View>
 
             <Text style={s.resetWarningText}>
-              This will permanently delete all company accounts, inventory,
-              settings, encryption keys, and unrecoverable records.
+              This will permanently delete all company accounts, inventory, settings, encryption
+              keys, and unrecoverable records.
             </Text>
 
             <View style={s.confirmBox}>
               <Text style={s.confirmInstruct}>
-                Type firm code{' '}
-                <Text style={{ fontWeight: '800' }}>{requiredFirmCode}</Text> to
+                Type firm code <Text style={{ fontWeight: '800' }}>{requiredFirmCode}</Text> to
                 proceed:
               </Text>
               <TextInput
@@ -721,14 +663,13 @@ export default function SettingsScreen() {
                   isResetting
                     ? 'Resetting...'
                     : resetDelaySecs > 0
-                    ? `Wait (${resetDelaySecs}s)`
-                    : 'Factory Reset'
+                      ? `Wait (${resetDelaySecs}s)`
+                      : 'Factory Reset'
                 }
                 variant="danger"
                 disabled={
                   resetDelaySecs > 0 ||
-                  resetFirmCodeInput.trim().toUpperCase() !==
-                    requiredFirmCode.toUpperCase() ||
+                  resetFirmCodeInput.trim().toUpperCase() !== requiredFirmCode.toUpperCase() ||
                   isResetting
                 }
                 loading={isResetting}
@@ -750,23 +691,12 @@ function SectionHeader({
   title: string;
   colors: ReturnType<typeof getThemeColors>;
 }) {
-  return (
-    <Text style={[s.sectionHeaderTitle, { color: colors.vjText }]}>
-      {title}
-    </Text>
-  );
+  return <Text style={[s.sectionHeaderTitle, { color: colors.vjText }]}>{title}</Text>;
 }
 
 const s = StyleSheet.create({
-  headerContainer: {
-    marginTop: 4,
-  },
-  headerTitleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    marginBottom: 8,
-  },
+  headerContainer: { marginTop: 4 },
+  headerTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 8 },
   headerIconCircle: {
     width: 40,
     height: 40,
@@ -776,21 +706,9 @@ const s = StyleSheet.create({
     alignItems: 'center',
     borderWidth: 1,
   },
-  firmName: {
-    fontSize: 20,
-    fontWeight: '800',
-    letterSpacing: -0.3,
-  },
-  firmProprietor: {
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  headerPillRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    flexWrap: 'wrap',
-  },
+  firmName: { fontSize: 20, fontWeight: '800', letterSpacing: -0.3 },
+  firmProprietor: { fontSize: 12, fontWeight: '600' },
+  headerPillRow: { flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' },
   sectionHeaderTitle: {
     fontSize: 11.5,
     fontWeight: '800',
@@ -809,11 +727,7 @@ const s = StyleSheet.create({
     borderRadius: 20,
     marginBottom: 0,
   },
-  currencyMainRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 14,
-  },
+  currencyMainRow: { flexDirection: 'row', alignItems: 'center', gap: 14 },
   currencyCoinBox: {
     width: 44,
     height: 44,
@@ -821,27 +735,10 @@ const s = StyleSheet.create({
     alignItems: 'center',
     flexShrink: 0,
   },
-  currencyContent: {
-    flex: 1,
-    minWidth: 0,
-    justifyContent: 'center',
-  },
-  currencyTitle: {
-    fontWeight: '800',
-    fontSize: 16,
-    lineHeight: 21,
-  },
-  currencySubtitle: {
-    fontSize: 12,
-    fontWeight: '600',
-    marginTop: 2,
-    lineHeight: 16,
-  },
-  regionBadgeRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 6,
-  },
+  currencyContent: { flex: 1, minWidth: 0, justifyContent: 'center' },
+  currencyTitle: { fontWeight: '800', fontSize: 16, lineHeight: 21 },
+  currencySubtitle: { fontSize: 12, fontWeight: '600', marginTop: 2, lineHeight: 16 },
+  regionBadgeRow: { flexDirection: 'row', alignItems: 'center', marginTop: 6 },
   regionBadge: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -880,11 +777,7 @@ const s = StyleSheet.create({
     borderRadius: 20,
     marginBottom: 0,
   },
-  switchCardRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
+  switchCardRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   switchCardLeft: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -901,21 +794,9 @@ const s = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  switchCardTitle: {
-    fontWeight: '800',
-    fontSize: 16,
-    lineHeight: 21,
-  },
-  switchCardSubtitle: {
-    fontSize: 12,
-    fontWeight: '600',
-    marginTop: 2,
-  },
-  footerInfo: {
-    marginTop: 32,
-    alignItems: 'center',
-    marginBottom: 20,
-  },
+  switchCardTitle: { fontWeight: '800', fontSize: 16, lineHeight: 21 },
+  switchCardSubtitle: { fontSize: 12, fontWeight: '600', marginTop: 2 },
+  footerInfo: { marginTop: 32, alignItems: 'center', marginBottom: 20 },
   footerTextBold: {
     fontSize: 10,
     fontWeight: '800',
@@ -923,11 +804,7 @@ const s = StyleSheet.create({
     letterSpacing: 0.8,
     opacity: 0.45,
   },
-  footerText: {
-    fontSize: 10,
-    fontWeight: '600',
-    opacity: 0.4,
-  },
+  footerText: { fontSize: 10, fontWeight: '600', opacity: 0.4 },
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.6)',
@@ -948,26 +825,10 @@ const s = StyleSheet.create({
     justifyContent: 'space-between',
     marginBottom: 12,
   },
-  modalTitleBox: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  modalTitle: {
-    fontSize: 17,
-    fontWeight: '800',
-  },
-  modalDesc: {
-    fontSize: 13,
-    lineHeight: 19,
-    opacity: 0.7,
-    marginBottom: 16,
-  },
-  inputWrapper: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 20,
-  },
+  modalTitleBox: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  modalTitle: { fontSize: 17, fontWeight: '800' },
+  modalDesc: { fontSize: 13, lineHeight: 19, opacity: 0.7, marginBottom: 16 },
+  inputWrapper: { flexDirection: 'row', alignItems: 'center', marginBottom: 20 },
   retentionTextInput: {
     flex: 1,
     height: 48,
@@ -978,16 +839,8 @@ const s = StyleSheet.create({
     fontWeight: '700',
     backgroundColor: 'rgba(0,0,0,0.03)',
   },
-  unitLabel: {
-    fontSize: 15,
-    fontWeight: '700',
-    marginLeft: 12,
-    opacity: 0.7,
-  },
-  modalActionRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
+  unitLabel: { fontSize: 15, fontWeight: '700', marginLeft: 12, opacity: 0.7 },
+  modalActionRow: { flexDirection: 'row', alignItems: 'center' },
   resetModalContent: {
     width: '100%',
     maxWidth: 400,
@@ -995,10 +848,7 @@ const s = StyleSheet.create({
     padding: 22,
     borderWidth: 2,
   },
-  resetHeader: {
-    alignItems: 'center',
-    marginBottom: 14,
-  },
+  resetHeader: { alignItems: 'center', marginBottom: 14 },
   resetIconBadge: {
     width: 56,
     height: 56,
@@ -1008,11 +858,7 @@ const s = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 10,
   },
-  resetTitle: {
-    fontSize: 20,
-    fontWeight: '800',
-    color: '#EF4444',
-  },
+  resetTitle: { fontSize: 20, fontWeight: '800', color: '#EF4444' },
   resetWarningText: {
     fontSize: 13,
     lineHeight: 19,
@@ -1020,9 +866,7 @@ const s = StyleSheet.create({
     textAlign: 'center',
     marginBottom: 16,
   },
-  confirmBox: {
-    marginBottom: 14,
-  },
+  confirmBox: { marginBottom: 14 },
   confirmInstruct: {
     fontSize: 12.5,
     fontWeight: '600',
@@ -1051,9 +895,5 @@ const s = StyleSheet.create({
     marginBottom: 14,
     alignItems: 'center',
   },
-  countdownText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#B45309',
-  },
+  countdownText: { fontSize: 12, fontWeight: '700', color: '#B45309' },
 });

@@ -1,6 +1,6 @@
 // ================================================================
 // v7.24 FIX-V724-1 / v7.29 FIX-V729-1 & FIX-V729-2 / v7.33 FIX-V733-1
-// services/phase1/pinService.ts — NATIVE ACCELERATED IMPLEMENTATION (v7.38)
+// services/phase1/pinService.ts — NATIVE ACCELERATED IMPLEMENTATION (v8.0)
 // Fast native PBKDF2 via react-native-quick-crypto (<25ms execution time)
 // ================================================================
 
@@ -22,16 +22,15 @@ const MAX_ATTEMPTS = 3;
 const BASE_LOCKOUT_MS = 30_000; // 30 seconds, doubles each subsequent lockout
 
 function deriveKey(pin: string, saltHex: string): string {
-  // v7.33 FIX-V733-1: saltHex null guard prevents runtime errors on corrupted MMKV data
-  const saltHexPairs = saltHex ? saltHex.match(/.{2}/g) : null;
-  if (!saltHexPairs) {
+  // v7.33 FIX-V733-1: Strict hex validation prevents malformed/tampered MMKV salt from decoding silently
+  if (!saltHex || saltHex.length % 2 !== 0 || !/^[0-9a-fA-F]+$/.test(saltHex)) {
     throw new Error(ERR.PIN_DATA_CORRUPTED + ': stored PIN salt is malformed');
   }
-  
+
   const saltBuffer = Buffer.from(saltHex, 'hex');
   const pinBuffer = Buffer.from(pin, 'utf8');
 
-  // Native C++ PBKDF2 (Executes in ~15-20ms via JSI)
+  // Native C++ PBKDF2-HMAC-SHA256 (identical output to WebCrypto PBKDF2-SHA256 256-bit key)
   const derivedKeyBuffer = quickCrypto.pbkdf2Sync(
     pinBuffer,
     saltBuffer,

@@ -1,4 +1,4 @@
-// repositories/fyRepository.ts
+// repositories/phase1/fyRepository.ts — Phase 1 v8.0
 // Strict DB access layer for financial_years table.
 //
 // CONSTITUTIONAL RULES:
@@ -10,7 +10,7 @@ import * as Crypto from 'expo-crypto';
 import { eq, and, or, lte, gte } from 'drizzle-orm';
 import db, { db as dbNamed } from '@/db/client';
 import { financialYears, FYStatus } from '@/db/schema';
-import type { DrizzleTransaction, FinancialYear } from '@/types/phase1/fy.types';
+import type { FinancialYear } from '@/types/phase1/fy.types';
 import { now } from '@/utils/now';
 import { ERR } from '@/constants/errorCodes';
 
@@ -77,6 +77,7 @@ export const fyRepository = {
 
   /**
    * Creates initial FY for a firm (April 1 -> March 31).
+   * Step 5: Logs non-blocking WARNING on device clock skew (< 2020 or > 2040).
    */
   insertInitial(arg1: any, arg2?: any): FinancialYear {
     let tx: DbOrTx;
@@ -93,6 +94,12 @@ export const fyRepository = {
     const today = new Date();
     const currentMonth = today.getMonth();
     const currentYear = today.getFullYear();
+
+    if (currentYear < 2020 || currentYear > 2040) {
+      console.warn(
+        `[FYEngine] WARNING: Device clock skew detected (year=${currentYear}). Proceeding with FY creation.`
+      );
+    }
 
     let startYear: number;
     let endYear: number;
@@ -212,14 +219,10 @@ export const fyRepository = {
    */
   closeFY(firmId: string, fyId: string, tx?: DbOrTx): void {
     const targetTx = getDb(tx);
-    targetTx.update(financialYears)
+    targetTx
+      .update(financialYears)
       .set({ status: FYStatus.CLOSED })
-      .where(
-        and(
-          eq(financialYears.id, fyId),
-          eq(financialYears.firmId, firmId)
-        )
-      )
+      .where(and(eq(financialYears.id, fyId), eq(financialYears.firmId, firmId)))
       .run();
   },
 
@@ -232,7 +235,8 @@ export const fyRepository = {
     let targetFirmId: string | undefined;
     let newStatus = FYStatus.CLOSED;
 
-    const isStatus = (v?: string) => v === 'ACTIVE' || v === 'CLOSED' || v === FYStatus.ACTIVE || v === FYStatus.CLOSED;
+    const isStatus = (v?: string) =>
+      v === 'ACTIVE' || v === 'CLOSED' || v === FYStatus.ACTIVE || v === FYStatus.CLOSED;
 
     if (typeof first === 'string') {
       targetTx = getDb();
@@ -266,7 +270,8 @@ export const fyRepository = {
         )
       : eq(financialYears.id, targetId);
 
-    targetTx.update(financialYears)
+    targetTx
+      .update(financialYears)
       .set({ status: newStatus })
       .where(condition)
       .run();

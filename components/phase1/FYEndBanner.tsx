@@ -1,5 +1,5 @@
-// components/FYEndBanner.tsx — Phase 1 & 2 Canonical Component
-// G68: Propagates formatDate() for all date displays
+// components/phase1/FYEndBanner.tsx — Phase 1 v8.0 & Phase 2 Canonical Component
+// Implements Step 5 FY-BOUNDARY-TRANSITION-RULE & G68 formatDate()
 
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
@@ -26,7 +26,8 @@ export function FYEndBanner({ activeFY: propActiveFY }: FYEndBannerProps = {}) {
     return null;
   }
 
-  const formattedEndDate = activeFY?.endDate ? formatDate(activeFY.endDate) : 'period boundary';
+  const formattedEndDate = activeFY?.endDate ? formatDate(activeFY.endDate) : null;
+  const label = activeFY?.label || 'Current Financial Year';
 
   return (
     <View style={s.banner}>
@@ -36,17 +37,19 @@ export function FYEndBanner({ activeFY: propActiveFY }: FYEndBannerProps = {}) {
       <View style={s.textContainer}>
         <Text style={s.title}>Financial Year Ended</Text>
         <Text style={s.message}>
-          {activeFY?.label ? `${activeFY.label} ended` : 'Current financial year ended'} on {formattedEndDate}. You must close the year to carry forward opening balances.
+          Financial Year {label} has ended{formattedEndDate ? ` (${formattedEndDate})` : ''}. Close it when ready — all entries remain open until you close it.
         </Text>
-        <TouchableOpacity 
-          style={s.actionBtn} 
+        <TouchableOpacity
+          style={s.actionBtn}
           activeOpacity={0.7}
           onPress={() => {
-            try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch (e) {}
+            try {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            } catch {}
             router.push('/settings/close-fy');
           }}
         >
-          <Text style={s.actionText}>Start FY Close</Text>
+          <Text style={s.actionText}>Close Financial Year</Text>
           <ChevronRight size={14} color="#B45309" />
         </TouchableOpacity>
       </View>

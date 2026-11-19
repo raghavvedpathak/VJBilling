@@ -1,4 +1,4 @@
-// services/phase1/settingsService.ts — Phase 1 v7.47 & Phase 2 Canonical Settings Service
+// services/phase1/settingsService.ts — Phase 1 v8.0 & Phase 2–4 Canonical Settings Service
 // Implements v6.4 BLOCKER C, G67, FIX-V740-6, FIX-V740-8, FIX-V7411-2
 
 import { db } from '@/db/client';
@@ -12,6 +12,7 @@ import { getDeviceId } from '@/utils/deviceId';
 import { now } from '@/utils/now';
 import { appSettingsStore } from '@/store/phase1/appSettingsStore';
 import { ERR } from '@/constants/errorCodes';
+import { THEME_PRESETS } from '@/constants/theme';
 import {
   MIN_AUDIT_RETENTION_DAYS,
   MAX_AUDIT_RETENTION_DAYS,
@@ -19,14 +20,13 @@ import {
 } from '@/constants/auditRetention';
 import type { UpdateSettingsInput } from '@/types/phase1/settings';
 
-const ALLOWED_THEMES = [
+const ALLOWED_THEMES = new Set<string>([
   'system',
   'light',
   'dark',
-  'saffron',
-  'lotus_silk',
-  'sandstone_ochre',
-] as const;
+  'lotus_silk', // legacy preset compatibility
+  ...Object.keys(THEME_PRESETS),
+]);
 
 function getSafeDeviceId(): string {
   try {
@@ -51,7 +51,7 @@ export const settingsService = {
       auditRetentionDays: 30,
       auditRetentionLastRunAt: null,
       currency: 'INR',
-      currencySymbol: '₹',
+      currencySymbol: '\u20B9',
       currencyDecimalPlaces: 2,
       updatedAt: '',
     };
@@ -59,7 +59,7 @@ export const settingsService = {
 
   async updateSettings(input: UpdateSettingsInput): Promise<void> {
     await leaseService.assertNoActiveLease(); // GUARD 1
-    safeModeService.assertNotInSafeMode();    // GUARD 2
+    safeModeService.assertNotInSafeMode(); // GUARD 2
 
     // FIX-V7411-2: Throw registered ERR.CURRENCY_IMMUTABLE code
     if ('currency' in input || 'currencySymbol' in input || 'currencyDecimalPlaces' in input) {
@@ -69,11 +69,7 @@ export const settingsService = {
     // FIX-V740-6: Validate settings fields against strict bounds & allowlists
     if ('auditRetentionDays' in input && input.auditRetentionDays !== undefined) {
       const d = input.auditRetentionDays;
-      if (
-        !Number.isInteger(d) ||
-        d < MIN_AUDIT_RETENTION_DAYS ||
-        d > MAX_AUDIT_RETENTION_DAYS
-      ) {
+      if (!Number.isInteger(d) || d < MIN_AUDIT_RETENTION_DAYS || d > MAX_AUDIT_RETENTION_DAYS) {
         throw new Error(
           `${ERR.AUDIT_RETENTION_INVALID}: must be a whole number of days between ${MIN_AUDIT_RETENTION_DAYS} and ${MAX_AUDIT_RETENTION_DAYS}`
         );
@@ -88,11 +84,7 @@ export const settingsService = {
       throw new Error(`${ERR.INVALID_SETTINGS_VALUE}: dateFormatToken`);
     }
 
-    if (
-      'theme' in input &&
-      input.theme !== undefined &&
-      !(ALLOWED_THEMES as readonly string[]).includes(input.theme)
-    ) {
+    if ('theme' in input && input.theme !== undefined && !ALLOWED_THEMES.has(input.theme)) {
       throw new Error(`${ERR.INVALID_SETTINGS_VALUE}: theme`);
     }
 
@@ -105,28 +97,32 @@ export const settingsService = {
       throw new Error(`${ERR.INVALID_SETTINGS_VALUE}: warnUnsavedChanges`);
     }
 
+    const definedUpdates = Object.fromEntries(
+      Object.entries(input).filter(([, value]) => value !== undefined)
+    ) as UpdateSettingsInput;
+
     const deviceId = getSafeDeviceId();
     const existing = appSettingsStore.getState();
-    const updated = { ...existing, ...input, updatedAt: now() };
+    const updatedAt = now();
+    const nextSlice = {
+      theme: definedUpdates.theme ?? existing.theme,
+      auditRetentionDays: definedUpdates.auditRetentionDays ?? existing.auditRetentionDays,
+      auditRetentionLastRunAt: existing.auditRetentionLastRunAt,
+      currency: existing.currency,
+      currencySymbol: existing.currencySymbol,
+      currencyDecimalPlaces: existing.currencyDecimalPlaces,
+      dateFormatToken: definedUpdates.dateFormatToken ?? existing.dateFormatToken,
+      warnUnsavedChanges: definedUpdates.warnUnsavedChanges ?? existing.warnUnsavedChanges,
+      updatedAt,
+    };
 
     // FIX-V740-8: Synchronous transaction via safeTransaction()
     safeTransaction((tx) => {
       tx.insert(appSettings)
-        .values({
-          id: 1,
-          theme: updated.theme,
-          auditRetentionDays: updated.auditRetentionDays,
-          auditRetentionLastRunAt: updated.auditRetentionLastRunAt,
-          currency: updated.currency,
-          currencySymbol: updated.currencySymbol,
-          currencyDecimalPlaces: updated.currencyDecimalPlaces,
-          dateFormatToken: updated.dateFormatToken,
-          warnUnsavedChanges: updated.warnUnsavedChanges,
-          updatedAt: updated.updatedAt,
-        } as any)
+        .values({ id: 1, ...nextSlice } as any)
         .onConflictDoUpdate({
           target: appSettings.id,
-          set: { ...input, updatedAt: updated.updatedAt },
+          set: { ...definedUpdates, updatedAt },
         })
         .run();
 
@@ -135,17 +131,17 @@ export const settingsService = {
         firmId: null,
         deviceId,
         payload: JSON.stringify({
-          fields: Object.keys(input),
+          fields: Object.keys(definedUpdates),
           oldValues: Object.fromEntries(
-            Object.keys(input).map((k) => [k, (existing as any)[k]])
+            Object.keys(definedUpdates).map((k) => [k, (existing as any)[k]])
           ),
-          newValues: input,
+          newValues: definedUpdates,
         }),
       });
     });
 
     // SETSTATE-OUTSIDE-TX COROLLARY: updates store strictly after tx commits
-    appSettingsStore.setState(updated as any);
+    appSettingsStore.setState(nextSlice);
   },
 };
 

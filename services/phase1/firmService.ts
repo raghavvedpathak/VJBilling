@@ -1,5 +1,4 @@
-// services/phase1/firmService.ts
-// Phase 1 v7.47 Canonical Implementation
+// services/phase1/firmService.ts — Phase 1 v8.0 Canonical Implementation
 // Implements FIX-V735-1, FIX-V740-3, FIX-V740-8, FIX-V740-9, FIX-V742-9, FIX-V743-1, FIX-V743-5, FIX-V744-4, FIX-V744-6
 
 import { eq } from 'drizzle-orm';
@@ -51,7 +50,7 @@ function logAudit(
 
 async function assertSystemIsWritable(): Promise<void> {
   await leaseService.assertNoActiveLease(); // GUARD 1
-  safeModeService.assertNotInSafeMode();    // GUARD 2
+  safeModeService.assertNotInSafeMode(); // GUARD 2
 }
 
 export const firmService = {
@@ -141,6 +140,7 @@ export const firmService = {
         'FIRM_CREATED',
         newFirm.id,
         {
+          firmCode: newFirm.firmCode,
           name: newFirm.name,
           gstin: newFirm.gstin,
           proprietor: newFirm.proprietor,
@@ -231,7 +231,7 @@ export const firmService = {
     }
 
     // v7.14 FIX-V714-3: stateCode update blocked if firm already has a GSTIN
-    if ('stateCode' in input && existingFirm.gstin) {
+    if ('stateCode' in input && input.stateCode !== undefined && existingFirm.gstin) {
       throw new Error(
         ERR.GSTIN_STATE_UPDATE_BLOCKED +
           ': stateCode cannot be changed independently when firm has a GSTIN — GSTIN prefix already encodes stateCode'
@@ -291,13 +291,7 @@ export const firmService = {
           bisLogoRepository.archive(tx, bisLogoRow.id, 'licence_removed');
         }
         updatePayload = { ...updatePayload, bisLogoRef: null };
-        logAudit(
-          tx,
-          'BIS_LOGO_ARCHIVED',
-          firmId,
-          { reason: 'licence_removed' },
-          deviceId
-        );
+        logAudit(tx, 'BIS_LOGO_ARCHIVED', firmId, { reason: 'licence_removed' }, deviceId);
       } else if (bisLogoUri) {
         const logoId = bisLogoRepository.insert(tx, {
           firmId: existing.id,
@@ -308,13 +302,7 @@ export const firmService = {
 
       const result = firmRepository.update(tx, firmId, updatePayload);
 
-      logAudit(
-        tx,
-        'FIRM_UPDATED',
-        firmId,
-        { changes: Object.keys(updatePayload) },
-        deviceId
-      );
+      logAudit(tx, 'FIRM_UPDATED', firmId, { changes: Object.keys(updatePayload) }, deviceId);
 
       return result;
     });
@@ -331,12 +319,7 @@ export const firmService = {
     const deviceId = getSafeDeviceId();
 
     safeTransaction((tx) => {
-      const target = tx
-        .select()
-        .from(firms)
-        .where(eq(firms.id, firmId))
-        .limit(1)
-        .all();
+      const target = tx.select().from(firms).where(eq(firms.id, firmId)).limit(1).all();
       if (!target.length || target[0].isArchived) {
         throw new Error(ERR.FIRM_NOT_FOUND + ': ' + firmId);
       }
@@ -401,9 +384,7 @@ export const firmService = {
       // v2.5 G15: 3-FIRM ACTIVE LIMIT CHECK — must be inside transaction (atomic)
       const activeCount = firmRepository.countActiveFirms(tx);
       if (activeCount >= 3) {
-        throw new Error(
-          ERR.MAX_FIRMS_REACHED + ': unarchive would exceed 3 active firms'
-        );
+        throw new Error(ERR.MAX_FIRMS_REACHED + ': unarchive would exceed 3 active firms');
       }
 
       const unarchived = firmRepository.unarchive(tx, firmId);

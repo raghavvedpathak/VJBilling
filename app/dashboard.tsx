@@ -1,5 +1,5 @@
-// app/dashboard.tsx — Phase 1 v7.47 & Phase 2 Canonical Dashboard Screen
-// Implements FIX-V740-12 (D2=P1 PIN-not-set banner), FIX-V745-3 (useAutoBackupTrigger),
+// app/dashboard.tsx — Phase 1 v8.0 & Phase 2–4 Canonical Dashboard Screen
+// Implements FIX-V740-12 (D2=P1 PIN-not-set banner), FIX-V745-3 (useAutoBackupTrigger + Backing up... indicator),
 // FIX-V745-5 & FIX-V746-5 (Auto-backup status banner with localDay count), Step 11 WARNING banner, G59
 
 import React, { useState, useEffect, useCallback } from 'react';
@@ -12,22 +12,19 @@ import {
   Modal,
   BackHandler,
   Alert,
+  ActivityIndicator,
 } from 'react-native';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { TwoToneWrapper } from '@/components/common/TwoToneWrapper';
 import { useSession } from '@/hooks/useSession';
 import { useAutoBackupTrigger } from '@/hooks/useAutoBackupTrigger';
 import { useFirmStore } from '@/store/phase1/useFirmStore';
+import { useLeaseStore } from '@/store/phase1/leaseStore';
 import { useVerifyStore } from '@/store/phase1/verifyStore';
 import { isPinSet, isPinSkipped } from '@/services/phase1/pinService';
 import { storage } from '@/utils/storage';
 import { AB_KEYS, localDay } from '@/constants/autoBackup';
-import {
-  GlassButton,
-  HeaderPill,
-  MenuTile,
-  ListTileCard,
-} from '@/components/ui/Glass';
+import { GlassButton, HeaderPill, MenuTile, ListTileCard } from '@/components/ui/Glass';
 import { LeaseStatusBanner } from '@/components/phase1/LeaseStatusBanner';
 import { FYEndBanner } from '@/components/phase1/FYEndBanner';
 import {
@@ -58,17 +55,14 @@ function computeLocalCalendarDaysSince(isoString: string | undefined): number | 
     parsed.getDate()
   ).getTime();
   const now = new Date();
-  const startOfToday = new Date(
-    now.getFullYear(),
-    now.getMonth(),
-    now.getDate()
-  ).getTime();
+  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
   return Math.max(0, Math.round((startOfToday - startOfThen) / 86_400_000));
 }
 
 export default function Dashboard() {
   const router = useRouter();
   const { clearActiveFirm } = useFirmStore();
+  const activeLease = useLeaseStore((s) => s.activeLease);
   const { firm, activeFY, isLoading, bisLogoUri, refreshSession } = useSession();
   const hasUnviewedWarnings = useVerifyStore((s) => s.hasUnviewedWarnings);
   const markWarningsViewed = useVerifyStore((s) => s.markWarningsViewed);
@@ -81,6 +75,9 @@ export default function Dashboard() {
   const [bisLogoBroken, setBisLogoBroken] = useState(false);
   const [pinSkippedBannerVisible, setPinSkippedBannerVisible] = useState(false);
   const [autoBackupBanner, setAutoBackupBanner] = useState<string | null>(null);
+
+  const isBackingUp =
+    activeLease?.type === 'BACKUP' || activeLease?.leaseType === 'BACKUP';
 
   const refreshBanners = useCallback(() => {
     // 1. FIX-V740-12 (D2 = P1): Non-dismissible banner when PIN is skipped and no PIN is set
@@ -121,9 +118,7 @@ export default function Dashboard() {
     if (lastSuccessAt && lastSuccessDay !== todayLocal) {
       const days = computeLocalCalendarDaysSince(lastSuccessAt);
       if (days !== null && days >= 2) {
-        setAutoBackupBanner(
-          `No automatic backup for ${days} days. Tap to back up now.`
-        );
+        setAutoBackupBanner(`No automatic backup for ${days} days. Tap to back up now.`);
         return;
       }
     } else if (!lastSuccessAt && enabledAt) {
@@ -143,14 +138,10 @@ export default function Dashboard() {
   useFocusEffect(
     useCallback(() => {
       const onBackPress = () => {
-        Alert.alert(
-          'Exit Application',
-          'Are you sure you want to exit VJ Billing?',
-          [
-            { text: 'Cancel', style: 'cancel', onPress: () => {} },
-            { text: 'Exit', style: 'destructive', onPress: () => BackHandler.exitApp() },
-          ]
-        );
+        Alert.alert('Exit Application', 'Are you sure you want to exit VJ Billing?', [
+          { text: 'Cancel', style: 'cancel', onPress: () => {} },
+          { text: 'Exit', style: 'destructive', onPress: () => BackHandler.exitApp() },
+        ]);
         return true;
       };
 
@@ -200,7 +191,31 @@ export default function Dashboard() {
   const dashboardHeader = (
     <View>
       <View className="mb-4">
-        <LeaseStatusBanner />
+        <View className="flex-row items-center gap-2 flex-wrap">
+          <LeaseStatusBanner />
+          {/* FIX-V745-3: Small "Backing up..." indicator while a BACKUP lease is active */}
+          {isBackingUp && (
+            <View
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                backgroundColor: 'rgba(212,175,55,0.2)',
+                paddingHorizontal: 10,
+                paddingVertical: 6,
+                borderRadius: 20,
+                borderWidth: 1,
+                borderColor: 'rgba(212,175,55,0.45)',
+                marginBottom: 8,
+                gap: 6,
+              }}
+            >
+              <ActivityIndicator size="small" color="#F7D273" />
+              <Text style={{ color: '#FCFBF8', fontWeight: '700', fontSize: 11 }}>
+                Backing up...
+              </Text>
+            </View>
+          )}
+        </View>
         <FYEndBanner />
 
         {/* FIX-V740-12 (D2 = P1): Non-dismissible PIN-not-set banner while PIN is skipped */}
@@ -453,11 +468,7 @@ export default function Dashboard() {
               <Text className="font-bold text-vj-text">{firm.name}</Text>?
             </Text>
             <View className="w-full gap-2.5">
-              <GlassButton
-                title="Exit Firm"
-                variant="danger"
-                onPress={executeLogout}
-              />
+              <GlassButton title="Exit Firm" variant="danger" onPress={executeLogout} />
               <GlassButton
                 title="Cancel"
                 variant="secondary"

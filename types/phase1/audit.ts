@@ -1,11 +1,11 @@
-// types/phase1/audit.ts — Phase 1 v7.47 Canonical Audit Types
+// types/phase1/audit.ts — Phase 1 v8.0 Canonical Audit Types
 // Implements FIX-VSEC-9, FIX-V724-4, FIX-V730-1, FIX-V743-2, FIX-V744-7, FIX-V745-2, FIX-V745-6, FIX-V747-4
 
 import type { BackupKind } from '@/constants/backup';
 import type { AutoBackupReason, BackupTrigger } from '@/constants/autoBackup';
 
 export type Phase1AuditPayload =
-  // --- Canonical Phase 1 Event Types (v7.47 — 24 Active Event Types) ---
+  // --- Canonical Phase 1 Event Types (v8.0) ---
   | {
       eventType: 'FIRM_CREATED';
       firmCode: string;
@@ -35,15 +35,6 @@ export type Phase1AuditPayload =
       trigger: BackupTrigger;
     }
   | {
-      eventType: 'BACKUP_CREATED';
-      exportedAt: string;
-      fileName: string;
-      fileSizeBytes: number;
-      shared?: boolean;
-      kind?: BackupKind;
-      trigger?: BackupTrigger;
-    }
-  | {
       eventType: 'RESTORE_COMPLETED';
       backupSchema: number;
       backupDate: string;
@@ -52,15 +43,7 @@ export type Phase1AuditPayload =
       oldSchema: boolean;
     }
   | {
-      eventType: 'RESTORE_COMPLETED';
-      backupSchema: number;
-      backupDate: string;
-      firmCount: number;
-      restoredAt: string;
-      oldSchema?: boolean;
-    }
-  | {
-      eventType: 'RESTORE_OLD_SCHEMA'; // Historical (superseded in v7.43 FIX-V743-2 by oldSchema in RESTORE_COMPLETED)
+      eventType: 'RESTORE_OLD_SCHEMA'; // Historical read-only (superseded in v7.43 FIX-V743-2 by oldSchema in RESTORE_COMPLETED)
       backupSchema: number;
       currentSchema: number;
       appSchema?: number;

@@ -21,6 +21,12 @@ test('zero amount', () => {
   expect(amountToWords(0)).toBe('Rupees Zero Only');
 });
 
+test('paise only (rupees === 0) returns correct wording without Rupees prefix', () => {
+  expect(amountToWords(50)).toBe('Paise Fifty Only');
+  expect(amountToWords(1)).toBe('Paise One Only');
+  expect(amountToWords(99)).toBe('Paise Ninety Nine Only');
+});
+
 test('sub-crore boundary (999999999 paise) must not throw', () => {
   expect(() => amountToWords(999999999)).not.toThrow();
 });

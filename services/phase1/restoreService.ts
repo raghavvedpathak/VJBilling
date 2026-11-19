@@ -1,6 +1,6 @@
-// services/phase1/restoreService.ts — Phase 1 v7.47 & Phase 2–4 Canonical Restore Service
+// services/phase1/restoreService.ts — Phase 1 v8.0 & Phase 2–4 Canonical Restore Service
 // Implements FIX-V740-2, FIX-V741-5, FIX-V7411-6, FIX-V7411-7, FIX-V742-4, FIX-V742-5,
-// FIX-V742-10, FIX-V743-2, FIX-V743-4, FIX-V744-1, FIX-V747-5
+// FIX-V742-10, FIX-V743-2, FIX-V743-4, FIX-V744-1, FIX-V747-5, FIX-V80-2, FIX-V80-3
 
 import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system/legacy';
@@ -8,6 +8,7 @@ import * as Haptics from 'expo-haptics';
 import * as Updates from 'expo-updates';
 import { Alert } from 'react-native';
 import { eq } from 'drizzle-orm';
+import { z } from 'zod';
 import { safeTransaction } from '@/db/safeTransaction';
 import {
   firms as firmsTable,
@@ -23,7 +24,12 @@ import {
 import { leaseService } from '@/services/phase1/leaseService';
 import { auditRepository } from '@/repositories/phase1/auditRepository';
 import { getDeviceId } from '@/utils/deviceId';
-import { decryptBackup, decryptLegacyV1Backup } from '@/utils/backupCrypto';
+import {
+  decryptBackup,
+  decryptLegacyV1Backup,
+  MIN_KDF_ITERATIONS,
+  MAX_KDF_ITERATIONS,
+} from '@/utils/backupCrypto';
 import { clearVerifyCache } from '@/utils/verifyCache';
 import { useLeaseStore } from '@/store/phase1/leaseStore';
 import { storage } from '@/utils/storage';
@@ -33,8 +39,133 @@ import { ERR } from '@/constants/errorCodes';
 import type { BackupEnvelope } from '@/services/phase1/backupService';
 import { getRestoreHandlers } from '@/services/phase1/backupService';
 
-export const MAX_BACKUP_FILE_BYTES = 50 * 1024 * 1024; // 50 MB ceiling (FIX-V741-5 / FIX-V7411-7)
+export const MAX_BACKUP_FILE_BYTES = 96 * 1024 * 1024; // 96 MB ceiling (FIX-V741-5 / FIX-V80-3)
+export const MAX_BACKUP_FILE_CHARS = MAX_BACKUP_FILE_BYTES;
 const UUID_SAFE_ID_REGEX = /^[A-Za-z0-9_-]{1,64}$/;
+const INSERT_CHUNK_SIZE = 100;
+
+// FIX-V740-2 & FIX-V741-5: Runtime zod validation (passthrough preserves Phase 2–4 extension fields)
+const EnvelopeV2Schema = z
+  .object({
+    encryptionVersion: z.literal(2),
+    schemaVersion: z.number().int().positive(),
+    appVersion: z.string().min(1),
+    exportedAt: z.string().min(1),
+    passwordProtected: z.boolean(),
+    kdf: z.enum(['PBKDF2-SHA256', 'APP_KEY', 'DEVICE_KEY']),
+    kdfIterations: z.number().int().nonnegative(),
+    salt: z.string(),
+    keyWrapIv: z.string().min(1),
+    wrappedKey: z.string().min(1),
+    iv: z.string().min(1),
+    ciphertext: z.string().min(1),
+  })
+  .passthrough()
+  .superRefine((val, ctx) => {
+    if (val.passwordProtected) {
+      if (val.kdf !== 'PBKDF2-SHA256') {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'invalid KDF for password backup' });
+      }
+      if (val.kdfIterations < MIN_KDF_ITERATIONS || val.kdfIterations > MAX_KDF_ITERATIONS) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'KDF iterations out of bounds' });
+      }
+      if (!val.salt) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'missing salt for password backup' });
+      }
+    } else {
+      if (val.kdf !== 'APP_KEY' && val.kdf !== 'DEVICE_KEY') {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'invalid passwordless KDF' });
+      }
+      if (val.kdfIterations !== 0 || val.salt !== '') {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'invalid passwordless KDF header' });
+      }
+    }
+  });
+
+const EnvelopeV1Schema = z
+  .object({
+    encryptionVersion: z.literal(1),
+    schemaVersion: z.number().int().positive(),
+    appVersion: z.string().min(1),
+    exportedAt: z.string().min(1),
+    deviceId: z.string().optional(),
+    passwordProtected: z.boolean().optional(),
+    salt: z.string().min(1),
+    iv: z.string().min(1),
+    ciphertext: z.string().min(1),
+  })
+  .passthrough();
+
+const PayloadCoreSchema = z
+  .object({
+    firms: z
+      .array(
+        z
+          .object({
+            id: z.string().min(1),
+            name: z.string().min(1),
+            firmCode: z.string().min(1),
+          })
+          .passthrough()
+      )
+      .max(3),
+    financialYears: z
+      .array(
+        z
+          .object({
+            id: z.string().min(1),
+            firmId: z.string().min(1),
+            status: z.string().min(1),
+          })
+          .passthrough()
+      )
+      .optional(),
+    settings: z.array(z.object({}).passthrough()).max(1).optional(),
+    auditLogs: z
+      .array(
+        z
+          .object({
+            id: z.string().min(1),
+            eventType: z.string().min(1),
+          })
+          .passthrough()
+      )
+      .optional(),
+    bisLogos: z
+      .array(
+        z
+          .object({
+            id: z.string().min(1),
+            firmId: z.string().min(1),
+            fileRef: z.string().min(1),
+          })
+          .passthrough()
+      )
+      .optional(),
+  })
+  .passthrough();
+
+export interface BackupHeaderPeek {
+  encryptionVersion: 1 | 2;
+  schemaVersion: number;
+  appVersion: string;
+  exportedAt: string;
+  passwordProtected: boolean;
+  isOldSchema: boolean;
+}
+
+export interface BackupPreview {
+  backup: BackupEnvelope;
+  exportedAt: string;
+  appVersion: string;
+  deviceId: string;
+  schemaVersion: number;
+  isOldSchema: boolean;
+  isCrossDevice: boolean;
+  hasEmbeddedLogos: boolean;
+  safeModeWasActive: boolean;
+  warning?: string | undefined;
+}
 
 function getSafeDeviceId(): string {
   try {
@@ -44,27 +175,82 @@ function getSafeDeviceId(): string {
   }
 }
 
+// FIX-V740-2 & FIX-V80-2: Chunked inserts prevent SQLite SQLITE_MAX_VARIABLE_NUMBER crashes on large restores
+function insertChunked(tx: any, table: any, rows: any[], chunkSize = INSERT_CHUNK_SIZE): void {
+  for (let i = 0; i < rows.length; i += chunkSize) {
+    tx.insert(table).values(rows.slice(i, i + chunkSize)).run();
+  }
+}
+
+export function parseBackupFile(fileContent: string): any {
+  if (fileContent.length > MAX_BACKUP_FILE_CHARS) {
+    throw new Error(ERR.BACKUP_FILE_INVALID + ': Backup file exceeds maximum size limit (96 MB).');
+  }
+  let parsed: any;
+  try {
+    parsed = JSON.parse(fileContent);
+  } catch {
+    throw new Error(ERR.BACKUP_FILE_INVALID + ': File is not valid JSON data.');
+  }
+  if (!parsed || typeof parsed !== 'object') {
+    throw new Error(ERR.BACKUP_FILE_INVALID + ': backup envelope must be a JSON object');
+  }
+  if (parsed.encryptionVersion === 2) {
+    const res = EnvelopeV2Schema.safeParse(parsed);
+    if (!res.success) {
+      throw new Error(
+        ERR.BACKUP_FILE_INVALID + ': ' + (res.error.issues[0]?.message ?? 'invalid v2 envelope')
+      );
+    }
+    return res.data;
+  }
+  if (parsed.encryptionVersion === 1) {
+    const res = EnvelopeV1Schema.safeParse(parsed);
+    if (!res.success) {
+      throw new Error(
+        ERR.CHECKSUM_MISMATCH + ': ' + (res.error.issues[0]?.message ?? 'invalid v1 envelope')
+      );
+    }
+    return res.data;
+  }
+  throw new Error(ERR.BACKUP_FILE_INVALID + ': unsupported encryptionVersion');
+}
+
+// FIX-V80-2 & FIX-V80-3: Non-decrypting header peek for Step 5 password/schema UI
+export function peekBackupHeader(fileContent: string): BackupHeaderPeek {
+  const parsed = parseBackupFile(fileContent);
+  const currentMaxSchema = BACKUP_SCHEMA_VERSION ?? SCHEMA_VERSION;
+  return {
+    encryptionVersion: parsed.encryptionVersion,
+    schemaVersion: parsed.schemaVersion,
+    appVersion: parsed.appVersion,
+    exportedAt: parsed.exportedAt,
+    passwordProtected: parsed.passwordProtected === true,
+    isOldSchema: parsed.schemaVersion < currentMaxSchema,
+  };
+}
+
 async function decryptBackupEnvelope(
   parsedBlob: any,
   password?: string
 ): Promise<BackupEnvelope> {
-  if (!parsedBlob || typeof parsedBlob !== 'object') {
-    throw new Error(ERR.BACKUP_FILE_INVALID + ': backup envelope must be a JSON object');
-  }
-
   if (parsedBlob.encryptionVersion === 2) {
-    if (
-      !parsedBlob.passwordProtected &&
-      (parsedBlob.kdfIterations !== 0 || (parsedBlob.salt && parsedBlob.salt !== ''))
-    ) {
-      throw new Error(ERR.BACKUP_FILE_INVALID + ': invalid passwordless KDF header');
-    }
     const jsonStr = await decryptBackup(parsedBlob, password);
     let payload: any;
     try {
       payload = JSON.parse(jsonStr);
     } catch {
       throw new Error(ERR.BACKUP_FILE_INVALID + ': decrypted payload is not valid JSON');
+    }
+    // FIX-V740-1: Defence in depth — inner copy of header must match AAD-authenticated outer header
+    if (
+      payload?.schemaVersion !== parsedBlob.schemaVersion ||
+      payload?.exportedAt !== parsedBlob.exportedAt ||
+      payload?.appVersion !== parsedBlob.appVersion
+    ) {
+      throw new Error(
+        ERR.CHECKSUM_ENVELOPE_MISMATCH + ': envelope header does not match encrypted payload'
+      );
     }
     return {
       ...parsedBlob,
@@ -73,13 +259,10 @@ async function decryptBackupEnvelope(
     } as BackupEnvelope;
   }
 
-  // Legacy encryptionVersion === 1 path (FIX-V740-1, FIX-V741-5: uses deviceId inside the file)
+  // Legacy encryptionVersion === 1 path (FIX-V740-1, FIX-V741-5h, FIX-V80-3: uses file.deviceId)
   if (parsedBlob.encryptionVersion === 1) {
     if (parsedBlob.passwordProtected === true && !password) {
       throw new Error(ERR.BACKUP_PASSWORD_REQUIRED + ': password required for this backup');
-    }
-    if (!parsedBlob.salt || !parsedBlob.iv || !parsedBlob.ciphertext) {
-      throw new Error(ERR.CHECKSUM_MISMATCH + ': Corrupted backup envelope structure');
     }
     const jsonStr = await decryptLegacyV1Backup(
       {
@@ -91,7 +274,12 @@ async function decryptBackupEnvelope(
       },
       password
     );
-    const payload = JSON.parse(jsonStr);
+    let payload: any;
+    try {
+      payload = JSON.parse(jsonStr);
+    } catch {
+      throw new Error(ERR.BACKUP_FILE_INVALID + ': decrypted legacy payload is not valid JSON');
+    }
     return {
       ...parsedBlob,
       deviceId: parsedBlob.deviceId ?? payload?.deviceId ?? 'UNKNOWN',
@@ -107,22 +295,18 @@ async function decryptBackupEnvelope(
  * Throws ERR.RESTORE_VALIDATION_FAILED on any violation and NEVER activates Safe Mode (FIX-V741-5a).
  */
 export function assertPayloadIntegrity(payload: any): void {
-  if (!payload || typeof payload !== 'object' || !Array.isArray(payload.firms)) {
-    throw new Error(ERR.RESTORE_VALIDATION_FAILED + ': Invalid payload structure.');
-  }
-  if (payload.firms.length > 3) {
+  const parsed = PayloadCoreSchema.safeParse(payload);
+  if (!parsed.success) {
     throw new Error(
       ERR.RESTORE_VALIDATION_FAILED +
-        `: Backup contains ${payload.firms.length} firms. Maximum capacity is 3.`
+        ': ' +
+        (parsed.error.issues[0]?.message ?? 'Invalid payload structure.')
     );
   }
 
   const firmIds = new Set<string>();
   const firmCodes = new Set<string>();
   for (const f of payload.firms) {
-    if (!f?.id || !f?.name || !f?.firmCode) {
-      throw new Error(ERR.RESTORE_VALIDATION_FAILED + ': Firm record missing required fields.');
-    }
     if (firmIds.has(f.id) || firmCodes.has(f.firmCode)) {
       throw new Error(ERR.RESTORE_VALIDATION_FAILED + ': Duplicate firm id or firmCode in backup.');
     }
@@ -132,10 +316,10 @@ export function assertPayloadIntegrity(payload: any): void {
 
   const activeFyCountByFirm = new Map<string, number>();
   for (const fy of payload.financialYears ?? []) {
-    if (!fy?.id || !fy?.firmId || !firmIds.has(fy.firmId)) {
+    if (!firmIds.has(fy.firmId)) {
       throw new Error(
         ERR.RESTORE_VALIDATION_FAILED +
-          `: Financial year ${fy?.id ?? ''} references non-existent firm ${fy?.firmId ?? ''}.`
+          `: Financial year ${fy.id} references non-existent firm ${fy.firmId}.`
       );
     }
     if (fy.status === 'ACTIVE') {
@@ -151,22 +335,52 @@ export function assertPayloadIntegrity(payload: any): void {
   }
 
   for (const logo of payload.bisLogos ?? []) {
-    if (!logo?.id || !logo?.firmId || !firmIds.has(logo.firmId)) {
+    if (!firmIds.has(logo.firmId)) {
       throw new Error(
         ERR.RESTORE_VALIDATION_FAILED +
-          `: BIS logo ${logo?.id ?? ''} references non-existent firm ${logo?.firmId ?? ''}.`
+          `: BIS logo ${logo.id} references non-existent firm ${logo.firmId}.`
       );
     }
   }
+}
 
-  if (Array.isArray(payload.settings) && payload.settings.length > 1) {
-    throw new Error(
-      ERR.RESTORE_VALIDATION_FAILED + ': Backup settings table must contain at most 1 row.'
-    );
-  }
+export async function previewBackup(
+  fileContent: string,
+  password?: string
+): Promise<BackupPreview> {
+  const parsedBlob = parseBackupFile(fileContent);
+  const backup = await decryptBackupEnvelope(parsedBlob, password);
+  const schemaCheck = await restoreService.validateBackupSchema(backup);
+  assertPayloadIntegrity(backup.payload);
+
+  const currentMaxSchema = BACKUP_SCHEMA_VERSION ?? SCHEMA_VERSION;
+  const sm = backup.payload?.safeModeState;
+  const smRow = Array.isArray(sm) ? sm[0] : sm;
+  const deviceId = backup.deviceId ?? backup.payload?.deviceId ?? 'UNKNOWN';
+
+  return {
+    backup,
+    exportedAt: backup.exportedAt,
+    appVersion: backup.appVersion,
+    deviceId,
+    schemaVersion: backup.schemaVersion,
+    isOldSchema: backup.schemaVersion < currentMaxSchema,
+    isCrossDevice: !!deviceId && deviceId !== 'UNKNOWN' && deviceId !== getSafeDeviceId(),
+    hasEmbeddedLogos: !!(
+      backup.payload?.logoAssets &&
+      (backup.payload.logoAssets.firmLogos.length > 0 ||
+        backup.payload.logoAssets.bisLogos.length > 0)
+    ),
+    safeModeWasActive: !!(smRow && smRow.isActive === 1),
+    ...(schemaCheck && 'warning' in schemaCheck ? { warning: schemaCheck.warning } : {}),
+  };
 }
 
 export const restoreService = {
+  parseBackupFile,
+  peekBackupHeader,
+  previewBackup,
+
   async inspectBackupFile(
     password?: string
   ): Promise<{ backup: BackupEnvelope; fileContent: string; warning?: string } | null> {
@@ -182,15 +396,20 @@ export const restoreService = {
     const asset = result.assets[0];
     // FIX-V7411-7: Check picker file size before reading into memory
     if (typeof asset.size === 'number' && asset.size > MAX_BACKUP_FILE_BYTES) {
-      throw new Error(ERR.BACKUP_FILE_INVALID + ': Backup file exceeds maximum size limit (50 MB).');
+      throw new Error(ERR.BACKUP_FILE_INVALID + ': Backup file exceeds maximum size limit (96 MB).');
     }
 
     const fileUri = asset.uri;
     let fileContent = '';
     try {
       const info = await FileSystem.getInfoAsync(fileUri);
-      if (info.exists && 'size' in info && typeof info.size === 'number' && info.size > MAX_BACKUP_FILE_BYTES) {
-        throw new Error(ERR.BACKUP_FILE_INVALID + ': Backup file exceeds maximum size limit (50 MB).');
+      if (
+        info.exists &&
+        'size' in info &&
+        typeof info.size === 'number' &&
+        info.size > MAX_BACKUP_FILE_BYTES
+      ) {
+        throw new Error(ERR.BACKUP_FILE_INVALID + ': Backup file exceeds maximum size limit (96 MB).');
       }
       fileContent = await FileSystem.readAsStringAsync(fileUri, { encoding: 'utf8' as any });
     } catch (e: any) {
@@ -201,21 +420,12 @@ export const restoreService = {
       );
     }
 
-    let parsedBlob: any;
-    try {
-      parsedBlob = JSON.parse(fileContent);
-    } catch {
-      throw new Error(ERR.BACKUP_FILE_INVALID + ': File is not valid JSON data.');
-    }
-
-    const backup = await decryptBackupEnvelope(parsedBlob, password);
-    const schemaCheck = await this.validateBackupSchema(backup);
-    assertPayloadIntegrity(backup.payload);
+    const preview = await previewBackup(fileContent, password);
 
     return {
-      backup,
+      backup: preview.backup,
       fileContent,
-      ...(schemaCheck && 'warning' in schemaCheck ? { warning: schemaCheck.warning } : {}),
+      ...(preview.warning ? { warning: preview.warning } : {}),
     };
   },
 
@@ -234,7 +444,8 @@ export const restoreService = {
       settings: backupSettings,
     } = backup.payload!;
 
-    const isSafeModeBackedUp = !!(backupSmState && backupSmState.isActive === 1);
+    const smRow = Array.isArray(backupSmState) ? backupSmState[0] : backupSmState;
+    const isSafeModeBackedUp = !!(smRow && smRow.isActive === 1);
     const isCrossDevice =
       !!backup.deviceId &&
       backup.deviceId !== 'UNKNOWN' &&
@@ -273,7 +484,7 @@ export const restoreService = {
             ? `⚠️ Logo images are not included in this backup and will need to be re-uploaded.\n\n`
             : '') +
           (isSafeModeBackedUp
-            ? `⚠️ SAFE MODE ACTIVE IN BACKUP ⚠️\nRestoring it will re-activate Safe Mode.\n\n`
+            ? `⚠️ This backup was created while Safe Mode was active. Safe Mode is re-evaluated by the post-restore verify.\n\n`
             : '') +
           `Restoring will permanently replace all current data.`,
         [
@@ -297,13 +508,11 @@ export const restoreService = {
   },
 
   /**
-   * Canonical restore() (FIX-V742-4, FIX-V742-5, FIX-V743-2, FIX-V743-4, FIX-V744-1, FIX-V747-5).
+   * Canonical restore() (FIX-V742-4, FIX-V742-5, FIX-V743-2, FIX-V743-4, FIX-V744-1, FIX-V747-5, FIX-V80-2/3).
    * G40: restore() does NOT call assertNotInSafeMode() (PATH 2 Safe Mode resolution).
    */
   async restore(encryptedFileContent: string, password?: string): Promise<void> {
-    if (encryptedFileContent.length > MAX_BACKUP_FILE_BYTES) {
-      throw new Error(ERR.BACKUP_FILE_INVALID + ': Backup content exceeds 50 MB limit.');
-    }
+    const parsedBlob = parseBackupFile(encryptedFileContent);
 
     await leaseService.assertNoActiveLease();
     const leaseId = await leaseService.acquire('RESTORE');
@@ -311,13 +520,6 @@ export const restoreService = {
 
     try {
       const currentDeviceId = getSafeDeviceId();
-      let parsedBlob: any;
-      try {
-        parsedBlob = JSON.parse(encryptedFileContent);
-      } catch {
-        throw new Error(ERR.BACKUP_FILE_INVALID + ': File is not valid JSON.');
-      }
-
       const backup = await decryptBackupEnvelope(parsedBlob, password);
       await this.validateBackupSchema(backup);
 
@@ -428,19 +630,12 @@ export const restoreService = {
         tx.delete(appSettingsTable).run();
         tx.delete(safeModeStateTable).run();
 
-        if (firmsToInsert?.length) tx.insert(firmsTable).values(firmsToInsert).run();
-        if (inner.financialYears?.length) {
-          tx.insert(financialYearsTable).values(inner.financialYears).run();
-        }
-        if (settingsToInsert?.length) {
-          tx.insert(appSettingsTable).values(settingsToInsert).run();
-        }
-        if (inner.auditLogs?.length) {
-          tx.insert(auditLogsTable).values(inner.auditLogs).run();
-        }
-        if (bisLogosToInsert?.length) {
-          tx.insert(bisLogosTable).values(bisLogosToInsert).run();
-        }
+        // FIX-V740-2 & FIX-V80-2: Chunked inserts for all Phase 1 tables
+        if (firmsToInsert?.length) insertChunked(tx, firmsTable, firmsToInsert);
+        if (inner.financialYears?.length) insertChunked(tx, financialYearsTable, inner.financialYears);
+        if (settingsToInsert?.length) insertChunked(tx, appSettingsTable, settingsToInsert);
+        if (inner.auditLogs?.length) insertChunked(tx, auditLogsTable, inner.auditLogs);
+        if (bisLogosToInsert?.length) insertChunked(tx, bisLogosTable, bisLogosToInsert);
 
         if (inner.safeModeState) {
           const smRow = Array.isArray(inner.safeModeState)
@@ -527,15 +722,12 @@ export const restoreService = {
    * Validates backup schema version (v6.1 / v6.3 FIX 2 / v7.43 FIX-V743-2).
    * MUST be called OUTSIDE any transaction. Writes NO audit row (FIX-V743-2).
    */
-  async validateBackupSchema(
-    backup: BackupEnvelope
-  ): Promise<{ warning?: string } | void> {
+  async validateBackupSchema(backup: BackupEnvelope): Promise<{ warning?: string } | void> {
     const { schemaVersion } = backup;
 
     if (schemaVersion === undefined || schemaVersion === null) {
       throw new Error(
-        ERR.RESTORE_VALIDATION_FAILED +
-          ': Backup has no schemaVersion field — may be corrupted.'
+        ERR.RESTORE_VALIDATION_FAILED + ': Backup has no schemaVersion field — may be corrupted.'
       );
     }
 

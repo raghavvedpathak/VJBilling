@@ -1,5 +1,5 @@
-// components/phase1/RestorePreviewModal.tsx — Phase 1 v7.47 & Phase 2 Canonical Component
-// Implements FIX-VSEC-5 (cross-device warning), FIX-V726-3, FIX-V736-1, FIX-V741-5 (old-schema warning)
+// components/phase1/RestorePreviewModal.tsx — Phase 1 v8.0 & Phase 2–4 Canonical Component
+// Implements Step 13 Preview Content, FIX-VSEC-5, FIX-V726-3, FIX-V736-1, FIX-V741-5, FIX-V7411-14
 
 import React, { useState, useEffect } from 'react';
 import {
@@ -41,6 +41,7 @@ export interface RestorePreviewModalProps {
   backup: BackupEnvelope | null;
   fileContent?: string | null;
   schemaWarning?: string | null;
+  error?: string | null;
   isRestoring?: boolean;
   onConfirm: (password?: string) => void;
   onCancel: () => void;
@@ -58,6 +59,7 @@ export function RestorePreviewModal({
   visible,
   backup,
   schemaWarning,
+  error,
   isRestoring = false,
   onConfirm,
   onCancel,
@@ -77,7 +79,7 @@ export function RestorePreviewModal({
     isRestoring || (isPasswordProtected && password.trim().length === 0);
 
   const firms = backup.payload?.firms || [];
-  const primaryFirm = firms[0];
+  const financialYears = backup.payload?.financialYears || [];
   const exportedDate = backup.exportedAt ? new Date(backup.exportedAt) : new Date();
 
   const formattedDate = exportedDate.toLocaleDateString('en-IN', {
@@ -98,7 +100,11 @@ export function RestorePreviewModal({
   const gemstoneLotCount = backup.payload?.gemstoneLots?.length || 0;
   const urdCount = backup.payload?.urdPurchases?.length || 0;
   const auditCount = backup.payload?.auditLogs?.length || 0;
-  const isSafeModeActive = backup.payload?.safeModeState?.isActive === 1;
+  const settingsCount = backup.payload?.settings?.length || 0;
+
+  const rawSm = backup.payload?.safeModeState;
+  const smRow = Array.isArray(rawSm) ? rawSm[0] : rawSm;
+  const isSafeModeActive = smRow?.isActive === 1;
 
   // FIX-VSEC-5: Cross-device origin check (backup.deviceId vs current getDeviceId())
   const backupDeviceId = backup.payload?.deviceId ?? backup.deviceId ?? null;
@@ -119,14 +125,8 @@ export function RestorePreviewModal({
       ? `Older backup format detected (schema v${backup.schemaVersion} < app v${currentMaxSchema}). Data will be migrated on restore.`
       : null);
 
-  // v7.36 FIX-V736-1: Detect presence of embedded logo binaries
-  const hasEmbeddedLogos = !!(
-    backup.payload?.logoAssets &&
-    ((backup.payload.logoAssets.firmLogos &&
-      backup.payload.logoAssets.firmLogos.length > 0) ||
-      (backup.payload.logoAssets.bisLogos &&
-        backup.payload.logoAssets.bisLogos.length > 0))
-  );
+  // v7.36 FIX-V736-1: Branch strictly on payload.logoAssets presence (absent on pre-v7.36 backups only)
+  const hasLogoAssetsBlock = backup.payload?.logoAssets !== undefined;
 
   const handleConfirmPress = () => {
     if (isConfirmDisabled) return;
@@ -158,7 +158,7 @@ export function RestorePreviewModal({
       >
         <View style={s.container}>
           <GlassCard style={s.modalCard}>
-            {/* MANDATORY WATERMARK BANNER */}
+            {/* MANDATORY WATERMARK BANNER (Step 13) */}
             <View style={s.watermarkBanner}>
               <Text style={s.watermarkText}>PREVIEW — NOT RESTORED YET</Text>
             </View>
@@ -189,7 +189,7 @@ export function RestorePreviewModal({
               style={s.scrollArea}
               keyboardShouldPersistTaps="handled"
             >
-              {/* Metadata Pills */}
+              {/* Metadata Pills (Step 13: Date/time, App version, Device ID last 8 chars, Schema version) */}
               <View style={s.metaPillContainer}>
                 <View style={s.metaPill}>
                   <Calendar size={12} color="#B8860B" />
@@ -199,6 +199,12 @@ export function RestorePreviewModal({
                   <Clock size={12} color="#B8860B" />
                   <Text style={s.metaPillText}>{formattedTime}</Text>
                 </View>
+                {backupDeviceId && backupDeviceId !== 'UNKNOWN' && (
+                  <View style={s.metaPill}>
+                    <Smartphone size={12} color="#B8860B" />
+                    <Text style={s.metaPillText}>ID …{String(backupDeviceId).slice(-8)}</Text>
+                  </View>
+                )}
                 <View
                   style={[
                     s.metaPill,
@@ -215,27 +221,34 @@ export function RestorePreviewModal({
                 </View>
               </View>
 
-              {/* Primary Firm Profile Card */}
-              {primaryFirm && (
-                <View style={s.firmCard}>
-                  <View style={s.firmIconBox}>
-                    <Building2 size={20} color={COLORS.vjText} />
-                  </View>
-                  <View style={s.firmInfo}>
-                    <View style={s.firmNameRow}>
-                      <Text style={s.firmName} numberOfLines={1}>
-                        {primaryFirm.name}
-                      </Text>
-                      <View style={s.firmCodeBadge}>
-                        <Text style={s.firmCodeText}>{primaryFirm.firmCode}</Text>
+              {/* Step 13: ALL Firms in Backup with Firm Code & FY Count per Firm */}
+              {firms.length > 0 && (
+                <View style={{ marginBottom: 12 }}>
+                  <Text style={s.sectionHeader}>Firms in Backup ({firms.length})</Text>
+                  {firms.map((firm: any) => {
+                    const fyCount = financialYears.filter((fy: any) => fy.firmId === firm.id).length;
+                    return (
+                      <View key={firm.id} style={s.firmCard}>
+                        <View style={s.firmIconBox}>
+                          <Building2 size={20} color={COLORS.vjText} />
+                        </View>
+                        <View style={s.firmInfo}>
+                          <View style={s.firmNameRow}>
+                            <Text style={s.firmName} numberOfLines={1}>
+                              {firm.name}
+                            </Text>
+                            <View style={s.firmCodeBadge}>
+                              <Text style={s.firmCodeText}>{firm.firmCode}</Text>
+                            </View>
+                          </View>
+                          <Text style={s.firmProprietor}>
+                            {firm.proprietor ? `${firm.proprietor} • ` : ''}
+                            {fyCount} {fyCount === 1 ? 'FY' : 'FYs'}
+                          </Text>
+                        </View>
                       </View>
-                    </View>
-                    {primaryFirm.proprietor ? (
-                      <Text style={s.firmProprietor}>
-                        Proprietor: {primaryFirm.proprietor}
-                      </Text>
-                    ) : null}
-                  </View>
+                    );
+                  })}
                 </View>
               )}
 
@@ -270,9 +283,11 @@ export function RestorePreviewModal({
                 <View style={s.gridTile}>
                   <View style={s.gridTileHeader}>
                     <FileSpreadsheet size={16} color="#D97706" />
-                    <Text style={s.gridTileLabel}>Audit Logs</Text>
+                    <Text style={s.gridTileLabel}>Audit & Config</Text>
                   </View>
-                  <Text style={s.gridTileValue}>{auditCount} Events</Text>
+                  <Text style={s.gridTileValue}>
+                    {auditCount} Logs / {settingsCount} Cfg
+                  </Text>
                 </View>
               </View>
 
@@ -289,6 +304,14 @@ export function RestorePreviewModal({
                   />
                 </View>
               )}
+
+              {/* INLINE DECRYPTION / RESTORE ERROR (FIX-V726-3: stays on Step 5 on wrong password) */}
+              {error ? (
+                <View style={s.safeModeAlert}>
+                  <ShieldAlert size={18} color={COLORS.danger} />
+                  <Text style={s.safeModeAlertText}>{error}</Text>
+                </View>
+              ) : null}
 
               {/* CROSS-DEVICE ORIGIN AMBER WARNING (FIX-VSEC-5) */}
               {isCrossDevice && (
@@ -311,7 +334,7 @@ export function RestorePreviewModal({
               )}
 
               {/* LOGO EXCLUSION NOTICE — ONLY SHOWN FOR PRE-v7.36 BACKUPS (v7.36 FIX-V736-1) */}
-              {!hasEmbeddedLogos && (
+              {!hasLogoAssetsBlock && (
                 <View style={s.logoNoticeCard}>
                   <ImageOff size={16} color="#D97706" />
                   <Text style={s.logoNoticeText}>
@@ -321,13 +344,13 @@ export function RestorePreviewModal({
                 </View>
               )}
 
-              {/* Safe Mode Alert */}
+              {/* Safe Mode Status Warning (Step 13 v7.40 canonical copy) */}
               {isSafeModeActive && (
-                <View style={s.safeModeAlert}>
-                  <ShieldAlert size={18} color={COLORS.danger} />
-                  <Text style={s.safeModeAlertText}>
-                    SAFE MODE ACTIVE IN BACKUP: Restoring will activate Safe Mode integrity
-                    verification.
+                <View style={s.logoNoticeCard}>
+                  <ShieldAlert size={18} color="#D97706" />
+                  <Text style={s.logoNoticeText}>
+                    This backup was created while Safe Mode was active. Safe Mode is
+                    re-evaluated by the post-restore verify.
                   </Text>
                 </View>
               )}
@@ -336,8 +359,7 @@ export function RestorePreviewModal({
               <View style={s.warningCard}>
                 <AlertTriangle size={18} color="#D97706" />
                 <Text style={s.warningText}>
-                  Restoring will permanently replace all current store data on this device
-                  with the contents of this backup file.
+                  Restoring will permanently replace all current data.
                 </Text>
               </View>
             </ScrollView>
@@ -350,15 +372,9 @@ export function RestorePreviewModal({
                 variant="danger"
                 loading={isRestoring}
                 disabled={isConfirmDisabled}
-                icon={
-                  isRestoring ? undefined : <DatabaseBackup size={18} color="white" />
-                }
+                icon={isRestoring ? undefined : <DatabaseBackup size={18} color="white" />}
               />
-              <GlassButton
-                title="Cancel"
-                onPress={handleCancelPress}
-                variant="secondary"
-              />
+              <GlassButton title="Cancel" onPress={handleCancelPress} variant="secondary" />
             </View>
           </GlassCard>
         </View>
@@ -472,7 +488,7 @@ const s = StyleSheet.create({
     borderWidth: 1,
     borderRadius: 16,
     padding: 12,
-    marginBottom: 16,
+    marginBottom: 8,
   },
   firmIconBox: {
     backgroundColor: 'rgba(92, 22, 35, 0.08)',

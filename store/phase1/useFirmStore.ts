@@ -1,4 +1,4 @@
-// store/phase1/useFirmStore.ts — Phase 1 v7.47 (Step 7, Step 8, v5.1 S3, FIX-V742-6) & Phase 2 Canonical Firm Store
+// store/phase1/useFirmStore.ts — Phase 1 v8.0 (Step 7, Step 8, v5.1 S3, FIX-V740-13, FIX-V742-6) & Phase 2–4 Canonical Firm Store
 
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
@@ -33,6 +33,9 @@ export const useFirmStore = create<FirmState>()(
     {
       name: 'firm-store',
       storage: persistStorage, // v7.42 FIX-V742-6
+      // FIX-V740-12 / FIX-V740-13: Persist ONLY activeFirmId to plaintext MMKV;
+      // keep full Firm records (GSTIN, proprietor, phones, address) in memory/SQLCipher only.
+      partialize: (state) => ({ activeFirmId: state.activeFirmId }),
     }
   )
 );

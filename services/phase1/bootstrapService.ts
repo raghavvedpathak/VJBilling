@@ -1,12 +1,18 @@
 // services/phase1/bootstrapService.ts
-// Phase 1 Master Bootstrap Sequence — Steps 0–12 (v7.47 Canonical)
-// Implements FIX-VSEC-2, FIX-VSEC-8, FIX-VSEC-14, FIX-V740-8, FIX-V741-1, FIX-V7411-3, FIX-V743-4, FIX-V744-2, FIX-V744-3
+// Phase 1 Master Bootstrap Sequence — Steps 0–12 (v8.0 Canonical)
+// Implements FIX-VSEC-2, FIX-VSEC-8, FIX-VSEC-14, FIX-V740-8, FIX-V741-1, FIX-V7411-3,
+// FIX-V743-4, FIX-V744-2, FIX-V744-3, FIX-V745-4, FIX-V747-2
 
 import { safeModeService, bootstrapComplete } from '@/services/phase1/safeModeService';
 import { getDeviceId, getOrGenerateDeviceId, auditDeviceIdIfNew } from '@/utils/deviceId';
 import { encryptSnapshot } from '@/utils/backupCrypto';
-import { isHealthyVerifyCacheValid, writeVerifyCache } from '@/utils/verifyCache';
+import { isHealthyVerifyCacheValid } from '@/utils/verifyCache';
 import { verifyService } from '@/services/phase1/verifyService';
+import { registerAutoBackupTask } from '@/services/phase1/autoBackupService';
+import {
+  initBackupNotifications,
+  reconcileOverdueReminder,
+} from '@/services/phase1/backupNotificationService';
 import { safeModeStore, SafeModeTrigger } from '@/store/phase1/safeModeStore';
 import { appSettingsStore } from '@/store/phase1/appSettingsStore';
 import { firmStore } from '@/store/phase1/useFirmStore';
@@ -24,7 +30,7 @@ import {
 import { auditRepository } from '@/repositories/phase1/auditRepository';
 import { queuePendingAudit, flushPendingAudit } from '@/services/phase1/auditService';
 import * as FileSystem from 'expo-file-system/legacy';
-import { STORAGE_PATHS } from '@/constants';
+import { STORAGE_PATHS, AB_KEYS } from '@/constants';
 import { storage } from '@/utils/storage';
 import { desc, eq, inArray, isNotNull } from 'drizzle-orm';
 import { differenceInDays, parseISO } from 'date-fns';
@@ -72,7 +78,7 @@ export const bootstrapService = {
 
       const snapshot = {
         timestamp: new Date().toISOString(),
-        version: 'v7.47_PRE_MIGRATION',
+        version: 'v8.0_PRE_MIGRATION',
         firms: firmsData,
         financial_years: safeSelectAll('financial_years'),
         audit_logs: safeSelectAll('audit_logs'),
@@ -137,11 +143,16 @@ export const bootstrapService = {
           return 'SAFE_MODE';
         }
       } else {
-        safeModeService.loadState();
+        await safeModeService.loadState();
       }
 
       // Step 6: Hydrate appSettingsStore & reconcile activeFirmId (BLOCKER A, FIX-V743-4, FIX-V744-2)
-      const settingsRows = db.select().from(appSettings).where(eq(appSettings.id, 1)).limit(1).all();
+      const settingsRows = db
+        .select()
+        .from(appSettings)
+        .where(eq(appSettings.id, 1))
+        .limit(1)
+        .all();
       if (settingsRows.length > 0) {
         appSettingsStore.setState(settingsRows[0]);
       }
@@ -178,9 +189,7 @@ export const bootstrapService = {
         const latestIdentityRows = db
           .select()
           .from(auditLogs)
-          .where(
-            inArray(auditLogs.eventType, ['DEVICE_ID_GENERATED', 'DEVICE_ID_CHANGED'])
-          )
+          .where(inArray(auditLogs.eventType, ['DEVICE_ID_GENERATED', 'DEVICE_ID_CHANGED']))
           .orderBy(desc(auditLogs.createdAt))
           .limit(1)
           .all();
@@ -225,10 +234,16 @@ export const bootstrapService = {
       }
       storage.set('vjbilling_boot_was_interrupted', 'false');
 
-      // Step 7c: Fire-and-forget audit retention purge check
+      // Step 7c: Non-blocking post-bootstrap maintenance (FIX-V710-5, FIX-V745-4, FIX-V747-2)
       const last = appSettingsStore.getState().auditRetentionLastRunAt;
       if (!last || differenceInDays(new Date(), parseISO(last)) >= 30) {
         purgeExpiredAuditLogs().catch(console.error);
+      }
+      void initBackupNotifications()
+        .then(() => reconcileOverdueReminder())
+        .catch(() => {});
+      if (storage.getString(AB_KEYS.enabled) === 'true') {
+        void registerAutoBackupTask().catch(() => {});
       }
 
       if (safeModeStore.getState().isActive) {
@@ -300,6 +315,10 @@ export const bootstrapService = {
                   })
                   .where(eq(bisLogos.id, logo.id))
                   .run();
+                tx.update(firms)
+                  .set({ bisLogoRef: null })
+                  .where(eq(firms.id, logo.firmId))
+                  .run();
                 auditRepository.log(tx, {
                   firmId: logo.firmId,
                   eventType: 'BIS_LOGO_ARCHIVED',
@@ -326,8 +345,7 @@ export const bootstrapService = {
         verifyStatus = 'HEALTHY';
       } else {
         const result = await verifyService.runVerify();
-        verifyStatus = result.status;
-        await writeVerifyCache(verifyStatus);
+        verifyStatus = result.status; // verifyService.runVerify() writes the HMAC verify cache
       }
 
       // Clean up emergency pre-migration snapshots upon successful bootstrap
@@ -360,4 +378,4 @@ export async function bootstrapDatabase(): Promise<
   return bootstrapService.initApp();
 }
 
-export default bootstrapService; 
+export default bootstrapService;

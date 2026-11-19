@@ -1,4 +1,4 @@
-// services/phase1/verifyService.ts — Phase 1 v7.47 & Phase 2–4 Canonical Implementation
+// services/phase1/verifyService.ts — Phase 1 v8.0 & Phase 2–4 Canonical Implementation
 // Implements G63, FIX-VSEC-2, FIX-V740-7 (rowid continuity check), FIX-V742-1 (Safe Mode clear guard), FIX-V743-3 (no duplicate Safe Mode activation)
 
 import { db } from '@/db/client';
@@ -39,7 +39,7 @@ export interface VerifyResult {
 
 export const verifyService = {
   /**
-   * Universal verify entry point implementing Phase 1 v7.47 G63 + Phase 2–4 checks.
+   * Universal verify entry point implementing Phase 1 v8.0 G63 + Phase 2–4 checks.
    * verifyService does NOT call assertNotInSafeMode() or assertNoActiveLease() (read-only; PATH 1 Safe Mode exit).
    */
   async runVerify(firmId?: string): Promise<VerifyResult> {
@@ -48,18 +48,6 @@ export const verifyService = {
     const allFirmRows = await db.select({ id: firms.id }).from(firms);
     const allFirmIds = allFirmRows.map((r) => r.id);
     const knownFirmIdSet = new Set(allFirmIds);
-
-    if (allFirmIds.length === 0) {
-      // Clean install with 0 firms: still clear Safe Mode if it was somehow active (FIX-V742-1)
-      if (safeModeStore.getState().isActive) {
-        await safeModeService.clear();
-      }
-      verifyStore.getState().setScanResults([]);
-      if (!firmId) {
-        await writeVerifyCache('HEALTHY').catch(() => {});
-      }
-      return { status: 'HEALTHY', findings: [] };
-    }
 
     // =========================================================================
     // 1. GLOBAL & CROSS-TABLE CHECKS (Run always; filtered by firmId at the end per G63 / FIX-V743-3)
@@ -72,7 +60,9 @@ export const verifyService = {
             .select({ id: financialYears.id, firmId: financialYears.firmId })
             .from(financialYears)
             .where(notInArray(financialYears.firmId, allFirmIds))
-        : [];
+        : await db
+            .select({ id: financialYears.id, firmId: financialYears.firmId })
+            .from(financialYears);
 
       for (const row of orphanFYs) {
         findings.push({
@@ -90,9 +80,7 @@ export const verifyService = {
         await db.select({ firmId: financialYears.firmId }).from(financialYears)
       ).map((r) => r.firmId);
 
-      const isolationViolations = fyFirmIds.filter(
-        (fid) => fid && !knownFirmIdSet.has(fid)
-      );
+      const isolationViolations = fyFirmIds.filter((fid) => fid && !knownFirmIdSet.has(fid));
       if (isolationViolations.length > 0) {
         findings.push({
           severity: 'CRITICAL',
@@ -144,10 +132,11 @@ export const verifyService = {
         ? await db
             .select({ id: auditLogs.id })
             .from(auditLogs)
-            .where(
-              and(isNotNull(auditLogs.firmId), notInArray(auditLogs.firmId, allFirmIds))
-            )
-        : [];
+            .where(and(isNotNull(auditLogs.firmId), notInArray(auditLogs.firmId, allFirmIds)))
+        : await db
+            .select({ id: auditLogs.id })
+            .from(auditLogs)
+            .where(isNotNull(auditLogs.firmId));
 
       if (orphanAudit.length > 0) {
         findings.push({
@@ -192,8 +181,24 @@ export const verifyService = {
       });
     }
 
+    // Singleton app_settings (id=1) existence check (run once globally, not per firm)
+    try {
+      const settingsRow = await db
+        .select()
+        .from(appSettings)
+        .where(eq(appSettings.id, 1))
+        .limit(1);
+      if (!settingsRow || settingsRow.length === 0) {
+        findings.push({
+          severity: 'WARNING',
+          check: ERR.MISSING_SETTINGS || 'MISSING_SETTINGS',
+          detail: 'App settings row (id=1) is missing. Default configuration required.',
+        });
+      }
+    } catch {}
+
     // Phase 2 Global: Duplicate HUID
-    if (!firmId) {
+    if (!firmId && allFirmIds.length > 0) {
       try {
         const dupHuids = await inventoryVerifyRepository.findGlobalDuplicateHuids();
         for (const dup of dupHuids) {
@@ -239,23 +244,6 @@ export const verifyService = {
         }
       } catch {}
 
-      // Missing settings row check
-      try {
-        const settingsRow = await db
-          .select()
-          .from(appSettings)
-          .where(eq(appSettings.id, 1))
-          .limit(1);
-        if (!settingsRow || settingsRow.length === 0) {
-          findings.push({
-            severity: 'WARNING',
-            check: ERR.MISSING_SETTINGS || 'MISSING_SETTINGS',
-            firmId: fid,
-            detail: `Firm ${fid} is missing app settings row (id=1). Default configuration required.`,
-          });
-        }
-      } catch {}
-
       // If firmId was passed, only run heavy Phase 2–4 checks for the requested firm
       if (firmId && fid !== firmId) continue;
 
@@ -285,8 +273,7 @@ export const verifyService = {
 
       // Phase 4: Gold Intelligence & Metal Integrity Checks
       try {
-        const p4Findings =
-          await goldIntelligenceVerifyService.runGoldIntelligenceChecks(fid);
+        const p4Findings = await goldIntelligenceVerifyService.runGoldIntelligenceChecks(fid);
         findings.push(...p4Findings);
       } catch {}
     }

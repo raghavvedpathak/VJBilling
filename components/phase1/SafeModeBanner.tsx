@@ -1,4 +1,4 @@
-// components/SafeModeBanner.tsx — Phase 2 v2.11 Canonical Component
+// components/phase1/SafeModeBanner.tsx — Phase 1 v8.0 & Phase 2 Canonical Component
 
 import React from 'react';
 import { View, Text } from 'react-native';
@@ -21,14 +21,14 @@ export function SafeModeBanner() {
           SAFE MODE ACTIVE
         </Text>
       </View>
-      
+
       <Text className="text-white/90 text-sm font-medium leading-5 ml-1">
         {getHumanMessage(reason)}
       </Text>
 
       <View className="mt-3 bg-black/20 p-2 rounded-lg border border-white/30">
         <Text className="text-white text-[10px] font-bold uppercase tracking-widest text-center">
-          SYSTEM IS READ-ONLY • CONTACT SUPPORT
+          SYSTEM IS READ-ONLY • BACKUP & VERIFY ALLOWED
         </Text>
       </View>
     </View>
@@ -38,18 +38,20 @@ export function SafeModeBanner() {
 function getHumanMessage(reason: SafeModeTrigger | null): string {
   switch (reason) {
     case 'RESTORE_VALIDATION_FAILED':
-      return "The backup file you tried to restore is corrupted or invalid. The system protected your existing data.";
+      return 'Restore failed after data validation. Writing is disabled until integrity is restored.';
     case 'VERIFY_CRITICAL_ISSUE':
       return "Critical data integrity issues detected. Writing is disabled to prevent data loss. Please run 'Verify My Data' again.";
     case 'FY_INTEGRITY_BROKEN':
-      return "Financial Year boundary violation detected. This firm has no active FY. Please contact support.";
+      return 'Financial Year boundary violation detected. This firm has no active FY. Please contact support.';
     case 'CHECKSUM_MISMATCH':
-      return "Security Alert: The backup file has been tampered with. Checksum verification failed.";
+      return 'Backup decryption failed due to an incorrect password or tampered file. Operations are locked for safety.';
     case 'MIGRATION_FAILED':
-      return "Database update failed. The app version does not match the database version.";
+      return 'Database schema update failed on startup. Operations are locked to protect your data.';
+    case 'SCHEMA_VERSION_MISMATCH':
+      return 'Database schema version does not match this app version. Please update the app or contact support.';
     case 'STORAGE_CORRUPTION_DETECTED':
-      return "Storage corruption detected. Critical system configuration is missing. Operations locked to prevent data loss.";
+      return 'Storage corruption detected. Critical system configuration is missing. Operations locked to prevent data loss.';
     default:
-      return "System integrity check failed. Operations locked for safety.";
+      return 'System integrity check failed. Operations locked for safety.';
   }
 }

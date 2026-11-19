@@ -1,4 +1,4 @@
-// utils/currency.ts — Phase 1 v7.47 (G67, FIX-V78-2, FIX-V742-7, FIX-V744-6) & Phase 2–4 Canonical Currency Utility
+// utils/currency.ts — Phase 1 v8.0 (G67, FIX-V78-2, FIX-V742-7, FIX-V744-6) & Phase 2–4 Canonical Currency Utility
 
 import { appSettingsStore } from '@/store/phase1/appSettingsStore';
 import { ERR } from '@/constants/errorCodes';
@@ -36,7 +36,7 @@ function threeDigitWords(n: number): string {
 export const MAX_AMOUNT_PAISE = 99_999_999_999; // v7.42 FIX-V742-7: ₹99,99,99,999.99
 
 /**
- * Converts integer paise to Bhartiya denomination words.
+ * Converts integer paise to Indian denomination words.
  * Max limit: 99,999,999,999 paise (₹99,99,99,999.99 — FIX-V742-7)
  */
 export function amountToWords(paise: number): string {
@@ -57,37 +57,37 @@ export function amountToWords(paise: number): string {
   const rupees = Math.floor(paise / 100);
   const remainingPaise = paise % 100;
 
-  const parts: string[] = [];
-
-  if (rupees > 0) {
-    let r = rupees;
-
-    if (r >= 10000000) {
-      parts.push(threeDigitWords(Math.floor(r / 10000000)) + ' Crore');
-      r = r % 10000000;
-    }
-
-    if (r >= 100000) {
-      parts.push(threeDigitWords(Math.floor(r / 100000)) + ' Lakh');
-      r = r % 100000;
-    }
-
-    if (r >= 1000) {
-      parts.push(threeDigitWords(Math.floor(r / 1000)) + ' Thousand');
-      r = r % 1000;
-    }
-
-    if (r > 0) {
-      parts.push(threeDigitWords(r));
-    }
+  if (rupees === 0) {
+    return `Paise ${threeDigitWords(remainingPaise)} Only`;
   }
 
-  // v7.8 FIX-V78-2: .trim() prevents trailing space when rupees === 0 (paise-only amounts)
+  const parts: string[] = [];
+  let r = rupees;
+
+  if (r >= 10000000) {
+    parts.push(threeDigitWords(Math.floor(r / 10000000)) + ' Crore');
+    r = r % 10000000;
+  }
+
+  if (r >= 100000) {
+    parts.push(threeDigitWords(Math.floor(r / 100000)) + ' Lakh');
+    r = r % 100000;
+  }
+
+  if (r >= 1000) {
+    parts.push(threeDigitWords(Math.floor(r / 1000)) + ' Thousand');
+    r = r % 1000;
+  }
+
+  if (r > 0) {
+    parts.push(threeDigitWords(r));
+  }
+
+  // v7.8 FIX-V78-2: .trim() prevents trailing spaces
   const rupeeWords = ('Rupees ' + parts.join(' ')).trim();
 
   if (remainingPaise > 0) {
-    const paiseWords = threeDigitWords(remainingPaise);
-    return `${rupeeWords} and Paise ${paiseWords} Only`;
+    return `${rupeeWords} and Paise ${threeDigitWords(remainingPaise)} Only`;
   }
 
   return `${rupeeWords} Only`;

@@ -1,5 +1,5 @@
-// services/phase1/safeModeService.ts — Canonical Safe Mode Service (v7.47)
-// Implements Step 10, G42, FIX-V718-5/6, FIX-V740-8
+// services/phase1/safeModeService.ts — Canonical Safe Mode Service (v8.0)
+// Implements Step 10, G42, FIX-V78-4, FIX-V718-5/6, FIX-V740-8
 
 import db, { db as dbNamed } from '@/db/client';
 import { safeTransaction } from '@/db/safeTransaction';
@@ -91,7 +91,7 @@ export const safeModeService = {
     });
   },
 
-  loadState(): void {
+  async loadState(): Promise<void> {
     const state = safeModeRepository.get();
 
     // v7.7 / v7.8 FIX-V78-4: SAFE-MODE-ROW-GUARD
@@ -105,7 +105,7 @@ export const safeModeService = {
           console.error(
             '[SafeMode] Corruption detected: schema_version exists but safe_mode_state row missing.'
           );
-          void this.activate('STORAGE_CORRUPTION_DETECTED' as SafeModeTrigger, {
+          await this.activate('STORAGE_CORRUPTION_DETECTED' as SafeModeTrigger, {
             missingTable: 'safe_mode_state',
             schemaVersionConfirmed: true,
           });

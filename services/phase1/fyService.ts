@@ -1,15 +1,14 @@
-// services/phase1/fyService.ts — Phase 1 v7.47 & Phase 2 Canonical Financial Year Core Service
-// Implements Step 5 (RESOLVE-TRANSACTION-FYID), Step 5.5 (CLOSE-FY-FLOW), FIX-V742-2, FIX-V744-6
+// services/phase1/fyService.ts — Phase 1 v8.0 & Phase 2 Canonical Financial Year Core Service
+// Implements Step 5 (RESOLVE-TRANSACTION-FYID), Step 5.5 (CLOSE-FY-FLOW), FIX-V710-3/4, FIX-V715-15
 
 import db, { db as dbNamed } from '@/db/client';
-import { eq, and, lte, gte, sql } from 'drizzle-orm';
-import { financialYears, auditDeleteGate as auditDeleteGateTable, FYStatus } from '@/db/schema';
+import { eq, and, lte, gte } from 'drizzle-orm';
+import { financialYears, FYStatus } from '@/db/schema';
 import { fyRepository } from '@/repositories/phase1/fyRepository';
 import { auditRepository } from '@/repositories/phase1/auditRepository';
 import { auditArchiveIndexRepository } from '@/repositories/phase1/auditArchiveIndexRepository';
 import { now } from '@/utils/now';
 import * as Crypto from 'expo-crypto';
-import { appSettingsStore } from '@/store/phase1/appSettingsStore';
 import type {
   DrizzleTransaction,
   FinancialYear,
@@ -17,7 +16,6 @@ import type {
   FYCloseHookResult,
 } from '@/types/phase1/fy.types';
 import { ERR } from '@/constants/errorCodes';
-import { MIN_AUDIT_RETENTION_DAYS } from '@/constants/auditRetention';
 
 export type { FYCloseHook, FYCloseHookResult };
 
@@ -43,10 +41,12 @@ export function clearFYCloseHooks(): void {
 }
 
 /**
- * Core Phase 1/2 Year-End status finalizer.
- * Updates FY status to CLOSED, dispatches extension hooks, logs FY_CLOSED audit event,
- * indexes the archive in audit_archive_index, and safely prunes audit logs via the delete gate
- * while preserving PURGE_EXEMPT_EVENTS (FIX-V742-2).
+ * Core Phase 1/2 Year-End status finalizer (runs inside caller's safeTransaction).
+ * Updates FY status to CLOSED, dispatches extension hooks, logs FY_CLOSED,
+ * and records the archive metadata in audit_archive_index.
+ *
+ * NOTE (FIX-V710-4 & FIX-V715-15): The superseded v7.7 bespoke DELETE SQL is removed.
+ * The async closeFY() orchestrator MUST call purgeExpiredAuditLogs() AFTER this tx commits.
  */
 export function closeCoreFY(
   tx: DrizzleTransaction,
@@ -118,33 +118,6 @@ export function closeCoreFY(
     deviceId,
     payload: { fyId, fyLabel: fy.label, rowCount: auditRowCount },
   });
-
-  const settings = appSettingsStore.getState();
-  const retentionDays = Math.max(
-    MIN_AUDIT_RETENTION_DAYS,
-    settings.auditRetentionDays ?? MIN_AUDIT_RETENTION_DAYS
-  );
-  const endDateBound = fy.endDate.length === 10 ? `${fy.endDate}T23:59:59.999Z` : fy.endDate;
-
-  // Unlock gate prior to deletion to satisfy the prevent_audit_delete trigger;
-  // FIX-V742-2: Never delete DEVICE_ID_GENERATED or FIRM_CODE_SET identity events.
-  targetTx
-    .update(auditDeleteGateTable)
-    .set({ gateOpen: 1 })
-    .where(eq(auditDeleteGateTable.id, 1))
-    .run();
-  targetTx.run(sql`
-    DELETE FROM audit_logs
-    WHERE firm_id = ${firmId}
-    AND event_type NOT IN ('DEVICE_ID_GENERATED', 'FIRM_CODE_SET')
-    AND created_at < datetime('now', '-' || ${retentionDays} || ' days')
-    AND created_at NOT BETWEEN ${fy.startDate} AND ${endDateBound}
-  `);
-  targetTx
-    .update(auditDeleteGateTable)
-    .set({ gateOpen: 0 })
-    .where(eq(auditDeleteGateTable.id, 1))
-    .run();
 }
 
 /**

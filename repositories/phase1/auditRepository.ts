@@ -1,4 +1,4 @@
-// repositories/phase1/auditRepository.ts
+// repositories/phase1/auditRepository.ts — Phase 1 v8.0
 // Append-only audit trail — strictly immutable.
 // v7.43 FIX-V743-2 & v7.44 FIX-V744-3 (G41): tx = null is permitted ONLY for
 // DEVICE_ID_GENERATED and BACKUP_CREATED (exactly 2 null-tx call sites).
@@ -38,12 +38,7 @@ export const auditRepository = {
     const { tx, input } = resolveTxAndInput(arg1, arg2);
 
     const eventType = input.eventType;
-    if (
-      !tx &&
-      eventType !== 'DEVICE_ID_GENERATED' &&
-      eventType !== 'BACKUP_CREATED' &&
-      eventType !== 'RESTORE_OLD_SCHEMA'
-    ) {
+    if (!tx && eventType !== 'DEVICE_ID_GENERATED' && eventType !== 'BACKUP_CREATED') {
       throw new Error(
         `AUDIT_TX_REQUIRED: A valid transaction context must be provided for event ${eventType}`
       );
@@ -82,7 +77,7 @@ export const auditRepository = {
   },
 
   /**
-   * Explicitly requires firmId for firm isolation.
+   * Explicitly requires firmId for firm isolation (Step 6).
    */
   getByFirmId(firmId: string, limit: number = 50, tx?: DbOrTx) {
     if (!firmId) {
@@ -167,21 +162,11 @@ export const auditRepository = {
   },
 
   /**
-   * AUDIT-RETENTION-ENFORCE stub interface.
-   */
-  deleteByRetention(firmId: string, fyId: string, tx: DbOrTx = db): void {
-    console.log(`[AuditRepo] deleteByRetention called for firm=${firmId} fy=${fyId}.`);
-  },
-
-  /**
-   * FIX-AUDIT-REPO v1.8 — auditRepository.findLatest() canonical definition
-   * Finds the latest audit log entry for the specified filter.
+   * FIX-AUDIT-REPO v1.8 & REPOSITORY SYNC CONTRACT (FIX-V718-1):
+   * Synchronous lookup for the latest audit log entry matching filter.
    * Supports findLatest(tx, filter) and findLatest(filter).
    */
-  async findLatest(
-    arg1: any,
-    arg2?: { eventType: string; firmId: string }
-  ): Promise<any> {
+  findLatest(arg1: any, arg2?: { eventType: string; firmId: string }): any {
     let tx: any = null;
     let filter: { eventType: string; firmId: string };
 
@@ -193,7 +178,7 @@ export const auditRepository = {
     }
 
     const conn = getDb(tx);
-    const query = conn
+    const rows = conn
       .select()
       .from(auditLogs)
       .where(
@@ -203,9 +188,9 @@ export const auditRepository = {
         )
       )
       .orderBy(desc(auditLogs.createdAt))
-      .limit(1);
+      .limit(1)
+      .all();
 
-    const rows = typeof query.all === 'function' ? query.all() : await query;
     const row = rows[0] ?? null;
     if (!row) return null;
 
@@ -231,6 +216,5 @@ export const getByFirmId = auditRepository.getByFirmId.bind(auditRepository);
 export const getSystemLogs = auditRepository.getSystemLogs.bind(auditRepository);
 export const hasEvent = auditRepository.hasEvent.bind(auditRepository);
 export const countByFy = auditRepository.countByFy.bind(auditRepository);
-export const deleteByRetention = auditRepository.deleteByRetention.bind(auditRepository);
 export const findLatest = auditRepository.findLatest.bind(auditRepository);
 export default auditRepository;

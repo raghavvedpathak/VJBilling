@@ -1,5 +1,6 @@
-// utils/backupCrypto.ts — Canonical Phase 1 v7.47 Implementation
+// utils/backupCrypto.ts - Canonical Phase 1 v8.0 Implementation
 // Implements FIX-V740-1, FIX-V741-3, FIX-V7411-3, FIX-V745-1, FIX-V746-6, FIX-V747-2
+// CI RULE (FIX-V746-6): ASCII characters only in this file.
 import * as SecureStore from 'expo-secure-store';
 import { ERR } from '@/constants/errorCodes';
 import { getDeviceDerivedKeyMaterial } from '@/utils/deviceKey';
@@ -121,14 +122,22 @@ export async function assertCryptoAvailable(): Promise<void> {
       enc.encode('x')
     );
     const pt = new Uint8Array(
-      await crypto.subtle.decrypt({ name: 'AES-GCM', iv: iv as any, additionalData: enc.encode('a') as any }, k, ct)
+      await crypto.subtle.decrypt(
+        { name: 'AES-GCM', iv: iv as any, additionalData: enc.encode('a') as any },
+        k,
+        ct
+      )
     );
     if (pt.length !== 1 || pt[0] !== 120) {
       throw new Error('AES-GCM round trip');
     }
     let rejected = false;
     try {
-      await crypto.subtle.decrypt({ name: 'AES-GCM', iv: iv as any, additionalData: enc.encode('b') as any }, k, ct);
+      await crypto.subtle.decrypt(
+        { name: 'AES-GCM', iv: iv as any, additionalData: enc.encode('b') as any },
+        k,
+        ct
+      );
     } catch {
       rejected = true;
     }
@@ -205,7 +214,10 @@ async function getDeviceKek(createIfMissing: boolean): Promise<CryptoKey> {
     if (keyBytes.byteLength !== 32) {
       throw new Error(ERR.BACKUP_DEVICE_KEY_UNAVAILABLE + ': malformed device backup key');
     }
-    return await crypto.subtle.importKey('raw', keyBytes as any, 'AES-GCM', false, ['encrypt', 'decrypt']);
+    return await crypto.subtle.importKey('raw', keyBytes as any, 'AES-GCM', false, [
+      'encrypt',
+      'decrypt',
+    ]);
   } catch (e: any) {
     if (String(e?.message ?? e).includes(ERR.BACKUP_DEVICE_KEY_UNAVAILABLE)) throw e;
     throw new Error(ERR.BACKUP_DEVICE_KEY_UNAVAILABLE + ': ' + String(e));
@@ -281,12 +293,31 @@ export async function decryptBackup(
   if (file.passwordProtected && (!password || password.length === 0)) {
     throw new Error(ERR.BACKUP_PASSWORD_REQUIRED + ': password required to decrypt backup');
   }
+  if (file.passwordProtected && file.kdf !== 'PBKDF2-SHA256') {
+    throw new Error(ERR.BACKUP_FILE_INVALID + ': invalid KDF for password-protected backup');
+  }
+  if (!file.passwordProtected && file.kdf !== 'APP_KEY' && file.kdf !== 'DEVICE_KEY') {
+    throw new Error(ERR.BACKUP_FILE_INVALID + ': invalid KDF for passwordless backup');
+  }
+
   const aad = aadFor(file);
-  const kek = file.passwordProtected
-    ? await getPasswordKek(password as string, base64ToBytes(file.salt), file.kdfIterations)
-    : file.kdf === 'APP_KEY'
-      ? await getAppKek()
-      : await getDeviceKek(false);
+  let kek: CryptoKey;
+  try {
+    kek = file.passwordProtected
+      ? await getPasswordKek(password as string, base64ToBytes(file.salt), file.kdfIterations)
+      : file.kdf === 'APP_KEY'
+        ? await getAppKek()
+        : await getDeviceKek(false);
+  } catch (e: any) {
+    const msg = String(e?.message ?? e);
+    if (
+      msg.includes(ERR.BACKUP_DEVICE_KEY_UNAVAILABLE) ||
+      msg.includes(ERR.BACKUP_FILE_INVALID)
+    ) {
+      throw e;
+    }
+    throw new Error(ERR.CHECKSUM_MISMATCH + ': failed to derive backup key');
+  }
 
   let dekBytes: Uint8Array;
   try {
@@ -330,18 +361,20 @@ export async function decryptLegacyV1Backup(
   if (isPasswordProtected && (!password || password.length === 0)) {
     throw new Error(ERR.BACKUP_PASSWORD_REQUIRED + ': password required to decrypt backup');
   }
-  const keyMaterialBytes = isPasswordProtected
-    ? enc.encode(password as string)
-    : await getDeviceDerivedKeyMaterial(file.deviceId);
-  const km = await crypto.subtle.importKey('raw', keyMaterialBytes as any, 'PBKDF2', false, ['deriveKey']);
-  const key = await crypto.subtle.deriveKey(
-    { name: 'PBKDF2', salt: base64ToBytes(file.salt) as any, iterations: 100_000, hash: 'SHA-256' },
-    km,
-    { name: 'AES-GCM', length: 256 },
-    false,
-    ['decrypt']
-  );
   try {
+    const keyMaterialBytes = isPasswordProtected
+      ? enc.encode(password as string)
+      : await getDeviceDerivedKeyMaterial(file.deviceId);
+    const km = await crypto.subtle.importKey('raw', keyMaterialBytes as any, 'PBKDF2', false, [
+      'deriveKey',
+    ]);
+    const key = await crypto.subtle.deriveKey(
+      { name: 'PBKDF2', salt: base64ToBytes(file.salt) as any, iterations: 100_000, hash: 'SHA-256' },
+      km,
+      { name: 'AES-GCM', length: 256 },
+      false,
+      ['decrypt']
+    );
     const ptBuf = await crypto.subtle.decrypt(
       { name: 'AES-GCM', iv: base64ToBytes(file.iv) as any },
       key,
@@ -372,7 +405,12 @@ export async function encryptSnapshot(plaintextJson: string): Promise<string> {
 }
 
 export async function decryptSnapshot(serialized: string): Promise<string> {
-  const parsed = JSON.parse(serialized) as { v: number; iv: string; ciphertext: string };
+  let parsed: { v?: number; iv?: string; ciphertext?: string };
+  try {
+    parsed = JSON.parse(serialized);
+  } catch {
+    throw new Error(ERR.BACKUP_FILE_INVALID + ': invalid snapshot JSON');
+  }
   if (parsed?.v !== 2 || typeof parsed.iv !== 'string' || typeof parsed.ciphertext !== 'string') {
     throw new Error(ERR.BACKUP_FILE_INVALID + ': invalid snapshot format');
   }

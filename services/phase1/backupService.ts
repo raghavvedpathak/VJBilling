@@ -1,5 +1,5 @@
 // services/phase1/backupService.ts
-// Phase 1 v7.47 Canonical Implementation (FIX-V740-1, FIX-V742-3, FIX-V742-5, FIX-V742-10, FIX-V744-7, FIX-V745-1..3, FIX-V747-3..4)
+// Phase 1 v8.0 Canonical Implementation (FIX-V740-1, FIX-V742-3, FIX-V742-5, FIX-V742-10, FIX-V744-7, FIX-V745-1..3, FIX-V747-3..4)
 
 import * as FileSystem from 'expo-file-system/legacy';
 import { StorageAccessFramework } from 'expo-file-system/legacy';
@@ -95,10 +95,11 @@ export interface BackupInnerPayload {
 }
 
 export interface BackupEnvelope {
+  format?: 'vjb';
   schemaVersion: number;
   appVersion: string;
   exportedAt: string;
-  deviceId: string; // Present on envelope for compatibility; also encrypted inside v2 payload
+  deviceId?: string; // Present on legacy v1 envelopes only; v2 encrypts deviceId inside payload (FIX-V740-1)
   encryptionVersion: 1 | 2;
   passwordProtected: boolean;
   kdf?: BackupKdfMode;
@@ -282,7 +283,7 @@ export async function createBackup(
 
     const firmId = payload.firms?.[0]?.id ?? null;
 
-    // FIX-V740-1: deviceId lives inside the encrypted payload (also kept on envelope for test compatibility)
+    // FIX-V740-1: deviceId lives exclusively inside the encrypted payload in v2
     const innerPayload: BackupInnerPayload = {
       deviceId: deviceIdStr,
       schemaVersion: effectiveSchemaVersion,
@@ -314,9 +315,10 @@ export async function createBackup(
       password
     );
 
+    // FIX-V740-1: Plaintext outer v2 envelope carries NO deviceId
     const encryptedBlob = JSON.stringify({
+      format: 'vjb',
       ...headerMeta,
-      deviceId: deviceIdStr,
       ...encryptedFields,
     });
 
@@ -427,10 +429,11 @@ export async function pruneAutoBackups(justWritten: string): Promise<void> {
   const appFolder = await getOrCreateSafFolder(dirUri, 'VJ Billing');
   const folder = await getOrCreateSafFolder(appFolder, 'backups');
   const entries = (await StorageAccessFramework.readDirectoryAsync(folder))
-    .map((uri) => ({
-      uri,
-      name: (decodeURIComponent(uri).split('/').pop() ?? '').replace(/\.bin$/, ''),
-    }))
+    .map((uri) => {
+      const decodedTail = decodeURIComponent(uri).split('/').pop() ?? '';
+      const baseName = (decodedTail.split(':').pop() ?? decodedTail).replace(/\.bin$/, '');
+      return { uri, name: baseName };
+    })
     .filter((e) => AUTO_BACKUP_FILE_REGEX.test(e.name))
     .sort((a, b) => b.name.localeCompare(a.name));
   if (!entries.some((e) => e.name === justWritten)) return;

@@ -1,9 +1,7 @@
-// app/settings/backup-restore.tsx — Phase 1 v7.47 & Phase 2–4 Dedicated Backup & Restore Screen
-// Implements FIX-V733-4, FIX-V7411-1 (2 masked fields, >=8 chars, warning + ack box),
-// FIX-V745-4/5 (Auto-backup toggle with consent, status rows, Back up now),
-// FIX-V746-5 (8:00-8:30 pm schedule row & "Make it reliable" card), FIX-V747-2
+// app/settings/backup-restore.tsx — Phase 1 v8.0 & Phase 2–4 Dedicated Backup & Restore Screen
+// Implements FIX-V726-3, FIX-V733-4, FIX-V7411-1, FIX-V745-4/5, FIX-V746-5, FIX-V747-2, FIX-V80-8
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import {
   View,
   Text,
@@ -14,17 +12,25 @@ import {
   TouchableOpacity,
   Switch,
   Linking,
+  AppState,
   StyleSheet,
 } from 'react-native';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import * as Notifications from 'expo-notifications';
+import * as DocumentPicker from 'expo-document-picker';
+import * as FileSystem from 'expo-file-system/legacy';
 import { StorageAccessFramework } from 'expo-file-system/legacy';
 import { TwoToneWrapper } from '@/components/common/TwoToneWrapper';
 import { useSession } from '@/hooks/useSession';
 import { backupService, BackupEnvelope } from '@/services/phase1/backupService';
-import { restoreService } from '@/services/phase1/restoreService';
+import {
+  restoreService,
+  MAX_BACKUP_FILE_BYTES,
+  peekBackupHeader,
+  previewBackup as previewBackupContent,
+} from '@/services/phase1/restoreService';
 import {
   runAutoBackupIfDue,
   setAutoBackupEnabled,
@@ -37,19 +43,11 @@ import '@/services/phase3/billingRestoreService';
 import '@/services/phase4/goldIntelligenceBackupService';
 import '@/services/phase4/goldIntelligenceRestoreService';
 import { storage } from '@/utils/storage';
-import {
-  GlassCard,
-  GlassButton,
-  GlassInput,
-  HeaderPill,
-} from '@/components/ui/Glass';
+import { GlassCard, GlassButton, GlassInput, HeaderPill } from '@/components/ui/Glass';
 import { RestorePreviewModal } from '@/components/phase1/RestorePreviewModal';
 import { appSettingsStore } from '@/store/phase1/appSettingsStore';
 import { getThemeColors } from '@/constants/theme';
-import {
-  AB_KEYS,
-  MIN_BACKUP_PASSWORD_LENGTH,
-} from '@/constants';
+import { AB_KEYS, MIN_BACKUP_PASSWORD_LENGTH, ERR } from '@/constants';
 import {
   HardDriveDownload,
   HardDriveUpload,
@@ -78,10 +76,8 @@ export default function BackupRestoreScreen() {
   const [runningAutoNow, setRunningAutoNow] = useState(false);
   const [restoring, setRestoring] = useState(false);
 
-  // Public SAF Directory Storage Key
   const [publicDirUri, setPublicDirUri] = useState<string | null>(null);
 
-  // Automatic Daily Backup State (FIX-V745-5, FIX-V746-5)
   const [autoEnabled, setAutoEnabled] = useState(false);
   const [autoLastSuccessAt, setAutoLastSuccessAt] = useState<string | null>(null);
   const [autoLastStatus, setAutoLastStatus] = useState<string | null>(null);
@@ -89,7 +85,6 @@ export default function BackupRestoreScreen() {
   const [autoLastSize, setAutoLastSize] = useState<number>(0);
   const [notifGranted, setNotifGranted] = useState<boolean>(false);
 
-  // Consent Modal for Turning Automatic Backup ON (FIX-V745-1, FIX-V745-5)
   const [showConsentModal, setShowConsentModal] = useState(false);
   const [consentAck, setConsentAck] = useState(false);
 
@@ -98,11 +93,13 @@ export default function BackupRestoreScreen() {
   const [previewBackup, setPreviewBackup] = useState<BackupEnvelope | null>(null);
   const [previewFileContent, setPreviewFileContent] = useState<string | null>(null);
   const [previewWarning, setPreviewWarning] = useState<string | null>(null);
+  const [previewError, setPreviewError] = useState<string | null>(null);
 
-  // Manual Backup Password Modal State (FIX-V7411-1: two masked fields, >=8 chars, warning + ack box)
+  // Manual Backup Password Modal State (FIX-V7411-1)
   const [showBackupModal, setShowBackupModal] = useState(false);
   const [backupPassword, setBackupPassword] = useState('');
   const [backupPasswordConfirm, setBackupPasswordConfirm] = useState('');
+  const [confirmTouched, setConfirmTouched] = useState(false);
   const [passwordAck, setPasswordAck] = useState(false);
   const [lastBackupInfo, setLastBackupInfo] = useState<{
     fileName: string;
@@ -132,9 +129,18 @@ export default function BackupRestoreScreen() {
     }, [refreshAutoBackupStatus])
   );
 
+  // Re-check notification permission immediately when returning from Android App Settings
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (nextState) => {
+      if (nextState === 'active') {
+        void refreshAutoBackupStatus();
+      }
+    });
+    return () => sub.remove();
+  }, [refreshAutoBackupStatus]);
+
   const requestSafFolderPermission = async (): Promise<string | null> => {
-    const permissions =
-      await StorageAccessFramework.requestDirectoryPermissionsAsync();
+    const permissions = await StorageAccessFramework.requestDirectoryPermissionsAsync();
     if (permissions.granted) {
       storage.set('vjbilling_public_backup_dir_uri', permissions.directoryUri);
       setPublicDirUri(permissions.directoryUri);
@@ -167,14 +173,10 @@ export default function BackupRestoreScreen() {
         ]
       );
     } catch (e: any) {
-      Alert.alert(
-        'Permission Error',
-        e?.message || 'Could not grant public storage access.'
-      );
+      Alert.alert('Permission Error', e?.message || 'Could not grant public storage access.');
     }
   };
 
-  // FIX-V745-5: Toggle handler for Automatic Daily Backup
   const handleToggleAutoBackup = async (nextVal: boolean) => {
     try {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -193,7 +195,6 @@ export default function BackupRestoreScreen() {
     setShowConsentModal(false);
 
     try {
-      // 1. Ensure public folder permission is granted (required by FIX-V745-3)
       let folderUri = storage.getString('vjbilling_public_backup_dir_uri');
       if (!folderUri) {
         folderUri = (await requestSafFolderPermission()) ?? undefined;
@@ -206,16 +207,28 @@ export default function BackupRestoreScreen() {
         return;
       }
 
-      // 2. Request notification permission ONLY from this toggle (FIX-V745-4)
+      // Allow Modal dismissal / SAF picker Activity resume to settle before Android shows POST_NOTIFICATIONS prompt
+      await new Promise((resolve) => setTimeout(resolve, 400));
+
       storage.set(AB_KEYS.notifAsked, 'true');
       const notifOk = await ensureNotificationPermission().catch(() => false);
 
-      // 3. Enable automatic backup, register background task (FIX-V747-2), and log audit event
       await setAutoBackupEnabled(true, {
         publicFolderGranted: true,
         notificationsGranted: notifOk,
       });
       await refreshAutoBackupStatus();
+
+      if (!notifOk) {
+        Alert.alert(
+          'Notifications Disabled',
+          'Automatic backup is enabled, but notification alerts are off. Enable notifications in Android Settings to receive backup alerts.',
+          [
+            { text: 'Later', style: 'cancel' },
+            { text: 'Open Settings', onPress: () => Linking.openSettings() },
+          ]
+        );
+      }
     } catch (e: any) {
       Alert.alert(
         'Could Not Enable Auto-Backup',
@@ -224,7 +237,6 @@ export default function BackupRestoreScreen() {
     }
   };
 
-  // FIX-V745-5 & FIX-V746-4: Manual "Back up now" button for automatic backup (in-app toast/alert, no OS notification)
   const handleRunAutoBackupNow = async () => {
     try {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -239,10 +251,7 @@ export default function BackupRestoreScreen() {
           'Your portable daily backup has been saved to Documents/VJ Billing/backups/.'
         );
       } else if (res === 'NEEDS_FOLDER') {
-        Alert.alert(
-          'Folder Access Needed',
-          'Please grant public backup folder access first.'
-        );
+        Alert.alert('Folder Access Needed', 'Please grant public backup folder access first.');
       } else if (res === 'NO_DATA') {
         Alert.alert('No Firm Data', 'Create a firm before running automatic backup.');
       } else if (res === 'BUSY') {
@@ -261,19 +270,30 @@ export default function BackupRestoreScreen() {
     }
   };
 
+  const closeBackupModal = () => {
+    setShowBackupModal(false);
+    setBackupPassword('');
+    setBackupPasswordConfirm('');
+    setConfirmTouched(false);
+    setPasswordAck(false);
+  };
+
   const handleStartBackup = () => {
     try {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     } catch {}
     setBackupPassword('');
     setBackupPasswordConfirm('');
+    setConfirmTouched(false);
     setPasswordAck(false);
     setShowBackupModal(true);
   };
 
-  // FIX-V7411-1 & FIX-V742-10: Two masked fields, min 8 chars, unrecoverable warning + ack checkbox
-  const hasTypedPassword =
-    backupPassword.length > 0 || backupPasswordConfirm.length > 0;
+  // FIX-V7411-1 & FIX-V742-10: Two masked fields, min 8 chars, match check, warning + ack checkbox
+  const hasTypedPassword = backupPassword.length > 0 || backupPasswordConfirm.length > 0;
+  const passwordTooShort =
+    backupPassword.length > 0 && backupPassword.length < MIN_BACKUP_PASSWORD_LENGTH;
+  const passwordsMismatch = confirmTouched && backupPassword !== backupPasswordConfirm;
   const isPasswordValid =
     !hasTypedPassword ||
     (backupPassword.length >= MIN_BACKUP_PASSWORD_LENGTH &&
@@ -281,31 +301,13 @@ export default function BackupRestoreScreen() {
       passwordAck);
 
   const handleConfirmBackup = async () => {
-    if (hasTypedPassword) {
-      if (backupPassword.length < MIN_BACKUP_PASSWORD_LENGTH) {
-        Alert.alert(
-          'Password Too Short',
-          `Backup password must be at least ${MIN_BACKUP_PASSWORD_LENGTH} characters.`
-        );
-        return;
-      }
-      if (backupPassword !== backupPasswordConfirm) {
-        Alert.alert('Password Mismatch', 'Both password fields must match.');
-        return;
-      }
-      if (!passwordAck) {
-        Alert.alert(
-          'Acknowledgement Required',
-          'Please acknowledge the unrecoverable password warning.'
-        );
-        return;
-      }
-    }
+    if (!isPasswordValid) return;
 
-    setShowBackupModal(false);
+    const passwordToUse = hasTypedPassword ? backupPassword : undefined;
+    closeBackupModal();
+
     try {
       setBackingUp(true);
-      const passwordToUse = hasTypedPassword ? backupPassword : undefined;
       const result = await backupService.createBackup(passwordToUse, {
         share: true,
         kind: 'MANUAL',
@@ -326,10 +328,11 @@ export default function BackupRestoreScreen() {
       let successMsg = `File: ${result.fileName}\nSize: ${sizeKb} KB\nLocation: ${result.filePath}`;
 
       if (result.mirroredToPublicStorage) {
-        successMsg += '\n\n✓ Also copied to: Documents/VJ Billing/backups/';
+        successMsg += '\n\n✓ Also copied to Documents/VJ Billing/backups/';
       } else {
+        // FIX-V80-8: Non-blocking notice that internal-only copy is erased on Clear Data or uninstall
         successMsg +=
-          '\n\n⚠️ Note: Saved in internal app sandbox storage.\n\nTip: Tap "Grant public backup folder access" to also mirror backups to your Documents folder.';
+          '\n\nSaved on this phone only. This copy is deleted if app data is cleared or the app is uninstalled. Grant the public backup folder in Settings > Backup/Restore.';
       }
 
       Alert.alert('Backup Created Successfully', successMsg);
@@ -337,29 +340,67 @@ export default function BackupRestoreScreen() {
       Alert.alert('Backup Failed', error.message || 'Failed to create backup.');
     } finally {
       setBackingUp(false);
-      setBackupPassword('');
-      setBackupPasswordConfirm('');
-      setPasswordAck(false);
     }
   };
 
+  // FIX-V726-3: Peek header before decrypting so password-protected backups open Step 5 modal cleanly
   const handleRestore = async () => {
     try {
       try {
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       } catch {}
-      const result = await restoreService.inspectBackupFile();
-      if (!result) return;
+      const result = await DocumentPicker.getDocumentAsync({
+        type: ['application/json', 'application/octet-stream', '*/*'],
+        copyToCacheDirectory: true,
+      });
+      if (result.canceled) return;
 
-      setPreviewBackup(result.backup);
-      setPreviewFileContent(result.fileContent);
-      setPreviewWarning(result.warning ?? null);
+      const asset = result.assets[0];
+      if (typeof asset.size === 'number' && asset.size > MAX_BACKUP_FILE_BYTES) {
+        throw new Error(
+          ERR.BACKUP_FILE_INVALID + ': Backup file exceeds maximum size limit (96 MB).'
+        );
+      }
+
+      const fileContent = await FileSystem.readAsStringAsync(asset.uri, {
+        encoding: FileSystem.EncodingType.UTF8,
+      });
+      const header = peekBackupHeader(fileContent);
+      setPreviewError(null);
+
+      if (header.passwordProtected) {
+        const parsed = JSON.parse(fileContent);
+        setPreviewBackup({
+          ...parsed,
+          payload: {
+            deviceId: parsed.deviceId ?? 'UNKNOWN',
+            schemaVersion: header.schemaVersion,
+            appVersion: header.appVersion,
+            exportedAt: header.exportedAt,
+            firmId: null,
+            firms: [],
+            financialYears: [],
+            settings: [],
+            auditLogs: [],
+            bisLogos: [],
+            safeModeState: null,
+            writerLeases: [],
+            logoAssets: { firmLogos: [], bisLogos: [] },
+          },
+        });
+        setPreviewFileContent(fileContent);
+        setPreviewWarning(null);
+        setPreviewModalVisible(true);
+        return;
+      }
+
+      const preview = await previewBackupContent(fileContent);
+      setPreviewBackup(preview.backup);
+      setPreviewFileContent(fileContent);
+      setPreviewWarning(preview.warning ?? null);
       setPreviewModalVisible(true);
     } catch (error: any) {
-      Alert.alert(
-        'Invalid Backup File',
-        error.message || 'Failed to parse backup file.'
-      );
+      Alert.alert('Invalid Backup File', error.message || 'Failed to parse backup file.');
     }
   };
 
@@ -367,16 +408,20 @@ export default function BackupRestoreScreen() {
     if (!previewFileContent) return;
     try {
       setRestoring(true);
+      setPreviewError(null);
       await restoreService.restore(previewFileContent, password);
       await refreshSession();
       setPreviewModalVisible(false);
       Alert.alert('Success', 'Database restored successfully.');
       router.replace('/dashboard');
     } catch (error: any) {
-      Alert.alert(
-        'Restore Failed',
-        error.message || 'Database restoration encountered an error.'
-      );
+      const msg = String(error?.message ?? error);
+      // FIX-V726-3: Keep user on Step 5 preview with inline error on wrong password / tampered file
+      if (msg.includes(ERR.CHECKSUM_MISMATCH) || msg.includes(ERR.BACKUP_PASSWORD_REQUIRED)) {
+        setPreviewError('Incorrect password or corrupted backup file.');
+      } else {
+        Alert.alert('Restore Failed', msg || 'Database restoration encountered an error.');
+      }
     } finally {
       setRestoring(false);
     }
@@ -414,11 +459,7 @@ export default function BackupRestoreScreen() {
   );
 
   return (
-    <TwoToneWrapper
-      title="Backup & Restore"
-      showBack
-      headerContent={backupHeader}
-    >
+    <TwoToneWrapper title="Backup & Restore" showBack headerContent={backupHeader}>
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{
@@ -430,9 +471,9 @@ export default function BackupRestoreScreen() {
         overScrollMode="never"
         bounces={false}
       >
-        {/* 0. AUTOMATIC DAILY BACKUP SECTION (v7.45 FIX-V745-5 & v7.46 FIX-V746-5) */}
+        {/* 0. AUTOMATIC DAILY BACKUP SECTION */}
         <Text style={[s.sectionHeader, { color: colors.vjText, opacity: 0.6 }]}>
-          Automatic Daily Backup (v7.47)
+          Automatic Daily Backup (v8.0)
         </Text>
         <GlassCard style={{ marginBottom: 20, borderColor: `${colors.vjAccent}30` }}>
           <View style={s.cardTopRow}>
@@ -463,7 +504,6 @@ export default function BackupRestoreScreen() {
                   thumbColor="#FCFBF8"
                 />
               </View>
-              {/* FIX-V746-5: Read-only schedule row */}
               <Text
                 style={[
                   s.cardDescription,
@@ -478,9 +518,9 @@ export default function BackupRestoreScreen() {
                   { color: colors.vjText, opacity: 0.7, marginTop: 4 },
                 ]}
               >
-                Saves the 7 newest automatic backups to Documents/VJ Billing/backups/.
-                Portable across reinstalls (not confidential — anyone holding the file
-                and app can restore it; use manual password export when sharing).
+                Saves the 7 newest automatic backups to Documents/VJ Billing/backups/. Portable
+                across reinstalls (not confidential — anyone holding the file and app can restore
+                it; use manual password export when sharing).
               </Text>
             </View>
           </View>
@@ -500,9 +540,7 @@ export default function BackupRestoreScreen() {
                   Status: {autoLastStatus || 'PENDING FIRST RUN'}
                 </Text>
                 {autoLastSize > 0 && (
-                  <Text style={s.lastBackupSize}>
-                    {(autoLastSize / 1024).toFixed(1)} KB
-                  </Text>
+                  <Text style={s.lastBackupSize}>{(autoLastSize / 1024).toFixed(1)} KB</Text>
                 )}
               </View>
               <Text style={[s.lastBackupName, { color: colors.vjText }]}>
@@ -512,21 +550,14 @@ export default function BackupRestoreScreen() {
                   : 'Never'}
               </Text>
               {autoLastFile && (
-                <Text
-                  style={[s.lastBackupPath, { color: colors.vjText }]}
-                  numberOfLines={1}
-                >
+                <Text style={[s.lastBackupPath, { color: colors.vjText }]} numberOfLines={1}>
                   {autoLastFile}
                 </Text>
               )}
 
-              {/* FIX-V745-4: Notification status row with button to open Android settings when off */}
               <View className="flex-row items-center justify-between mt-3 pt-2 border-t border-black/10">
                 <View className="flex-row items-center gap-1.5">
-                  <Bell
-                    size={14}
-                    color={notifGranted ? '#059669' : '#D97706'}
-                  />
+                  <Bell size={14} color={notifGranted ? '#059669' : '#D97706'} />
                   <Text
                     style={{
                       fontSize: 11,
@@ -534,9 +565,7 @@ export default function BackupRestoreScreen() {
                       color: notifGranted ? '#059669' : '#B45309',
                     }}
                   >
-                    {notifGranted
-                      ? 'Backup notifications are ON'
-                      : 'Notifications are off'}
+                    {notifGranted ? 'Backup notifications are ON' : 'Notifications are off'}
                   </Text>
                 </View>
                 {!notifGranted && (
@@ -565,7 +594,7 @@ export default function BackupRestoreScreen() {
           )}
         </GlassCard>
 
-        {/* FIX-V746-5: "Make it reliable" Card shown while automatic backup is ON */}
+        {/* FIX-V746-5: "Make it reliable" Card */}
         {autoEnabled && (
           <GlassCard
             style={{
@@ -579,14 +608,11 @@ export default function BackupRestoreScreen() {
                 <BatteryCharging size={22} color="#B45309" />
               </View>
               <View className="flex-1">
-                <Text className="text-amber-950 font-black text-base mb-1">
-                  Make it reliable
-                </Text>
+                <Text className="text-amber-950 font-black text-base mb-1">Make it reliable</Text>
                 <Text className="text-amber-900/80 text-xs font-medium leading-4">
-                  Some phones stop background work to save battery. To help the
-                  8:00–8:30 pm backup run on time, set VJ Billing battery usage
-                  to Unrestricted and allow Auto-start if your phone has that
-                  setting.
+                  Some phones stop background work to save battery. To help the 8:00–8:30 pm backup
+                  run on time, set VJ Billing battery usage to Unrestricted and allow Auto-start if
+                  your phone has that setting.
                 </Text>
               </View>
             </View>
@@ -613,16 +639,11 @@ export default function BackupRestoreScreen() {
                 },
               ]}
             >
-              <FolderLock
-                size={26}
-                color={publicDirUri ? '#10B981' : colors.vjAccent}
-              />
+              <FolderLock size={26} color={publicDirUri ? '#10B981' : colors.vjAccent} />
             </View>
             <View style={{ flex: 1 }}>
               <View style={s.cardTitleRow}>
-                <Text style={[s.cardTitle, { color: colors.vjText }]}>
-                  Documents Mirror
-                </Text>
+                <Text style={[s.cardTitle, { color: colors.vjText }]}>Documents Mirror</Text>
                 <View
                   style={[
                     s.statusTag,
@@ -646,15 +667,10 @@ export default function BackupRestoreScreen() {
                   </Text>
                 </View>
               </View>
-              <Text
-                style={[
-                  s.cardDescription,
-                  { color: colors.vjText, opacity: 0.7 },
-                ]}
-              >
+              <Text style={[s.cardDescription, { color: colors.vjText, opacity: 0.7 }]}>
                 {publicDirUri
                   ? '✓ Backups automatically copy to: Documents/VJ Billing/backups/.'
-                  : "Allow VJ Billing to automatically copy your backups to your phone's public Documents folder so they are accessible in your file manager."}
+                  : "Allow VJ Billing to automatically copy your backups to your phone's public Documents folder so they survive Clear Data or uninstall."}
               </Text>
             </View>
           </View>
@@ -667,10 +683,7 @@ export default function BackupRestoreScreen() {
             }
             variant={publicDirUri ? 'secondary' : 'primary'}
             icon={
-              <FolderLock
-                size={18}
-                color={publicDirUri ? colors.vjText : '#FCFBF8'}
-              />
+              <FolderLock size={18} color={publicDirUri ? colors.vjText : '#FCFBF8'} />
             }
             onPress={handleGrantPublicAccess}
           />
@@ -694,20 +707,12 @@ export default function BackupRestoreScreen() {
               <HardDriveDownload size={26} color="#059669" />
             </View>
             <View style={{ flex: 1 }}>
-              <Text
-                style={[s.cardTitle, { color: colors.vjText, marginBottom: 4 }]}
-              >
+              <Text style={[s.cardTitle, { color: colors.vjText, marginBottom: 4 }]}>
                 Encrypted .vjb Export
               </Text>
-              <Text
-                style={[
-                  s.cardDescription,
-                  { color: colors.vjText, opacity: 0.7 },
-                ]}
-              >
-                Exports all firm profiles, inventory items, master categories,
-                purity matrices, logos, and audit logs into a single encrypted
-                snapshot.
+              <Text style={[s.cardDescription, { color: colors.vjText, opacity: 0.7 }]}>
+                Exports all firm profiles, inventory items, billing ledgers, vault records, logos,
+                and audit logs into a single encrypted snapshot.
               </Text>
             </View>
           </View>
@@ -731,19 +736,14 @@ export default function BackupRestoreScreen() {
               <Text style={[s.lastBackupName, { color: colors.vjText }]}>
                 {lastBackupInfo.fileName}
               </Text>
-              <Text
-                style={[s.lastBackupPath, { color: colors.vjText }]}
-                numberOfLines={1}
-              >
+              <Text style={[s.lastBackupPath, { color: colors.vjText }]} numberOfLines={1}>
                 {lastBackupInfo.path}
               </Text>
             </View>
           )}
 
           <GlassButton
-            title={
-              backingUp ? 'Generating Encrypted Backup...' : 'Create Backup Now'
-            }
+            title={backingUp ? 'Generating Encrypted Backup...' : 'Create Backup Now'}
             variant="primary"
             icon={
               backingUp ? (
@@ -775,30 +775,18 @@ export default function BackupRestoreScreen() {
               <HardDriveUpload size={26} color="#7C3AED" />
             </View>
             <View style={{ flex: 1 }}>
-              <Text
-                style={[s.cardTitle, { color: colors.vjText, marginBottom: 4 }]}
-              >
+              <Text style={[s.cardTitle, { color: colors.vjText, marginBottom: 4 }]}>
                 Restore from .vjb File
               </Text>
-              <Text
-                style={[
-                  s.cardDescription,
-                  { color: colors.vjText, opacity: 0.7 },
-                ]}
-              >
-                Select a previously exported .vjb backup to preview and restore.
-                All records will be verified for referential integrity before
-                applying.
+              <Text style={[s.cardDescription, { color: colors.vjText, opacity: 0.7 }]}>
+                Select a previously exported .vjb backup to preview and restore. All records are
+                verified for referential integrity before applying.
               </Text>
             </View>
           </View>
 
           <GlassButton
-            title={
-              restoring
-                ? 'Restoring Database...'
-                : 'Select & Inspect Backup File'
-            }
+            title={restoring ? 'Restoring Database...' : 'Select & Inspect Backup File'}
             variant="secondary"
             icon={
               restoring ? (
@@ -817,15 +805,14 @@ export default function BackupRestoreScreen() {
           <View style={s.infoCardInner}>
             <Info size={20} color={colors.vjAccent} />
             <Text style={[s.infoCardText, { color: colors.vjText }]}>
-              Password backups use AES-256-GCM with PBKDF2-HMAC-SHA256 at 600,000
-              iterations. Always set a password when sending a backup file to
-              another person or cloud drive.
+              Password backups use AES-256-GCM with PBKDF2-HMAC-SHA256 at 600,000 iterations.
+              Always set a password when sending a backup file to another person or cloud drive.
             </Text>
           </View>
         </GlassCard>
       </ScrollView>
 
-      {/* Automatic Backup Consent Modal (FIX-V745-1, FIX-V745-5) */}
+      {/* Automatic Backup Consent Modal */}
       <Modal
         animationType="fade"
         transparent
@@ -845,27 +832,18 @@ export default function BackupRestoreScreen() {
               </Text>
               <TouchableOpacity
                 onPress={() => setShowConsentModal(false)}
-                style={[
-                  s.modalCloseBtn,
-                  { backgroundColor: `${colors.vjAccent}12` },
-                ]}
+                style={[s.modalCloseBtn, { backgroundColor: `${colors.vjAccent}12` }]}
               >
                 <X size={20} color={colors.vjText} />
               </TouchableOpacity>
             </View>
 
-            <Text
-              style={[
-                s.modalDescription,
-                { color: colors.vjText, opacity: 0.8 },
-              ]}
-            >
-              Automatic backups are saved without a password so you can restore
-              them after reinstalling the app or moving to a new phone.{'\n\n'}
-              Because they have no password, anyone who obtains a copy of the
-              backup file from your Documents folder and has the VJ Billing app
-              can open it. Keep your phone and Documents folder private, and use
-              manual password export when sharing a file.
+            <Text style={[s.modalDescription, { color: colors.vjText, opacity: 0.8 }]}>
+              Automatic backups are saved without a password so you can restore them after
+              reinstalling the app or moving to a new phone.{'\n\n'}
+              Because they have no password, anyone who obtains a copy of the backup file from your
+              Documents folder and has the VJ Billing app can open it. Keep your phone and
+              Documents folder private, and use manual password export when sharing a file.
             </Text>
 
             <TouchableOpacity
@@ -879,8 +857,8 @@ export default function BackupRestoreScreen() {
                 <Square size={20} color="#B45309" />
               )}
               <Text className="text-amber-950 text-xs font-bold flex-1">
-                I understand that automatic backups have no password and can be
-                restored on any phone with VJ Billing.
+                I understand that automatic backups have no password and can be restored on any
+                phone with VJ Billing.
               </Text>
             </TouchableOpacity>
 
@@ -901,82 +879,81 @@ export default function BackupRestoreScreen() {
         </View>
       </Modal>
 
-      {/* Manual Backup Password Modal (FIX-V7411-1: two masked fields, min 8 chars, warning + ack box) */}
+      {/* Manual Backup Password Modal (FIX-V7411-1) */}
       <Modal
         animationType="fade"
         transparent={true}
         visible={showBackupModal}
-        onRequestClose={() => setShowBackupModal(false)}
+        onRequestClose={closeBackupModal}
       >
         <TouchableOpacity
           style={s.modalOverlay}
           activeOpacity={1}
-          onPress={() => setShowBackupModal(false)}
+          onPress={closeBackupModal}
         >
           <TouchableOpacity
             activeOpacity={1}
             style={[
               s.modalContent,
-              {
-                backgroundColor: colors.vjBg,
-                borderColor: colors.border,
-              },
+              { backgroundColor: colors.vjBg, borderColor: colors.border },
             ]}
           >
             <View style={s.modalHeaderRow}>
-              <Text style={[s.modalTitle, { color: colors.vjText }]}>
-                Create Secure Backup
-              </Text>
+              <Text style={[s.modalTitle, { color: colors.vjText }]}>Create Secure Backup</Text>
               <TouchableOpacity
-                onPress={() => setShowBackupModal(false)}
-                style={[
-                  s.modalCloseBtn,
-                  { backgroundColor: `${colors.vjAccent}12` },
-                ]}
+                onPress={closeBackupModal}
+                style={[s.modalCloseBtn, { backgroundColor: `${colors.vjAccent}12` }]}
               >
                 <X size={20} color={colors.vjText} />
               </TouchableOpacity>
             </View>
 
-            <Text
-              style={[
-                s.modalDescription,
-                { color: colors.vjText, opacity: 0.75 },
-              ]}
-            >
-              Enter an optional password (minimum {MIN_BACKUP_PASSWORD_LENGTH}{' '}
-              characters) to encrypt this backup with PBKDF2-SHA256 (600,000
-              iterations). Leave both fields blank for a portable no-password
-              backup.
+            <Text style={[s.modalDescription, { color: colors.vjText, opacity: 0.75 }]}>
+              Enter an optional password (minimum {MIN_BACKUP_PASSWORD_LENGTH} characters) to
+              encrypt this backup with PBKDF2-SHA256 (600,000 iterations). Leave both fields blank
+              for a portable no-password backup.
             </Text>
 
             <View style={{ marginBottom: 8 }}>
               <GlassInput
-                label="Backup Password (Optional, min 8 chars)"
+                label="Password (Optional, min 8 chars)"
                 value={backupPassword}
                 onChangeText={setBackupPassword}
                 placeholder="Enter password (min 8 characters)"
                 secureTextEntry
+                autoCorrect={false}
+                autoComplete="off"
                 icon={<Lock size={18} color={colors.vjAccent} />}
               />
+              {passwordTooShort && (
+                <Text style={s.inlineErrorText}>Use at least 8 characters.</Text>
+              )}
+
               <GlassInput
-                label="Confirm Backup Password"
+                label="Confirm password"
                 value={backupPasswordConfirm}
-                onChangeText={setBackupPasswordConfirm}
+                onChangeText={(val) => {
+                  setConfirmTouched(true);
+                  setBackupPasswordConfirm(val);
+                }}
                 placeholder="Re-enter password to confirm"
                 secureTextEntry
+                autoCorrect={false}
+                autoComplete="off"
                 icon={<Lock size={18} color={colors.vjAccent} />}
               />
+              {passwordsMismatch && (
+                <Text style={s.inlineErrorText}>Passwords do not match.</Text>
+              )}
             </View>
 
-            {/* FIX-V7411-1: Unrecoverable-password warning + acknowledge checkbox when password is typed */}
             {hasTypedPassword && (
               <View className="mb-4">
                 <View className="flex-row items-center gap-2 p-3 rounded-xl bg-red-500/10 border border-red-500/25 mb-2.5">
                   <AlertTriangle size={16} color="#DC2626" />
                   <Text className="text-red-800 text-[11px] font-bold flex-1 leading-4">
-                    WARNING: Losing this password means permanent data loss for
-                    this backup file. There is no password recovery path.
+                    If you lose this password, this backup can never be opened. VJ Billing cannot
+                    reset or recover it. Write it down and keep it somewhere safe.
                   </Text>
                 </View>
 
@@ -998,8 +975,7 @@ export default function BackupRestoreScreen() {
                       flex: 1,
                     }}
                   >
-                    I understand that if I forget this password, this backup
-                    cannot be recovered.
+                    I understand that a lost password cannot be recovered.
                   </Text>
                 </TouchableOpacity>
               </View>
@@ -1013,11 +989,7 @@ export default function BackupRestoreScreen() {
                 variant="primary"
                 icon={<HardDriveDownload size={18} color="#FCFBF8" />}
               />
-              <GlassButton
-                title="Cancel"
-                onPress={() => setShowBackupModal(false)}
-                variant="secondary"
-              />
+              <GlassButton title="Cancel" onPress={closeBackupModal} variant="secondary" />
             </View>
           </TouchableOpacity>
         </TouchableOpacity>
@@ -1028,9 +1000,13 @@ export default function BackupRestoreScreen() {
         backup={previewBackup}
         fileContent={previewFileContent}
         schemaWarning={previewWarning}
+        error={previewError}
         isRestoring={restoring}
         onConfirm={handleConfirmRestore}
-        onCancel={() => setPreviewModalVisible(false)}
+        onCancel={() => {
+          setPreviewError(null);
+          setPreviewModalVisible(false);
+        }}
       />
     </TwoToneWrapper>
   );
@@ -1038,12 +1014,7 @@ export default function BackupRestoreScreen() {
 
 const s = StyleSheet.create({
   headerContainer: { marginTop: 4 },
-  headerTitleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    marginBottom: 8,
-  },
+  headerTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 8 },
   headerIconCircle: {
     width: 40,
     height: 40,
@@ -1053,21 +1024,9 @@ const s = StyleSheet.create({
     alignItems: 'center',
     borderWidth: 1,
   },
-  headerTitle: {
-    fontSize: 20,
-    fontWeight: '800',
-    letterSpacing: -0.3,
-  },
-  headerSubtitle: {
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  pillsRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    flexWrap: 'wrap',
-  },
+  headerTitle: { fontSize: 20, fontWeight: '800', letterSpacing: -0.3 },
+  headerSubtitle: { fontSize: 12, fontWeight: '600' },
+  pillsRow: { flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' },
   sectionHeader: {
     fontSize: 12,
     fontWeight: '900',
@@ -1076,12 +1035,7 @@ const s = StyleSheet.create({
     marginBottom: 12,
     marginLeft: 4,
   },
-  cardTopRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 14,
-    marginBottom: 16,
-  },
+  cardTopRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 14, marginBottom: 16 },
   iconBox: {
     padding: 12,
     borderRadius: 16,
@@ -1089,84 +1043,42 @@ const s = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  cardTitleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginBottom: 4,
-  },
-  cardTitle: {
-    fontWeight: '900',
-    fontSize: 17,
-  },
-  cardDescription: {
-    fontSize: 12,
-    lineHeight: 17,
-    fontWeight: '500',
-  },
-  statusTag: {
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 999,
-    borderWidth: 1,
-  },
+  cardTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4 },
+  cardTitle: { fontWeight: '900', fontSize: 17 },
+  cardDescription: { fontSize: 12, lineHeight: 17, fontWeight: '500' },
+  statusTag: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 999, borderWidth: 1 },
   statusTagText: {
     fontSize: 8.5,
     fontWeight: '900',
     textTransform: 'uppercase',
     letterSpacing: 0.8,
   },
-  lastBackupBox: {
-    padding: 12,
-    borderRadius: 14,
-    borderWidth: 1,
-    marginBottom: 16,
-  },
+  lastBackupBox: { padding: 12, borderRadius: 14, borderWidth: 1, marginBottom: 16 },
   lastBackupHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     marginBottom: 4,
   },
-  lastBackupLabel: {
-    fontWeight: '800',
-    fontSize: 12,
-  },
+  lastBackupLabel: { fontWeight: '800', fontSize: 12 },
   lastBackupSize: {
     color: '#059669',
     fontWeight: '800',
     fontSize: 12,
     fontFamily: 'monospace',
   },
-  lastBackupName: {
+  lastBackupName: { fontSize: 11.5, fontFamily: 'monospace', fontWeight: '700', opacity: 0.85 },
+  lastBackupPath: { fontSize: 10, marginTop: 4, fontFamily: 'monospace', opacity: 0.45 },
+  infoCard: { opacity: 0.9, padding: 14, borderRadius: 16, borderWidth: 1 },
+  infoCardInner: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  infoCardText: { fontWeight: '700', fontSize: 12, flex: 1, lineHeight: 17, opacity: 0.85 },
+  inlineErrorText: {
+    color: '#DC2626',
     fontSize: 11.5,
-    fontFamily: 'monospace',
     fontWeight: '700',
-    opacity: 0.85,
-  },
-  lastBackupPath: {
-    fontSize: 10,
-    marginTop: 4,
-    fontFamily: 'monospace',
-    opacity: 0.45,
-  },
-  infoCard: {
-    opacity: 0.9,
-    padding: 14,
-    borderRadius: 16,
-    borderWidth: 1,
-  },
-  infoCardInner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  infoCardText: {
-    fontWeight: '700',
-    fontSize: 12,
-    flex: 1,
-    lineHeight: 17,
-    opacity: 0.85,
+    marginTop: -10,
+    marginBottom: 10,
+    marginLeft: 4,
   },
   modalOverlay: {
     flex: 1,
@@ -1193,18 +1105,7 @@ const s = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 12,
   },
-  modalTitle: {
-    fontWeight: '900',
-    fontSize: 19,
-  },
-  modalCloseBtn: {
-    padding: 6,
-    borderRadius: 999,
-  },
-  modalDescription: {
-    fontSize: 12.5,
-    lineHeight: 18,
-    marginBottom: 16,
-    fontWeight: '500',
-  },
+  modalTitle: { fontWeight: '900', fontSize: 19 },
+  modalCloseBtn: { padding: 6, borderRadius: 999 },
+  modalDescription: { fontSize: 12.5, lineHeight: 18, marginBottom: 16, fontWeight: '500' },
 });

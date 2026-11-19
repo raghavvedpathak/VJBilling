@@ -1,6 +1,5 @@
 // components/ui/GlassDatePickerModal.tsx — Centralized Glassmorphic Date Picker for VJ Billing
-// Purpose: High-performance date stepper picker modal with translucent frosted glass styling.
-// Visual Architecture: Frosted Glass Sheet, Etched Stepper Tiles, Golden Accents, and Dynamic Theme Tokens.
+// Purpose: High-performance date stepper picker modal with month-end day clamping & G68 formatDate().
 
 import React, { useState, useEffect, useMemo } from 'react';
 import {
@@ -16,19 +15,27 @@ import {
 import { BlurView } from 'expo-blur';
 import * as Haptics from 'expo-haptics';
 import { ChevronUp, ChevronDown, Calendar as CalendarIcon, X, Check } from 'lucide-react-native';
-import { COLORS, getThemeColors } from '@/constants/theme';
+import { getThemeColors } from '@/constants/theme';
 import { appSettingsStore } from '@/store/phase1/appSettingsStore';
 import { formatDate } from '@/utils/formatDate';
 
 const MONTH_NAMES = [
   'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-  'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+  'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
 ];
 
-const MONTH_FULL_NAMES = [
-  'January', 'February', 'March', 'April', 'May', 'June',
-  'July', 'August', 'September', 'October', 'November', 'December'
-];
+function toIsoDate(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+function clampDate(year: number, month: number, day: number): Date {
+  const normalized = new Date(year, month, 1);
+  const maxDay = new Date(normalized.getFullYear(), normalized.getMonth() + 1, 0).getDate();
+  return new Date(normalized.getFullYear(), normalized.getMonth(), Math.min(day, maxDay));
+}
 
 interface GlassDatePickerModalProps {
   visible: boolean;
@@ -48,13 +55,7 @@ export function GlassDatePickerModal({
   onSelect,
 }: GlassDatePickerModalProps) {
   const today = useMemo(() => new Date(), []);
-  const maxDateIso = useMemo(() => {
-    if (maxDate) return maxDate;
-    const y = today.getFullYear();
-    const m = String(today.getMonth() + 1).padStart(2, '0');
-    const d = String(today.getDate()).padStart(2, '0');
-    return `${y}-${m}-${d}`;
-  }, [maxDate, today]);
+  const maxDateIso = useMemo(() => maxDate || toIsoDate(today), [maxDate, today]);
 
   const activeTheme = appSettingsStore((s: any) => s.theme);
   const colors = getThemeColors(activeTheme);
@@ -76,59 +77,51 @@ export function GlassDatePickerModal({
       if (value) {
         const parts = value.split('-');
         if (parts.length === 3) {
-          setDate(new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10)));
+          setDate(
+            new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10))
+          );
         }
       }
     }
   }, [visible, value]);
 
-  const selectedIso = useMemo(() => {
-    const y = date.getFullYear();
-    const m = String(date.getMonth() + 1).padStart(2, '0');
-    const d = String(date.getDate()).padStart(2, '0');
-    return `${y}-${m}-${d}`;
-  }, [date]);
-
+  const selectedIso = useMemo(() => toIsoDate(date), [date]);
   const isFuture = selectedIso > maxDateIso;
 
   const handleDayStep = (delta: number) => {
-    try { Haptics.selectionAsync(); } catch {}
+    try {
+      Haptics.selectionAsync();
+    } catch {}
     setDate((prev) => {
       const next = new Date(prev.getFullYear(), prev.getMonth(), prev.getDate() + delta);
-      const y = next.getFullYear();
-      const m = String(next.getMonth() + 1).padStart(2, '0');
-      const d = String(next.getDate()).padStart(2, '0');
-      if (`${y}-${m}-${d}` > maxDateIso) return prev;
-      return next;
+      return toIsoDate(next) > maxDateIso ? prev : next;
     });
   };
 
   const handleMonthStep = (delta: number) => {
-    try { Haptics.selectionAsync(); } catch {}
+    try {
+      Haptics.selectionAsync();
+    } catch {}
     setDate((prev) => {
-      const next = new Date(prev.getFullYear(), prev.getMonth() + delta, prev.getDate());
-      const y = next.getFullYear();
-      const m = String(next.getMonth() + 1).padStart(2, '0');
-      const d = String(next.getDate()).padStart(2, '0');
-      if (`${y}-${m}-${d}` > maxDateIso) return prev;
-      return next;
+      const next = clampDate(prev.getFullYear(), prev.getMonth() + delta, prev.getDate());
+      return toIsoDate(next) > maxDateIso ? prev : next;
     });
   };
 
   const handleYearStep = (delta: number) => {
-    try { Haptics.selectionAsync(); } catch {}
+    try {
+      Haptics.selectionAsync();
+    } catch {}
     setDate((prev) => {
-      const next = new Date(prev.getFullYear() + delta, prev.getMonth(), prev.getDate());
-      const y = next.getFullYear();
-      const m = String(next.getMonth() + 1).padStart(2, '0');
-      const d = String(next.getDate()).padStart(2, '0');
-      if (`${y}-${m}-${d}` > maxDateIso) return prev;
-      return next;
+      const next = clampDate(prev.getFullYear() + delta, prev.getMonth(), prev.getDate());
+      return toIsoDate(next) > maxDateIso ? prev : next;
     });
   };
 
   const handleQuickPreset = (preset: 'today' | 'yesterday') => {
-    try { Haptics.selectionAsync(); } catch {}
+    try {
+      Haptics.selectionAsync();
+    } catch {}
     const now = new Date();
     if (preset === 'today') {
       setDate(now);
@@ -138,40 +131,39 @@ export function GlassDatePickerModal({
   };
 
   const handleConfirm = () => {
-    try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); } catch {}
+    try {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    } catch {}
     onSelect(selectedIso);
     onClose();
   };
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose} statusBarTranslucent>
-      <KeyboardAvoidingView 
+      <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         style={s.modalOverlay}
       >
-        <TouchableOpacity 
-          style={StyleSheet.absoluteFill} 
-          activeOpacity={1} 
-          onPress={() => { Keyboard.dismiss(); onClose(); }} 
+        <TouchableOpacity
+          style={StyleSheet.absoluteFill}
+          activeOpacity={1}
+          onPress={() => {
+            Keyboard.dismiss();
+            onClose();
+          }}
         />
-        <View 
-          style={[
-            s.modalContainer,
-            { borderColor: isDark ? 'rgba(212, 175, 55, 0.35)' : 'rgba(212, 175, 55, 0.35)' }
-          ]}
-        >
-          <BlurView 
-            intensity={Platform.OS === 'ios' ? 70 : 0} 
-            tint={isDark ? 'dark' : 'light'} 
+        <View style={[s.modalContainer, { borderColor: 'rgba(212, 175, 55, 0.35)' }]}>
+          <BlurView
+            intensity={Platform.OS === 'ios' ? 70 : 0}
+            tint={isDark ? 'dark' : 'light'}
             {...(Platform.OS === 'android' ? { blurMethod: 'none' as const } : {})}
             style={[
               s.blurContent,
               {
                 backgroundColor: isDark ? 'rgba(28, 20, 24, 0.92)' : 'rgba(255, 253, 249, 0.92)',
-              }
+              },
             ]}
           >
-            
             {/* Header */}
             <View style={s.headerRow}>
               <View style={s.headerTitleWrap}>
@@ -189,8 +181,12 @@ export function GlassDatePickerModal({
                 style={[
                   s.presetChip,
                   {
-                    backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(212, 175, 55, 0.08)',
-                    borderColor: isDark ? 'rgba(255, 255, 255, 0.15)' : 'rgba(212, 175, 55, 0.20)',
+                    backgroundColor: isDark
+                      ? 'rgba(255, 255, 255, 0.08)'
+                      : 'rgba(212, 175, 55, 0.08)',
+                    borderColor: isDark
+                      ? 'rgba(255, 255, 255, 0.15)'
+                      : 'rgba(212, 175, 55, 0.20)',
                   },
                   selectedIso === maxDateIso && s.presetChipActive,
                 ]}
@@ -211,124 +207,105 @@ export function GlassDatePickerModal({
                 style={[
                   s.presetChip,
                   {
-                    backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(212, 175, 55, 0.08)',
-                    borderColor: isDark ? 'rgba(255, 255, 255, 0.15)' : 'rgba(212, 175, 55, 0.20)',
+                    backgroundColor: isDark
+                      ? 'rgba(255, 255, 255, 0.08)'
+                      : 'rgba(212, 175, 55, 0.08)',
+                    borderColor: isDark
+                      ? 'rgba(255, 255, 255, 0.15)'
+                      : 'rgba(212, 175, 55, 0.20)',
                   },
                 ]}
                 onPress={() => handleQuickPreset('yesterday')}
               >
-                <Text style={[s.presetChipText, { color: colors.vjText }]}>
-                  Yesterday
-                </Text>
+                <Text style={[s.presetChipText, { color: colors.vjText }]}>Yesterday</Text>
               </TouchableOpacity>
             </View>
 
             {/* Stepper Cards */}
             <View style={s.stepperGrid}>
-              {/* Day Col */}
-              <View 
+              <View
                 style={[
                   s.stepperCol,
                   {
-                    backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(255, 255, 255, 0.85)',
-                    borderColor: isDark ? 'rgba(212, 175, 55, 0.25)' : 'rgba(212, 175, 55, 0.25)',
-                  }
+                    backgroundColor: isDark
+                      ? 'rgba(255, 255, 255, 0.08)'
+                      : 'rgba(255, 255, 255, 0.85)',
+                    borderColor: 'rgba(212, 175, 55, 0.25)',
+                  },
                 ]}
               >
                 <Text style={[s.stepperColLabel, { color: `${colors.vjText}80` }]}>DAY</Text>
-                <TouchableOpacity
-                  onPress={() => handleDayStep(1)}
-                  style={s.stepBtn}
-                  activeOpacity={0.7}
-                >
+                <TouchableOpacity onPress={() => handleDayStep(1)} style={s.stepBtn} activeOpacity={0.7}>
                   <ChevronUp size={18} color={colors.vjAccent} />
                 </TouchableOpacity>
                 <Text style={[s.stepValText, { color: colors.vjText }]}>
                   {String(date.getDate()).padStart(2, '0')}
                 </Text>
-                <TouchableOpacity
-                  onPress={() => handleDayStep(-1)}
-                  style={s.stepBtn}
-                  activeOpacity={0.7}
-                >
+                <TouchableOpacity onPress={() => handleDayStep(-1)} style={s.stepBtn} activeOpacity={0.7}>
                   <ChevronDown size={18} color={colors.vjAccent} />
                 </TouchableOpacity>
               </View>
 
-              {/* Month Col */}
-              <View 
+              <View
                 style={[
                   s.stepperCol,
                   {
-                    backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(255, 255, 255, 0.85)',
-                    borderColor: isDark ? 'rgba(212, 175, 55, 0.25)' : 'rgba(212, 175, 55, 0.25)',
-                  }
+                    backgroundColor: isDark
+                      ? 'rgba(255, 255, 255, 0.08)'
+                      : 'rgba(255, 255, 255, 0.85)',
+                    borderColor: 'rgba(212, 175, 55, 0.25)',
+                  },
                 ]}
               >
                 <Text style={[s.stepperColLabel, { color: `${colors.vjText}80` }]}>MONTH</Text>
-                <TouchableOpacity
-                  onPress={() => handleMonthStep(1)}
-                  style={s.stepBtn}
-                  activeOpacity={0.7}
-                >
+                <TouchableOpacity onPress={() => handleMonthStep(1)} style={s.stepBtn} activeOpacity={0.7}>
                   <ChevronUp size={18} color={colors.vjAccent} />
                 </TouchableOpacity>
                 <Text style={[s.stepValText, { color: colors.vjText }]}>
                   {MONTH_NAMES[date.getMonth()]}
                 </Text>
-                <TouchableOpacity
-                  onPress={() => handleMonthStep(-1)}
-                  style={s.stepBtn}
-                  activeOpacity={0.7}
-                >
+                <TouchableOpacity onPress={() => handleMonthStep(-1)} style={s.stepBtn} activeOpacity={0.7}>
                   <ChevronDown size={18} color={colors.vjAccent} />
                 </TouchableOpacity>
               </View>
 
-              {/* Year Col */}
-              <View 
+              <View
                 style={[
                   s.stepperCol,
                   {
-                    backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(255, 255, 255, 0.85)',
-                    borderColor: isDark ? 'rgba(212, 175, 55, 0.25)' : 'rgba(212, 175, 55, 0.25)',
-                  }
+                    backgroundColor: isDark
+                      ? 'rgba(255, 255, 255, 0.08)'
+                      : 'rgba(255, 255, 255, 0.85)',
+                    borderColor: 'rgba(212, 175, 55, 0.25)',
+                  },
                 ]}
               >
                 <Text style={[s.stepperColLabel, { color: `${colors.vjText}80` }]}>YEAR</Text>
-                <TouchableOpacity
-                  onPress={() => handleYearStep(1)}
-                  style={s.stepBtn}
-                  activeOpacity={0.7}
-                >
+                <TouchableOpacity onPress={() => handleYearStep(1)} style={s.stepBtn} activeOpacity={0.7}>
                   <ChevronUp size={18} color={colors.vjAccent} />
                 </TouchableOpacity>
-                <Text style={[s.stepValText, { color: colors.vjText }]}>
-                  {date.getFullYear()}
-                </Text>
-                <TouchableOpacity
-                  onPress={() => handleYearStep(-1)}
-                  style={s.stepBtn}
-                  activeOpacity={0.7}
-                >
+                <Text style={[s.stepValText, { color: colors.vjText }]}>{date.getFullYear()}</Text>
+                <TouchableOpacity onPress={() => handleYearStep(-1)} style={s.stepBtn} activeOpacity={0.7}>
                   <ChevronDown size={18} color={colors.vjAccent} />
                 </TouchableOpacity>
               </View>
             </View>
 
             {/* Live Preview Card */}
-            <View 
+            <View
               style={[
                 s.previewCard,
                 {
-                  backgroundColor: isDark ? 'rgba(212, 175, 55, 0.08)' : 'rgba(212, 175, 55, 0.08)',
+                  backgroundColor: 'rgba(212, 175, 55, 0.08)',
                   borderColor: isDark ? 'rgba(212, 175, 55, 0.25)' : 'rgba(212, 175, 55, 0.20)',
-                }
+                },
               ]}
             >
               <Text style={[s.previewLabel, { color: `${colors.vjText}80` }]}>SELECTED DATE</Text>
               <Text style={[s.previewVal, { color: colors.vjText }]}>{selectedIso}</Text>
-              <Text style={[s.previewFormatted, { color: colors.vjAccent }]}>{formatDate(selectedIso)}</Text>
+              <Text style={[s.previewFormatted, { color: colors.vjAccent }]}>
+                {formatDate(selectedIso)}
+              </Text>
             </View>
 
             {/* Actions */}
@@ -338,9 +315,11 @@ export function GlassDatePickerModal({
                 style={[
                   s.cancelBtn,
                   {
-                    backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(212, 175, 55, 0.10)',
-                    borderColor: isDark ? 'rgba(212, 175, 55, 0.25)' : 'rgba(212, 175, 55, 0.25)',
-                  }
+                    backgroundColor: isDark
+                      ? 'rgba(255, 255, 255, 0.08)'
+                      : 'rgba(212, 175, 55, 0.10)',
+                    borderColor: 'rgba(212, 175, 55, 0.25)',
+                  },
                 ]}
                 activeOpacity={0.7}
               >
@@ -353,7 +332,7 @@ export function GlassDatePickerModal({
                 style={[
                   s.confirmBtn,
                   { backgroundColor: colors.vjAccent },
-                  isFuture && s.confirmBtnDisabled
+                  isFuture && s.confirmBtnDisabled,
                 ]}
                 activeOpacity={0.8}
               >
@@ -361,7 +340,6 @@ export function GlassDatePickerModal({
                 <Text style={s.confirmBtnText}>Confirm Date</Text>
               </TouchableOpacity>
             </View>
-
           </BlurView>
         </View>
       </KeyboardAvoidingView>

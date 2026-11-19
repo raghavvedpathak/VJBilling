@@ -101,7 +101,14 @@ module.exports = [
 
   // 5. Synchronous Transaction Enforcement (FIX-V740-8)
   {
-    files: ['services/**/*.ts', 'repositories/**/*.ts', 'stores/**/*.ts', 'utils/**/*.ts'],
+    files: [
+      'services/**/*.ts',
+      'repositories/**/*.ts',
+      'store/**/*.ts',
+      'stores/**/*.ts',
+      'utils/**/*.ts',
+      'tasks/**/*.ts',
+    ],
     rules: {
       'no-restricted-properties': [
         'error',

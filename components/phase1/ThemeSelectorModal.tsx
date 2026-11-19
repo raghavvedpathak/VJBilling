@@ -1,4 +1,4 @@
-// components/ThemeSelectorModal.tsx — Phase 1 & Phase 2 Theme Selector Modal
+// components/phase1/ThemeSelectorModal.tsx — Phase 1 v8.0 & Phase 2 Theme Selector Modal
 
 import React from 'react';
 import { View, Text, TouchableOpacity, Modal } from 'react-native';
@@ -13,6 +13,8 @@ interface ThemeSelectorModalProps {
   onClose: () => void;
 }
 
+const PRESET_LIST = Object.values(THEME_PRESETS);
+
 export function ThemeSelectorModal({
   visible,
   activeTheme,
@@ -20,16 +22,20 @@ export function ThemeSelectorModal({
   onClose,
 }: ThemeSelectorModalProps) {
   const activeStoreTheme = appSettingsStore((s) => s.theme);
+  const resolvedTheme =
+    activeTheme && activeTheme !== 'system'
+      ? activeTheme
+      : activeStoreTheme && activeStoreTheme !== 'system'
+        ? activeStoreTheme
+        : 'saffron';
 
   return (
-    <Modal
-      animationType="fade"
-      transparent={true}
-      visible={visible}
-      onRequestClose={onClose}
-    >
+    <Modal animationType="fade" transparent={true} visible={visible} onRequestClose={onClose}>
       <View className="flex-1 bg-black/50 justify-center items-center px-6">
-        <View className="w-full bg-vj-bg rounded-3xl p-6 border border-white/50" style={{ maxWidth: 440 }}>
+        <View
+          className="w-full bg-vj-bg rounded-3xl p-6 border border-white/50"
+          style={{ maxWidth: 440 }}
+        >
           <View className="flex-row justify-between items-center mb-6">
             <Text className="text-vj-text font-bold text-xl">App Theme</Text>
             <TouchableOpacity onPress={onClose} className="p-1 bg-black/5 rounded-full">
@@ -38,18 +44,12 @@ export function ThemeSelectorModal({
           </View>
 
           <View className="mb-2">
-            {[
-              { id: 'saffron', label: 'Royal Kesari Gold (Default)' },
-              { id: 'platinum_sapphire', label: 'Platinum & Star Sapphire' },
-              { id: 'sandstone_ochre', label: 'Reth Sandstone Silk & Ochre' },
-              { id: 'tourmaline_rosegold', label: 'Rose Gold & Pink Tourmaline' },
-            ].map((t) => {
-              const preset = THEME_PRESETS[t.id as keyof typeof THEME_PRESETS] || THEME_PRESETS.saffron;
-              const isApplied = activeTheme === t.id || activeStoreTheme === t.id;
+            {PRESET_LIST.map((preset) => {
+              const isApplied = resolvedTheme === preset.id;
               return (
                 <TouchableOpacity
-                  key={t.id}
-                  onPress={() => onSelectTheme(t.id)}
+                  key={preset.id}
+                  onPress={() => onSelectTheme(preset.id)}
                   className={`p-3.5 rounded-2xl border mb-3 flex-row justify-between items-center ${
                     isApplied ? 'bg-vj-text border-vj-text' : 'bg-white/70 border-black/10'
                   }`}
@@ -71,10 +71,12 @@ export function ThemeSelectorModal({
                     </View>
 
                     <Text
-                      className={`font-bold text-sm flex-1 ${isApplied ? 'text-vj-bg' : 'text-vj-text'}`}
+                      className={`font-bold text-sm flex-1 ${
+                        isApplied ? 'text-vj-bg' : 'text-vj-text'
+                      }`}
                       numberOfLines={1}
                     >
-                      {t.label}
+                      {preset.label}
                     </Text>
 
                     {isApplied && (

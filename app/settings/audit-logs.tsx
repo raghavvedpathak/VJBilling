@@ -1,4 +1,5 @@
-// app/settings/audit-logs.tsx — Phase 2 v2.24 Canonical Screen
+// app/settings/audit-logs.tsx — Phase 1 v8.0 & Phase 2 Canonical Screen
+// Obeys Step 1 Layer Hierarchy (UI -> auditService -> auditRepository)
 
 import React, { useState, useEffect, useMemo, memo, useRef } from 'react';
 import { View, Text, FlatList, TouchableOpacity, Share, ScrollView, StyleSheet } from 'react-native';
@@ -6,86 +7,97 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Device from 'expo-device';
 import * as Haptics from 'expo-haptics';
 import { TwoToneWrapper } from '@/components/common/TwoToneWrapper';
-import { auditRepository } from '@/repositories/phase1/auditRepository';
+import { auditService } from '@/services/phase1/auditService';
 import { useFirmStore } from '@/store/phase1/useFirmStore';
 import { appSettingsStore } from '@/store/phase1/appSettingsStore';
 import { getDeviceId } from '@/utils/deviceId';
 import { formatRupees } from '@/utils/currency';
-import { 
-  FileText, Smartphone, Calendar, ChevronDown, ChevronUp, Share2, Filter, 
-  CalendarClock, ShieldAlert, Building2, 
-  Package, KeyRound, HardDriveUpload
+import {
+  FileText,
+  Smartphone,
+  Calendar,
+  ChevronDown,
+  ChevronUp,
+  Share2,
+  Filter,
+  CalendarClock,
+  ShieldAlert,
+  Building2,
+  Package,
+  KeyRound,
+  HardDriveUpload,
 } from 'lucide-react-native';
 import { format, parseISO } from 'date-fns';
-import { COLORS, getThemeColors } from '@/constants/theme';
+import { getThemeColors } from '@/constants/theme';
 import { HeaderPill, GlassCard } from '@/components/ui/Glass';
 
-const ToggleHandlerRef = React.createContext<React.MutableRefObject<(id: string) => void> | null>(null);
+const ToggleHandlerRef = React.createContext<React.MutableRefObject<(id: string) => void> | null>(
+  null
+);
 
-// Canonical Plain English Event Title Mapping (Phase 1 + Phase 2)
+// Canonical Plain English Event Title Mapping (Phase 1 v8.0 + Phase 2)
 const EVENT_MAPPING: Record<string, string> = {
-  'FIRM_CREATED': 'New Firm Profile Created',
-  'FIRM_UPDATED': 'Firm Profile Details Updated',
-  'FIRM_SWITCHED': 'Switched Active Firm',
-  'FIRM_ARCHIVED': 'Firm Profile Archived',
-  'FIRM_UNARCHIVED': 'Firm Profile Reactivated',
-  'FIRM_CODE_SET': 'Firm Code Assigned',
-  'SAFE_MODE_ACTIVATED': 'Safe Mode Activated',
-  'SAFE_MODE_CLEARED': 'Safe Mode Cleared',
-  'BACKUP_CREATED': 'Database Backup Created',
-  'AUTO_BACKUP_FAILED': 'Automatic Backup Failed',
-  'AUTO_BACKUP_SETTING_CHANGED': 'Automatic Backup Setting Updated',
-  'RESTORE_COMPLETED': 'Database Successfully Restored',
-  'RESTORE_FAILED': 'Database Restore Failed',
-  'RESTORE_OLD_SCHEMA': 'Older Backup Restored',
-  'FY_CREATED': 'New Financial Year Created',
-  'FY_CLOSED': 'Financial Year Closed',
-  'FY_CLOCK_SKEW': 'System Clock Skew Detected',
-  'SETTINGS_CHANGED': 'System Preferences Modified',
-  'DEVICE_ID_GENERATED': 'New Device Identity Registered',
-  'BIS_LOGO_ARCHIVED': 'BIS Logo Removed',
-  'PRE_MIGRATION_SNAPSHOT_CREATED': 'Pre-Migration Snapshot Secured',
-  'PRE_MIGRATION_SNAPSHOT_PURGED': 'Pre-Migration Snapshot Cleaned Up',
-  'PRE_MIGRATION_SNAPSHOT_FAILED': 'Pre-Migration Snapshot Failed',
-  'AUDIT_RETENTION_PURGE_EXECUTED': 'Audit Log Auto-Cleanup Ran',
-  'DEVICE_ID_CHANGED': 'Device Reinstall / Identity Updated',
-  'FACTORY_RESET_EXECUTED': 'Factory Reset Executed',
-  
+  FIRM_CREATED: 'New Firm Profile Created',
+  FIRM_UPDATED: 'Firm Profile Details Updated',
+  FIRM_SWITCHED: 'Switched Active Firm',
+  FIRM_ARCHIVED: 'Firm Profile Archived',
+  FIRM_UNARCHIVED: 'Firm Profile Reactivated',
+  FIRM_CODE_SET: 'Firm Code Assigned',
+  SAFE_MODE_ACTIVATED: 'Safe Mode Activated',
+  SAFE_MODE_CLEARED: 'Safe Mode Cleared',
+  BACKUP_CREATED: 'Database Backup Created',
+  AUTO_BACKUP_FAILED: 'Automatic Backup Failed',
+  AUTO_BACKUP_SETTING_CHANGED: 'Automatic Backup Setting Updated',
+  RESTORE_COMPLETED: 'Database Successfully Restored',
+  RESTORE_FAILED: 'Database Restore Failed',
+  RESTORE_OLD_SCHEMA: 'Older Backup Restored',
+  FY_CREATED: 'New Financial Year Created',
+  FY_CLOSED: 'Financial Year Closed',
+  FY_CLOCK_SKEW: 'System Clock Skew Detected',
+  SETTINGS_CHANGED: 'System Preferences Modified',
+  DEVICE_ID_GENERATED: 'New Device Identity Registered',
+  BIS_LOGO_ARCHIVED: 'BIS Logo Removed',
+  PRE_MIGRATION_SNAPSHOT_CREATED: 'Pre-Migration Snapshot Secured',
+  PRE_MIGRATION_SNAPSHOT_PURGED: 'Pre-Migration Snapshot Cleaned Up',
+  PRE_MIGRATION_SNAPSHOT_FAILED: 'Pre-Migration Snapshot Failed',
+  AUDIT_RETENTION_PURGE_EXECUTED: 'Audit Log Auto-Cleanup Ran',
+  DEVICE_ID_CHANGED: 'Device Reinstall / Identity Updated',
+  FACTORY_RESET_EXECUTED: 'Factory Reset Executed',
+
   // Security
-  'PIN_SET': 'Security PIN Created',
-  'PIN_CHANGED': 'Security PIN Updated',
-  'PIN_SKIPPED': 'Security PIN Deferred',
+  PIN_SET: 'Security PIN Created',
+  PIN_CHANGED: 'Security PIN Updated',
+  PIN_SKIPPED: 'Security PIN Deferred',
 
   // Phase 2 Stock & Transactions
-  'URD_PURCHASE_CREATED': 'Unregistered Purchase Logged',
-  'URD_PURCHASE_CONFIRMED': 'Unregistered Purchase Confirmed',
-  'CATEGORY_CREATED': 'New Category Added',
-  'CATEGORY_UPDATED': 'Category Details Updated',
-  'CATEGORY_SOFT_DELETED': 'Category Removed',
-  'DESIGN_CREATED': 'New Design Added',
-  'DESIGN_UPDATED': 'Design Details Updated',
-  'DESIGN_SOFT_DELETED': 'Design Removed',
-  'STONE_CREATED': 'Stone Master Added',
-  'ITEM_CREATED': 'New Stock Item Added',
-  'HUID_ADDED': 'HUID Tag Assigned',
-  'ITEM_STATUS_CHANGED': 'Stock Item Status Updated',
-  'WEIGHT_ADJUSTED': 'Stock Weight Adjusted',
-  'BARCODE_REPRINTED': 'Barcode Label Reprinted',
-  'OLD_GOLD_LOT_CREATED': 'Old Gold Lot Added',
-  'OLD_GOLD_LOT_STATUS_CHANGED': 'Old Gold Lot Status Updated',
-  'FY_CLOSE_FINE_BALANCE': 'Fine Gold Balance Closed',
-  'FY_ARCHIVE_INDEXED': 'Financial Year Archived',
-  'ITEM_DELETED': 'Stock Item Deleted',
-  'METAL_SOURCE_CORRECTED': 'Metal Source Corrected',
-  'HUID_CORRECTED': 'HUID Tag Corrected',
-  'GEMSTONE_LOT_CREATED': 'Gemstone Lot Added',
-  'GEMSTONE_LOT_STATUS_CHANGED': 'Gemstone Lot Status Updated',
-  'ITEM_EDITED': 'Stock Item Details Edited',
-  'ITEM_SENT_TO_KARIGAR': 'Item Issued to Karigar',
-  'ITEM_RETURNED_FROM_KARIGAR': 'Item Received from Karigar'
+  URD_PURCHASE_CREATED: 'Unregistered Purchase Logged',
+  URD_PURCHASE_CONFIRMED: 'Unregistered Purchase Confirmed',
+  CATEGORY_CREATED: 'New Category Added',
+  CATEGORY_UPDATED: 'Category Details Updated',
+  CATEGORY_SOFT_DELETED: 'Category Removed',
+  DESIGN_CREATED: 'New Design Added',
+  DESIGN_UPDATED: 'Design Details Updated',
+  DESIGN_SOFT_DELETED: 'Design Removed',
+  STONE_CREATED: 'Stone Master Added',
+  ITEM_CREATED: 'New Stock Item Added',
+  HUID_ADDED: 'HUID Tag Assigned',
+  ITEM_STATUS_CHANGED: 'Stock Item Status Updated',
+  WEIGHT_ADJUSTED: 'Stock Weight Adjusted',
+  BARCODE_REPRINTED: 'Barcode Label Reprinted',
+  OLD_GOLD_LOT_CREATED: 'Old Gold Lot Added',
+  OLD_GOLD_LOT_STATUS_CHANGED: 'Old Gold Lot Status Updated',
+  FY_CLOSE_FINE_BALANCE: 'Fine Gold Balance Closed',
+  FY_ARCHIVE_INDEXED: 'Financial Year Archived',
+  ITEM_DELETED: 'Stock Item Deleted',
+  METAL_SOURCE_CORRECTED: 'Metal Source Corrected',
+  HUID_CORRECTED: 'HUID Tag Corrected',
+  GEMSTONE_LOT_CREATED: 'Gemstone Lot Added',
+  GEMSTONE_LOT_STATUS_CHANGED: 'Gemstone Lot Status Updated',
+  ITEM_EDITED: 'Stock Item Details Edited',
+  ITEM_SENT_TO_KARIGAR: 'Item Issued to Karigar',
+  ITEM_RETURNED_FROM_KARIGAR: 'Item Received from Karigar',
 };
 
-// Plain English Unit & Currency Formatters
 const formatBytes = (bytes?: number): string => {
   if (!bytes || isNaN(bytes)) return '0 B';
   if (bytes < 1024) return `${bytes} Bytes`;
@@ -113,7 +125,6 @@ const formatIsoDateTime = (isoStr?: string): string => {
   }
 };
 
-// Event Visual Metadata & Category Classifier
 function getEventMeta(type: string, colors: ReturnType<typeof getThemeColors>) {
   if (type.includes('BACKUP') || type.includes('RESTORE')) {
     return {
@@ -122,7 +133,7 @@ function getEventMeta(type: string, colors: ReturnType<typeof getThemeColors>) {
       iconBg: 'rgba(245, 158, 11, 0.15)',
       badgeBg: 'rgba(245, 158, 11, 0.12)',
       badgeBorder: 'rgba(245, 158, 11, 0.25)',
-      badgeTextColor: '#B45309'
+      badgeTextColor: '#B45309',
     };
   }
   if (type.includes('PIN') || type.includes('SECURITY')) {
@@ -132,7 +143,7 @@ function getEventMeta(type: string, colors: ReturnType<typeof getThemeColors>) {
       iconBg: 'rgba(37, 99, 235, 0.15)',
       badgeBg: 'rgba(37, 99, 235, 0.12)',
       badgeBorder: 'rgba(37, 99, 235, 0.25)',
-      badgeTextColor: '#2563EB'
+      badgeTextColor: '#2563EB',
     };
   }
   if (type.includes('SAFE_MODE') || type.includes('FAILED') || type.includes('RESET')) {
@@ -142,7 +153,7 @@ function getEventMeta(type: string, colors: ReturnType<typeof getThemeColors>) {
       iconBg: 'rgba(220, 38, 38, 0.15)',
       badgeBg: 'rgba(220, 38, 38, 0.12)',
       badgeBorder: 'rgba(220, 38, 38, 0.25)',
-      badgeTextColor: '#DC2626'
+      badgeTextColor: '#DC2626',
     };
   }
   if (type.includes('FIRM')) {
@@ -152,7 +163,7 @@ function getEventMeta(type: string, colors: ReturnType<typeof getThemeColors>) {
       iconBg: `${colors.vjAccent}18`,
       badgeBg: `${colors.vjAccent}12`,
       badgeBorder: `${colors.vjAccent}25`,
-      badgeTextColor: colors.vjAccent
+      badgeTextColor: colors.vjAccent,
     };
   }
   if (type.includes('FY')) {
@@ -162,17 +173,27 @@ function getEventMeta(type: string, colors: ReturnType<typeof getThemeColors>) {
       iconBg: 'rgba(5, 150, 105, 0.15)',
       badgeBg: 'rgba(5, 150, 105, 0.12)',
       badgeBorder: 'rgba(5, 150, 105, 0.25)',
-      badgeTextColor: '#059669'
+      badgeTextColor: '#059669',
     };
   }
-  if (type.includes('ITEM') || type.includes('URD') || type.includes('CATEGORY') || type.includes('DESIGN') || type.includes('KARIGAR') || type.includes('GOLD') || type.includes('GEMSTONE') || type.includes('WEIGHT') || type.includes('HUID')) {
+  if (
+    type.includes('ITEM') ||
+    type.includes('URD') ||
+    type.includes('CATEGORY') ||
+    type.includes('DESIGN') ||
+    type.includes('KARIGAR') ||
+    type.includes('GOLD') ||
+    type.includes('GEMSTONE') ||
+    type.includes('WEIGHT') ||
+    type.includes('HUID')
+  ) {
     return {
       category: 'Stock & Inventory',
       icon: <Package size={18} color="#7C3AED" />,
       iconBg: 'rgba(124, 58, 237, 0.15)',
       badgeBg: 'rgba(124, 58, 237, 0.12)',
       badgeBorder: 'rgba(124, 58, 237, 0.25)',
-      badgeTextColor: '#7C3AED'
+      badgeTextColor: '#7C3AED',
     };
   }
   return {
@@ -181,57 +202,76 @@ function getEventMeta(type: string, colors: ReturnType<typeof getThemeColors>) {
     iconBg: `${colors.vjAccent}12`,
     badgeBg: `${colors.vjAccent}10`,
     badgeBorder: `${colors.vjAccent}20`,
-    badgeTextColor: colors.vjText
+    badgeTextColor: colors.vjText,
   };
 }
 
-// Plain English Sentence Summary Generator
 function getHumanSummary(eventType: string, payload: Record<string, any>): string {
   switch (eventType) {
     case 'BACKUP_CREATED':
-      return `Backup file "${payload.fileName || 'vjbilling_backup.vjb'}" (${formatBytes(payload.fileSizeBytes)}, ${payload.kind || 'MANUAL'}, trigger: ${payload.trigger || 'NOW'}) was created successfully.`;
+      return `Backup file "${payload.fileName || 'vjbilling_backup.vjb'}" (${formatBytes(
+        payload.fileSizeBytes
+      )}, ${payload.kind || 'MANUAL'}, trigger: ${payload.trigger || 'NOW'}) was created successfully.`;
     case 'AUTO_BACKUP_FAILED':
-      return `Automatic backup did not complete (Reason: ${payload.reason || 'BACKUP_ERROR'}, streak: ${payload.failCount || 1}).`;
+      return `Automatic backup did not complete (Reason: ${
+        payload.reason || 'BACKUP_ERROR'
+      }, streak: ${payload.failCount || 1}).`;
     case 'AUTO_BACKUP_SETTING_CHANGED':
       return `Automatic daily backup was turned ${payload.enabled ? 'ON' : 'OFF'}.`;
     case 'RESTORE_COMPLETED':
-      return `Database was successfully restored from backup (contains ${payload.firmCount || 1} firm profile(s)${payload.oldSchema ? ', migrated from older schema' : ''}).`;
+      return `Database was successfully restored from backup (contains ${
+        payload.firmCount || 1
+      } firm profile(s)${payload.oldSchema ? ', migrated from older schema' : ''}).`;
     case 'RESTORE_FAILED':
-      return `Database restore failed. Reason: ${payload.reason || 'Decryption error or corrupted file'}.`;
+      return `Database restore failed. Reason: ${
+        payload.reason || 'Decryption error or corrupted file'
+      }.`;
     case 'FIRM_CREATED':
-      return `Established new firm "${payload.name || 'Firm'}" with code ${payload.firmCode || 'N/A'}.`;
+      return `Established new firm "${payload.name || 'Firm'}" with code ${
+        payload.firmCode || 'N/A'
+      }.`;
     case 'FIRM_UPDATED':
       return `Updated store profile details for ${payload.name || 'active firm'}.`;
     case 'FIRM_SWITCHED':
-      return `Switched active store workspace.`;
+      return 'Switched active store workspace.';
     case 'SAFE_MODE_ACTIVATED':
-      return `Safe Mode safety guard was activated. Reason: ${payload.reason || 'System integrity check'}.`;
+      return `Safe Mode safety guard was activated. Reason: ${
+        payload.reason || 'System integrity check'
+      }.`;
     case 'SAFE_MODE_CLEARED':
-      return `Safe Mode cleared — store database verified healthy.`;
+      return 'Safe Mode cleared — store database verified healthy.';
     case 'PRE_MIGRATION_SNAPSHOT_CREATED':
-      return `Encrypted local snapshot secured safely prior to schema migration.`;
+      return 'Encrypted local snapshot secured safely prior to schema migration.';
     case 'PRE_MIGRATION_SNAPSHOT_PURGED':
-      return `Temporary pre-migration snapshot purged after database verification passed.`;
+      return 'Temporary pre-migration snapshot purged after database verification passed.';
     case 'PRE_MIGRATION_SNAPSHOT_FAILED':
       return `Failed to capture pre-migration snapshot: ${payload.error || 'Unknown error'}.`;
     case 'SETTINGS_CHANGED':
-      return `Updated system settings (${payload.setting || 'Preferences'}).`;
+      return `Updated system settings (${
+        Array.isArray(payload.fields) ? payload.fields.join(', ') : payload.setting || 'Preferences'
+      }).`;
     case 'PIN_SET':
-      return `Created a ${payload.pinLength || 4}-digit security PIN for app access.`;
+      return `Created a ${payload.pinLength || 6}-digit security PIN for app access.`;
     case 'PIN_CHANGED':
-      return `Updated store security PIN.`;
+      return 'Updated store security PIN.';
     case 'PIN_SKIPPED':
-      return `PIN setup deferred during initial boot.`;
+      return 'PIN setup deferred during initial boot.';
     case 'URD_PURCHASE_CREATED':
-      return `Logged unregistered purchase for customer ${payload.customerName || 'Customer'} (${formatCurrencyPaise(payload.totalValuePaise)}).`;
+      return `Logged unregistered purchase for customer ${
+        payload.customerName || 'Customer'
+      } (${formatCurrencyPaise(payload.totalValuePaise)}).`;
     case 'URD_PURCHASE_CONFIRMED':
       return `Confirmed URD purchase voucher for customer ${payload.customerName || 'Customer'}.`;
     case 'CATEGORY_CREATED':
       return `Added new product category "${payload.name || 'Category'}" to store master.`;
     case 'DESIGN_CREATED':
-      return `Added new design "${payload.name || 'Design'}" (Code: ${payload.code || 'N/A'}) to store master.`;
+      return `Added new design "${payload.name || 'Design'}" (Code: ${
+        payload.code || 'N/A'
+      }) to store master.`;
     case 'ITEM_CREATED':
-      return `Added new stock item (SKU: ${payload.sku || 'N/A'}, Gross: ${formatWeightMg(payload.grossWeightMg)}) to inventory.`;
+      return `Added new stock item (SKU: ${payload.sku || 'N/A'}, Gross: ${formatWeightMg(
+        payload.grossWeightMg
+      )}) to inventory.`;
     case 'HUID_ADDED':
       return `Assigned HUID tag "${payload.huid || 'N/A'}" to stock item ${payload.sku || ''}.`;
     case 'ITEM_STATUS_CHANGED':
@@ -241,15 +281,18 @@ function getHumanSummary(eventType: string, payload: Record<string, any>): strin
     case 'ITEM_RETURNED_FROM_KARIGAR':
       return `Received stock item ${payload.sku || 'item'} back from karigar.`;
     case 'AUDIT_RETENTION_PURGE_EXECUTED':
-      return `Auto-cleanup purged ${payload.deletedCount || 0} expired log record(s) older than ${payload.auditRetentionDays || 30} days.`;
+      return `Auto-cleanup purged ${payload.deletedCount || 0} expired log record(s) older than ${
+        payload.auditRetentionDays || 30
+      } days.`;
     case 'DEVICE_ID_GENERATED':
-      return `Registered new device identity for secure transactions.`;
+      return 'Registered new device identity for secure transactions.';
+    case 'DEVICE_ID_CHANGED':
+      return 'Linked restored database to this device identity after reinstall or migration.';
     default:
       return `${EVENT_MAPPING[eventType] || eventType.replace(/_/g, ' ')} recorded in system log.`;
   }
 }
 
-// Plain English Key Label Mapping
 const KEY_LABEL_MAPPING: Record<string, string> = {
   fileName: 'Backup File Name',
   fileSizeBytes: 'Backup File Size',
@@ -307,13 +350,23 @@ const KEY_LABEL_MAPPING: Record<string, string> = {
   executedAt: 'Execution Time',
   generatedAt: 'Registration Time',
   deviceName: 'Device Model',
-  os: 'Operating System'
+  os: 'Operating System',
 };
 
-// Internal keys to filter out from end-user display
 const INTERNAL_KEYS_TO_HIDE = new Set([
-  'id', 'firmId', 'fyId', 'entityId', 'oldGoldLotId', 'designId', 'categoryId', 'stoneId',
-  'createdAt', 'updatedAt', 'isArchived', 'isActive', 'phantomStockId'
+  'id',
+  'firmId',
+  'fyId',
+  'entityId',
+  'oldGoldLotId',
+  'designId',
+  'categoryId',
+  'stoneId',
+  'createdAt',
+  'updatedAt',
+  'isArchived',
+  'isActive',
+  'phantomStockId',
 ]);
 
 type AuditLogItemProps = {
@@ -328,188 +381,179 @@ type AuditLogItemProps = {
   colors: ReturnType<typeof getThemeColors>;
 };
 
-const AuditLogItem = memo(({
-  itemId,
-  itemCreatedAt,
-  itemEventType,
-  itemDeviceId,
-  itemPayload,
-  isExpanded,
-  currentDeviceId,
-  dateFormatToken,
-  colors,
-}: AuditLogItemProps) => {
-  const toggleRef = React.useContext(ToggleHandlerRef);
+const AuditLogItem = memo(
+  ({
+    itemId,
+    itemCreatedAt,
+    itemEventType,
+    itemDeviceId,
+    itemPayload,
+    isExpanded,
+    currentDeviceId,
+    dateFormatToken,
+    colors,
+  }: AuditLogItemProps) => {
+    const toggleRef = React.useContext(ToggleHandlerRef);
 
-  let dateStr = 'Unknown Date';
-  let timeStr = 'Unknown Time';
-  try {
-    const parsedDate = parseISO(itemCreatedAt);
-    dateStr = format(parsedDate, dateFormatToken);
-    timeStr = format(parsedDate, 'hh:mm a');
-  } catch (e) {
-    console.error('Date formatting failed:', itemCreatedAt);
-  }
-
-  let parsedPayload: Record<string, any> = {};
-  if (itemPayload) {
+    let dateStr = 'Unknown Date';
+    let timeStr = 'Unknown Time';
     try {
-      parsedPayload = JSON.parse(itemPayload);
+      const parsedDate = parseISO(itemCreatedAt);
+      dateStr = format(parsedDate, dateFormatToken);
+      timeStr = format(parsedDate, 'hh:mm a');
     } catch {
-      parsedPayload = { note: itemPayload };
+      console.error('Date formatting failed:', itemCreatedAt);
     }
-  }
 
-  const meta = getEventMeta(itemEventType, colors);
-  const humanTitle = EVENT_MAPPING[itemEventType] || itemEventType.replace(/_/g, ' ');
-  const humanSummary = getHumanSummary(itemEventType, parsedPayload);
+    let parsedPayload: Record<string, any> = {};
+    if (itemPayload) {
+      try {
+        parsedPayload = JSON.parse(itemPayload);
+      } catch {
+        parsedPayload = { note: itemPayload };
+      }
+    }
 
-  const displayDeviceName = itemDeviceId === currentDeviceId
-    ? (Device.modelName ? `${Device.modelName} (This Device)` : 'This Device')
-    : `Other Registered Device (${String(itemDeviceId).slice(-8)})`;
+    const meta = getEventMeta(itemEventType, colors);
+    const humanTitle = EVENT_MAPPING[itemEventType] || itemEventType.replace(/_/g, ' ');
+    const humanSummary = getHumanSummary(itemEventType, parsedPayload);
 
-  // Filter & Format Key-Value entries for expanded details drawer
-  const detailEntries = useMemo(() => {
-    return Object.entries(parsedPayload)
-      .filter(([k]) => !INTERNAL_KEYS_TO_HIDE.has(k))
-      .map(([k, v]) => {
-        const humanKey = KEY_LABEL_MAPPING[k] || k.replace(/([A-Z])/g, ' $1').replace(/^./, s => s.toUpperCase());
-        let formattedVal = 'None';
+    const displayDeviceName =
+      itemDeviceId === currentDeviceId
+        ? Device.modelName
+          ? `${Device.modelName} (This Device)`
+          : 'This Device'
+        : `Other Registered Device (${String(itemDeviceId).slice(-8)})`;
 
-        if (v !== null && v !== undefined && v !== '') {
-          if (k === 'fileSizeBytes') formattedVal = formatBytes(Number(v));
-          else if (k.endsWith('Mg') || k.includes('Weight')) formattedVal = formatWeightMg(Number(v));
-          else if (k.endsWith('Paise') || k.includes('Value') || k.includes('Amount')) formattedVal = formatCurrencyPaise(Number(v));
-          else if (k.endsWith('At') || k.endsWith('Date')) formattedVal = formatIsoDateTime(String(v));
-          else if (typeof v === 'boolean') formattedVal = v ? 'Enabled / Yes' : 'Disabled / No';
-          else if (typeof v === 'object') {
-            try { formattedVal = JSON.stringify(v).replace(/[{}"]/g, ' ').replace(/:/g, ': '); }
-            catch { formattedVal = 'Details recorded'; }
-          } else {
-            formattedVal = String(v);
+    const detailEntries = useMemo(() => {
+      return Object.entries(parsedPayload)
+        .filter(([k]) => !INTERNAL_KEYS_TO_HIDE.has(k))
+        .map(([k, v]) => {
+          const humanKey =
+            KEY_LABEL_MAPPING[k] ||
+            k.replace(/([A-Z])/g, ' $1').replace(/^./, (ch) => ch.toUpperCase());
+          let formattedVal = 'None';
+
+          if (v !== null && v !== undefined && v !== '') {
+            if (k === 'fileSizeBytes') formattedVal = formatBytes(Number(v));
+            else if (k.endsWith('Mg') || k.includes('Weight'))
+              formattedVal = formatWeightMg(Number(v));
+            else if (k.endsWith('Paise') || k.includes('Value') || k.includes('Amount'))
+              formattedVal = formatCurrencyPaise(Number(v));
+            else if (k.endsWith('At') || k.endsWith('Date'))
+              formattedVal = formatIsoDateTime(String(v));
+            else if (typeof v === 'boolean') formattedVal = v ? 'Enabled / Yes' : 'Disabled / No';
+            else if (typeof v === 'object') {
+              try {
+                formattedVal = JSON.stringify(v).replace(/[{}"]/g, ' ').replace(/:/g, ': ');
+              } catch {
+                formattedVal = 'Details recorded';
+              }
+            } else {
+              formattedVal = String(v);
+            }
           }
-        }
-        return { key: humanKey, val: formattedVal };
-      });
-  }, [parsedPayload]);
+          return { key: humanKey, val: formattedVal };
+        });
+    }, [parsedPayload]);
 
-  return (
-    <GlassCard 
-      style={[
-        s.cardContainer, 
-        { borderColor: isExpanded ? `${colors.vjAccent}40` : `${colors.vjAccent}20` }
-      ]}
-    >
-      <TouchableOpacity
-        testID={`audit-log-item-${itemId}`}
-        onPress={() => {
-          try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
-          toggleRef?.current?.(itemId);
-        }}
-        activeOpacity={0.7}
+    return (
+      <GlassCard
+        style={[
+          s.cardContainer,
+          { borderColor: isExpanded ? `${colors.vjAccent}40` : `${colors.vjAccent}20` },
+        ]}
       >
-        {/* CARD HEADER */}
-        <View style={s.cardHeaderRow}>
-          <View style={s.cardHeaderLeft}>
-            {/* Category Icon Badge */}
-            <View 
-              style={[s.eventIconBox, { backgroundColor: meta.iconBg }]}
-            >
-              {meta.icon}
-            </View>
+        <TouchableOpacity
+          testID={`audit-log-item-${itemId}`}
+          onPress={() => {
+            try {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            } catch {}
+            toggleRef?.current?.(itemId);
+          }}
+          activeOpacity={0.7}
+        >
+          <View style={s.cardHeaderRow}>
+            <View style={s.cardHeaderLeft}>
+              <View style={[s.eventIconBox, { backgroundColor: meta.iconBg }]}>{meta.icon}</View>
 
-            <View style={{ flex: 1 }}>
-              {/* Category Pill */}
-              <View style={s.categoryPillRow}>
-                <View 
-                  style={[
-                    s.categoryPill, 
-                    { backgroundColor: meta.badgeBg, borderColor: meta.badgeBorder }
-                  ]}
-                >
-                  <Text style={[s.categoryPillText, { color: meta.badgeTextColor }]}>
-                    {meta.category}
+              <View style={{ flex: 1 }}>
+                <View style={s.categoryPillRow}>
+                  <View
+                    style={[
+                      s.categoryPill,
+                      { backgroundColor: meta.badgeBg, borderColor: meta.badgeBorder },
+                    ]}
+                  >
+                    <Text style={[s.categoryPillText, { color: meta.badgeTextColor }]}>
+                      {meta.category}
+                    </Text>
+                  </View>
+                </View>
+
+                <Text style={[s.eventTitle, { color: colors.vjText }]} numberOfLines={1}>
+                  {humanTitle}
+                </Text>
+
+                <View style={s.timestampRow}>
+                  <Calendar size={12} color={colors.vjText} style={{ opacity: 0.5 }} />
+                  <Text style={[s.timestampText, { color: colors.vjText }]}>
+                    {dateStr} • {timeStr}
                   </Text>
                 </View>
               </View>
+            </View>
 
-              {/* Event Title */}
-              <Text style={[s.eventTitle, { color: colors.vjText }]} numberOfLines={1}>
-                {humanTitle}
-              </Text>
-
-              {/* Date & Time */}
-              <View style={s.timestampRow}>
-                <Calendar size={12} color={colors.vjText} style={{ opacity: 0.5 }} />
-                <Text style={[s.timestampText, { color: colors.vjText }]}>
-                  {dateStr} • {timeStr}
-                </Text>
-              </View>
+            <View style={[s.chevronBox, { backgroundColor: `${colors.vjAccent}12` }]}>
+              {isExpanded ? (
+                <ChevronUp size={18} color={colors.vjText} />
+              ) : (
+                <ChevronDown size={18} color={colors.vjText} style={{ opacity: 0.6 }} />
+              )}
             </View>
           </View>
 
-          <View style={[s.chevronBox, { backgroundColor: `${colors.vjAccent}12` }]}>
-            {isExpanded
-              ? <ChevronUp size={18} color={colors.vjText} />
-              : <ChevronDown size={18} color={colors.vjText} style={{ opacity: 0.6 }} />
-            }
-          </View>
-        </View>
-
-        {/* EXPANDED DETAILS DRAWER */}
-        {isExpanded && (
-          <View style={[s.drawerContainer, { borderTopColor: `${colors.vjAccent}18` }]}>
-            
-            {/* Narrative Summary Box */}
-            <View style={[s.summaryBox, { borderColor: `${colors.vjAccent}15` }]}>
-              <Text style={[s.summaryLabel, { color: colors.vjText }]}>
-                Summary Description
-              </Text>
-              <Text style={[s.summaryText, { color: colors.vjText }]}>
-                {humanSummary}
-              </Text>
-            </View>
-
-            {detailEntries.length > 0 && (
-              <View style={[s.particularsBox, { borderColor: `${colors.vjAccent}15` }]}>
-                <Text style={[s.particularsLabel, { color: colors.vjText }]}>
-                  Recorded Particulars
-                </Text>
-                {detailEntries.map((entry, idx) => (
-                  <View 
-                    key={`${entry.key}-${idx}`} 
-                    style={[s.particularRow, { borderBottomColor: `${colors.vjAccent}10` }]}
-                  >
-                    <Text style={[s.particularKey, { color: colors.vjText }]}>
-                      {entry.key}
-                    </Text>
-                    <Text style={[s.particularVal, { color: colors.vjText }]}>
-                      {entry.val}
-                    </Text>
-                  </View>
-                ))}
+          {isExpanded && (
+            <View style={[s.drawerContainer, { borderTopColor: `${colors.vjAccent}18` }]}>
+              <View style={[s.summaryBox, { borderColor: `${colors.vjAccent}15` }]}>
+                <Text style={[s.summaryLabel, { color: colors.vjText }]}>Summary Description</Text>
+                <Text style={[s.summaryText, { color: colors.vjText }]}>{humanSummary}</Text>
               </View>
-            )}
 
-            {/* Device Identity Badge */}
-            <View style={[s.deviceBadgeBox, { borderColor: `${colors.vjAccent}20` }]}>
-              <View style={s.deviceBadgeLeft}>
-                <Smartphone size={13} color={colors.vjText} style={{ opacity: 0.6 }} />
-                <Text style={[s.deviceText, { color: colors.vjText }]}>
-                  {displayDeviceName}
+              {detailEntries.length > 0 && (
+                <View style={[s.particularsBox, { borderColor: `${colors.vjAccent}15` }]}>
+                  <Text style={[s.particularsLabel, { color: colors.vjText }]}>
+                    Recorded Particulars
+                  </Text>
+                  {detailEntries.map((entry, idx) => (
+                    <View
+                      key={`${entry.key}-${idx}`}
+                      style={[s.particularRow, { borderBottomColor: `${colors.vjAccent}10` }]}
+                    >
+                      <Text style={[s.particularKey, { color: colors.vjText }]}>{entry.key}</Text>
+                      <Text style={[s.particularVal, { color: colors.vjText }]}>{entry.val}</Text>
+                    </View>
+                  ))}
+                </View>
+              )}
+
+              <View style={[s.deviceBadgeBox, { borderColor: `${colors.vjAccent}20` }]}>
+                <View style={s.deviceBadgeLeft}>
+                  <Smartphone size={13} color={colors.vjText} style={{ opacity: 0.6 }} />
+                  <Text style={[s.deviceText, { color: colors.vjText }]}>{displayDeviceName}</Text>
+                </View>
+                <Text style={[s.refNumber, { color: colors.vjText }]}>
+                  REF #{itemId.slice(0, 8)}
                 </Text>
               </View>
-              <Text style={[s.refNumber, { color: colors.vjText }]}>
-                REF #{itemId.slice(0, 8)}
-              </Text>
             </View>
-
-          </View>
-        )}
-      </TouchableOpacity>
-    </GlassCard>
-  );
-});
+          )}
+        </TouchableOpacity>
+      </GlassCard>
+    );
+  }
+);
 
 export default function AuditLogScreen() {
   const insets = useSafeAreaInsets();
@@ -520,70 +564,82 @@ export default function AuditLogScreen() {
   const [categoryFilter, setCategoryFilter] = useState<string>('ALL');
 
   const { activeFirmId } = useFirmStore();
-  const dateFormatToken = appSettingsStore((s: any) => s.dateFormatToken);
+  const dateFormatToken = appSettingsStore((s: any) => s.dateFormatToken) || 'dd/MM/yyyy';
   const activeTheme = appSettingsStore((s: any) => s.theme);
   const auditRetentionDays = appSettingsStore(
-    (s: any) => s.settings?.auditRetentionDays ?? s.auditRetentionDays ?? 90
+    (s: any) => s.settings?.auditRetentionDays ?? s.auditRetentionDays ?? 30
   );
   const colors = getThemeColors(activeTheme);
 
   const toggleHandlerRef = useRef<(id: string) => void>(() => {});
   useEffect(() => {
     toggleHandlerRef.current = (id: string) => {
-      setExpandedId(prev => prev === id ? null : id);
+      setExpandedId((prev) => (prev === id ? null : id));
     };
   });
 
   useEffect(() => {
-    loadInitialData();
+    const loadInitialData = async () => {
+      try {
+        setCurrentDeviceId(getDeviceId());
+      } catch {
+        setCurrentDeviceId('');
+      }
+      if (!activeFirmId) return;
+      try {
+        // Step 1 Layer Hierarchy: Fetch via auditService instead of calling auditRepository directly
+        const combined = await auditService.getEvents(activeFirmId);
+        setLogs(combined);
+      } catch (e) {
+        console.error('[AuditLogScreen] Failed to load audit events:', e);
+      }
+    };
+    void loadInitialData();
   }, [activeFirmId]);
-
-  const loadInitialData = async () => {
-    const id = await getDeviceId();
-    setCurrentDeviceId(id);
-    if (!activeFirmId) return;
-    const firmLogs = auditRepository.getByFirmId(activeFirmId) || [];
-    const systemLogs = auditRepository.getSystemLogs() || [];
-    const combined = [...firmLogs, ...systemLogs].sort((a, b) =>
-      new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-    );
-    setLogs(combined);
-  };
 
   const filteredLogs = useMemo(() => {
     const now = new Date();
-    return logs.filter(log => {
+    return logs.filter((log) => {
       if (categoryFilter !== 'ALL') {
         const meta = getEventMeta(log.eventType, colors);
         if (meta.category !== categoryFilter) return false;
       }
       const logDate = new Date(log.createdAt);
       if (dateFilter === 'TODAY') return logDate.toDateString() === now.toDateString();
-      if (dateFilter === 'LAST_7') return logDate >= new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-      if (dateFilter === 'LAST_30') return logDate >= new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+      if (dateFilter === 'LAST_7')
+        return logDate >= new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+      if (dateFilter === 'LAST_30')
+        return logDate >= new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
       return true;
     });
   }, [logs, dateFilter, categoryFilter, colors]);
 
   const uniqueCategories = useMemo(() => {
     const categoriesSet = new Set<string>();
-    logs.forEach(l => {
+    logs.forEach((l) => {
       categoriesSet.add(getEventMeta(l.eventType, colors).category);
     });
     return Array.from(categoriesSet);
   }, [logs, colors]);
 
   const handleExport = async () => {
-    try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
     try {
-      const csvContent = filteredLogs.map(l => {
-        const payloadStr = typeof l.payload === 'string' ? l.payload : JSON.stringify(l.payload || {});
-        return `"${l.createdAt}","${EVENT_MAPPING[l.eventType] || l.eventType}","${l.deviceId}","${l.firmId || 'SYSTEM'}","${payloadStr.replace(/"/g, '""')}"`;
-      }).join('\n');
-      
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    } catch {}
+    try {
+      const csvContent = filteredLogs
+        .map((l) => {
+          const payloadStr =
+            typeof l.payload === 'string' ? l.payload : JSON.stringify(l.payload || {});
+          return `"${l.createdAt}","${EVENT_MAPPING[l.eventType] || l.eventType}","${
+            l.deviceId
+          }","${l.firmId || 'SYSTEM'}","${payloadStr.replace(/"/g, '""')}"`;
+        })
+        .join('\n');
+
       await Share.share({
         message: `Date & Time,Event Description,Device ID,Firm ID,Details\n${csvContent}`,
-        title: 'VJBilling_Audit_Log.csv'
+        title: 'VJBilling_Audit_Log.csv',
       });
     } catch (e) {
       console.error('[AuditLogScreen] Export failed:', e);
@@ -592,40 +648,75 @@ export default function AuditLogScreen() {
 
   const auditHeaderPills = (
     <View style={s.headerPillRow}>
-      <HeaderPill icon={<FileText size={12} color={colors.vjBg} />} label={`${filteredLogs.length} Records`} />
-      <HeaderPill icon={<CalendarClock size={12} color="#4ADE80" />} label={`${auditRetentionDays}-Day Retention`} variant="success" />
+      <HeaderPill
+        icon={<FileText size={12} color={colors.vjBg} />}
+        label={`${filteredLogs.length} Records`}
+      />
+      <HeaderPill
+        icon={<CalendarClock size={12} color="#4ADE80" />}
+        label={`${auditRetentionDays}-Day Retention`}
+        variant="success"
+      />
     </View>
   );
 
   return (
     <ToggleHandlerRef.Provider value={toggleHandlerRef}>
-      <TwoToneWrapper 
-        title="Audit Trail" 
-        showBack 
-        actionIcon={<Share2 size={20} color={colors.vjBg} />} 
-        onAction={handleExport} 
+      <TwoToneWrapper
+        title="Audit Trail"
+        showBack
+        actionIcon={<Share2 size={20} color={colors.vjBg} />}
+        onAction={handleExport}
         headerContent={auditHeaderPills}
       >
         <View style={s.container}>
-          
-          {/* FILTER BAR */}
           <View style={s.filterSection}>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 8 }}>
               <View style={s.filterRow}>
                 <View style={{ marginRight: 4 }}>
                   <Filter size={15} color={colors.vjText} style={{ opacity: 0.5 }} />
                 </View>
-                <FilterChip testID="audit-filter-date-all" label="All Time" active={dateFilter === 'ALL'} onPress={() => setDateFilter('ALL')} colors={colors} />
-                <FilterChip testID="audit-filter-date-today" label="Today" active={dateFilter === 'TODAY'} onPress={() => setDateFilter('TODAY')} colors={colors} />
-                <FilterChip testID="audit-filter-date-7d" label="Last 7 Days" active={dateFilter === 'LAST_7'} onPress={() => setDateFilter('LAST_7')} colors={colors} />
-                <FilterChip testID="audit-filter-date-30d" label="Last 30 Days" active={dateFilter === 'LAST_30'} onPress={() => setDateFilter('LAST_30')} colors={colors} />
+                <FilterChip
+                  testID="audit-filter-date-all"
+                  label="All Time"
+                  active={dateFilter === 'ALL'}
+                  onPress={() => setDateFilter('ALL')}
+                  colors={colors}
+                />
+                <FilterChip
+                  testID="audit-filter-date-today"
+                  label="Today"
+                  active={dateFilter === 'TODAY'}
+                  onPress={() => setDateFilter('TODAY')}
+                  colors={colors}
+                />
+                <FilterChip
+                  testID="audit-filter-date-7d"
+                  label="Last 7 Days"
+                  active={dateFilter === 'LAST_7'}
+                  onPress={() => setDateFilter('LAST_7')}
+                  colors={colors}
+                />
+                <FilterChip
+                  testID="audit-filter-date-30d"
+                  label="Last 30 Days"
+                  active={dateFilter === 'LAST_30'}
+                  onPress={() => setDateFilter('LAST_30')}
+                  colors={colors}
+                />
               </View>
             </ScrollView>
 
             <ScrollView horizontal showsHorizontalScrollIndicator={false}>
               <View style={s.filterRow}>
-                <FilterChip testID="audit-filter-cat-all" label="All Categories" active={categoryFilter === 'ALL'} onPress={() => setCategoryFilter('ALL')} colors={colors} />
-                {uniqueCategories.map(cat => (
+                <FilterChip
+                  testID="audit-filter-cat-all"
+                  label="All Categories"
+                  active={categoryFilter === 'ALL'}
+                  onPress={() => setCategoryFilter('ALL')}
+                  colors={colors}
+                />
+                {uniqueCategories.map((cat) => (
                   <FilterChip
                     testID={`audit-filter-cat-${cat.toLowerCase().replace(/\s+/g, '-')}`}
                     key={cat}
@@ -639,10 +730,9 @@ export default function AuditLogScreen() {
             </ScrollView>
           </View>
 
-          {/* AUDIT LOG LIST */}
           <FlatList
             data={filteredLogs}
-            keyExtractor={item => String(item.id)}
+            keyExtractor={(item) => String(item.id)}
             renderItem={({ item }) => (
               <AuditLogItem
                 itemId={String(item.id)}
@@ -651,7 +741,9 @@ export default function AuditLogScreen() {
                 itemDeviceId={String(item.deviceId)}
                 itemPayload={
                   item.payload
-                    ? (typeof item.payload === 'string' ? item.payload : JSON.stringify(item.payload))
+                    ? typeof item.payload === 'string'
+                      ? item.payload
+                      : JSON.stringify(item.payload)
                     : ''
                 }
                 isExpanded={expandedId === item.id}
@@ -660,10 +752,10 @@ export default function AuditLogScreen() {
                 colors={colors}
               />
             )}
-            contentContainerStyle={{ 
-              paddingHorizontal: 16, 
+            contentContainerStyle={{
+              paddingHorizontal: 16,
               paddingTop: 6,
-              paddingBottom: Math.max(insets.bottom + 40, 80) 
+              paddingBottom: Math.max(insets.bottom + 40, 80),
             }}
             showsVerticalScrollIndicator={false}
             ListEmptyComponent={
@@ -684,16 +776,16 @@ export default function AuditLogScreen() {
   );
 }
 
-function FilterChip({ 
-  label, 
-  active, 
+function FilterChip({
+  label,
+  active,
   onPress,
   colors,
   testID,
-}: { 
-  label: string; 
-  active: boolean; 
-  onPress: () => void; 
+}: {
+  label: string;
+  active: boolean;
+  onPress: () => void;
   colors: ReturnType<typeof getThemeColors>;
   testID?: string;
 }) {
@@ -704,17 +796,12 @@ function FilterChip({
       activeOpacity={0.8}
       style={[
         s.chipContainer,
-        active 
-          ? { backgroundColor: colors.vjText, borderColor: colors.vjText } 
-          : { backgroundColor: 'rgba(255, 255, 255, 0.75)', borderColor: `${colors.vjAccent}30` }
+        active
+          ? { backgroundColor: colors.vjText, borderColor: colors.vjText }
+          : { backgroundColor: 'rgba(255, 255, 255, 0.75)', borderColor: `${colors.vjAccent}30` },
       ]}
     >
-      <Text 
-        style={[
-          s.chipText,
-          active ? { color: colors.vjBg } : { color: colors.vjText }
-        ]}
-      >
+      <Text style={[s.chipText, active ? { color: colors.vjBg } : { color: colors.vjText }]}>
         {label}
       </Text>
     </TouchableOpacity>
@@ -722,10 +809,7 @@ function FilterChip({
 }
 
 const s = StyleSheet.create({
-  container: {
-    flex: 1,
-    marginTop: 4,
-  },
+  container: { flex: 1, marginTop: 4 },
   headerPillRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -733,42 +817,13 @@ const s = StyleSheet.create({
     flexWrap: 'wrap',
     marginTop: 4,
   },
-  filterSection: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    marginBottom: 4,
-  },
-  filterRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  chipContainer: {
-    paddingHorizontal: 14,
-    paddingVertical: 6,
-    borderRadius: 999,
-    borderWidth: 1,
-  },
-  chipText: {
-    fontSize: 12,
-    fontWeight: '700',
-  },
-  cardContainer: {
-    marginBottom: 12,
-    borderRadius: 18,
-    borderWidth: 1,
-  },
-  cardHeaderRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  cardHeaderLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flex: 1,
-    marginRight: 8,
-  },
+  filterSection: { paddingHorizontal: 16, paddingVertical: 8, marginBottom: 4 },
+  filterRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  chipContainer: { paddingHorizontal: 14, paddingVertical: 6, borderRadius: 999, borderWidth: 1 },
+  chipText: { fontSize: 12, fontWeight: '700' },
+  cardContainer: { marginBottom: 12, borderRadius: 18, borderWidth: 1 },
+  cardHeaderRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  cardHeaderLeft: { flexDirection: 'row', alignItems: 'center', flex: 1, marginRight: 8 },
   eventIconBox: {
     padding: 12,
     borderRadius: 16,
@@ -778,48 +833,19 @@ const s = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  categoryPillRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 3,
-  },
-  categoryPill: {
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 999,
-    borderWidth: 1,
-  },
+  categoryPillRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 3 },
+  categoryPill: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 999, borderWidth: 1 },
   categoryPillText: {
     fontWeight: '800',
     fontSize: 9,
     textTransform: 'uppercase',
     letterSpacing: 0.6,
   },
-  eventTitle: {
-    fontWeight: '800',
-    fontSize: 15.5,
-    letterSpacing: -0.2,
-  },
-  timestampRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    marginTop: 4,
-  },
-  timestampText: {
-    fontSize: 11.5,
-    fontWeight: '600',
-    opacity: 0.55,
-  },
-  chevronBox: {
-    padding: 8,
-    borderRadius: 999,
-  },
-  drawerContainer: {
-    marginTop: 14,
-    paddingTop: 14,
-    borderTopWidth: 1,
-  },
+  eventTitle: { fontWeight: '800', fontSize: 15.5, letterSpacing: -0.2 },
+  timestampRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4 },
+  timestampText: { fontSize: 11.5, fontWeight: '600', opacity: 0.55 },
+  chevronBox: { padding: 8, borderRadius: 999 },
+  drawerContainer: { marginTop: 14, paddingTop: 14, borderTopWidth: 1 },
   summaryBox: {
     backgroundColor: 'rgba(255, 255, 255, 0.8)',
     padding: 14,
@@ -835,11 +861,7 @@ const s = StyleSheet.create({
     marginBottom: 4,
     opacity: 0.5,
   },
-  summaryText: {
-    fontWeight: '600',
-    fontSize: 13,
-    lineHeight: 19,
-  },
+  summaryText: { fontWeight: '600', fontSize: 13, lineHeight: 19 },
   particularsBox: {
     backgroundColor: 'rgba(255, 255, 255, 0.6)',
     padding: 12,
@@ -864,19 +886,8 @@ const s = StyleSheet.create({
     borderBottomWidth: 1,
     paddingHorizontal: 4,
   },
-  particularKey: {
-    fontWeight: '600',
-    fontSize: 12,
-    flex: 1,
-    marginRight: 8,
-    opacity: 0.65,
-  },
-  particularVal: {
-    fontWeight: '800',
-    fontSize: 12,
-    textAlign: 'right',
-    flex: 1,
-  },
+  particularKey: { fontWeight: '600', fontSize: 12, flex: 1, marginRight: 8, opacity: 0.65 },
+  particularVal: { fontWeight: '800', fontSize: 12, textAlign: 'right', flex: 1 },
   deviceBadgeBox: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -887,16 +898,8 @@ const s = StyleSheet.create({
     borderRadius: 12,
     borderWidth: 1,
   },
-  deviceBadgeLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  deviceText: {
-    fontWeight: '600',
-    fontSize: 11.5,
-    opacity: 0.7,
-  },
+  deviceBadgeLeft: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  deviceText: { fontWeight: '600', fontSize: 11.5, opacity: 0.7 },
   refNumber: {
     fontWeight: '800',
     fontSize: 10,
@@ -912,18 +915,7 @@ const s = StyleSheet.create({
     borderRadius: 24,
     borderWidth: 1,
   },
-  emptyIconCircle: {
-    marginBottom: 12,
-  },
-  emptyTitle: {
-    textAlign: 'center',
-    fontWeight: '800',
-    fontSize: 17,
-  },
-  emptySubtitle: {
-    textAlign: 'center',
-    fontSize: 13,
-    marginTop: 4,
-    opacity: 0.6,
-  },
+  emptyIconCircle: { marginBottom: 12 },
+  emptyTitle: { textAlign: 'center', fontWeight: '800', fontSize: 17 },
+  emptySubtitle: { textAlign: 'center', fontSize: 13, marginTop: 4, opacity: 0.6 },
 });

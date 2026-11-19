@@ -62,6 +62,10 @@ beforeAll(async () => {
     phone2 TEXT, phone3 TEXT, is_archived INTEGER NOT NULL DEFAULT 0, is_active INTEGER NOT NULL DEFAULT 0,
     created_at TEXT NOT NULL, updated_at TEXT NOT NULL
   )`);
+  await _rawClient.execute(`CREATE TRIGGER IF NOT EXISTS prevent_firm_code_update BEFORE UPDATE OF firm_code ON firms
+    FOR EACH ROW BEGIN
+      SELECT RAISE(ABORT, 'FIRM_CODE_IMMUTABLE');
+    END;`);
   await _rawClient.execute(`CREATE TABLE IF NOT EXISTS financial_years (
     id TEXT PRIMARY KEY, firm_id TEXT NOT NULL, label TEXT NOT NULL, start_date TEXT NOT NULL,
     end_date TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'ACTIVE', created_at TEXT NOT NULL
@@ -167,8 +171,12 @@ describe('Backup & Restore Reinstall Recovery', () => {
     // Read the created backup file content
     const backupContent = await FileSystem.readAsStringAsync(result.filePath, { encoding: 'utf8' as any });
     const envelope = JSON.parse(backupContent);
-    expect(envelope.deviceId).toBe(deviceIdBefore);
+    // FIX-V740-1: Plaintext outer envelope carries NO deviceId; deviceId is encrypted inside payload
+    expect(envelope.deviceId).toBeUndefined();
     expect(envelope.passwordProtected).toBe(false);
+
+    const preview = await restoreService.previewBackup(backupContent);
+    expect(preview.deviceId).toBe(deviceIdBefore);
 
     // 2. Simulate app data clear & reinstall by wiping MMKV device ID storage key
     storage.delete('vjbilling_device_id');

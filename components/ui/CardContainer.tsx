@@ -1,7 +1,6 @@
 // components/ui/CardContainer.tsx — Centralized Card Container Design System for VJ Billing
 // Purpose: Unified single source of truth for all card containers across all screens and hubs.
 // Note: Android HWUI safe — zero shadow/elevation to prevent black rectangular clipping artifacts.
-// Visual Architecture: Translucent Frosted Glass with Crisp 4-Sided Jewel Gold Borders, Spacious Luxury Sizing, and High-Definition Clarity.
 
 import React from 'react';
 import { View, Text, TouchableOpacity, ViewProps, ViewStyle, StyleSheet, Platform } from 'react-native';
@@ -13,7 +12,6 @@ import { appSettingsStore } from '@/store/phase1/appSettingsStore';
 
 // ============================================================================
 // 1. BASE GLASS CARD CONTAINER
-// Foundational translucent glassmorphism container with crisp uniform Android-safe borders.
 // ============================================================================
 export interface GlassCardProps extends ViewProps {
   children: React.ReactNode;
@@ -41,15 +39,12 @@ export function GlassCard({
 
   const flatStyle: ViewStyle = StyleSheet.flatten(style) || {};
 
-  // Extract padding, borders, and background color for the frosted glass layer
   const effectiveBg = flatStyle.backgroundColor || backgroundColor || defaultBg;
   const effectiveBorderColor = flatStyle.borderColor || borderColor || defaultBorder;
   const effectiveBorderWidth = flatStyle.borderWidth !== undefined ? flatStyle.borderWidth : 1.2;
   const effectivePadding = flatStyle.padding !== undefined ? flatStyle.padding : contentPadding;
-
   const isFixedSize = flatStyle.height !== undefined || flatStyle.flex !== undefined;
 
-  // Outer container handles positioning, margins, dimensions, and rounded border clipping
   const outerStyle: ViewStyle = {
     borderRadius: rounded,
     borderWidth: effectiveBorderWidth,
@@ -70,7 +65,6 @@ export function GlassCard({
     ...(flatStyle.alignSelf !== undefined ? { alignSelf: flatStyle.alignSelf } : {}),
   };
 
-  // Inner BlurView handles the frosted translucent glass backdrop and internal content padding
   const innerStyle: ViewStyle = {
     width: '100%',
     padding: effectivePadding,
@@ -100,7 +94,6 @@ export function GlassCard({
 
 // ============================================================================
 // 2. MENU TILE (2-Column Grid Navigation Card)
-// Used in Dashboard and Hub screens (e.g. Inventory Hub, Reports).
 // ============================================================================
 export interface MenuTileProps {
   title: string;
@@ -140,6 +133,151 @@ export function MenuTile({
   const hasAlert = alertCount !== undefined && alertCount > 0;
   const isDashboard = variant === 'dashboard';
 
+  const topRow = (
+    <View
+      style={{
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        ...(isDashboard ? { marginBottom: 12 } : {}),
+      }}
+    >
+      <View style={{ position: 'relative' }}>
+        <View
+          style={{
+            padding: isDashboard ? 10 : 11,
+            borderRadius: isDashboard ? 16 : 18,
+            borderWidth: 1.5,
+            borderColor: 'rgba(255, 255, 255, 0.95)',
+            alignItems: 'center',
+            justifyContent: 'center',
+            backgroundColor: iconBg,
+          }}
+        >
+          {icon}
+        </View>
+        {hasAlert && (
+          <View
+            style={{
+              position: 'absolute',
+              top: -4,
+              right: -4,
+              backgroundColor: '#EF4444',
+              borderRadius: 10,
+              minWidth: 18,
+              height: 18,
+              justifyContent: 'center',
+              alignItems: 'center',
+              paddingHorizontal: 4,
+              borderWidth: 1.5,
+              borderColor: '#FFFFFF',
+            }}
+          >
+            <Text style={{ color: '#FFFFFF', fontSize: 9, fontWeight: '900' }}>
+              {alertCount > 99 ? '99+' : alertCount}
+            </Text>
+          </View>
+        )}
+      </View>
+
+      {badgeText ? (
+        <View
+          style={{
+            flexDirection: 'row',
+            alignItems: 'center',
+            paddingHorizontal: 8,
+            paddingVertical: 2.5,
+            borderRadius: 999,
+            borderWidth: 1,
+            backgroundColor: hasAlert
+              ? 'rgba(245, 158, 11, 0.2)'
+              : badgeVariant === 'active'
+                ? 'rgba(16, 185, 129, 0.12)'
+                : 'rgba(0, 0, 0, 0.05)',
+            borderColor: hasAlert
+              ? 'rgba(245, 158, 11, 0.4)'
+              : badgeVariant === 'active'
+                ? 'rgba(16, 185, 129, 0.25)'
+                : 'rgba(0, 0, 0, 0.10)',
+          }}
+        >
+          {badgeVariant === 'active' && (
+            <View
+              style={{
+                width: 5,
+                height: 5,
+                borderRadius: 2.5,
+                backgroundColor: '#10B981',
+                marginRight: 4,
+              }}
+            />
+          )}
+          <Text
+            style={{
+              fontSize: 8.5,
+              fontWeight: '900',
+              textTransform: 'uppercase',
+              letterSpacing: 0.8,
+              color: hasAlert
+                ? '#B45309'
+                : badgeVariant === 'active'
+                  ? '#047857'
+                  : `${colors.vjText}99`,
+            }}
+          >
+            {badgeText}
+          </Text>
+        </View>
+      ) : null}
+    </View>
+  );
+
+  const titleBlock = (
+    <>
+      <Text
+        style={{
+          color: colors.vjText,
+          fontWeight: '900',
+          fontSize: 16,
+          lineHeight: 20,
+          marginBottom: 2,
+        }}
+        numberOfLines={2}
+      >
+        {title}
+      </Text>
+      {subtitle ? (
+        <Text
+          style={{
+            color: `${colors.vjText}8C`,
+            fontSize: 10,
+            fontWeight: '800',
+            textTransform: 'uppercase',
+            letterSpacing: 0.5,
+          }}
+          numberOfLines={1}
+        >
+          {subtitle}
+        </Text>
+      ) : null}
+    </>
+  );
+
+  const chevronBadge = !disabled ? (
+    <View
+      style={{
+        padding: 4,
+        borderRadius: 999,
+        backgroundColor: 'rgba(212, 175, 55, 0.12)',
+        borderWidth: 1,
+        borderColor: 'rgba(212, 175, 55, 0.30)',
+        ...(!isDashboard ? { marginBottom: 2 } : {}),
+      }}
+    >
+      <ChevronRight size={13} color="#D4AF37" />
+    </View>
+  ) : null;
+
   return (
     <View style={[{ width: '48%' }, containerStyle]}>
       <TouchableOpacity
@@ -148,7 +286,7 @@ export function MenuTile({
         onPress={() => {
           try {
             Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-          } catch (e) {}
+          } catch {}
           if (onPress) onPress();
         }}
         activeOpacity={0.8}
@@ -162,289 +300,42 @@ export function MenuTile({
             borderWidth: hasAlert ? 1.5 : 1.2,
             backgroundColor: hasAlert
               ? 'rgba(254, 243, 199, 0.85)'
-              : (cardBg || (activeTheme === 'dark' ? 'rgba(28, 20, 24, 0.86)' : 'rgba(255, 255, 255, 0.86)')),
+              : cardBg ||
+                (activeTheme === 'dark'
+                  ? 'rgba(28, 20, 24, 0.86)'
+                  : 'rgba(255, 255, 255, 0.86)'),
             padding: 14,
           }}
         >
           {isDashboard ? (
             <View style={{ flex: 1, justifyContent: 'space-between' }}>
-              {/* Upper Section: Icon, Badge, and Title grouped close together */}
               <View>
-                {/* Top Row: Icon & Status Badge */}
-                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-                  <View style={{ position: 'relative' }}>
-                    <View
-                      style={{
-                        padding: 10,
-                        borderRadius: 16,
-                        borderWidth: 1.5,
-                        borderColor: 'rgba(255, 255, 255, 0.95)',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        backgroundColor: iconBg,
-                      }}
-                    >
-                      {icon}
-                    </View>
-                    {hasAlert && (
-                      <View
-                        style={{
-                          position: 'absolute',
-                          top: -4,
-                          right: -4,
-                          backgroundColor: '#EF4444',
-                          borderRadius: 10,
-                          minWidth: 18,
-                          height: 18,
-                          justifyContent: 'center',
-                          alignItems: 'center',
-                          paddingHorizontal: 4,
-                          borderWidth: 1.5,
-                          borderColor: '#FFFFFF',
-                        }}
-                      >
-                        <Text style={{ color: '#FFFFFF', fontSize: 9, fontWeight: '900' }}>
-                          {alertCount > 99 ? '99+' : alertCount}
-                        </Text>
-                      </View>
-                    )}
-                  </View>
-
-                  {badgeText ? (
-                    <View
-                      style={{
-                        flexDirection: 'row',
-                        alignItems: 'center',
-                        paddingHorizontal: 8,
-                        paddingVertical: 2.5,
-                        borderRadius: 999,
-                        borderWidth: 1,
-                        backgroundColor: hasAlert
-                          ? 'rgba(245, 158, 11, 0.2)'
-                          : badgeVariant === 'active'
-                          ? 'rgba(16, 185, 129, 0.12)'
-                          : 'rgba(0, 0, 0, 0.05)',
-                        borderColor: hasAlert
-                          ? 'rgba(245, 158, 11, 0.4)'
-                          : badgeVariant === 'active'
-                          ? 'rgba(16, 185, 129, 0.25)'
-                          : 'rgba(0, 0, 0, 0.10)',
-                      }}
-                    >
-                      {badgeVariant === 'active' && (
-                        <View
-                          style={{
-                            width: 5,
-                            height: 5,
-                            borderRadius: 2.5,
-                            backgroundColor: '#10B981',
-                            marginRight: 4,
-                          }}
-                        />
-                      )}
-                      <Text
-                        style={{
-                          fontSize: 8.5,
-                          fontWeight: '900',
-                          textTransform: 'uppercase',
-                          letterSpacing: 0.8,
-                          color: hasAlert
-                            ? '#B45309'
-                            : badgeVariant === 'active'
-                            ? '#047857'
-                            : `${colors.vjText}99`,
-                        }}
-                      >
-                        {badgeText}
-                      </Text>
-                    </View>
-                  ) : null}
-                </View>
-
-                {/* Title & Subtitle sitting directly in close proximity to the icon */}
-                <Text
-                  style={{
-                    color: colors.vjText,
-                    fontWeight: '900',
-                    fontSize: 16,
-                    lineHeight: 20,
-                    marginBottom: 2,
-                  }}
-                  numberOfLines={2}
-                >
-                  {title}
-                </Text>
-                {subtitle ? (
-                  <Text
-                    style={{
-                      color: `${colors.vjText}8C`,
-                      fontSize: 10,
-                      fontWeight: '800',
-                      textTransform: 'uppercase',
-                      letterSpacing: 0.5,
-                    }}
-                    numberOfLines={1}
-                  >
-                    {subtitle}
-                  </Text>
-                ) : null}
+                {topRow}
+                {titleBlock}
               </View>
-
-              {/* Bottom Row: Micro-Navigation Indicator at bottom right */}
-              <View style={{ flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center', minHeight: 18 }}>
-                {!disabled && (
-                  <View
-                    style={{
-                      padding: 4,
-                      borderRadius: 999,
-                      backgroundColor: 'rgba(212, 175, 55, 0.12)',
-                      borderWidth: 1,
-                      borderColor: 'rgba(212, 175, 55, 0.30)',
-                    }}
-                  >
-                    <ChevronRight size={13} color="#D4AF37" />
-                  </View>
-                )}
+              <View
+                style={{
+                  flexDirection: 'row',
+                  justifyContent: 'flex-end',
+                  alignItems: 'center',
+                  minHeight: 18,
+                }}
+              >
+                {chevronBadge}
               </View>
             </View>
           ) : (
             <View style={{ flex: 1, justifyContent: 'space-between', paddingBottom: 4 }}>
-              {/* Top Row: Icon & Status Badge */}
-              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-                <View style={{ position: 'relative' }}>
-                  <View
-                    style={{
-                      padding: 11,
-                      borderRadius: 18,
-                      borderWidth: 1.5,
-                      borderColor: 'rgba(255, 255, 255, 0.95)',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      backgroundColor: iconBg,
-                    }}
-                  >
-                    {icon}
-                  </View>
-                  {hasAlert && (
-                    <View
-                      style={{
-                        position: 'absolute',
-                        top: -4,
-                        right: -4,
-                        backgroundColor: '#EF4444',
-                        borderRadius: 10,
-                        minWidth: 18,
-                        height: 18,
-                        justifyContent: 'center',
-                        alignItems: 'center',
-                        paddingHorizontal: 4,
-                        borderWidth: 1.5,
-                        borderColor: '#FFFFFF',
-                      }}
-                    >
-                      <Text style={{ color: '#FFFFFF', fontSize: 9, fontWeight: '900' }}>
-                        {alertCount > 99 ? '99+' : alertCount}
-                      </Text>
-                    </View>
-                  )}
-                </View>
-
-                {badgeText ? (
-                  <View
-                    style={{
-                      flexDirection: 'row',
-                      alignItems: 'center',
-                      paddingHorizontal: 8,
-                      paddingVertical: 2.5,
-                      borderRadius: 999,
-                      borderWidth: 1,
-                      backgroundColor: hasAlert
-                        ? 'rgba(245, 158, 11, 0.2)'
-                        : badgeVariant === 'active'
-                        ? 'rgba(16, 185, 129, 0.12)'
-                        : 'rgba(0, 0, 0, 0.05)',
-                      borderColor: hasAlert
-                        ? 'rgba(245, 158, 11, 0.4)'
-                        : badgeVariant === 'active'
-                        ? 'rgba(16, 185, 129, 0.25)'
-                        : 'rgba(0, 0, 0, 0.10)',
-                    }}
-                  >
-                    {badgeVariant === 'active' && (
-                      <View
-                        style={{
-                          width: 5,
-                          height: 5,
-                          borderRadius: 2.5,
-                          backgroundColor: '#10B981',
-                          marginRight: 4,
-                        }}
-                      />
-                    )}
-                    <Text
-                      style={{
-                        fontSize: 8.5,
-                        fontWeight: '900',
-                        textTransform: 'uppercase',
-                        letterSpacing: 0.8,
-                        color: hasAlert
-                          ? '#B45309'
-                          : badgeVariant === 'active'
-                          ? '#047857'
-                          : `${colors.vjText}99`,
-                      }}
-                    >
-                      {badgeText}
-                    </Text>
-                  </View>
-                ) : null}
-              </View>
-
-              {/* Bottom Row: Title, Subtitle, and Micro-Navigation Indicator */}
-              <View style={{ flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between' }}>
-                <View style={{ flex: 1, paddingRight: 4, marginTop: 4 }}>
-                  <Text
-                    style={{
-                      color: colors.vjText,
-                      fontWeight: '900',
-                      fontSize: 16,
-                      lineHeight: 20,
-                      marginBottom: 2,
-                    }}
-                    numberOfLines={2}
-                  >
-                    {title}
-                  </Text>
-                  {subtitle ? (
-                    <Text
-                      style={{
-                        color: `${colors.vjText}8C`,
-                        fontSize: 10,
-                        fontWeight: '800',
-                        textTransform: 'uppercase',
-                        letterSpacing: 0.5,
-                      }}
-                      numberOfLines={1}
-                    >
-                      {subtitle}
-                    </Text>
-                  ) : null}
-                </View>
-
-                {!disabled && (
-                  <View
-                    style={{
-                      padding: 4,
-                      borderRadius: 999,
-                      backgroundColor: 'rgba(212, 175, 55, 0.12)',
-                      borderWidth: 1,
-                      borderColor: 'rgba(212, 175, 55, 0.30)',
-                      marginBottom: 2,
-                    }}
-                  >
-                    <ChevronRight size={13} color="#D4AF37" />
-                  </View>
-                )}
+              {topRow}
+              <View
+                style={{
+                  flexDirection: 'row',
+                  alignItems: 'flex-end',
+                  justifyContent: 'space-between',
+                }}
+              >
+                <View style={{ flex: 1, paddingRight: 4, marginTop: 4 }}>{titleBlock}</View>
+                {chevronBadge}
               </View>
             </View>
           )}
@@ -456,7 +347,6 @@ export function MenuTile({
 
 // ============================================================================
 // 3. LIST TILE CARD (Full-Width Horizontal Row Navigation Card)
-// Canonical card for Settings, Master lists, and Module links.
 // ============================================================================
 export interface ListTileCardProps {
   title: string;
@@ -487,15 +377,30 @@ export function ListTileCard({
       onPress={() => {
         try {
           Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-        } catch (e) {}
+        } catch {}
         if (onPress) onPress();
       }}
       disabled={disabled}
       activeOpacity={0.7}
       style={{ marginBottom: 12 }}
     >
-      <GlassCard style={{ paddingVertical: 14, paddingHorizontal: 16, borderWidth: 1.2, borderColor, marginBottom: 0 }}>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14, opacity: disabled ? 0.5 : 1 }}>
+      <GlassCard
+        style={{
+          paddingVertical: 14,
+          paddingHorizontal: 16,
+          borderWidth: 1.2,
+          borderColor,
+          marginBottom: 0,
+        }}
+      >
+        <View
+          style={{
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: 14,
+            opacity: disabled ? 0.5 : 1,
+          }}
+        >
           <View
             style={{
               backgroundColor: iconBg,
@@ -510,15 +415,21 @@ export function ListTileCard({
             {icon}
           </View>
           <View style={{ flex: 1, minWidth: 0 }}>
-            <Text 
+            <Text
               style={{ color: colors.vjText, fontWeight: '800', fontSize: 16, lineHeight: 21 }}
               numberOfLines={2}
             >
               {title}
             </Text>
             {subtitle ? (
-              <Text 
-                style={{ color: `${colors.vjText}99`, fontSize: 12, fontWeight: '600', marginTop: 2, lineHeight: 16 }}
+              <Text
+                style={{
+                  color: `${colors.vjText}99`,
+                  fontSize: 12,
+                  fontWeight: '600',
+                  marginTop: 2,
+                  lineHeight: 16,
+                }}
                 numberOfLines={2}
               >
                 {subtitle}
@@ -528,10 +439,10 @@ export function ListTileCard({
           {rightElement ? (
             rightElement
           ) : (
-            <View 
-              style={{ 
-                padding: 7, 
-                borderRadius: 999, 
+            <View
+              style={{
+                padding: 7,
+                borderRadius: 999,
                 backgroundColor: 'rgba(212, 175, 55, 0.10)',
                 borderWidth: 1,
                 borderColor: 'rgba(212, 175, 55, 0.30)',
@@ -552,7 +463,6 @@ export type GlassSettingsTileProps = ListTileCardProps;
 
 // ============================================================================
 // 4. BANNER CARD (Featured Hero / Highlight Banner Card)
-// Used for Metal Master in Inventory Hub, Firm Switcher, and Featured Banners.
 // ============================================================================
 export interface BannerCardProps {
   title: string;
@@ -658,7 +568,7 @@ export function BannerCard({
         onPress={() => {
           try {
             Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-          } catch (e) {}
+          } catch {}
           onPress();
         }}
         style={{ marginBottom: 16 }}
@@ -673,7 +583,6 @@ export function BannerCard({
 
 // ============================================================================
 // 5. FORM SECTION CARD (Grouped Form Field Container)
-// Used in multi-field forms like Add Stock, Bulk Add, Create Firm, Firm Edit.
 // ============================================================================
 export interface FormSectionCardProps {
   title?: string;
@@ -698,15 +607,34 @@ export function FormSectionCard({
   const colors = getThemeColors(activeTheme);
 
   return (
-    <GlassCard style={[{ padding: 18, marginBottom: 16, borderWidth: 1.2, borderColor: borderColor || 'rgba(212, 175, 55, 0.45)' }, style]}>
+    <GlassCard
+      style={[
+        {
+          padding: 18,
+          marginBottom: 16,
+          borderWidth: 1.2,
+          borderColor: borderColor || 'rgba(212, 175, 55, 0.45)',
+        },
+        style,
+      ]}
+    >
       {title ? (
-        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+        <View
+          style={{
+            flexDirection: 'row',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            marginBottom: 14,
+          }}
+        >
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
             {icon ? <View style={{ marginRight: 2 }}>{icon}</View> : null}
             <View>
               <Text style={{ fontSize: 16, fontWeight: '900', color: colors.vjText }}>{title}</Text>
               {subtitle ? (
-                <Text style={{ fontSize: 11.5, color: `${colors.vjText}99`, marginTop: 1 }}>{subtitle}</Text>
+                <Text style={{ fontSize: 11.5, color: `${colors.vjText}99`, marginTop: 1 }}>
+                  {subtitle}
+                </Text>
               ) : null}
             </View>
           </View>
@@ -721,7 +649,14 @@ export function FormSectionCard({
                 borderColor: 'rgba(212, 175, 55, 0.40)',
               }}
             >
-              <Text style={{ fontSize: 8.5, fontWeight: '900', color: '#92400E', textTransform: 'uppercase' }}>
+              <Text
+                style={{
+                  fontSize: 8.5,
+                  fontWeight: '900',
+                  color: '#92400E',
+                  textTransform: 'uppercase',
+                }}
+              >
                 {badgeText}
               </Text>
             </View>
@@ -735,7 +670,6 @@ export function FormSectionCard({
 
 // ============================================================================
 // 6. STAT CARD (Compact Metric KPI Card)
-// Used in Ledgers, Stock Summaries, and Dashboard KPI rows.
 // ============================================================================
 export interface StatCardProps {
   label: string;
@@ -762,8 +696,23 @@ export function StatCard({
 
   return (
     <GlassCard style={[{ padding: 14, borderWidth: 1.2, borderColor, flex: 1 }, style]}>
-      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
-        <Text style={{ fontSize: 10.5, fontWeight: '800', color: `${colors.vjText}99`, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+      <View
+        style={{
+          flexDirection: 'row',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          marginBottom: 6,
+        }}
+      >
+        <Text
+          style={{
+            fontSize: 10.5,
+            fontWeight: '800',
+            color: `${colors.vjText}99`,
+            textTransform: 'uppercase',
+            letterSpacing: 0.5,
+          }}
+        >
           {label}
         </Text>
         {icon}
@@ -782,8 +731,6 @@ export function StatCard({
 
 // ============================================================================
 // 7. LIVE MATH BREAKDOWN CARD (Jewelry Formula Transparency)
-// Displays crystal-clear calculation steps (e.g. Gross - Stone = Net Wt)
-// or (Base + Making + GST = Total) with intuitive sign pill tags.
 // ============================================================================
 export interface MathStepItem {
   label: string;
@@ -828,7 +775,14 @@ export function LiveMathBreakdownCard({
       ]}
     >
       {title ? (
-        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+        <View
+          style={{
+            flexDirection: 'row',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            marginBottom: 12,
+          }}
+        >
           <Text
             style={{
               fontSize: 11.5,
@@ -843,7 +797,6 @@ export function LiveMathBreakdownCard({
         </View>
       ) : null}
 
-      {/* Steps List */}
       <View style={{ gap: 8 }}>
         {steps.map((step, idx) => (
           <View
@@ -864,29 +817,19 @@ export function LiveMathBreakdownCard({
                     width: 20,
                     height: 20,
                     borderRadius: 10,
-                    backgroundColor: isDark ? 'rgba(255, 255, 255, 0.12)' : 'rgba(212, 175, 55, 0.18)',
+                    backgroundColor: isDark
+                      ? 'rgba(255, 255, 255, 0.12)'
+                      : 'rgba(212, 175, 55, 0.18)',
                     alignItems: 'center',
                     justifyContent: 'center',
                   }}
                 >
-                  <Text
-                    style={{
-                      fontSize: 11,
-                      fontWeight: '900',
-                      color: colors.vjText,
-                    }}
-                  >
+                  <Text style={{ fontSize: 11, fontWeight: '900', color: colors.vjText }}>
                     {step.operator}
                   </Text>
                 </View>
               ) : null}
-              <Text
-                style={{
-                  fontSize: 13.5,
-                  fontWeight: '600',
-                  color: `${colors.vjText}B3`,
-                }}
-              >
+              <Text style={{ fontSize: 13.5, fontWeight: '600', color: `${colors.vjText}B3` }}>
                 {step.label}
               </Text>
             </View>
@@ -901,13 +844,7 @@ export function LiveMathBreakdownCard({
                 {step.value}
               </Text>
               {step.unit ? (
-                <Text
-                  style={{
-                    fontSize: 11,
-                    fontWeight: '600',
-                    color: `${colors.vjText}80`,
-                  }}
-                >
+                <Text style={{ fontSize: 11, fontWeight: '600', color: `${colors.vjText}80` }}>
                   {step.unit}
                 </Text>
               ) : null}
@@ -916,7 +853,6 @@ export function LiveMathBreakdownCard({
         ))}
       </View>
 
-      {/* Result Section */}
       <View
         style={{
           marginTop: 12,
@@ -940,23 +876,11 @@ export function LiveMathBreakdownCard({
           {resultLabel}
         </Text>
         <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 4 }}>
-          <Text
-            style={{
-              fontSize: 18,
-              fontWeight: '900',
-              color: colors.vjAccent,
-            }}
-          >
+          <Text style={{ fontSize: 18, fontWeight: '900', color: colors.vjAccent }}>
             {resultValue}
           </Text>
           {resultUnit ? (
-            <Text
-              style={{
-                fontSize: 12,
-                fontWeight: '700',
-                color: `${colors.vjText}99`,
-              }}
-            >
+            <Text style={{ fontSize: 12, fontWeight: '700', color: `${colors.vjText}99` }}>
               {resultUnit}
             </Text>
           ) : null}
@@ -968,7 +892,6 @@ export function LiveMathBreakdownCard({
 
 // ============================================================================
 // 8. METRIC BADGE ROW (Showroom Quick Attribute Chips)
-// Displays a row of metadata chips (e.g. Purity, HUID, Weight, Stones)
 // ============================================================================
 export interface MetricChipItem {
   label: string;
@@ -995,11 +918,19 @@ export function MetricBadgeRow({ chips }: { chips: MetricChipItem[] }) {
             borderRadius: 10,
             borderWidth: 1,
             backgroundColor: chip.highlight
-              ? (isDark ? 'rgba(212, 175, 55, 0.20)' : 'rgba(212, 175, 55, 0.15)')
-              : (isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.04)'),
+              ? isDark
+                ? 'rgba(212, 175, 55, 0.20)'
+                : 'rgba(212, 175, 55, 0.15)'
+              : isDark
+                ? 'rgba(255, 255, 255, 0.08)'
+                : 'rgba(0, 0, 0, 0.04)',
             borderColor: chip.highlight
-              ? (isDark ? 'rgba(212, 175, 55, 0.45)' : 'rgba(212, 175, 55, 0.40)')
-              : (isDark ? 'rgba(255, 255, 255, 0.12)' : 'rgba(0, 0, 0, 0.08)'),
+              ? isDark
+                ? 'rgba(212, 175, 55, 0.45)'
+                : 'rgba(212, 175, 55, 0.40)'
+              : isDark
+                ? 'rgba(255, 255, 255, 0.12)'
+                : 'rgba(0, 0, 0, 0.08)',
           }}
         >
           <Text
@@ -1027,4 +958,3 @@ export function MetricBadgeRow({ chips }: { chips: MetricChipItem[] }) {
     </View>
   );
 }
-

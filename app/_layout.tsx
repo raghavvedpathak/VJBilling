@@ -1,56 +1,28 @@
 /* eslint-disable no-restricted-imports */
 // ================================================================
-// app/_layout.tsx — Phase 1 v7.47 & Phase 2 Canonical Layout & Bootloader
+// app/_layout.tsx — Phase 1 v8.0 & Phase 2–4 Canonical Layout & Bootloader
 // Call Order (FIX-V741-3): 1. assertCryptoAvailable() -> 2. PIN Gate -> 3. Step 0 Snapshot -> 4. Bootstrap
-// Implements FIX-VSEC-3, FIX-VSEC-12, FIX-V729-1/2, FIX-V741-1..3, FIX-V7411-3/13, FIX-V744-12, FIX-V745-4, FIX-V747-2
+// Implements FIX-VSEC-3, FIX-VSEC-12, FIX-V729-1/2, FIX-V741-1..3, FIX-V7411-13, FIX-V745-4
 // ================================================================
 
 import { useEffect, useState, useRef } from 'react';
 import { Stack, router } from 'expo-router';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import {
-  View,
-  Text,
-  ActivityIndicator,
-  StatusBar,
-  LogBox,
-  TouchableOpacity,
-  Alert,
-  Linking,
-  Modal,
-  TextInput,
-  StyleSheet,
-} from 'react-native';
-
-import * as FileSystem from 'expo-file-system/legacy';
-import * as Sharing from 'expo-sharing';
+import { View, Text, ActivityIndicator, StatusBar, LogBox, StyleSheet } from 'react-native';
 import * as Notifications from 'expo-notifications';
-import quickCrypto, { Buffer } from 'react-native-quick-crypto';
 
 import { useDatabase } from '@/db/client';
-import {
-  bootstrapService,
-  PRE_MIGRATION_SNAPSHOT_PATH,
-} from '@/services/phase1/bootstrapService';
-import { performFactoryResetFiles } from '@/services/phase1/factoryResetService';
-import { registerAutoBackupTask } from '@/services/phase1/autoBackupService';
-import {
-  initBackupNotifications,
-  rescheduleOverdueReminder,
-} from '@/services/phase1/backupNotificationService';
-import { assertCryptoAvailable, decryptSnapshot } from '@/utils/backupCrypto';
-import { getDeviceDerivedKeyMaterial } from '@/utils/deviceKey';
-import { storage } from '@/utils/storage';
-import { AB_KEYS } from '@/constants';
+import { bootstrapService } from '@/services/phase1/bootstrapService';
+import { assertCryptoAvailable } from '@/utils/backupCrypto';
 import './global.css';
-import { AlertTriangle, Download, LifeBuoy, ShieldOff, Trash2 } from 'lucide-react-native';
+import { ShieldOff } from 'lucide-react-native';
 
 import { ThemeProvider, DefaultTheme } from '@react-navigation/native';
 import { PinGate } from '@/components/phase1/PinGate';
 import { isPinSet, isPinSkipped } from '@/services/phase1/pinService';
+import DatabaseErrorScreen from './database-error';
 
 import { appSettingsStore } from '@/store/phase1/appSettingsStore';
-import { useFirmStore } from '@/store/phase1/useFirmStore';
 import { getThemeColors } from '@/constants/theme';
 
 LogBox.ignoreLogs([
@@ -68,6 +40,13 @@ type BootstrapResult =
   | 'DATABASE_ERROR'
   | 'DASHBOARD_WARNING'
   | null;
+
+const BACKUP_NOTIF_KINDS = new Set([
+  'BACKUP_OVERDUE',
+  'BACKUP_FAILED',
+  'BACKUP_DONE',
+  'BACKUP_MISSED',
+]);
 
 export default function RootLayout() {
   const activeTheme = appSettingsStore((s: any) => s.theme);
@@ -96,9 +75,7 @@ function RootBootloader({ colors }: { colors: any }) {
   const [cryptoErrorMsg, setCryptoErrorMsg] = useState<string | null>(null);
 
   // 1. Step 16 Flow: PIN Gate evaluated after crypto preflight, BEFORE Step 0 Snapshot
-  const [pinPassed, setPinPassed] = useState<boolean>(() => {
-    return !isPinSet() && isPinSkipped();
-  });
+  const [pinPassed, setPinPassed] = useState<boolean>(() => !isPinSet() && isPinSkipped());
 
   const [snapshotDone, setSnapshotDone] = useState(false);
   // Gated: database migrations strictly execute AFTER crypto + PIN + Step 0 snapshot complete
@@ -106,7 +83,6 @@ function RootBootloader({ colors }: { colors: any }) {
     cryptoState === 'OK' && pinPassed && snapshotDone
   );
   const [bootstrapResult, setBootstrapResult] = useState<BootstrapResult>(null);
-  const [dbMigrationError, setDbMigrationError] = useState<string | null>(null);
   const pendingNotificationRouteRef = useRef<string | null>(null);
 
   const [hasMounted, setHasMounted] = useState(false);
@@ -132,29 +108,36 @@ function RootBootloader({ colors }: { colors: any }) {
     };
   }, []);
 
-  // Listen for local backup notification taps (FIX-V745-4: routes to /settings/backup-restore after bootstrapComplete)
+  // FIX-V745-4: Handle both cold-start and foreground backup notification taps
   useEffect(() => {
+    const handleNotificationResponse = (response: any) => {
+      const kind = response?.notification?.request?.content?.data?.kind;
+      if (!kind || !BACKUP_NOTIF_KINDS.has(kind)) return;
+
+      if (bootstrapResult === 'DASHBOARD' || bootstrapResult === 'DASHBOARD_WARNING') {
+        router.push('/settings/backup-restore');
+      } else {
+        pendingNotificationRouteRef.current = '/settings/backup-restore';
+      }
+    };
+
+    try {
+      if (typeof (Notifications as any).getLastNotificationResponseAsync === 'function') {
+        void (Notifications as any)
+          .getLastNotificationResponseAsync()
+          .then((resp: any) => {
+            if (resp) handleNotificationResponse(resp);
+          })
+          .catch(() => {});
+      }
+    } catch {}
+
     let sub: { remove: () => void } | null = null;
     try {
       if (typeof (Notifications as any).addNotificationResponseReceivedListener === 'function') {
-        sub = (Notifications as any).addNotificationResponseReceivedListener((response: any) => {
-          const kind = response?.notification?.request?.content?.data?.kind;
-          if (
-            kind === 'BACKUP_OVERDUE' ||
-            kind === 'BACKUP_FAILED' ||
-            kind === 'BACKUP_DONE' ||
-            kind === 'BACKUP_MISSED'
-          ) {
-            if (
-              bootstrapResult === 'DASHBOARD' ||
-              bootstrapResult === 'DASHBOARD_WARNING'
-            ) {
-              router.push('/settings/backup-restore');
-            } else {
-              pendingNotificationRouteRef.current = '/settings/backup-restore';
-            }
-          }
-        });
+        sub = (Notifications as any).addNotificationResponseReceivedListener(
+          handleNotificationResponse
+        );
       }
     } catch {}
     return () => {
@@ -181,7 +164,7 @@ function RootBootloader({ colors }: { colors: any }) {
       }
     };
 
-    executeStep0Snapshot();
+    void executeStep0Snapshot();
     return () => {
       isCancelled = true;
     };
@@ -192,7 +175,6 @@ function RootBootloader({ colors }: { colors: any }) {
     if (!hasMounted || cryptoState !== 'OK' || !pinPassed || !snapshotDone) return;
 
     if (dbError) {
-      setDbMigrationError(dbError.message);
       setBootstrapResult('DATABASE_ERROR');
       return;
     }
@@ -202,46 +184,13 @@ function RootBootloader({ colors }: { colors: any }) {
       try {
         const result = await bootstrapService.initApp();
         setBootstrapResult(result);
-
-        // FIX-V745-4 & FIX-V747-2: Non-blocking notification channel init, reminder reconciliation, and background task registration
-        void (async () => {
-          try {
-            await initBackupNotifications();
-            if (storage.getString(AB_KEYS.enabled) === 'true') {
-              await registerAutoBackupTask().catch(() => {});
-              const lastSuccess = storage.getString(AB_KEYS.lastSuccessAt);
-              const reminderId = storage.getString(AB_KEYS.reminderId);
-              if (lastSuccess && !Number.isNaN(Date.parse(lastSuccess))) {
-                let needsReschedule = !reminderId;
-                if (
-                  reminderId &&
-                  typeof (Notifications as any).getAllScheduledNotificationsAsync === 'function'
-                ) {
-                  const scheduled = await (
-                    Notifications as any
-                  ).getAllScheduledNotificationsAsync();
-                  if (
-                    Array.isArray(scheduled) &&
-                    !scheduled.some((n: any) => n?.identifier === reminderId)
-                  ) {
-                    needsReschedule = true;
-                  }
-                }
-                if (needsReschedule) {
-                  await rescheduleOverdueReminder(new Date(lastSuccess)).catch(() => {});
-                }
-              }
-            }
-          } catch {}
-        })();
       } catch (e: any) {
         console.error('[Layout] Bootstrap threw unexpectedly:', e);
-        setDbMigrationError(e?.message ?? 'Unknown bootstrap error');
         setBootstrapResult('DATABASE_ERROR');
       }
     };
 
-    runBootstrap();
+    void runBootstrap();
   }, [isLoaded, dbError, cryptoState, pinPassed, snapshotDone, hasMounted]);
 
   // 3. TARGET ROUTING (Step 16 Formal Decision Tree)
@@ -318,132 +267,23 @@ function RootBootloader({ colors }: { colors: any }) {
             { backgroundColor: colors.vjBg, zIndex: 99999, elevation: 99999 },
           ]}
         >
-          <OverlayContainer
-            showCryptoChecking={showCryptoChecking}
-            showCryptoUnavailable={showCryptoUnavailable}
-            cryptoErrorMsg={cryptoErrorMsg}
-            showPinGate={showPinGate}
-            showSnapshotLoading={showSnapshotLoading}
-            showBootstrapLoading={showBootstrapLoading}
-            showError={showError}
-            loadingMsg={loadingMsg}
-            dbMigrationError={dbMigrationError}
-            colors={colors}
-            onPinSuccess={() => setPinPassed(true)}
-          />
+          {showCryptoChecking ? (
+            <LoadingScreen message="Verifying Security Engine..." />
+          ) : showCryptoUnavailable ? (
+            <CryptoUnavailableScreen message={cryptoErrorMsg} />
+          ) : showPinGate ? (
+            <PinGate onSuccess={() => setPinPassed(true)} />
+          ) : showSnapshotLoading ? (
+            <LoadingScreen message="Securing Pre-Migration Snapshot..." />
+          ) : showBootstrapLoading && !showError ? (
+            <LoadingScreen message={loadingMsg} />
+          ) : showError ? (
+            <DatabaseErrorScreen />
+          ) : null}
         </View>
       )}
     </>
   );
-}
-
-function OverlayContainer({
-  showCryptoChecking,
-  showCryptoUnavailable,
-  cryptoErrorMsg,
-  showPinGate,
-  showSnapshotLoading,
-  showBootstrapLoading,
-  showError,
-  loadingMsg,
-  dbMigrationError,
-  colors,
-  onPinSuccess,
-}: {
-  showCryptoChecking: boolean;
-  showCryptoUnavailable: boolean;
-  cryptoErrorMsg: string | null;
-  showPinGate: boolean;
-  showSnapshotLoading: boolean;
-  showBootstrapLoading: boolean;
-  showError: boolean;
-  loadingMsg: string;
-  dbMigrationError: string | null;
-  colors: any;
-  onPinSuccess: () => void;
-}) {
-  if (showCryptoChecking) {
-    return (
-      <View
-        style={[
-          StyleSheet.absoluteFill,
-          { zIndex: 9999, elevation: 9999, backgroundColor: colors.vjBg },
-        ]}
-      >
-        <LoadingScreen message="Verifying Security Engine..." />
-      </View>
-    );
-  }
-
-  if (showCryptoUnavailable) {
-    return (
-      <View
-        style={[
-          StyleSheet.absoluteFill,
-          { zIndex: 9999, elevation: 9999, backgroundColor: colors.vjBg },
-        ]}
-      >
-        <CryptoUnavailableScreen message={cryptoErrorMsg} />
-      </View>
-    );
-  }
-
-  if (showPinGate) {
-    return (
-      <View
-        style={[
-          StyleSheet.absoluteFill,
-          { zIndex: 9999, elevation: 9999, backgroundColor: colors.vjBg },
-        ]}
-      >
-        <PinGate onSuccess={onPinSuccess} />
-      </View>
-    );
-  }
-
-  if (showSnapshotLoading) {
-    return (
-      <View
-        style={[
-          StyleSheet.absoluteFill,
-          { zIndex: 9999, elevation: 9999, backgroundColor: colors.vjBg },
-        ]}
-      >
-        <LoadingScreen message="Securing Pre-Migration Snapshot..." />
-      </View>
-    );
-  }
-
-  if (showBootstrapLoading && !showError) {
-    return (
-      <View
-        style={[
-          StyleSheet.absoluteFill,
-          { zIndex: 9999, elevation: 9999, backgroundColor: colors.vjBg },
-        ]}
-      >
-        <LoadingScreen message={loadingMsg} />
-      </View>
-    );
-  }
-
-  if (showError) {
-    return (
-      <View
-        style={[
-          StyleSheet.absoluteFill,
-          { zIndex: 9999, elevation: 9999, backgroundColor: colors.vjBg },
-        ]}
-      >
-        <DatabaseErrorScreen
-          title="CRITICAL DATABASE ERROR"
-          message={dbMigrationError ?? 'An unknown database error occurred.'}
-        />
-      </View>
-    );
-  }
-
-  return null;
 }
 
 function LoadingScreen({ message }: { message: string }) {
@@ -474,255 +314,6 @@ function CryptoUnavailableScreen({ message }: { message: string | null }) {
           <Text className="text-vj-danger font-mono text-xs">{message}</Text>
         </View>
       ) : null}
-    </View>
-  );
-}
-
-function DatabaseErrorScreen({ title, message }: { title: string; message: string }) {
-  const [snapshotExists, setSnapshotExists] = useState(false);
-  const [showResetModal, setShowResetModal] = useState(false);
-  const [resetInput, setResetInput] = useState('');
-  const [isExporting, setIsExporting] = useState(false);
-  const [isResetting, setIsResetting] = useState(false);
-  const [delaySeconds, setDelaySeconds] = useState(5);
-
-  const firms = useFirmStore((s) => s.firms);
-  const activeFirmId = useFirmStore((s) => s.activeFirmId);
-  const activeFirm = firms.find((f) => f.id === activeFirmId) ?? firms[0];
-  // FIX-VSEC-12: Require active firm's firmCode when known, or 'DELETE' when DB failed before firm load
-  const requiredConfirmationToken = activeFirm?.firmCode ? activeFirm.firmCode : 'DELETE';
-
-  useEffect(() => {
-    FileSystem.getInfoAsync(PRE_MIGRATION_SNAPSHOT_PATH)
-      .then((info) => setSnapshotExists(info.exists))
-      .catch(() => setSnapshotExists(false));
-  }, []);
-
-  // FIX-VSEC-12: 5-second enforced countdown when Factory Reset modal opens
-  useEffect(() => {
-    if (!showResetModal) {
-      setDelaySeconds(5);
-      return;
-    }
-    setDelaySeconds(5);
-    const interval = setInterval(() => {
-      setDelaySeconds((prev) => {
-        if (prev <= 1) {
-          clearInterval(interval);
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
-    return () => clearInterval(interval);
-  }, [showResetModal]);
-
-  const handleExportRawData = async () => {
-    if (!snapshotExists) return;
-    try {
-      setIsExporting(true);
-      const fileContent = await FileSystem.readAsStringAsync(PRE_MIGRATION_SNAPSHOT_PATH, {
-        encoding: FileSystem.EncodingType.UTF8,
-      });
-
-      let decryptedStr: string;
-      const parsedBlob = JSON.parse(fileContent);
-
-      // FIX-V7411-3: Use decryptSnapshot() for v2 Keystore snapshots, with legacy v1 fallback
-      if (parsedBlob?.v === 2) {
-        decryptedStr = await decryptSnapshot(fileContent);
-      } else {
-        const saltBytes = Buffer.from(parsedBlob.salt, 'base64');
-        const ivBytes = Buffer.from(parsedBlob.iv, 'base64');
-        const combinedCipher = Buffer.from(parsedBlob.ciphertext, 'base64');
-        const authTag = combinedCipher.subarray(combinedCipher.length - 16);
-        const ciphertextBody = combinedCipher.subarray(0, combinedCipher.length - 16);
-        const keySourceMaterial = Buffer.from(await getDeviceDerivedKeyMaterial());
-        const key = quickCrypto.pbkdf2Sync(
-          keySourceMaterial,
-          saltBytes,
-          100_000,
-          32,
-          'sha256'
-        );
-        const decipher = (quickCrypto as any).createDecipheriv('aes-256-gcm', key, ivBytes);
-        decipher.setAuthTag(authTag);
-        decryptedStr = Buffer.concat([
-          decipher.update(ciphertextBody),
-          decipher.final(),
-        ]).toString('utf8');
-      }
-
-      const fsAny = FileSystem as any;
-      const tempPath =
-        (fsAny.cacheDirectory ?? fsAny.documentDirectory ?? '') +
-        'vjbilling_premigration_decrypted.json';
-      await FileSystem.writeAsStringAsync(tempPath, decryptedStr, {
-        encoding: FileSystem.EncodingType.UTF8,
-      });
-
-      const canShare = await Sharing.isAvailableAsync();
-      if (canShare) {
-        await Sharing.shareAsync(tempPath, {
-          dialogTitle: 'Export Decrypted Pre-Migration Data',
-          mimeType: 'application/json',
-        });
-      }
-
-      await FileSystem.deleteAsync(tempPath, { idempotent: true });
-    } catch (e: any) {
-      Alert.alert('Export Failed', 'Could not decrypt snapshot: ' + e.message);
-    } finally {
-      setIsExporting(false);
-    }
-  };
-
-  const handleSupport = () => {
-    const body = `CRITICAL DATABASE FAILURE\n\nError:\n${message}\n\nPlease help restore my database.`;
-    Linking.openURL(
-      `mailto:support@vjbilling.com?subject=VJ Billing - Database Error&body=${encodeURIComponent(body)}`
-    );
-  };
-
-  const handleConfirmReset = async () => {
-    if (delaySeconds > 0) return;
-    if (
-      resetInput.trim().toUpperCase() !== requiredConfirmationToken.toUpperCase() &&
-      resetInput.trim() !== 'DELETE'
-    ) {
-      Alert.alert(
-        'Aborted',
-        `You must type '${requiredConfirmationToken}' to confirm factory reset.`
-      );
-      setResetInput('');
-      return;
-    }
-    try {
-      setIsResetting(true);
-      await performFactoryResetFiles(requiredConfirmationToken);
-      setShowResetModal(false);
-    } catch (e: any) {
-      Alert.alert('Reset Failed', e.message);
-    } finally {
-      setIsResetting(false);
-    }
-  };
-
-  return (
-    <View className="flex-1 justify-center bg-vj-danger/10 p-6">
-      <View className="items-center mb-8">
-        <View className="bg-vj-danger/20 p-4 rounded-full mb-4">
-          <AlertTriangle size={48} color="#ef4444" />
-        </View>
-        <Text className="text-vj-danger text-2xl font-bold mb-2 text-center">{title}</Text>
-        <Text className="text-vj-danger/80 text-center mb-4">
-          The system halted to prevent data corruption. You are in emergency recovery mode.
-        </Text>
-        <View className="w-full bg-white p-4 rounded-xl border border-vj-danger/30 shadow-sm">
-          <Text className="text-vj-danger font-mono text-xs">{message}</Text>
-        </View>
-      </View>
-
-      <View className="w-full gap-3">
-        <TouchableOpacity
-          onPress={snapshotExists && !isExporting ? handleExportRawData : undefined}
-          activeOpacity={snapshotExists ? 0.7 : 1}
-          className={`bg-white flex-row items-center justify-center p-4 rounded-xl border ${
-            snapshotExists ? 'border-vj-danger/30' : 'border-gray-200 opacity-50'
-          }`}
-        >
-          {isExporting ? (
-            <ActivityIndicator size="small" color="#ef4444" />
-          ) : (
-            <Download size={20} color={snapshotExists ? '#ef4444' : '#9ca3af'} />
-          )}
-          <Text
-            className={`font-bold text-center ml-2 ${
-              snapshotExists ? 'text-vj-danger' : 'text-gray-500 text-xs'
-            }`}
-          >
-            {snapshotExists
-              ? isExporting
-                ? 'Decrypting Snapshot...'
-                : 'Export Pre-Migration Snapshot'
-              : 'No snapshot available — pre-migration backup did not complete'}
-          </Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          onPress={handleSupport}
-          className="bg-white flex-row items-center justify-center p-4 rounded-xl border border-vj-danger/30"
-        >
-          <LifeBuoy size={20} color="#ef4444" />
-          <Text className="text-vj-danger font-bold ml-2">Contact Support</Text>
-        </TouchableOpacity>
-
-        <View className="h-[1px] bg-vj-danger/30 my-4" />
-
-        <TouchableOpacity
-          onPress={() => {
-            setResetInput('');
-            setShowResetModal(true);
-          }}
-          className="bg-vj-danger flex-row items-center justify-center p-4 rounded-xl"
-        >
-          <Trash2 size={20} color="#ffffff" />
-          <Text className="text-white font-bold ml-2">Factory Reset (Data Loss)</Text>
-        </TouchableOpacity>
-      </View>
-
-      <Modal
-        visible={showResetModal}
-        animationType="fade"
-        transparent
-        onRequestClose={() => setShowResetModal(false)}
-      >
-        <View className="flex-1 bg-black/60 justify-center items-center px-6">
-          <View className="w-full bg-white rounded-2xl p-6 shadow-xl">
-            <Text className="text-vj-danger text-lg font-black mb-2 text-center uppercase">
-              FACTORY RESET
-            </Text>
-            <Text className="text-gray-600 text-center text-sm mb-4">
-              WARNING: This permanently deletes the database, encryption key, and all records.
-              {'\n'}Type{' '}
-              <Text className="font-black text-vj-danger">{requiredConfirmationToken}</Text>{' '}
-              to confirm.
-            </Text>
-            <TextInput
-              value={resetInput}
-              onChangeText={setResetInput}
-              placeholder={`Type ${requiredConfirmationToken} here`}
-              autoCapitalize="characters"
-              autoFocus
-              className="bg-white border border-vj-danger/40 rounded-lg px-4 py-3 text-center font-bold text-lg mb-4 tracking-widest"
-            />
-            <View className="flex-row gap-3">
-              <TouchableOpacity
-                onPress={() => setShowResetModal(false)}
-                disabled={isResetting}
-                className="flex-1 border border-gray-300 p-3 rounded-xl items-center"
-              >
-                <Text className="text-center font-bold text-gray-600">Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                onPress={handleConfirmReset}
-                disabled={delaySeconds > 0 || isResetting}
-                className={`flex-1 bg-vj-danger p-3 rounded-xl items-center ${
-                  delaySeconds > 0 || isResetting ? 'opacity-50' : ''
-                }`}
-              >
-                <Text className="font-bold text-white">
-                  {isResetting
-                    ? 'Resetting...'
-                    : delaySeconds > 0
-                      ? `Wait ${delaySeconds}s`
-                      : 'Nuke Database'}
-                </Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
     </View>
   );
 }

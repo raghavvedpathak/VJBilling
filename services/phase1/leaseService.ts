@@ -1,4 +1,4 @@
-// services/phase1/leaseService.ts
+// services/phase1/leaseService.ts — Phase 1 v8.0
 // Concurrency guard — session-scoped writer leases.
 // v5.1 S2 Gap: Heartbeat at half-TTL to extend lease during long operations.
 // v6.5 Gap 5: LeaseType.WRITE runtime guard.
@@ -20,6 +20,10 @@ import { now } from '@/utils/now';
 import { addMinutes } from '@/utils/addMinutes';
 
 type DbOrTx = any;
+
+const isTestEnv =
+  typeof process !== 'undefined' &&
+  (process.env?.NODE_ENV === 'test' || process.env?.JEST_WORKER_ID !== undefined);
 
 function getDb(customTx?: any): DbOrTx {
   if (customTx && typeof customTx === 'object' && typeof customTx.select === 'function') {
@@ -78,7 +82,8 @@ export const leaseService = {
     let deviceId: string;
     try {
       deviceId = getDeviceId();
-    } catch {
+    } catch (err) {
+      if (!isTestEnv) throw err;
       deviceId = 'DEV-DEVICE-ID';
     }
     const currentTime = now();
@@ -118,7 +123,7 @@ export const leaseService = {
     const targetDb = getDb();
 
     try {
-      leaseRepository.delete(txOrDb(targetDb), leaseId);
+      leaseRepository.delete(targetDb, leaseId);
     } catch (error) {
       console.error(
         '[Lease] DB delete failed — orphan lease will be purged on next restart:',
@@ -232,10 +237,6 @@ export const leaseService = {
     }
   },
 };
-
-function txOrDb(targetDb: any) {
-  return targetDb;
-}
 
 export const assertNoActiveLease = leaseService.assertNoActiveLease.bind(leaseService);
 export const acquireLease = leaseService.acquire.bind(leaseService);
