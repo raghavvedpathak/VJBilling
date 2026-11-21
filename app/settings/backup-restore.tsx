@@ -1,5 +1,5 @@
-// app/settings/backup-restore.tsx — Phase 1 v8.0 & Phase 2–4 Dedicated Backup & Restore Screen
-// Implements FIX-V726-3, FIX-V733-4, FIX-V7411-1, FIX-V745-4/5, FIX-V746-5, FIX-V747-2, FIX-V80-8
+// app/settings/backup-restore.tsx — Phase 1 v8.1 & Phase 2–4 Dedicated Backup & Restore Screen
+// Implements FIX-V726-3, FIX-V733-4, FIX-V7411-1, FIX-V745-4/5, FIX-V746-5, FIX-V747-2, FIX-V80-8, FIX-V81-2, FIX-V81-3
 
 import React, { useState, useCallback, useEffect } from 'react';
 import {
@@ -65,6 +65,15 @@ import {
   AlertTriangle,
 } from 'lucide-react-native';
 
+function formatLastNotifyDisplay(raw: string | null): string {
+  if (!raw) return 'None yet';
+  const [statusPart, isoPart] = raw.split('|');
+  if (!isoPart) return statusPart || raw;
+  const parsed = new Date(isoPart);
+  if (Number.isNaN(parsed.getTime())) return statusPart || raw;
+  return `${statusPart} · ${parsed.toLocaleString('en-IN')}`;
+}
+
 export default function BackupRestoreScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -83,6 +92,8 @@ export default function BackupRestoreScreen() {
   const [autoLastStatus, setAutoLastStatus] = useState<string | null>(null);
   const [autoLastFile, setAutoLastFile] = useState<string | null>(null);
   const [autoLastSize, setAutoLastSize] = useState<number>(0);
+  const [lastMirrorStatus, setLastMirrorStatus] = useState<string | null>(null); // v8.1 FIX-V81-2
+  const [lastNotifyStatus, setLastNotifyStatus] = useState<string | null>(null); // v8.1 FIX-V81-3
   const [notifGranted, setNotifGranted] = useState<boolean>(false);
 
   const [showConsentModal, setShowConsentModal] = useState(false);
@@ -115,6 +126,8 @@ export default function BackupRestoreScreen() {
     setAutoLastStatus(storage.getString(AB_KEYS.lastStatus) ?? null);
     setAutoLastFile(storage.getString(AB_KEYS.lastFileName) ?? null);
     setAutoLastSize(Number(storage.getString(AB_KEYS.lastSizeBytes) ?? '0'));
+    setLastMirrorStatus(storage.getString(AB_KEYS.lastMirror) ?? null);
+    setLastNotifyStatus(storage.getString(AB_KEYS.lastNotify) ?? null);
     try {
       const perm = await Notifications.getPermissionsAsync();
       setNotifGranted(!!perm.granted);
@@ -129,7 +142,7 @@ export default function BackupRestoreScreen() {
     }, [refreshAutoBackupStatus])
   );
 
-  // Re-check notification permission immediately when returning from Android App Settings
+  // Re-check notification permission and diagnostic keys when returning from Android App Settings
   useEffect(() => {
     const sub = AppState.addEventListener('change', (nextState) => {
       if (nextState === 'active') {
@@ -313,6 +326,7 @@ export default function BackupRestoreScreen() {
         kind: 'MANUAL',
         trigger: 'NOW',
       });
+      await refreshAutoBackupStatus();
 
       const sizeKb = (result.fileSizeBytes / 1024).toFixed(1);
       setLastBackupInfo({
@@ -337,6 +351,7 @@ export default function BackupRestoreScreen() {
 
       Alert.alert('Backup Created Successfully', successMsg);
     } catch (error: any) {
+      await refreshAutoBackupStatus();
       Alert.alert('Backup Failed', error.message || 'Failed to create backup.');
     } finally {
       setBackingUp(false);
@@ -473,7 +488,7 @@ export default function BackupRestoreScreen() {
       >
         {/* 0. AUTOMATIC DAILY BACKUP SECTION */}
         <Text style={[s.sectionHeader, { color: colors.vjText, opacity: 0.6 }]}>
-          Automatic Daily Backup (v8.0)
+          Automatic Daily Backup (v8.1)
         </Text>
         <GlassCard style={{ marginBottom: 20, borderColor: `${colors.vjAccent}30` }}>
           <View style={s.cardTopRow}>
@@ -554,6 +569,28 @@ export default function BackupRestoreScreen() {
                   {autoLastFile}
                 </Text>
               )}
+
+              {/* v8.1 FIX-V81-2 & FIX-V81-3: Diagnostic visibility rows */}
+              <View className="mt-2.5 pt-2 border-t border-black/10 gap-1">
+                <Text style={[s.diagRowText, { color: colors.vjText }]}>
+                  Copy in Documents:{' '}
+                  <Text
+                    style={{
+                      fontFamily: 'monospace',
+                      fontWeight: '800',
+                      color: lastMirrorStatus === 'OK' ? '#059669' : '#B45309',
+                    }}
+                  >
+                    {lastMirrorStatus || 'Not run yet'}
+                  </Text>
+                </Text>
+                <Text style={[s.diagRowText, { color: colors.vjText }]}>
+                  Last notification:{' '}
+                  <Text style={{ fontFamily: 'monospace', fontWeight: '700' }}>
+                    {formatLastNotifyDisplay(lastNotifyStatus)}
+                  </Text>
+                </Text>
+              </View>
 
               <View className="flex-row items-center justify-between mt-3 pt-2 border-t border-black/10">
                 <View className="flex-row items-center gap-1.5">
@@ -672,6 +709,21 @@ export default function BackupRestoreScreen() {
                   ? '✓ Backups automatically copy to: Documents/VJ Billing/backups/.'
                   : "Allow VJ Billing to automatically copy your backups to your phone's public Documents folder so they survive Clear Data or uninstall."}
               </Text>
+              {/* v8.1 FIX-V81-2: Also show Copy in Documents here when auto-backup is off */}
+              {!autoEnabled && lastMirrorStatus && (
+                <Text style={[s.diagRowText, { color: colors.vjText, marginTop: 6 }]}>
+                  Copy in Documents:{' '}
+                  <Text
+                    style={{
+                      fontFamily: 'monospace',
+                      fontWeight: '800',
+                      color: lastMirrorStatus === 'OK' ? '#059669' : '#B45309',
+                    }}
+                  >
+                    {lastMirrorStatus}
+                  </Text>
+                </Text>
+              )}
             </View>
           </View>
 
@@ -1069,6 +1121,7 @@ const s = StyleSheet.create({
   },
   lastBackupName: { fontSize: 11.5, fontFamily: 'monospace', fontWeight: '700', opacity: 0.85 },
   lastBackupPath: { fontSize: 10, marginTop: 4, fontFamily: 'monospace', opacity: 0.45 },
+  diagRowText: { fontSize: 11, fontWeight: '600', opacity: 0.85 },
   infoCard: { opacity: 0.9, padding: 14, borderRadius: 16, borderWidth: 1 },
   infoCardInner: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   infoCardText: { fontWeight: '700', fontSize: 12, flex: 1, lineHeight: 17, opacity: 0.85 },

@@ -1,5 +1,5 @@
-// app/settings/index.tsx — Phase 1 v8.0 & Phase 2–4 Canonical Settings Hub
-// Implements G67-UI (opacity: 0.5, pointerEvents: none, accessibilityRole: text), G68, G69, G71, FIX-VSEC-12, FIX-V740-6
+// app/settings/index.tsx — Phase 1 v8.1 & Phase 2–4 Canonical Settings Hub
+// Implements G67-UI (opacity: 0.5, pointerEvents: none, accessibilityRole: text), G68, G69, G71, FIX-VSEC-12, FIX-V740-6, FIX-V81-5
 
 import React, { useState, useEffect, useCallback } from 'react';
 import {
@@ -510,7 +510,7 @@ export default function SettingsScreen() {
         <View style={s.footerInfo}>
           <Database size={20} color={colors.vjText} style={{ opacity: 0.45 }} />
           <Text style={[s.footerTextBold, { color: colors.vjText }]}>
-            VJ BILLING • PHASE 1 v8.0 • CONSTITUTIONAL ERP
+            VJ BILLING • PHASE 1 v8.1 • CONSTITUTIONAL ERP
           </Text>
           <Text style={[s.footerText, { color: colors.vjText }]}>
             Firm Code: {firm?.firmCode || 'N/A'}

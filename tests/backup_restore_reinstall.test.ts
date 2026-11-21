@@ -1,5 +1,6 @@
 // tests/backup_restore_reinstall.test.ts
-// Validates unpassworded backup decryption resilience across device ID resets & reinstalls.
+// Validates unpassworded backup decryption resilience across reinstalls
+// and Phase 1 v8.1 fixes (FIX-V81-1 safLeafName/SAF reuse, FIX-V81-2 lastMirror, FIX-V81-3 lastNotify).
 
 jest.mock('@/db/client', () => {
   const Database = require('better-sqlite3');
@@ -8,11 +9,11 @@ jest.mock('@/db/client', () => {
 
   const sqlite = new Database(':memory:');
   const dbInstance = drizzle(sqlite, { schema });
-  
+
   dbInstance.__rawClient = {
     execute: async (query: string) => {
       sqlite.exec(query);
-    }
+    },
   };
 
   return {
@@ -28,13 +29,25 @@ jest.mock('@/db/client', () => {
   };
 });
 
-import { backupService } from '@/services/phase1/backupService';
+import * as FileSystem from 'expo-file-system/legacy';
+import { StorageAccessFramework } from 'expo-file-system/legacy';
+import * as Notifications from 'expo-notifications';
+import {
+  backupService,
+  safLeafName,
+  getOrCreateSafFolder,
+} from '@/services/phase1/backupService';
 import { restoreService } from '@/services/phase1/restoreService';
+import {
+  notifyBackupDone,
+  notifyBackupFailed,
+  maybeNotifyMissed,
+} from '@/services/phase1/backupNotificationService';
 import { getOrGenerateDeviceId } from '@/utils/deviceId';
 import { storage } from '@/utils/storage';
+import { AB_KEYS, AUTO_BACKUP_MMKV_KEYS } from '@/constants/autoBackup';
 import { db } from '@/db/client';
 import { firms } from '@/db/schema';
-import * as FileSystem from 'expo-file-system/legacy';
 
 beforeAll(async () => {
   const _rawClient = (db as any).__rawClient;
@@ -141,21 +154,23 @@ beforeAll(async () => {
 
   // Seed initial firm
   try {
-    db.insert(firms).values({
-      id: 'test-firm-1',
-      name: 'Test Firm 1',
-      firmCode: 'TF1',
-      proprietor: 'Owner',
-      addressLine1: 'Address 1',
-      city: 'City',
-      stateCode: '27',
-      stateName: 'Maharashtra',
-      pincode: '400001',
-      phone1: '9999999999',
-      isActive: 1,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    }).run();
+    db.insert(firms)
+      .values({
+        id: 'test-firm-1',
+        name: 'Test Firm 1',
+        firmCode: 'TF1',
+        proprietor: 'Owner',
+        addressLine1: 'Address 1',
+        city: 'City',
+        stateCode: '27',
+        stateName: 'Maharashtra',
+        pincode: '400001',
+        phone1: '9999999999',
+        isActive: 1,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      })
+      .run();
   } catch {}
 });
 
@@ -169,7 +184,9 @@ describe('Backup & Restore Reinstall Recovery', () => {
     expect(result.filePath).toBeDefined();
 
     // Read the created backup file content
-    const backupContent = await FileSystem.readAsStringAsync(result.filePath, { encoding: 'utf8' as any });
+    const backupContent = await FileSystem.readAsStringAsync(result.filePath, {
+      encoding: 'utf8' as any,
+    });
     const envelope = JSON.parse(backupContent);
     // FIX-V740-1: Plaintext outer envelope carries NO deviceId; deviceId is encrypted inside payload
     expect(envelope.deviceId).toBeUndefined();
@@ -185,7 +202,104 @@ describe('Backup & Restore Reinstall Recovery', () => {
     const deviceIdAfter = await getOrGenerateDeviceId();
     expect(deviceIdAfter).not.toBe(deviceIdBefore);
 
-    // 3. Restore backup using the new installation's context (Cryptographic Candidate Chain)
+    // 3. Restore backup using the new installation's context
     await expect(restoreService.restore(backupContent)).resolves.not.toThrow();
+  });
+});
+
+describe('Phase 1 v8.1 SAF & Visibility Fixes (FIX-V81-1..3)', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    storage.delete('vjbilling_public_backup_dir_uri');
+    for (const key of AUTO_BACKUP_MMKV_KEYS) {
+      storage.delete(key);
+    }
+  });
+
+  test('FIX-V81-1: safLeafName extracts folder/file leaf from real Android SAF document URIs', () => {
+    expect(
+      safLeafName(
+        'content://com.android.externalstorage.documents/tree/primary%3ADocuments/document/primary%3ADocuments%2FVJ%20Billing'
+      )
+    ).toBe('VJ Billing');
+
+    expect(
+      safLeafName(
+        'content://com.android.externalstorage.documents/tree/primary%3A/document/primary%3AVJ%20Billing'
+      )
+    ).toBe('VJ Billing');
+
+    expect(
+      safLeafName(
+        'content://com.android.externalstorage.documents/tree/primary%3ADocuments/document/primary%3ADocuments%2FVJ%20Billing%2Fbackups'
+      )
+    ).toBe('backups');
+  });
+
+  test('FIX-V81-1: getOrCreateSafFolder reuses existing folder inside Documents without creating duplicates', async () => {
+    const parentUri = 'content://com.android.externalstorage.documents/tree/primary%3ADocuments';
+    const existingVjUri =
+      'content://com.android.externalstorage.documents/tree/primary%3ADocuments/document/primary%3ADocuments%2FVJ%20Billing';
+
+    (StorageAccessFramework.readDirectoryAsync as jest.Mock).mockResolvedValueOnce([existingVjUri]);
+
+    const resolved = await getOrCreateSafFolder(parentUri, 'VJ Billing');
+    expect(resolved).toBe(existingVjUri);
+    expect(StorageAccessFramework.makeDirectoryAsync).not.toHaveBeenCalled();
+  });
+
+  test('FIX-V81-2: createBackup records AB_KEYS.lastMirror for NO_FOLDER, OK, and error name', async () => {
+    // 1. No public folder granted -> FAILED:NO_FOLDER
+    storage.delete('vjbilling_public_backup_dir_uri');
+    const r1 = await backupService.createBackup(undefined, { share: false });
+    expect(r1.mirroredToPublicStorage).toBe(false);
+    expect(storage.getString(AB_KEYS.lastMirror)).toBe('FAILED:NO_FOLDER');
+
+    // 2. Public folder granted -> OK
+    storage.set(
+      'vjbilling_public_backup_dir_uri',
+      'content://com.android.externalstorage.documents/tree/primary%3ADocuments'
+    );
+    (StorageAccessFramework.readDirectoryAsync as jest.Mock).mockResolvedValue([]);
+    const r2 = await backupService.createBackup(undefined, { share: false });
+    expect(r2.mirroredToPublicStorage).toBe(true);
+    expect(storage.getString(AB_KEYS.lastMirror)).toBe('OK');
+
+    // 3. Mirror throws -> FAILED:<ErrorName> (never exposes message/path)
+    const customErr = new TypeError('/secret/path/sensitive message');
+    (StorageAccessFramework.readDirectoryAsync as jest.Mock).mockRejectedValueOnce(customErr);
+    const r3 = await backupService.createBackup(undefined, { share: false });
+    expect(r3.mirroredToPublicStorage).toBe(false);
+    expect(storage.getString(AB_KEYS.lastMirror)).toBe('FAILED:TypeError');
+  });
+
+  test('FIX-V81-3: notification helpers record SENT, NO_PERMISSION, and ERROR:<name> in AB_KEYS.lastNotify', async () => {
+    expect(AUTO_BACKUP_MMKV_KEYS).toContain(AB_KEYS.lastMirror);
+    expect(AUTO_BACKUP_MMKV_KEYS).toContain(AB_KEYS.lastNotify);
+
+    // 1. DONE:SENT
+    (Notifications.getPermissionsAsync as jest.Mock).mockResolvedValueOnce({ granted: true });
+    await notifyBackupDone();
+    expect(storage.getString(AB_KEYS.lastNotify)).toMatch(/^DONE:SENT\|/);
+
+    // 2. DONE:NO_PERMISSION
+    (Notifications.getPermissionsAsync as jest.Mock).mockResolvedValueOnce({ granted: false });
+    await notifyBackupDone();
+    expect(storage.getString(AB_KEYS.lastNotify)).toMatch(/^DONE:NO_PERMISSION\|/);
+
+    // 3. FAILED:ERROR:<name>
+    (Notifications.getPermissionsAsync as jest.Mock).mockResolvedValueOnce({ granted: true });
+    (Notifications.scheduleNotificationAsync as jest.Mock).mockRejectedValueOnce(
+      new RangeError('internal error')
+    );
+    await notifyBackupFailed('BACKUP_ERROR');
+    expect(storage.getString(AB_KEYS.lastNotify)).toMatch(/^FAILED:ERROR:RangeError\|/);
+
+    // 4. MISSED:SENT (after 20:30)
+    (Notifications.getPermissionsAsync as jest.Mock).mockResolvedValueOnce({ granted: true });
+    (Notifications.scheduleNotificationAsync as jest.Mock).mockResolvedValueOnce('missed-id');
+    const afterWindow = new Date(2026, 10, 21, 20, 45, 0);
+    await maybeNotifyMissed(afterWindow);
+    expect(storage.getString(AB_KEYS.lastNotify)).toMatch(/^MISSED:SENT\|/);
   });
 });

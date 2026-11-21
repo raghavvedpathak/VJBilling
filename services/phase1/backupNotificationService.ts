@@ -1,7 +1,7 @@
-// services/phase1/backupNotificationService.ts — Phase 1 v8.0 Canonical Local Notification Service
-// Implements FIX-V745-4, FIX-V746-4, FIX-V747-2 (Local notifications only; zero push/network)
+// services/phase1/backupNotificationService.ts — Phase 1 v8.1 Canonical Local Notification Service
+// Implements FIX-V745-4, FIX-V746-4, FIX-V747-2, FIX-V81-3 (Local notifications only; zero push/network)
 // Hardened: Ensures the 'backup-alerts' channel exists before Android 13+ permission prompts
-// and during closed-app headless background runs.
+// and during closed-app headless background runs; records outcome in AB_KEYS.lastNotify.
 
 import { Platform } from 'react-native';
 import * as Notifications from 'expo-notifications';
@@ -19,6 +19,20 @@ const DONE_ID = 'vjbilling-backup-done';     // v7.47 FIX-V747-2
 const MISSED_ID = 'vjbilling-backup-missed'; // v7.47 FIX-V747-2
 
 let channelInitialized = false;
+
+// v8.1 FIX-V81-3: Records outcome of the last notification attempt. Never throws.
+// Value: '<DONE|FAILED|MISSED>:<SENT|NO_PERMISSION|ERROR:<name>>|<ISO time>' (error NAME only).
+function noteNotify(kind: 'DONE' | 'FAILED' | 'MISSED', result: string): void {
+  try {
+    storage.set(AB_KEYS.lastNotify, kind + ':' + result + '|' + new Date().toISOString());
+  } catch {
+    /* status only */
+  }
+}
+
+function errName(e: unknown): string {
+  return ((e as Error)?.name ?? 'Error').slice(0, 40);
+}
 
 export async function initBackupNotifications(): Promise<void> {
   Notifications.setNotificationHandler({
@@ -48,7 +62,6 @@ async function ensureChannelReady(): Promise<void> {
 
 // Call ONLY from the Settings toggle when turning automatic backup ON (FIX-V745-4)
 export async function ensureNotificationPermission(): Promise<boolean> {
-  // Android 13+ requires at least one notification channel BEFORE requesting POST_NOTIFICATIONS
   await ensureChannelReady();
   const cur = await Notifications.getPermissionsAsync();
   if (cur.granted) return true;
@@ -116,43 +129,61 @@ export async function notifyBackupFailed(reason: AutoBackupReason): Promise<void
   if (!Number.isNaN(last) && Date.now() - last < 24 * 60 * 60 * 1000 && last <= Date.now()) {
     return;
   }
-  await ensureChannelReady();
-  if (!(await Notifications.getPermissionsAsync()).granted) return;
 
   const body =
     reason === 'FOLDER_NOT_GRANTED' || reason === 'FOLDER_ACCESS_REVOKED'
       ? 'Backup folder access was removed. Open VJ Billing > Settings > Backup to grant it again.'
       : 'Automatic backup did not complete. Open VJ Billing > Settings > Backup.';
 
-  await Notifications.scheduleNotificationAsync({
-    identifier: FAILED_ID,
-    content: {
-      title: 'Backup needs attention',
-      body,
-      data: { kind: 'BACKUP_FAILED' },
-    },
-    trigger: { channelId: CHANNEL_ID },
-  });
-  storage.set(AB_KEYS.lastFailNotifiedAt, new Date().toISOString());
+  // v8.1 FIX-V81-3: Record outcome; never throw
+  try {
+    await ensureChannelReady();
+    if (!(await Notifications.getPermissionsAsync()).granted) {
+      noteNotify('FAILED', 'NO_PERMISSION');
+      return;
+    }
+    await Notifications.scheduleNotificationAsync({
+      identifier: FAILED_ID,
+      content: {
+        title: 'Backup needs attention',
+        body,
+        data: { kind: 'BACKUP_FAILED' },
+      },
+      trigger: { channelId: CHANNEL_ID },
+    });
+    storage.set(AB_KEYS.lastFailNotifiedAt, new Date().toISOString());
+    noteNotify('FAILED', 'SENT');
+  } catch (e) {
+    noteNotify('FAILED', 'ERROR:' + errName(e));
+  }
 }
 
 export async function dismissBackupFailureNotification(): Promise<void> {
   await Notifications.dismissNotificationAsync(FAILED_ID).catch(() => {});
 }
 
-// v7.47 FIX-V747-2 (v7.46 FIX-V746-4): Sent after a BACKGROUND success only
+// v7.47 FIX-V747-2 & v8.1 FIX-V81-3: Sent after a BACKGROUND success only
 export async function notifyBackupDone(): Promise<void> {
-  await ensureChannelReady();
-  if (!(await Notifications.getPermissionsAsync()).granted) return;
-  await Notifications.scheduleNotificationAsync({
-    identifier: DONE_ID,
-    content: {
-      title: 'Backup completed',
-      body: 'Your daily backup was saved.',
-      data: { kind: 'BACKUP_DONE' },
-    },
-    trigger: { channelId: CHANNEL_ID },
-  });
+  try {
+    await ensureChannelReady();
+    if (!(await Notifications.getPermissionsAsync()).granted) {
+      noteNotify('DONE', 'NO_PERMISSION');
+      return;
+    }
+    await Notifications.scheduleNotificationAsync({
+      identifier: DONE_ID,
+      content: {
+        title: 'Backup completed',
+        body: 'Your daily backup was saved.',
+        data: { kind: 'BACKUP_DONE' },
+      },
+      trigger: { channelId: CHANNEL_ID },
+    });
+    noteNotify('DONE', 'SENT');
+  } catch (e) {
+    noteNotify('DONE', 'ERROR:' + errName(e));
+    return;
+  }
   await dismissBackupFailureNotification().catch(() => {});
   await dismissMissedNotification().catch(() => {});
 }
@@ -161,7 +192,7 @@ export async function dismissMissedNotification(): Promise<void> {
   await Notifications.dismissNotificationAsync(MISSED_ID).catch(() => {});
 }
 
-// v7.47 FIX-V747-2: Called by the background task when it runs outside the 20:00-20:30 window
+// v7.47 FIX-V747-2 & v8.1 FIX-V81-3: Called by the background task when it runs outside the 20:00-20:30 window
 export async function maybeNotifyMissed(now: Date): Promise<void> {
   const endM = AUTO_BACKUP_WINDOW.endH * 60 + AUTO_BACKUP_WINDOW.endM;
   if (now.getHours() * 60 + now.getMinutes() <= endM) return; // Only AFTER 20:30
@@ -169,19 +200,27 @@ export async function maybeNotifyMissed(now: Date): Promise<void> {
   const today = localDay(now);
   if (storage.getString(AB_KEYS.lastSuccessDay) === today) return; // Already backed up today
   if (storage.getString(AB_KEYS.missedNotifiedDay) === today) return; // Once per local day
-  await ensureChannelReady();
-  if (!(await Notifications.getPermissionsAsync()).granted) return;
 
-  await Notifications.scheduleNotificationAsync({
-    identifier: MISSED_ID,
-    content: {
-      title: 'Backup missed',
-      body: "Tonight's backup did not run. Open VJ Billing to back up now.",
-      data: { kind: 'BACKUP_MISSED' },
-    },
-    trigger: { channelId: CHANNEL_ID },
-  });
-  storage.set(AB_KEYS.missedNotifiedDay, today);
+  try {
+    await ensureChannelReady();
+    if (!(await Notifications.getPermissionsAsync()).granted) {
+      noteNotify('MISSED', 'NO_PERMISSION');
+      return;
+    }
+    await Notifications.scheduleNotificationAsync({
+      identifier: MISSED_ID,
+      content: {
+        title: 'Backup missed',
+        body: "Tonight's backup did not run. Open VJ Billing to back up now.",
+        data: { kind: 'BACKUP_MISSED' },
+      },
+      trigger: { channelId: CHANNEL_ID },
+    });
+    storage.set(AB_KEYS.missedNotifiedDay, today);
+    noteNotify('MISSED', 'SENT');
+  } catch (e) {
+    noteNotify('MISSED', 'ERROR:' + errName(e));
+  }
 }
 
 export async function cancelAllBackupNotifications(): Promise<void> {

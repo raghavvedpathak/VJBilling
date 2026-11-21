@@ -1,5 +1,5 @@
-// tests/__mocks__/setup.ts
-// Jest native module mocks — pure JS only, zero native compilation required.
+// tests/__mocks__/setup.ts — Phase 1 v8.1 Canonical Jest Mocks
+// FIX-V81-1: StorageAccessFramework mock returns realistic Android SAF document URIs.
 
 import { AppState, Alert } from 'react-native';
 
@@ -135,7 +135,22 @@ jest.mock('expo-device', () => ({
   osName: 'Node.js',
 }));
 
-// ─── 5. MOCK: expo-file-system & legacy ───────────────────────────────────────
+// ─── 5. MOCK: expo-file-system & legacy (FIX-V81-1 real-format SAF URIs) ─────
+
+const SAF_DOCUMENTS_TREE =
+  'content://com.android.externalstorage.documents/tree/primary%3ADocuments';
+
+const buildSafChildUri = (parentUri: string, childName: string): string => {
+  const treeMatch = parentUri.match(/^(content:\/\/[^/]+\/tree\/[^/]+)/);
+  const treeBase = treeMatch?.[1] ?? SAF_DOCUMENTS_TREE;
+  const parentDocId = parentUri.includes('/document/')
+    ? decodeURIComponent(parentUri.split('/document/').pop() ?? 'primary:Documents')
+    : decodeURIComponent(treeBase.split('/tree/').pop() ?? 'primary:Documents');
+  const nextDocId = parentDocId.endsWith(':')
+    ? `${parentDocId}${childName}`
+    : `${parentDocId}/${childName}`;
+  return `${treeBase}/document/${encodeURIComponent(nextDocId)}`;
+};
 
 const mockFileSystem = {
   documentDirectory: '/tmp/vjbilling-test/',
@@ -166,18 +181,20 @@ const mockFileSystem = {
     Base64: 'base64',
   },
   StorageAccessFramework: {
-    getUriForDirectoryInRoot: jest.fn().mockReturnValue('content://mock/root'),
+    getUriForDirectoryInRoot: jest.fn().mockReturnValue(SAF_DOCUMENTS_TREE),
     requestDirectoryPermissionsAsync: jest
       .fn()
-      .mockResolvedValue({ granted: true, directoryUri: 'content://mock/dir' }),
+      .mockResolvedValue({ granted: true, directoryUri: SAF_DOCUMENTS_TREE }),
     readDirectoryAsync: jest.fn().mockResolvedValue([]),
     makeDirectoryAsync: jest
       .fn()
-      .mockImplementation(async (parentUri: string, dirName: string) => `${parentUri}/${dirName}`),
+      .mockImplementation(async (parentUri: string, dirName: string) =>
+        buildSafChildUri(parentUri, dirName)
+      ),
     createFileAsync: jest
       .fn()
-      .mockImplementation(
-        async (parentUri: string, fileName: string) => `${parentUri}/${fileName}`
+      .mockImplementation(async (parentUri: string, fileName: string) =>
+        buildSafChildUri(parentUri, fileName)
       ),
     deleteAsync: jest.fn().mockResolvedValue(undefined),
   },

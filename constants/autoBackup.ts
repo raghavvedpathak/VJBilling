@@ -1,4 +1,6 @@
-// constants/autoBackup.ts
+// constants/autoBackup.ts — Phase 1 v8.1 Canonical Automatic Backup Constants
+// Implements FIX-V745-3, FIX-V746-1, FIX-V747-1, FIX-V747-4, FIX-V81-2, FIX-V81-3
+
 export const AUTO_BACKUP_INTERVAL_MS = 24 * 60 * 60 * 1000;
 export const AUTO_BACKUP_COOLDOWN_MS = 30 * 60 * 1000; // after a failed attempt
 export const AUTO_BACKUP_KEEP = 7;
@@ -23,6 +25,8 @@ export const AB_KEYS = {
   lastSuccessDay: 'vjbilling_autobackup_last_success_day', // v7.47 FIX-V747-1: local date YYYY-MM-DD of the last success
   missedNotifiedDay: 'vjbilling_autobackup_missed_notified_day', // v7.47: local date a "Backup missed" notification was sent
   lastTrigger: 'vjbilling_autobackup_last_trigger', // v7.47: BackupTrigger of the last attempt
+  lastMirror: 'vjbilling_autobackup_last_mirror', // v8.1 FIX-V81-2: 'OK', 'FAILED:NO_FOLDER', or 'FAILED:<error name>'
+  lastNotify: 'vjbilling_autobackup_last_notify', // v8.1 FIX-V81-3: '<DONE|FAILED|MISSED>:<SENT|NO_PERMISSION|ERROR:<name>>|<ISO time>'
 } as const;
 
 export const AUTO_BACKUP_MMKV_KEYS: string[] = Object.values(AB_KEYS);
@@ -71,4 +75,3 @@ export function nextOverdueAt(lastSuccess: Date): Date {
   t.setHours(20, 45, 0, 0);
   return t;
 }
-

@@ -1,5 +1,6 @@
 // services/phase1/backupService.ts
-// Phase 1 v8.0 Canonical Implementation (FIX-V740-1, FIX-V742-3, FIX-V742-5, FIX-V742-10, FIX-V744-7, FIX-V745-1..3, FIX-V747-3..4)
+// Phase 1 v8.1 Canonical Implementation
+// Implements FIX-V740-1, FIX-V742-3/5/10, FIX-V744-7, FIX-V745-1..3, FIX-V747-3..4, FIX-V81-1, FIX-V81-2
 
 import * as FileSystem from 'expo-file-system/legacy';
 import { StorageAccessFramework } from 'expo-file-system/legacy';
@@ -24,6 +25,7 @@ import {
   BACKUP_SCHEMA_VERSION,
   APP_VERSION,
   ERR,
+  AB_KEYS,
   MIN_BACKUP_PASSWORD_LENGTH,
   BACKUP_FILE_PREFIX,
   AUTO_BACKUP_FILE_REGEX,
@@ -112,11 +114,18 @@ export interface BackupEnvelope {
   payload: BackupInnerPayload;
 }
 
+// v8.1 FIX-V81-1: A SAF child URI ends in the document id, e.g. .../document/primary%3ADocuments%2FVJ%20Billing.
+// Decode that last segment, then keep only what follows the last '/' or ':'.
+export function safLeafName(uri: string): string {
+  const last = decodeURIComponent(uri.split('/').pop() ?? '');
+  return last.substring(Math.max(last.lastIndexOf('/'), last.lastIndexOf(':')) + 1);
+}
+
+// v7.33 FIX-V733-6 & v8.1 FIX-V81-1: Reuses an existing SAF folder instead of creating 'VJ Billing (1)' duplicates.
 export async function getOrCreateSafFolder(parentUri: string, name: string): Promise<string> {
   const children = await StorageAccessFramework.readDirectoryAsync(parentUri);
   for (const childUri of children) {
-    const decodedName = decodeURIComponent(childUri.split('/').pop() ?? '');
-    if (decodedName === name || decodedName.endsWith(`:${name}`)) {
+    if (safLeafName(childUri) === name) {
       return childUri;
     }
   }
@@ -356,8 +365,24 @@ export async function createBackup(
       }
     }
 
-    // 6. v7.33 FIX-V733-4 / FIX-V733-5: Best-effort public storage mirror (Android SAF Documents/VJ Billing/backups/)
+    // 6. G41: Audit write OUTSIDE transaction (Call Site 2; FIX-V744-7, FIX-V745-2, FIX-V747-4)
+    auditRepository.log(null, {
+      eventType: 'BACKUP_CREATED',
+      firmId: null,
+      deviceId: deviceIdStr,
+      payload: JSON.stringify({
+        exportedAt,
+        fileName,
+        fileSizeBytes,
+        shared,
+        kind,
+        trigger,
+      }),
+    });
+
+    // 7. v7.33 FIX-V733-4/5 & v8.1 FIX-V81-2: Best-effort public storage mirror (never throws)
     let mirroredToPublicStorage = false;
+    let mirrorError = ''; // Error name only, never a message or a path
     try {
       const publicDirUri = storage.getString('vjbilling_public_backup_dir_uri');
       if (publicDirUri) {
@@ -374,8 +399,19 @@ export async function createBackup(
         });
         mirroredToPublicStorage = true;
       }
-    } catch {
+    } catch (e) {
       mirroredToPublicStorage = false;
+      mirrorError = ((e as Error)?.name ?? 'Error').slice(0, 40);
+    }
+
+    // v8.1 FIX-V81-2: Record outcome of public copy for Settings > Backup/Restore visibility
+    try {
+      storage.set(
+        AB_KEYS.lastMirror,
+        mirroredToPublicStorage ? 'OK' : 'FAILED:' + (mirrorError || 'NO_FOLDER')
+      );
+    } catch {
+      /* status only */
     }
 
     if (trigger !== 'BACKGROUND') {
@@ -383,21 +419,6 @@ export async function createBackup(
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       } catch {}
     }
-
-    // 7. G41: Audit write OUTSIDE transaction (Call Site 2; FIX-V744-7, FIX-V745-2, FIX-V747-4)
-    auditRepository.log(null, {
-      eventType: 'BACKUP_CREATED',
-      firmId: null,
-      deviceId: deviceIdStr,
-      payload: JSON.stringify({
-        exportedAt,
-        fileName,
-        fileSizeBytes,
-        shared,
-        kind,
-        trigger,
-      }),
-    });
 
     return { fileName, filePath, fileSizeBytes, mirroredToPublicStorage };
   } catch (error) {
@@ -409,7 +430,7 @@ export async function createBackup(
 }
 
 /**
- * v7.45 FIX-V745-3: Retains the 7 newest automatic backup files (vjbilling_auto_*.vjb)
+ * v7.45 FIX-V745-3 & v8.1 FIX-V81-1: Retains the 7 newest automatic backup files (vjbilling_auto_*.vjb)
  * in both internal BACKUP_DIR and the public SAF folder after a confirmed success.
  * Never touches manual or FY-close backups.
  */
@@ -429,11 +450,10 @@ export async function pruneAutoBackups(justWritten: string): Promise<void> {
   const appFolder = await getOrCreateSafFolder(dirUri, 'VJ Billing');
   const folder = await getOrCreateSafFolder(appFolder, 'backups');
   const entries = (await StorageAccessFramework.readDirectoryAsync(folder))
-    .map((uri) => {
-      const decodedTail = decodeURIComponent(uri).split('/').pop() ?? '';
-      const baseName = (decodedTail.split(':').pop() ?? decodedTail).replace(/\.bin$/, '');
-      return { uri, name: baseName };
-    })
+    .map((uri) => ({
+      uri,
+      name: safLeafName(uri).replace(/\.bin$/, ''),
+    }))
     .filter((e) => AUTO_BACKUP_FILE_REGEX.test(e.name))
     .sort((a, b) => b.name.localeCompare(a.name));
   if (!entries.some((e) => e.name === justWritten)) return;
@@ -446,6 +466,7 @@ export const backupService = {
   createBackup,
   pruneAutoBackups,
   getOrCreateSafFolder,
+  safLeafName,
 };
 
 export default backupService;
