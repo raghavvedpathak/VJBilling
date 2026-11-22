@@ -2,7 +2,7 @@
 // Aligned with FEAT-LOOSE-STOCK-1 (v2.23 / v2.24), FIX-ITEM-SALELINK-RENAME-1 (v2.17),
 // FIX-ITEM-PURCHASELINK-1 (v2.16), FIX-P2-SYNC-CONTRACT-1 (v1.81), GAP-P2-DATE-SKU-EDIT-1 (v1.79) & RED-5
 
-import { db } from '@/db/client';
+import { safeTransaction } from '@/db/safeTransaction';
 import { itemRepository } from '@/repositories/phase2/itemRepository';
 import { designRepository } from '@/repositories/phase2/designRepository';
 import { categoryRepository } from '@/repositories/phase2/categoryRepository';
@@ -45,7 +45,7 @@ export async function createPhantomItem(input: CreatePhantomItemInput, firmId: s
   safeModeService.assertNotInSafeMode();     // GUARD 2
   const deviceId = await getDeviceId();
 
-  return db.transaction((tx) => {
+  return safeTransaction((tx) => {
     const design = designRepository.getById(tx, input.designId, firmId);
     if (!design || design.firmId !== firmId) throw new Error(ERR.DESIGN_NOT_FOUND_OR_WRONG_FIRM);
     if (design.stockType === 'LOOSE') throw new Error(ERR.LOOSE_STOCK_DESIGN_TYPE_MISMATCH);
@@ -149,7 +149,7 @@ export async function reconcilePhantomItem(phantomItemId: string, realItemId: st
   safeModeService.assertNotInSafeMode();     // GUARD 2
   const deviceId = await getDeviceId();
 
-  return db.transaction((tx) => {
+  return safeTransaction((tx) => {
     const phantom = itemRepository.getById(tx, firmId, phantomItemId);
     if (!phantom || phantom.firmId !== firmId) throw new Error(ERR.PHANTOM_ITEM_NOT_FOUND);
     if (phantom.status !== 'PHANTOM_SOLD') throw new Error(ERR.PHANTOM_NOT_YET_SOLD);
@@ -227,7 +227,7 @@ export async function createItem(input: CreateItemInput, firmId: string): Promis
 
   await fyService.resolveTransactionFyId(firmId, entryDate); // Throws ENTRY_DATE_IN_CLOSED_FY if closed
 
-  return db.transaction((tx) => {
+  return safeTransaction((tx) => {
     const design = designRepository.getById(tx, input.designId, firmId);
     if (!design || design.firmId !== firmId) throw new Error(ERR.DESIGN_NOT_FOUND_OR_WRONG_FIRM);
     if (design.stockType === 'LOOSE') throw new Error(ERR.LOOSE_STOCK_DESIGN_TYPE_MISMATCH);
@@ -364,7 +364,7 @@ export async function adjustWeight(
 
   const deviceId = await getDeviceId();
 
-  return db.transaction((tx) => {
+  return safeTransaction((tx) => {
     const item = itemRepository.getById(tx, firmId, itemId);
     if (!item || item.firmId !== firmId) throw new Error(ERR.ITEM_NOT_FOUND_OR_WRONG_FIRM);
 
@@ -443,7 +443,7 @@ export async function updateItem(
 
   const deviceId = await getDeviceId();
 
-  return db.transaction((tx) => {
+  return safeTransaction((tx) => {
     const item = itemRepository.getById(tx, firmId, itemId);
     if (!item || item.firmId !== firmId) throw new Error(ERR.ITEM_NOT_FOUND_OR_WRONG_FIRM);
 
@@ -530,7 +530,7 @@ export async function createItemsBulk(inputs: CreateItemInput[], firmId: string)
 
   const deviceId = await getDeviceId();
 
-  return db.transaction((tx) => {
+  return safeTransaction((tx) => {
     const results: Item[] = [];
     for (const input of inputs) {
       const design = designRepository.getById(tx, input.designId, firmId);
@@ -648,7 +648,7 @@ export async function deleteItem(itemId: string, firmId: string, reason: string)
   if (!reason || reason.trim().length === 0) throw new Error(ERR.ITEM_ACTION_REASON_REQUIRED);
   const deviceId = await getDeviceId();
 
-  return db.transaction((tx) => {
+  return safeTransaction((tx) => {
     const item = itemRepository.getById(tx, firmId, itemId);
     if (!item || item.firmId !== firmId) throw new Error(ERR.ITEM_NOT_FOUND_OR_WRONG_FIRM);
 
@@ -675,7 +675,7 @@ export async function updateItemStatus(itemId: string, firmId: string, newStatus
   safeModeService.assertNotInSafeMode();     // GUARD 2
   const deviceId = await getDeviceId();
 
-  return db.transaction((tx) => {
+  return safeTransaction((tx) => {
     const item = itemRepository.getById(tx, firmId, itemId);
     if (!item || item.firmId !== firmId) throw new Error(ERR.ITEM_NOT_FOUND_OR_WRONG_FIRM);
 
@@ -726,7 +726,7 @@ export async function sendToKarigar(
   safeModeService.assertNotInSafeMode();     // GUARD 2
   const deviceId = await getDeviceId();
 
-  return db.transaction((tx) => {
+  return safeTransaction((tx) => {
     const item = itemRepository.getById(tx, firmId, itemId);
     if (!item || item.firmId !== firmId) throw new Error(ERR.ITEM_NOT_FOUND_OR_WRONG_FIRM);
 
@@ -784,7 +784,7 @@ export async function returnFromKarigar(
   const nextStatus = nextStatusMap[outcome];
   if (!nextStatus) throw new Error(`${ERR.INVALID_TRANSITION}: Unknown karigar outcome ${outcome}`);
 
-  return db.transaction((tx) => {
+  return safeTransaction((tx) => {
     const item = itemRepository.getById(tx, firmId, itemId);
     if (!item || item.firmId !== firmId) throw new Error(ERR.ITEM_NOT_FOUND_OR_WRONG_FIRM);
 
@@ -823,7 +823,7 @@ export async function addHUID(itemId: string, firmId: string, huid: string): Pro
   safeModeService.assertNotInSafeMode();     // GUARD 2
   const deviceId = await getDeviceId();
 
-  return db.transaction((tx) => {
+  return safeTransaction((tx) => {
     const item = itemRepository.getById(tx, firmId, itemId);
     if (!item || item.firmId !== firmId) throw new Error(ERR.ITEM_NOT_FOUND_OR_WRONG_FIRM);
 
@@ -870,7 +870,7 @@ export async function correctMetalSource(itemId: string, firmId: string, metalSo
   if (!reason || reason.trim().length === 0) throw new Error(ERR.ITEM_ACTION_REASON_REQUIRED);
   const deviceId = await getDeviceId();
 
-  return db.transaction((tx) => {
+  return safeTransaction((tx) => {
     const item = itemRepository.getById(tx, firmId, itemId);
     if (!item || item.firmId !== firmId) throw new Error(ERR.ITEM_NOT_FOUND_OR_WRONG_FIRM);
 
@@ -909,7 +909,7 @@ export async function correctHUID(itemId: string, firmId: string, huid: string, 
   if (!reason || reason.trim().length === 0) throw new Error(ERR.ITEM_ACTION_REASON_REQUIRED);
   const deviceId = await getDeviceId();
 
-  return db.transaction((tx) => {
+  return safeTransaction((tx) => {
     const item = itemRepository.getById(tx, firmId, itemId);
     if (!item || item.firmId !== firmId) throw new Error(ERR.ITEM_NOT_FOUND_OR_WRONG_FIRM);
     if (TERMINAL_ITEM_STATUSES.includes(item.status)) throw new Error(ERR.ITEM_EDIT_LOCKED_TERMINAL_STATUS);
@@ -960,7 +960,7 @@ export async function correctItemEntryDate(itemId: string, newEntryDate: string,
 
   const deviceId = await getDeviceId();
 
-  return db.transaction((tx) => {
+  return safeTransaction((tx) => {
     const item = itemRepository.getById(tx, firmId, itemId);
     if (!item || item.firmId !== firmId) throw new Error(ERR.ITEM_NOT_FOUND_OR_WRONG_FIRM);
     if (TERMINAL_ITEM_STATUSES.includes(item.status)) {
@@ -1050,7 +1050,7 @@ export async function addLooseStock(input: AddLooseStockInput, firmId: string): 
   safeModeService.assertNotInSafeMode();     // GUARD 2
   const deviceId = await getDeviceId();
 
-  return db.transaction((tx) => {
+  return safeTransaction((tx) => {
     const design = designRepository.getById(tx, input.designId, firmId);
     if (!design || design.firmId !== firmId) throw new Error(ERR.DESIGN_NOT_FOUND_OR_WRONG_FIRM);
     if (design.stockType !== 'LOOSE') throw new Error(ERR.LOOSE_STOCK_DESIGN_TYPE_MISMATCH);
@@ -1184,7 +1184,7 @@ export async function discardDraftItem(itemId: string, firmId: string): Promise<
   safeModeService.assertNotInSafeMode();     // GUARD 2
   const deviceId = await getDeviceId();
 
-  return db.transaction((tx) => {
+  return safeTransaction((tx) => {
     const item = itemRepository.getById(tx, firmId, itemId);
     if (!item || item.firmId !== firmId) throw new Error(ERR.ITEM_NOT_FOUND_OR_WRONG_FIRM);
     if (item.status !== 'DRAFT') throw new Error(ERR.ITEM_NOT_DRAFT);

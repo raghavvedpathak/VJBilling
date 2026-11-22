@@ -1,7 +1,7 @@
 // services/phase2/barcodeLabelService.ts — Phase 2 v2.34 Canonical Service
 // Step 5.1 / FEAT-BARCODE-LABEL-1 (v1.66) / FIX-BARCODE-REPRINT-GUARD-1 (v1.79)
 
-import { db } from '@/db/client';
+import { safeTransaction } from '@/db/safeTransaction';
 import { leaseService } from '@/services/phase1/leaseService';
 import { safeModeService } from '@/services/phase1/safeModeService';
 import { barcodeLabelRepository } from '@/repositories/phase2/barcodeLabelRepository';
@@ -48,7 +48,7 @@ export async function logBarcodeReprint(itemId: string, firmId: string): Promise
 
   const deviceId = await getDeviceId();
 
-  return db.transaction((tx) => {
+  return safeTransaction((tx) => {
     const item = itemRepository.getById(tx, firmId, itemId);
     if (!item || item.firmId !== firmId) throw new Error(ERR.ITEM_NOT_FOUND_OR_WRONG_FIRM);
 

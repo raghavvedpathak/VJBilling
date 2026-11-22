@@ -1,7 +1,7 @@
 // services/phase2/gemstoneLotService.ts — Phase 2 v2.24 Canonical Service
 // Step 4.5 / GEMSTONE-1 (v1.21), FIX-V1-2 (v1.23) & RED-7
 
-import { db } from '@/db/client';
+import { safeTransaction } from '@/db/safeTransaction';
 import { leaseService } from '@/services/phase1/leaseService';
 import { safeModeService } from '@/services/phase1/safeModeService';
 import { gemstoneLotRepository } from '@/repositories/phase2/gemstoneLotRepository';
@@ -33,7 +33,7 @@ export async function createGemstoneLot(
 
   const deviceId = await getDeviceId();
 
-  return db.transaction((tx) => {
+  return safeTransaction((tx) => {
     const stone = stoneRepository.getById(tx, input.stoneId, firmId);
     if (!stone || stone.isActive !== 1) throw new Error(ERR.STONE_NOT_FOUND_OR_WRONG_FIRM);
 
@@ -95,7 +95,7 @@ export async function updateGemstoneLotStatus(
 
   const deviceId = await getDeviceId();
 
-  return db.transaction((tx) => {
+  return safeTransaction((tx) => {
     const lot = gemstoneLotRepository.getById(tx, lotId, firmId);
     if (!lot || lot.firmId !== firmId) throw new Error(ERR.GEMSTONE_LOT_NOT_FOUND_OR_WRONG_FIRM);
 

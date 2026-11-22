@@ -2,7 +2,7 @@
 // Implements FIX-PURITYROUND-SCOPE-EXPAND-1 (v2.26), FIX-OLDMETAL-RENAME-1 (v2.32),
 // FIX-OLDGOLD-TXNLINK-1 (v2.31), FIX-OLDMETAL-VOID-1 (v2.33), FIX-OLDGOLD-METAL-VALIDATION-1 (v2.28)
 
-import { db } from '@/db/client';
+import { safeTransaction } from '@/db/safeTransaction';
 import { ERR } from '@/constants/errorCodes';
 import type { OldMetalLot, CreateOldMetalLotInput, OldMetalLotStatus } from '@/types/phase2/phase2.types';
 import { VALID_LOT_TRANSITIONS } from '@/types/phase2/phase2.types';
@@ -66,7 +66,7 @@ export async function createOldMetalLot(
   const sanitizedNotes = input.notes ? sanitizeText(input.notes) : null;
   const deviceId = await getDeviceId();
 
-  return db.transaction((tx) => {
+  return safeTransaction((tx) => {
     const lotId = Crypto.randomUUID();
 
     const lot = oldMetalLotRepository.insert(tx, {
@@ -160,7 +160,7 @@ export async function updateOldMetalLotStatus(
   if (customTx) {
     return runWithTx(customTx);
   }
-  return db.transaction((tx) => runWithTx(tx));
+  return safeTransaction((tx) => runWithTx(tx));
 }
 
 // Service-layer read queries

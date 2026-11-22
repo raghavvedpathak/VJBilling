@@ -1,6 +1,6 @@
 // services/phase2/stoneService.ts — Phase 2 v2.30 Canonical Service
 
-import { db } from '@/db/client';
+import { safeTransaction } from '@/db/safeTransaction';
 import { leaseService } from '@/services/phase1/leaseService';
 import { safeModeService } from '@/services/phase1/safeModeService';
 import { stoneRepository } from '@/repositories/phase2/stoneRepository';
@@ -27,7 +27,7 @@ export async function createStone(input: CreateStoneInput, firmId: string): Prom
   const sanitizedName = sanitizeText(input.name); // GAP-P1ALIGN-4 (v1.74)
   const deviceId = await getDeviceId();
 
-  const stone = db.transaction((tx) => {
+  const stone = safeTransaction((tx) => {
     const stone = stoneRepository.insert(tx, {
       id: Crypto.randomUUID(),
       name: sanitizedName,
@@ -64,7 +64,7 @@ export async function updateStone(
 
   const deviceId = await getDeviceId();
 
-  const updated = db.transaction((tx) => {
+  const updated = safeTransaction((tx) => {
     const existing = stoneRepository.getById(tx, stoneId, firmId);
     if (!existing || existing.firmId !== firmId) {
       throw new Error(ERR.STONE_NOT_FOUND_OR_WRONG_FIRM);
@@ -110,7 +110,7 @@ export async function softDeleteStone(stoneId: string, firmId: string): Promise<
   const deviceId = await getDeviceId();
 
   // FIX-P2-SYNC-CONTRACT-1 (v1.81): Synchronous transaction callback mandatory
-  db.transaction((tx) => {
+  safeTransaction((tx) => {
     const stone = stoneRepository.getById(tx, stoneId, firmId);
     if (!stone || stone.firmId !== firmId) {
       throw new Error(ERR.STONE_NOT_FOUND_OR_WRONG_FIRM);

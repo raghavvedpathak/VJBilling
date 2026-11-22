@@ -1,7 +1,7 @@
 // services/phase2/karigarService.ts — Phase 2 v2.34 Canonical Service
 // Step 10.7 / FIX-SERVICE-BODY-1 (v1.35) / FIX-LOOP-1 (v1.33) / FIX-KARIGAR-FWDCOMPAT-1 (v2.18) / FIX-P2-SYNC-CONTRACT-1 (v1.81)
 
-import { db } from '@/db/client';
+import { safeTransaction } from '@/db/safeTransaction';
 import { itemRepository } from '@/repositories/phase2/itemRepository';
 import { itemEventRepository } from '@/repositories/phase2/itemEventRepository';
 import { auditRepository } from '@/repositories/phase1/auditRepository';
@@ -38,7 +38,7 @@ export async function sendToKarigar(
   // FIX-P2-SYNC-CONTRACT-1: await deviceId cleanly outside tx
   const deviceId = await getDeviceId();
 
-  return db.transaction((tx) => {
+  return safeTransaction((tx) => {
     const item = itemRepository.getById(tx, firmId, itemId);
     if (!item || item.firmId !== firmId) throw new Error(ERR.ITEM_NOT_FOUND_OR_WRONG_FIRM);
 
@@ -120,7 +120,7 @@ export async function returnFromKarigar(
   // FIX-P2-SYNC-CONTRACT-1: await deviceId cleanly outside tx
   const deviceId = await getDeviceId();
 
-  return db.transaction((tx) => {
+  return safeTransaction((tx) => {
     const item = itemRepository.getById(tx, firmId, itemId);
     if (!item || item.firmId !== firmId) throw new Error(ERR.ITEM_NOT_FOUND_OR_WRONG_FIRM);
 

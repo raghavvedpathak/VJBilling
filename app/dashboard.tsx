@@ -24,9 +24,14 @@ import { useVerifyStore } from '@/store/phase1/verifyStore';
 import { isPinSet, isPinSkipped } from '@/services/phase1/pinService';
 import { storage } from '@/utils/storage';
 import { AB_KEYS, localDay } from '@/constants/autoBackup';
-import { GlassButton, HeaderPill, MenuTile, ListTileCard } from '@/components/ui/Glass';
+import { GlassButton, HeaderPill, MenuTile, ListTileCard, GlassCard } from '@/components/ui/Glass';
 import { LeaseStatusBanner } from '@/components/phase1/LeaseStatusBanner';
 import { FYEndBanner } from '@/components/phase1/FYEndBanner';
+import { appSettingsStore } from '@/store/phase1/appSettingsStore';
+import { dashboardService, type DashboardLiveData } from '@/services/dashboardService';
+import { formatRupees } from '@/utils/currency';
+import { formatWeightMg } from '@/utils/purity.constants';
+import * as Haptics from 'expo-haptics';
 import {
   LogOut,
   Settings,
@@ -42,6 +47,15 @@ import {
   LockOpen,
   CloudOff,
   ChevronRight,
+  Scale,
+  Receipt,
+  ReceiptIndianRupee,
+  Coins,
+  Search,
+  Zap,
+  Edit2,
+  Sparkles,
+  Power,
 } from 'lucide-react-native';
 import { COLORS } from '@/constants/theme';
 
@@ -66,15 +80,19 @@ export default function Dashboard() {
   const { firm, activeFY, isLoading, bisLogoUri, refreshSession } = useSession();
   const hasUnviewedWarnings = useVerifyStore((s) => s.hasUnviewedWarnings);
   const markWarningsViewed = useVerifyStore((s) => s.markWarningsViewed);
+  const activeTheme = appSettingsStore((s: any) => s.theme);
+  const isDark = activeTheme === 'dark';
 
   // FIX-V745-3: Mounted on Dashboard screen ONLY
   useAutoBackupTrigger();
 
   const [showLogoutModal, setShowLogoutModal] = useState(false);
+  const [showExitModal, setShowExitModal] = useState(false);
   const [firmLogoBroken, setFirmLogoBroken] = useState(false);
   const [bisLogoBroken, setBisLogoBroken] = useState(false);
   const [pinSkippedBannerVisible, setPinSkippedBannerVisible] = useState(false);
   const [autoBackupBanner, setAutoBackupBanner] = useState<string | null>(null);
+  const [liveData, setLiveData] = useState<DashboardLiveData | null>(null);
 
   const isBackingUp =
     activeLease?.type === 'BACKUP' || activeLease?.leaseType === 'BACKUP';
@@ -134,14 +152,11 @@ export default function Dashboard() {
     setAutoBackupBanner(null);
   }, []);
 
-  // Prevent Android hardware back button from navigating back to Welcome / Setup screen
+  // Prevent Android hardware back button from navigating back to Welcome / Setup screen; show modern exit modal
   useFocusEffect(
     useCallback(() => {
       const onBackPress = () => {
-        Alert.alert('Exit Application', 'Are you sure you want to exit VJ Billing?', [
-          { text: 'Cancel', style: 'cancel', onPress: () => {} },
-          { text: 'Exit', style: 'destructive', onPress: () => BackHandler.exitApp() },
-        ]);
+        setShowExitModal(true);
         return true;
       };
 
@@ -150,12 +165,23 @@ export default function Dashboard() {
     }, [])
   );
 
-  // Re-verify session and banner state whenever Dashboard regains focus
+  const loadDashboardMetrics = useCallback(async () => {
+    if (!firm?.id) return;
+    try {
+      const data = await dashboardService.getDashboardData(firm.id);
+      setLiveData(data);
+    } catch (e) {
+      console.warn('[Dashboard] Failed to load live metrics:', e);
+    }
+  }, [firm?.id]);
+
+  // Re-verify session, banner state, and live metrics whenever Dashboard regains focus
   useFocusEffect(
     useCallback(() => {
       refreshSession?.();
       refreshBanners();
-    }, [refreshSession, refreshBanners])
+      loadDashboardMetrics();
+    }, [refreshSession, refreshBanners, loadDashboardMetrics])
   );
 
   useEffect(() => {
@@ -369,10 +395,301 @@ export default function Dashboard() {
     <TwoToneWrapper title="" headerContent={dashboardHeader}>
       <ScrollView
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingTop: 24, paddingBottom: 100 }}
+        contentContainerStyle={{ paddingTop: 16, paddingBottom: 100 }}
       >
-        <View className="mb-4 px-1">
-          <Text className="text-vj-text/60 text-xs font-black uppercase tracking-widest">
+        {/* 1. TODAY'S LIVE METAL RATES STRIP */}
+        {liveData?.rates && (liveData.rates.gold24kPer10gPaise || liveData.rates.silverPerKgPaise) ? (
+          <TouchableOpacity
+            testID="dashboard-rates-strip"
+            activeOpacity={0.88}
+            onPress={() => {
+              try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
+              router.push('/settings/rates');
+            }}
+            style={{ marginBottom: 16 }}
+          >
+            <GlassCard
+              contentPadding={14}
+              style={{
+                borderColor: 'rgba(212, 175, 55, 0.45)',
+                backgroundColor: isDark ? 'rgba(28, 20, 24, 0.92)' : 'rgba(255, 255, 255, 0.92)',
+              }}
+            >
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                  <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: '#10B981' }} />
+                  <Text style={{ fontSize: 11, fontWeight: '900', letterSpacing: 0.8, color: '#D4AF37' }}>
+                    TODAY'S LIVE METAL BHAV
+                  </Text>
+                  <View style={{ backgroundColor: 'rgba(16, 185, 129, 0.15)', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6, borderWidth: 1, borderColor: 'rgba(16, 185, 129, 0.3)' }}>
+                    <Text style={{ fontSize: 9, fontWeight: '900', color: '#10B981' }}>LIVE</Text>
+                  </View>
+                </View>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: 'rgba(212, 175, 55, 0.12)', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8, borderWidth: 1, borderColor: 'rgba(212, 175, 55, 0.3)' }}>
+                  <Edit2 size={11} color="#D4AF37" />
+                  <Text style={{ fontSize: 10, fontWeight: '800', color: '#D4AF37' }}>Edit Rates</Text>
+                </View>
+              </View>
+
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                {liveData.rates.gold24kPer10gPaise ? (
+                  <View style={{ flex: 1, backgroundColor: isDark ? 'rgba(212, 175, 55, 0.14)' : '#FEF3C7', padding: 8, borderRadius: 10, borderWidth: 1, borderColor: 'rgba(212, 175, 55, 0.3)' }}>
+                    <Text style={{ fontSize: 9, fontWeight: '800', color: isDark ? '#FDE68A' : '#92400E' }}>GOLD 24K (10g)</Text>
+                    <Text style={{ fontSize: 13, fontWeight: '900', color: isDark ? '#FCFBF8' : '#78350F', marginTop: 2 }}>
+                      {formatRupees(liveData.rates.gold24kPer10gPaise)}
+                    </Text>
+                  </View>
+                ) : null}
+
+                {liveData.rates.gold22kPer10gPaise ? (
+                  <View style={{ flex: 1, backgroundColor: isDark ? 'rgba(212, 175, 55, 0.08)' : '#FFFBEB', padding: 8, borderRadius: 10, borderWidth: 1, borderColor: 'rgba(212, 175, 55, 0.22)' }}>
+                    <Text style={{ fontSize: 9, fontWeight: '800', color: isDark ? '#FDE68A' : '#92400E' }}>GOLD 22K (10g)</Text>
+                    <Text style={{ fontSize: 13, fontWeight: '900', color: isDark ? '#FCFBF8' : '#78350F', marginTop: 2 }}>
+                      {formatRupees(liveData.rates.gold22kPer10gPaise)}
+                    </Text>
+                  </View>
+                ) : null}
+
+                {liveData.rates.silverPerKgPaise ? (
+                  <View style={{ flex: 1, backgroundColor: isDark ? 'rgba(148, 163, 184, 0.12)' : '#F1F5F9', padding: 8, borderRadius: 10, borderWidth: 1, borderColor: 'rgba(148, 163, 184, 0.25)' }}>
+                    <Text style={{ fontSize: 9, fontWeight: '800', color: isDark ? '#CBD5E1' : '#475569' }}>SILVER (1kg)</Text>
+                    <Text style={{ fontSize: 13, fontWeight: '900', color: isDark ? '#FCFBF8' : '#1E293B', marginTop: 2 }}>
+                      {formatRupees(liveData.rates.silverPerKgPaise)}
+                    </Text>
+                  </View>
+                ) : null}
+              </View>
+            </GlassCard>
+          </TouchableOpacity>
+        ) : (
+          <TouchableOpacity
+            testID="dashboard-set-rates-btn"
+            activeOpacity={0.88}
+            onPress={() => {
+              try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
+              router.push('/settings/rates');
+            }}
+            style={{ marginBottom: 16 }}
+          >
+            <GlassCard
+              contentPadding={12}
+              style={{
+                borderColor: 'rgba(212, 175, 55, 0.35)',
+                backgroundColor: isDark ? 'rgba(28, 20, 24, 0.88)' : 'rgba(255, 255, 255, 0.88)',
+              }}
+            >
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                  <View style={{ width: 34, height: 34, borderRadius: 17, backgroundColor: 'rgba(212, 175, 55, 0.15)', justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: 'rgba(212, 175, 55, 0.3)' }}>
+                    <Coins size={18} color="#D4AF37" />
+                  </View>
+                  <View>
+                    <Text style={{ fontSize: 13, fontWeight: '800', color: COLORS.vjText }}>
+                      Daily Metal Rates Not Set
+                    </Text>
+                    <Text style={{ fontSize: 11, fontWeight: '600', color: isDark ? 'rgba(255,255,255,0.6)' : '#64748B' }}>
+                      Tap to set Gold & Silver shop board rates
+                    </Text>
+                  </View>
+                </View>
+                <View style={{ backgroundColor: '#D4AF37', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 12, flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                  <Sparkles size={12} color="#1C1418" />
+                  <Text style={{ fontSize: 11, fontWeight: '900', color: '#1C1418' }}>SET BHAV</Text>
+                </View>
+              </View>
+            </GlassCard>
+          </TouchableOpacity>
+        )}
+
+        {/* 2. 1-TAP QUICK ACTION COMMAND BAR */}
+        <View style={{ marginBottom: 18 }}>
+          <Text style={{ fontSize: 10, fontWeight: '900', letterSpacing: 1.2, textTransform: 'uppercase', color: isDark ? 'rgba(255,255,255,0.5)' : 'rgba(92, 22, 35, 0.65)', marginBottom: 8, marginLeft: 2 }}>
+            Quick Actions
+          </Text>
+          <View style={{ flexDirection: 'row', gap: 8, justifyContent: 'space-between' }}>
+            <TouchableOpacity
+              testID="quick-action-new-bill"
+              onPress={() => {
+                try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
+                router.push('/billing/sale');
+              }}
+              activeOpacity={0.8}
+              style={{
+                flex: 1,
+                backgroundColor: isDark ? 'rgba(5, 150, 105, 0.18)' : '#ECFDF5',
+                borderWidth: 1,
+                borderColor: isDark ? 'rgba(5, 150, 105, 0.4)' : '#A7F3D0',
+                borderRadius: 14,
+                paddingVertical: 10,
+                paddingHorizontal: 6,
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 4,
+              }}
+            >
+              <ReceiptIndianRupee size={18} color="#059669" />
+              <Text style={{ fontSize: 11, fontWeight: '800', color: isDark ? '#A7F3D0' : '#065F46' }}>
+                + New Bill
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              testID="quick-action-add-stock"
+              onPress={() => {
+                try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
+                router.push('/inventory/add-stock');
+              }}
+              activeOpacity={0.8}
+              style={{
+                flex: 1,
+                backgroundColor: isDark ? 'rgba(124, 58, 237, 0.18)' : '#F5F3FF',
+                borderWidth: 1,
+                borderColor: isDark ? 'rgba(124, 58, 237, 0.4)' : '#DDD6FE',
+                borderRadius: 14,
+                paddingVertical: 10,
+                paddingHorizontal: 6,
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 4,
+              }}
+            >
+              <Package size={18} color="#7C3AED" />
+              <Text style={{ fontSize: 11, fontWeight: '800', color: isDark ? '#DDD6FE' : '#5B21B6' }}>
+                + Add Item
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              testID="quick-action-add-urd"
+              onPress={() => {
+                try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
+                router.push('/inventory/add-urd');
+              }}
+              activeOpacity={0.8}
+              style={{
+                flex: 1,
+                backgroundColor: isDark ? 'rgba(217, 119, 6, 0.18)' : '#FFFBEB',
+                borderWidth: 1,
+                borderColor: isDark ? 'rgba(217, 119, 6, 0.4)' : '#FDE68A',
+                borderRadius: 14,
+                paddingVertical: 10,
+                paddingHorizontal: 6,
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 4,
+              }}
+            >
+              <Coins size={18} color="#D97706" />
+              <Text style={{ fontSize: 11, fontWeight: '800', color: isDark ? '#FDE68A' : '#92400E' }}>
+                + Old Gold
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              testID="quick-action-search"
+              onPress={() => {
+                try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
+                router.push('/inventory/search');
+              }}
+              activeOpacity={0.8}
+              style={{
+                flex: 1,
+                backgroundColor: isDark ? 'rgba(212, 175, 55, 0.18)' : '#FEF9C3',
+                borderWidth: 1,
+                borderColor: isDark ? 'rgba(212, 175, 55, 0.4)' : '#FEF08A',
+                borderRadius: 14,
+                paddingVertical: 10,
+                paddingHorizontal: 6,
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 4,
+              }}
+            >
+              <Search size={18} color="#CA8A04" />
+              <Text style={{ fontSize: 11, fontWeight: '800', color: isDark ? '#FEF08A' : '#854D0E' }}>
+                Search
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        {/* 3. TODAY'S LIVE BUSINESS PULSE (BENTO KPI CARDS) */}
+        <View style={{ marginBottom: 20 }}>
+          <Text style={{ fontSize: 10, fontWeight: '900', letterSpacing: 1.2, textTransform: 'uppercase', color: isDark ? 'rgba(255,255,255,0.5)' : 'rgba(92, 22, 35, 0.65)', marginBottom: 8, marginLeft: 2 }}>
+            Live Business Pulse
+          </Text>
+          <View style={{ flexDirection: 'row', gap: 10 }}>
+            {/* CARD A: TODAY'S SALES */}
+            <TouchableOpacity
+              testID="kpi-today-sales"
+              onPress={() => router.push('/billing')}
+              activeOpacity={0.88}
+              style={{ flex: 1 }}
+            >
+              <GlassCard
+                contentPadding={14}
+                style={{
+                  flex: 1,
+                  borderColor: 'rgba(5, 150, 105, 0.35)',
+                  backgroundColor: isDark ? 'rgba(5, 150, 105, 0.10)' : 'rgba(236, 253, 245, 0.85)',
+                }}
+              >
+                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+                  <Text style={{ fontSize: 10, fontWeight: '900', color: '#059669', letterSpacing: 0.5 }}>TODAY'S SALES</Text>
+                  <TrendingUp size={14} color="#059669" />
+                </View>
+                <Text style={{ fontSize: 17, fontWeight: '900', color: COLORS.vjText }} numberOfLines={1}>
+                  {formatRupees(liveData?.todaySales.totalSalesPaise || 0)}
+                </Text>
+                <View style={{ marginTop: 4, gap: 2 }}>
+                  <Text style={{ fontSize: 11, fontWeight: '700', color: isDark ? 'rgba(255,255,255,0.7)' : '#065F46' }} numberOfLines={1}>
+                    {liveData?.todaySales.invoicesCount || 0} Invoices Today
+                  </Text>
+                  <Text style={{ fontSize: 10, fontWeight: '600', color: isDark ? 'rgba(255,255,255,0.5)' : '#047857' }} numberOfLines={1}>
+                    URD: {formatRupees(liveData?.todayUrd.totalValuePaise || 0)}
+                  </Text>
+                </View>
+              </GlassCard>
+            </TouchableOpacity>
+
+            {/* CARD B: VAULT STOCK */}
+            <TouchableOpacity
+              testID="kpi-vault-stock"
+              onPress={() => router.push('/inventory')}
+              activeOpacity={0.88}
+              style={{ flex: 1 }}
+            >
+              <GlassCard
+                contentPadding={14}
+                style={{
+                  flex: 1,
+                  borderColor: 'rgba(124, 58, 237, 0.35)',
+                  backgroundColor: isDark ? 'rgba(124, 58, 237, 0.10)' : 'rgba(245, 243, 255, 0.85)',
+                }}
+              >
+                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+                  <Text style={{ fontSize: 10, fontWeight: '900', color: '#7C3AED', letterSpacing: 0.5 }}>VAULT STOCK</Text>
+                  <Scale size={14} color="#7C3AED" />
+                </View>
+                <Text style={{ fontSize: 17, fontWeight: '900', color: COLORS.vjText }} numberOfLines={1}>
+                  {liveData?.vaultStock.totalItemsCount || 0} Pieces
+                </Text>
+                <View style={{ marginTop: 4, gap: 2 }}>
+                  <Text style={{ fontSize: 11, fontWeight: '800', color: isDark ? '#FDE68A' : '#92400E' }} numberOfLines={1}>
+                    Au: {formatWeightMg(liveData?.vaultStock.goldNetWeightMg || 0)}
+                  </Text>
+                  <Text style={{ fontSize: 11, fontWeight: '800', color: isDark ? '#CBD5E1' : '#475569' }} numberOfLines={1}>
+                    Ag: {formatWeightMg(liveData?.vaultStock.silverNetWeightMg || 0)}
+                  </Text>
+                </View>
+              </GlassCard>
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        {/* 4. CORE MODULES (Bento Grid with Live Micro-Stats) */}
+        <View style={{ marginBottom: 4, paddingHorizontal: 2 }}>
+          <Text style={{ fontSize: 10, fontWeight: '900', letterSpacing: 1.2, textTransform: 'uppercase', color: isDark ? 'rgba(255,255,255,0.5)' : 'rgba(92, 22, 35, 0.65)', marginBottom: 8 }}>
             Core Modules
           </Text>
         </View>
@@ -381,7 +698,7 @@ export default function Dashboard() {
           <MenuTile
             variant="dashboard"
             title="Inventory & Stock"
-            subtitle="Stock & URD Intake"
+            subtitle={`${liveData?.vaultStock.totalItemsCount || 0} items • ${liveData?.mastersCount.categories || 0} categories`}
             badgeText="LIVE"
             badgeVariant="active"
             icon={<Package size={22} color="#7C3AED" />}
@@ -393,7 +710,7 @@ export default function Dashboard() {
           <MenuTile
             variant="dashboard"
             title="Billing & Sales"
-            subtitle="Phase 3 Layer"
+            subtitle={`${liveData?.todaySales.invoicesCount || 0} today • ${liveData?.allTimeInvoicesCount || 0} total`}
             icon={<FileText size={22} color="#059669" />}
             iconBg="rgba(5, 150, 105, 0.12)"
             borderColor="rgba(5, 150, 105, 0.2)"
@@ -405,7 +722,7 @@ export default function Dashboard() {
           <MenuTile
             variant="dashboard"
             title="Vault & Refinery"
-            subtitle="Phase 4 Layer"
+            subtitle="Melt & Refining Batches"
             icon={<Landmark size={22} color="#D97706" />}
             iconBg="rgba(217, 119, 6, 0.12)"
             borderColor="rgba(217, 119, 6, 0.2)"
@@ -416,13 +733,14 @@ export default function Dashboard() {
 
           <MenuTile
             variant="dashboard"
-            title="Business Reports"
-            subtitle="Phase 6 Layer"
+            title="Audit & Reports"
+            subtitle="Activity Logs & Security"
             icon={<TrendingUp size={22} color="#DB2777" />}
             iconBg="rgba(219, 39, 119, 0.12)"
             borderColor="rgba(219, 39, 119, 0.2)"
-            badgeText="PHASE 6"
-            disabled
+            badgeText="LIVE"
+            badgeVariant="active"
+            onPress={() => router.push('/settings/audit-logs')}
           />
         </View>
 
@@ -460,13 +778,113 @@ export default function Dashboard() {
               Are you sure you want to exit{' '}
               <Text className="font-bold text-vj-text">{firm.name}</Text>?
             </Text>
-            <View className="w-full gap-2.5">
-              <GlassButton title="Exit Firm" variant="danger" onPress={executeLogout} />
-              <GlassButton
-                title="Cancel"
-                variant="secondary"
-                onPress={() => setShowLogoutModal(false)}
-              />
+            <View style={{ flexDirection: 'row', gap: 10, width: '100%' }}>
+              <View style={{ flex: 1 }}>
+                <GlassButton
+                  title="Cancel"
+                  variant="secondary"
+                  onPress={() => setShowLogoutModal(false)}
+                />
+              </View>
+              <View style={{ flex: 1 }}>
+                <GlassButton title="Exit Firm" variant="danger" onPress={executeLogout} />
+              </View>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* MODERN LUXURY APP EXIT CONFIRMATION MODAL */}
+      <Modal
+        testID="exit-app-modal"
+        animationType="fade"
+        transparent={true}
+        visible={showExitModal}
+        onRequestClose={() => setShowExitModal(false)}
+      >
+        <View className="flex-1 bg-black/70 justify-center items-center px-6">
+          <View
+            style={{
+              width: '100%',
+              maxWidth: 380,
+              backgroundColor: isDark ? '#1C1418' : '#FCFBF8',
+              borderRadius: 28,
+              padding: 24,
+              alignItems: 'center',
+              borderWidth: 1.5,
+              borderColor: isDark ? 'rgba(212, 175, 55, 0.4)' : 'rgba(92, 22, 35, 0.25)',
+              shadowColor: '#000',
+              shadowOffset: { width: 0, height: 10 },
+              shadowOpacity: 0.35,
+              shadowRadius: 20,
+              elevation: 12,
+            }}
+          >
+            {/* Glowing Accent Ring with Power / Exit Icon */}
+            <View
+              style={{
+                width: 68,
+                height: 68,
+                borderRadius: 34,
+                backgroundColor: 'rgba(239, 68, 68, 0.12)',
+                borderWidth: 1.5,
+                borderColor: 'rgba(239, 68, 68, 0.35)',
+                justifyContent: 'center',
+                alignItems: 'center',
+                marginBottom: 16,
+              }}
+            >
+              <Power size={32} color="#EF4444" />
+            </View>
+
+            <Text
+              style={{
+                fontSize: 22,
+                fontWeight: '900',
+                color: COLORS.vjText,
+                textAlign: 'center',
+                letterSpacing: -0.3,
+                marginBottom: 8,
+              }}
+            >
+              Exit Application?
+            </Text>
+
+            <Text
+              style={{
+                fontSize: 13,
+                fontWeight: '600',
+                color: isDark ? 'rgba(255, 255, 255, 0.68)' : 'rgba(92, 22, 35, 0.72)',
+                textAlign: 'center',
+                lineHeight: 19,
+                marginBottom: 24,
+                paddingHorizontal: 8,
+              }}
+            >
+              Are you sure you want to close VJ Billing? All active firm data and vaults are securely encrypted.
+            </Text>
+
+            {/* Symmetrical 50/50 Dual Action Buttons */}
+            <View style={{ flexDirection: 'row', gap: 10, width: '100%' }}>
+              <View style={{ flex: 1 }}>
+                <GlassButton
+                  testID="exit-app-cancel-btn"
+                  title="Cancel"
+                  variant="secondary"
+                  onPress={() => setShowExitModal(false)}
+                />
+              </View>
+              <View style={{ flex: 1 }}>
+                <GlassButton
+                  testID="exit-app-confirm-btn"
+                  title="Exit App"
+                  variant="danger"
+                  onPress={() => {
+                    setShowExitModal(false);
+                    BackHandler.exitApp();
+                  }}
+                />
+              </View>
             </View>
           </View>
         </View>

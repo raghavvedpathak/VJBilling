@@ -3,7 +3,7 @@
 // FIX-OLDGOLD-TXNLINK-1 (v2.31), FIX-OLDMETAL-RENAME-1 (v2.32), FIX-FYREPO-SYNC-CONTRACT-1 (v1.84)
 
 import { ERR } from '@/constants/errorCodes';
-import { db } from '@/db/client';
+import { safeTransaction } from '@/db/safeTransaction';
 import { auditRepository } from '@/repositories/phase1/auditRepository';
 import { fyRepository, financialYearRepository } from '@/repositories/phase1/fyRepository';
 import { sequenceCounterRepository } from '@/repositories/phase1/sequenceCounterRepository';
@@ -76,7 +76,7 @@ export async function createURDPurchase(
   // Enables setting urdPurchaseId on the lot at creation time
   const urdId = Crypto.randomUUID();
 
-  return db.transaction((tx) => {
+  return safeTransaction((tx) => {
     // 1. Create linked old_metal_lots row with urdPurchaseId set directly
     const lot = oldMetalLotRepository.insert(tx, {
       id: Crypto.randomUUID(),
@@ -189,7 +189,7 @@ export async function updateURDPurchase(
   safeModeService.assertNotInSafeMode();     // GUARD 2
   const deviceId = await getDeviceId();
 
-  return db.transaction((tx) => {
+  return safeTransaction((tx) => {
     const urd = urdPurchaseRepository.getById(tx, firmId, urdId);
     if (!urd || urd.firmId !== firmId) throw new Error(ERR.URD_NOT_FOUND_OR_WRONG_FIRM);
     if (urd.status !== 'DRAFT') throw new Error(ERR.URD_ALREADY_CONFIRMED);
@@ -287,7 +287,7 @@ export async function deleteURDPurchase(urdId: string, firmId: string): Promise<
   safeModeService.assertNotInSafeMode();     // GUARD 2
   const deviceId = await getDeviceId();
 
-  return db.transaction((tx) => {
+  return safeTransaction((tx) => {
     const urd = urdPurchaseRepository.getById(tx, firmId, urdId);
     if (!urd || urd.firmId !== firmId) throw new Error(ERR.URD_NOT_FOUND_OR_WRONG_FIRM);
     if (urd.status !== 'DRAFT') throw new Error(ERR.URD_ALREADY_CONFIRMED);
@@ -319,7 +319,7 @@ export async function confirmURDPurchase(
   safeModeService.assertNotInSafeMode();     // GUARD 2
   const deviceId = await getDeviceId();
 
-  return db.transaction((tx) => {
+  return safeTransaction((tx) => {
     const urd = urdPurchaseRepository.getById(tx, firmId, urdId);
     if (!urd || urd.firmId !== firmId) throw new Error(ERR.URD_NOT_FOUND_OR_WRONG_FIRM);
     if (urd.status !== 'DRAFT') throw new Error(ERR.URD_ALREADY_CONFIRMED);

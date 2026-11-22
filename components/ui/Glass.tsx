@@ -209,6 +209,7 @@ export interface GlassButtonProps {
   loading?: boolean | undefined;
   disabled?: boolean | undefined;
   style?: any | undefined;
+  testID?: string | undefined;
 }
 
 export function GlassButton({
@@ -219,6 +220,7 @@ export function GlassButton({
   loading,
   disabled,
   style,
+  testID,
 }: GlassButtonProps) {
   const activeTheme = appSettingsStore((s: any) => s.theme);
   const colors = getThemeColors(activeTheme);
@@ -258,6 +260,7 @@ export function GlassButton({
 
   return (
     <TouchableOpacity
+      testID={testID}
       onPress={handlePress}
       disabled={disabled || loading}
       activeOpacity={0.8}

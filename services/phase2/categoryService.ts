@@ -1,6 +1,6 @@
 // services/phase2/categoryService.ts — Phase 2 v2.24 Canonical Service
 
-import { db } from '@/db/client';
+import { safeTransaction } from '@/db/safeTransaction';
 import { leaseService } from '@/services/phase1/leaseService';
 import { safeModeService } from '@/services/phase1/safeModeService';
 import { categoryRepository } from '@/repositories/phase2/categoryRepository';
@@ -51,7 +51,7 @@ export async function softDeleteCategory(categoryId: string, firmId: string): Pr
 
   const deviceId = await getDeviceId();
 
-  db.transaction((tx) => {
+  safeTransaction((tx) => {
     const cat = categoryRepository.getById(tx, categoryId, firmId);
     if (!cat || cat.firmId !== firmId) throw new Error(ERR.CATEGORY_NOT_FOUND_OR_WRONG_FIRM);
 
@@ -85,7 +85,7 @@ export async function createCategory(input: CreateCategoryInput, firmId: string)
   const sanitizedName = sanitizeText(input.name); // GAP-P1ALIGN-4 v1.74
   const deviceId = await getDeviceId();
 
-  const result = db.transaction((tx) => {
+  const result = safeTransaction((tx) => {
     // Case-insensitive check matching uq_category_firm_name index
     const existing = tx
       .select()
@@ -173,7 +173,7 @@ export async function updateCategory(categoryId: string, firmId: string, name: s
 
   const deviceId = await getDeviceId();
 
-  db.transaction((tx) => {
+  safeTransaction((tx) => {
     const cat = categoryRepository.getById(tx, categoryId, firmId);
     if (!cat || cat.firmId !== firmId) throw new Error(ERR.CATEGORY_NOT_FOUND_OR_WRONG_FIRM);
 

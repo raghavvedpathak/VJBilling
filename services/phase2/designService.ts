@@ -1,7 +1,7 @@
 // services/phase2/designService.ts — Phase 2 v2.24 Canonical Service
 // Aligned with FIX-LOOSESTOCK-STOCKTYPE-1 (v2.24) & FIX-LOWSTOCK-PURITYGRAIN-1 (v2.13)
 
-import { db } from '@/db/client';
+import { safeTransaction } from '@/db/safeTransaction';
 import { leaseService } from '@/services/phase1/leaseService';
 import { safeModeService } from '@/services/phase1/safeModeService';
 import { designRepository } from '@/repositories/phase2/designRepository';
@@ -63,7 +63,7 @@ export async function createDesign(
 
   const deviceId = await getDeviceId();
 
-  const result = db.transaction((tx) => {
+  const result = safeTransaction((tx) => {
     validateDesignName(input.name); // throws DESIGN_NAME_INVALID
     const sanitizedName = sanitizeText(input.name);
 
@@ -191,7 +191,7 @@ export async function softDeleteDesign(designId: string, firmId: string): Promis
 
   const deviceId = await getDeviceId();
 
-  db.transaction((tx) => {
+  safeTransaction((tx) => {
     const design = designRepository.getById(tx, designId, firmId);
     if (!design || design.firmId !== firmId) throw new Error(ERR.DESIGN_NOT_FOUND_OR_WRONG_FIRM);
 
@@ -244,7 +244,7 @@ export async function updateDesign(
 
   const deviceId = await getDeviceId();
 
-  db.transaction((tx) => {
+  safeTransaction((tx) => {
     const design = designRepository.getById(tx, designId, firmId);
     if (!design || design.firmId !== firmId) throw new Error(ERR.DESIGN_NOT_FOUND_OR_WRONG_FIRM);
 
@@ -302,7 +302,7 @@ export async function updateDesignPurityLowStockThreshold(
 
   const deviceId = await getDeviceId();
 
-  await db.transaction((tx) => {
+  safeTransaction((tx) => {
     const design = designRepository.getById(tx, designId, firmId);
     if (!design || design.firmId !== firmId) throw new Error(ERR.DESIGN_NOT_FOUND_OR_WRONG_FIRM);
 
