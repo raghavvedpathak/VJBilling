@@ -984,7 +984,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   saveBtn: {
-    flex: 2,
+    flex: 1,
     height: 48,
     borderRadius: 12,
     justifyContent: 'center',

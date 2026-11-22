@@ -745,7 +745,7 @@ export default function EditDraftScreen() {
         {!loading && !errorMessage && (
           <FixedGlassBar>
             <TouchableOpacity 
-              style={[fixedBarStyles.pillSecondaryBtn, { backgroundColor: isDark ? 'rgba(239, 68, 68, 0.15)' : 'rgba(239, 68, 68, 0.08)', borderColor: isDark ? 'rgba(239, 68, 68, 0.35)' : 'rgba(239, 68, 68, 0.25)', flex: 0.8 }]} 
+              style={[fixedBarStyles.pillSecondaryBtn, { backgroundColor: isDark ? 'rgba(239, 68, 68, 0.15)' : 'rgba(239, 68, 68, 0.08)', borderColor: isDark ? 'rgba(239, 68, 68, 0.35)' : 'rgba(239, 68, 68, 0.25)', flex: 1, flexBasis: 0 }]} 
               onPress={handleDiscard}
               disabled={saving}
             >
@@ -755,7 +755,7 @@ export default function EditDraftScreen() {
 
             <TouchableOpacity 
               testID="save-correction-btn"
-              style={[fixedBarStyles.pillPrimaryBtn, { flex: 1.4 }]} 
+              style={[fixedBarStyles.pillPrimaryBtn, { flex: 1, flexBasis: 0 }]} 
               onPress={handleSave}
               disabled={saving}
             >

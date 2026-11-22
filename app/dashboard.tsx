@@ -218,25 +218,6 @@ export default function Dashboard() {
         </View>
         <FYEndBanner />
 
-        {/* FIX-V740-12 (D2 = P1): Non-dismissible PIN-not-set banner while PIN is skipped */}
-        {pinSkippedBannerVisible && (
-          <TouchableOpacity
-            activeOpacity={0.8}
-            onPress={() => router.push('/settings/pin')}
-            className="bg-amber-100/95 border border-amber-500/60 rounded-2xl p-3.5 mb-2 flex-row items-center justify-between"
-          >
-            <View className="flex-row items-center flex-1 mr-2">
-              <View className="bg-amber-500/20 p-2 rounded-xl mr-3">
-                <LockOpen size={18} color="#B45309" />
-              </View>
-              <Text className="text-amber-900 text-xs font-bold flex-1 leading-4">
-                App lock is off. Anyone who opens this app can see your data. Set a PIN.
-              </Text>
-            </View>
-            <ChevronRight size={16} color="#B45309" />
-          </TouchableOpacity>
-        )}
-
         {/* Step 11 Bootstrap WARNING Display Policy: Persistent amber banner until user views details */}
         {hasUnviewedWarnings && (
           <TouchableOpacity
@@ -367,6 +348,18 @@ export default function Dashboard() {
               variant="success"
             />
           ) : null}
+          {pinSkippedBannerVisible && (
+            <TouchableOpacity
+              onPress={() => router.push('/settings/pin')}
+              activeOpacity={0.75}
+            >
+              <HeaderPill
+                icon={<LockOpen size={12} color="#FBBF24" />}
+                label="APP LOCK OFF"
+                variant="warning"
+              />
+            </TouchableOpacity>
+          )}
         </View>
       </View>
     </View>

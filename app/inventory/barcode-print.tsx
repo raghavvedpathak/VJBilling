@@ -549,7 +549,7 @@ const s = StyleSheet.create({
     fontWeight: '800',
   },
   printBtn: {
-    flex: 1.3,
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',

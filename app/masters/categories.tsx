@@ -280,6 +280,7 @@ export default function CategoriesScreen() {
                     <GlassCard
                       testID={`category-card-${c.id}`}
                       key={c.id}
+                      contentPadding={12}
                       style={{
                         width: gridItemWidth,
                         marginBottom: gap,
@@ -288,7 +289,7 @@ export default function CategoriesScreen() {
                     >
                       <View style={s.gridCardInner}>
                         <View style={s.gridHeaderRow}>
-                          <JewelryMonogramEmblem categoryName={c.name} size={34} />
+                          <JewelryMonogramEmblem categoryName={c.name} size={32} />
                           <View style={[s.codeBadge, { backgroundColor: `${colors.vjAccent}10`, borderColor: `${colors.vjAccent}20` }]}>
                             <Text style={[s.codeBadgeText, { color: colors.vjText }]} numberOfLines={1}>
                               {c.code}
@@ -300,6 +301,14 @@ export default function CategoriesScreen() {
                           {c.name}
                         </Text>
 
+                        <View style={s.gridBadgeRow}>
+                          <View style={[s.categoryScopeBadge, { backgroundColor: `${colors.vjAccent}14`, borderColor: `${colors.vjAccent}30` }]}>
+                            <Text style={[s.categoryScopeText, { color: colors.vjAccent }]} numberOfLines={1}>
+                              Category
+                            </Text>
+                          </View>
+                        </View>
+
                         <View style={[s.gridActionRow, { borderTopColor: `${colors.vjAccent}15` }]}>
                           <TouchableOpacity
                             testID={`edit-category-btn-${c.id}`}
@@ -307,7 +316,7 @@ export default function CategoriesScreen() {
                             style={[s.actionBtnEdit, { backgroundColor: `${colors.vjAccent}14`, borderColor: `${colors.vjAccent}30` }]}
                             activeOpacity={0.7}
                           >
-                            <Edit2 size={14} color={colors.vjAccent} />
+                            <Edit2 size={13} color={colors.vjAccent} />
                             <Text style={[s.actionBtnEditText, { color: colors.vjAccent }]}>Edit</Text>
                           </TouchableOpacity>
                           <TouchableOpacity
@@ -316,7 +325,7 @@ export default function CategoriesScreen() {
                             style={s.actionBtnDelete}
                             activeOpacity={0.7}
                           >
-                            <Trash2 size={14} color="#DC2626" />
+                            <Trash2 size={13} color="#DC2626" />
                           </TouchableOpacity>
                         </View>
                       </View>
@@ -568,11 +577,30 @@ const s = StyleSheet.create({
     letterSpacing: 0.5,
   },
   gridTitle: {
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: '800',
-    lineHeight: 20,
-    minHeight: 40,
+    lineHeight: 18,
+    minHeight: 36,
+    marginBottom: 6,
+  },
+  gridBadgeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: 5,
+    minHeight: 24,
     marginBottom: 10,
+  },
+  categoryScopeBadge: {
+    paddingHorizontal: 7,
+    paddingVertical: 2.5,
+    borderRadius: 6,
+    borderWidth: 1,
+    alignSelf: 'flex-start',
+  },
+  categoryScopeText: {
+    fontSize: 10,
+    fontWeight: '700',
   },
   gridActionRow: {
     flexDirection: 'row',

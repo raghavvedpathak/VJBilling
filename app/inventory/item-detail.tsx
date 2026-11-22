@@ -1863,7 +1863,7 @@ const s = StyleSheet.create({
     fontWeight: '700',
   },
   bottomSaveBtn: {
-    flex: 2,
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',

@@ -315,6 +315,7 @@ export default function DesignsScreen() {
                     <GlassCard
                       testID={`design-card-${d.id}`}
                       key={d.id}
+                      contentPadding={12}
                       style={{
                         width: gridItemWidth,
                         marginBottom: gap,
@@ -323,20 +324,11 @@ export default function DesignsScreen() {
                     >
                       <View style={s.gridCardInner}>
                         <View style={s.gridHeaderRow}>
-                          <JewelryMonogramEmblem designName={d.name} metal={d.metal} categoryName={d.categoryName || undefined} size={34} />
-                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                            <GlassMetalBadge metal={d.metal} />
-                            {isLoose && (
-                              <View style={[s.looseBadge, { backgroundColor: 'rgba(217, 119, 6, 0.15)', borderColor: 'rgba(217, 119, 6, 0.35)' }]}>
-                                <Boxes size={9} color="#D97706" />
-                                <Text style={s.looseBadgeText}>LOOSE</Text>
-                              </View>
-                            )}
-                            <View style={[s.codeBadge, { backgroundColor: `${colors.vjAccent}10`, borderColor: `${colors.vjAccent}20` }]}>
-                              <Text style={[s.codeBadgeText, { color: colors.vjText }]} numberOfLines={1}>
-                                {d.code}
-                              </Text>
-                            </View>
+                          <JewelryMonogramEmblem designName={d.name} metal={d.metal} categoryName={d.categoryName || undefined} size={32} />
+                          <View style={[s.codeBadge, { backgroundColor: `${colors.vjAccent}10`, borderColor: `${colors.vjAccent}20` }]}>
+                            <Text style={[s.codeBadgeText, { color: colors.vjText }]} numberOfLines={1}>
+                              {d.code}
+                            </Text>
                           </View>
                         </View>
 
@@ -344,10 +336,19 @@ export default function DesignsScreen() {
                           {d.name}
                         </Text>
 
-                        <View style={[s.categoryScopeBadge, { backgroundColor: `${colors.vjAccent}14`, borderColor: `${colors.vjAccent}30` }]}>
-                          <Text style={[s.categoryScopeText, { color: colors.vjAccent }]} numberOfLines={1}>
-                            {d.categoryName ? `Cat: ${d.categoryName}` : 'Unassigned Category'}
-                          </Text>
+                        <View style={s.gridBadgeRow}>
+                          <GlassMetalBadge metal={d.metal} compact />
+                          {isLoose && (
+                            <View style={[s.looseBadge, { backgroundColor: 'rgba(217, 119, 6, 0.15)', borderColor: 'rgba(217, 119, 6, 0.35)' }]}>
+                              <Boxes size={9} color="#D97706" />
+                              <Text style={s.looseBadgeText}>LOOSE</Text>
+                            </View>
+                          )}
+                          <View style={[s.categoryScopeBadge, { backgroundColor: `${colors.vjAccent}14`, borderColor: `${colors.vjAccent}30` }]}>
+                            <Text style={[s.categoryScopeText, { color: colors.vjAccent }]} numberOfLines={1}>
+                              {d.categoryName ? `Cat: ${d.categoryName}` : 'Unassigned'}
+                            </Text>
+                          </View>
                         </View>
 
                         <View style={[s.gridActionRow, { borderTopColor: `${colors.vjAccent}15` }]}>
@@ -357,7 +358,7 @@ export default function DesignsScreen() {
                             style={[s.actionBtnEdit, { backgroundColor: `${colors.vjAccent}14`, borderColor: `${colors.vjAccent}30` }]}
                             activeOpacity={0.7}
                           >
-                            <Edit2 size={14} color={colors.vjAccent} />
+                            <Edit2 size={13} color={colors.vjAccent} />
                             <Text style={[s.actionBtnEditText, { color: colors.vjAccent }]}>Edit</Text>
                           </TouchableOpacity>
                           <TouchableOpacity
@@ -366,7 +367,7 @@ export default function DesignsScreen() {
                             style={s.actionBtnDelete}
                             activeOpacity={0.7}
                           >
-                            <Trash2 size={14} color="#DC2626" />
+                            <Trash2 size={13} color="#DC2626" />
                           </TouchableOpacity>
                         </View>
                       </View>
@@ -628,22 +629,29 @@ const s = StyleSheet.create({
     letterSpacing: 0.5,
   },
   gridTitle: {
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: '800',
-    lineHeight: 20,
-    minHeight: 40,
+    lineHeight: 18,
+    minHeight: 36,
     marginBottom: 6,
   },
+  gridBadgeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: 5,
+    minHeight: 24,
+    marginBottom: 10,
+  },
   categoryScopeBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 3,
+    paddingHorizontal: 7,
+    paddingVertical: 2.5,
     borderRadius: 6,
     borderWidth: 1,
     alignSelf: 'flex-start',
-    marginBottom: 10,
   },
   categoryScopeText: {
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: '700',
   },
   gridActionRow: {

@@ -109,12 +109,14 @@ export const fixedBarStyles = {
     const colors = getThemeColors();
     return {
       flex: 1,
+      flexBasis: 0,
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'center',
       gap: 8,
       backgroundColor: colors.vjAccent,
       paddingVertical: 14,
+      paddingHorizontal: 16,
       minHeight: 48,
       borderRadius: 28,
     };
@@ -130,6 +132,8 @@ export const fixedBarStyles = {
   get pillSecondaryBtn(): ViewStyle {
     const colors = getThemeColors();
     return {
+      flex: 1,
+      flexBasis: 0,
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'center',
@@ -138,7 +142,7 @@ export const fixedBarStyles = {
       borderWidth: 1,
       borderColor: colors.border || 'rgba(212, 175, 55, 0.25)',
       paddingVertical: 14,
-      paddingHorizontal: 18,
+      paddingHorizontal: 16,
       minHeight: 48,
       borderRadius: 28,
     };

@@ -49,6 +49,8 @@ export async function initBackupNotifications(): Promise<void> {
       name: 'Backup alerts',
       importance: Notifications.AndroidImportance.HIGH,
       lockscreenVisibility: Notifications.AndroidNotificationVisibility.PRIVATE,
+      lightColor: '#D4AF37',
+      enableLights: true,
     });
   }
   channelInitialized = true;
@@ -86,6 +88,7 @@ export async function rescheduleOverdueReminder(lastSuccess: Date): Promise<void
     content: {
       title: 'Backup overdue',
       body: 'No backup has been saved for over a day. Open VJ Billing to back up now.',
+      color: '#D4AF37',
       data: { kind: 'BACKUP_OVERDUE' },
     },
     trigger: {
@@ -147,6 +150,7 @@ export async function notifyBackupFailed(reason: AutoBackupReason): Promise<void
       content: {
         title: 'Backup needs attention',
         body,
+        color: '#D4AF37',
         data: { kind: 'BACKUP_FAILED' },
       },
       trigger: { channelId: CHANNEL_ID },
@@ -175,6 +179,7 @@ export async function notifyBackupDone(): Promise<void> {
       content: {
         title: 'Backup completed',
         body: 'Your daily backup was saved.',
+        color: '#D4AF37',
         data: { kind: 'BACKUP_DONE' },
       },
       trigger: { channelId: CHANNEL_ID },
@@ -212,6 +217,7 @@ export async function maybeNotifyMissed(now: Date): Promise<void> {
       content: {
         title: 'Backup missed',
         body: "Tonight's backup did not run. Open VJ Billing to back up now.",
+        color: '#D4AF37',
         data: { kind: 'BACKUP_MISSED' },
       },
       trigger: { channelId: CHANNEL_ID },

@@ -30,10 +30,10 @@ export function DateFormatModal({
     }
   };
 
-  // Exactly 6 canonical tokens per Phase 1 v6.2 (G68) & v7.2 (FIX-V72-1)
+  // Exactly canonical tokens per Phase 1 v6.2 (G68) & v7.2 (FIX-V72-1)
   const formats = [
     { token: 'dd/MM/yyyy', label: 'Compact Indian (Default)' },
-    { token: 'd MMM yyyy', label: 'Standard Readable' },
+    { token: 'd MMMM yyyy', label: 'Standard Readable' },
     { token: 'dd-MM-yyyy', label: 'Hyphen Variant' },
     { token: 'dd MMM yyyy', label: 'Formal Padded' },
     { token: 'yyyy-MM-dd', label: 'ISO 8601 (CA / Export)' },
@@ -57,7 +57,9 @@ export function DateFormatModal({
           </View>
 
           {formats.map((fmt) => {
-            const isSelected = activeFormat === fmt.token;
+            const isSelected =
+              activeFormat === fmt.token ||
+              (fmt.token === 'd MMMM yyyy' && activeFormat === 'd MMM yyyy');
             return (
               <TouchableOpacity
                 key={fmt.token}

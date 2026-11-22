@@ -8,6 +8,10 @@
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
+    "notification": {
+      "icon": "./assets/notification-icon.png",
+      "color": "#D4AF37"
+    },
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.vjbilling.app",
@@ -38,7 +42,13 @@
       "expo-font",
       "expo-sharing",
       "expo-secure-store",
-      "expo-notifications",
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/notification-icon.png",
+          "color": "#D4AF37"
+        }
+      ],
       "expo-background-task",
       "expo-task-manager",
       [

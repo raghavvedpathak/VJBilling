@@ -119,7 +119,7 @@ export default function CreateCategoryScreen() {
           <View style={[{ width: '100%', flexDirection: 'row', gap: 12 }, isTablet && { maxWidth: 600, alignSelf: 'center' }]}>
             <TouchableOpacity
               testID="cancel-category-btn"
-              style={[fixedBarStyles.pillSecondaryBtn, { flex: 1 }]}
+              style={[fixedBarStyles.pillSecondaryBtn, { flex: 1, flexBasis: 0 }]}
               onPress={() => {
                 try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
                 router.back();
@@ -132,7 +132,7 @@ export default function CreateCategoryScreen() {
               testID="save-category-btn"
               style={[
                 fixedBarStyles.pillPrimaryBtn, 
-                { flex: 1, backgroundColor: colors.vjAccent },
+                { flex: 1, flexBasis: 0, backgroundColor: colors.vjAccent },
                 (!newName.trim() || isSubmitting) && { opacity: 0.5 }
               ]}
               onPress={handleAdd}

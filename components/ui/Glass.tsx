@@ -835,7 +835,7 @@ export function GlassMetalSelector({ selectedMetal, onSelectMetal, label = 'Meta
   );
 }
 
-export function GlassMetalBadge({ metal }: { metal: 'GOLD' | 'SILVER' }) {
+export function GlassMetalBadge({ metal, compact }: { metal: 'GOLD' | 'SILVER'; compact?: boolean }) {
   const isGold = metal === 'GOLD';
   const activeTheme = appSettingsStore((s: any) => s.theme);
   const isDark = activeTheme === 'dark';
@@ -843,22 +843,22 @@ export function GlassMetalBadge({ metal }: { metal: 'GOLD' | 'SILVER' }) {
   return (
     <View
       style={{
-        paddingHorizontal: 12,
-        paddingVertical: 5,
-        borderRadius: 12,
-        borderWidth: 1.5,
+        paddingHorizontal: compact ? 8 : 12,
+        paddingVertical: compact ? 3 : 5,
+        borderRadius: compact ? 8 : 12,
+        borderWidth: compact ? 1 : 1.5,
         backgroundColor: isGold
           ? (isDark ? 'rgba(212, 175, 55, 0.20)' : '#FEF3C7')
           : (isDark ? 'rgba(148, 163, 184, 0.20)' : '#E2E8F0'),
         borderColor: isGold ? '#D4AF37' : '#94A3B8',
         flexDirection: 'row',
         alignItems: 'center',
-        gap: 8,
+        gap: compact ? 5 : 8,
       }}
     >
       <Text
         style={{
-          fontSize: 11,
+          fontSize: compact ? 10 : 11,
           fontWeight: '900',
           letterSpacing: 0.8,
           color: isGold ? (isDark ? '#FDE68A' : '#92400E') : (isDark ? '#F1F5F9' : '#0F172A'),
@@ -866,7 +866,7 @@ export function GlassMetalBadge({ metal }: { metal: 'GOLD' | 'SILVER' }) {
       >
         {metal}
       </Text>
-      <BullionBar3D isGold={isGold} scale={0.5} />
+      <BullionBar3D isGold={isGold} scale={compact ? 0.38 : 0.5} />
     </View>
   );
 }

@@ -635,7 +635,7 @@ export default function EditURDScreen() {
 
           <TouchableOpacity
             testID="save-urd-changes-btn"
-            style={[fixedBarStyles.pillPrimaryBtn, { flex: 1.4 }]}
+            style={fixedBarStyles.pillPrimaryBtn}
             onPress={handleSubmit}
             disabled={loading}
             activeOpacity={0.8}

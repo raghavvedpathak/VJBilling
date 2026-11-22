@@ -296,7 +296,7 @@ export default function CreateDesignScreen() {
           <View style={[{ width: '100%', flexDirection: 'row', gap: 12 }, isTablet && { maxWidth: 640, alignSelf: 'center' }]}>
             <TouchableOpacity
               testID="cancel-design-btn"
-              style={[fixedBarStyles.pillSecondaryBtn, { flex: 1 }]}
+              style={[fixedBarStyles.pillSecondaryBtn, { flex: 1, flexBasis: 0 }]}
               onPress={() => {
                 try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
                 router.back();
@@ -309,7 +309,7 @@ export default function CreateDesignScreen() {
               testID="save-design-btn"
               style={[
                 fixedBarStyles.pillPrimaryBtn, 
-                { flex: 1, backgroundColor: colors.vjAccent },
+                { flex: 1, flexBasis: 0, backgroundColor: colors.vjAccent },
                 (!selectedCategoryId || !newName.trim() || isSubmitting) && { opacity: 0.5 }
               ]}
               onPress={handleAdd}

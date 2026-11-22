@@ -299,8 +299,8 @@ export default function SettingsScreen() {
       >
         <SectionHeader title="General" colors={colors} />
 
-        {/* Fixed Currency Card (G67-UI: opacity 0.5, pointerEvents none, no onPress, no chevron, accessibilityRole='text') */}
-        <View style={{ marginBottom: 12, opacity: 0.5 }} pointerEvents="none">
+        {/* Fixed Currency Card (G67-UI: fixed, pointerEvents none, no onPress, no chevron, accessibilityRole='text') */}
+        <View style={{ marginBottom: 12 }} pointerEvents="none">
           <GlassCard style={[s.currencyCard, { borderColor: `${colors.vjAccent}35` }]}>
             <View
               style={s.currencyMainRow}
@@ -510,7 +510,7 @@ export default function SettingsScreen() {
         <View style={s.footerInfo}>
           <Database size={20} color={colors.vjText} style={{ opacity: 0.45 }} />
           <Text style={[s.footerTextBold, { color: colors.vjText }]}>
-            VJ BILLING • PHASE 1 v8.1 • CONSTITUTIONAL ERP
+            VJ BILLING
           </Text>
           <Text style={[s.footerText, { color: colors.vjText }]}>
             Firm Code: {firm?.firmCode || 'N/A'}

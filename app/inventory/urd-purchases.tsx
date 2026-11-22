@@ -483,7 +483,7 @@ export default function URDPurchasesScreen() {
               <View style={{ flexDirection: 'row', gap: 8 }}>
                 <TouchableOpacity
                   testID={`preview-bill-btn-${selectedPurchase.id}`}
-                  style={[s.glassPillPrimary, { flex: 1.3, backgroundColor: colors.vjAccent }]}
+                  style={[s.glassPillPrimary, { flex: 1, backgroundColor: colors.vjAccent }]}
                   onPress={() => handlePreviewBill(selectedPurchase)}
                   activeOpacity={0.85}
                 >
@@ -961,7 +961,7 @@ const s = StyleSheet.create({
 
   modalCancelBtn: { flex: 1, paddingVertical: 12, borderRadius: 12, borderWidth: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.2)' },
   modalCancelBtnText: { fontSize: 13.5, fontWeight: '700' },
-  modalConfirmBtn: { flex: 1.5, flexDirection: 'row', gap: 6, paddingVertical: 12, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+  modalConfirmBtn: { flex: 1, flexDirection: 'row', gap: 6, paddingVertical: 12, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
   modalConfirmBtnText: { fontSize: 13.5, fontWeight: '800', color: '#ffffff' },
 
   urdNumberBanner: { width: '100%', alignItems: 'center', paddingVertical: 10, paddingHorizontal: 16, borderRadius: 12, borderWidth: 1.2, marginTop: 12 },
@@ -989,7 +989,7 @@ const s = StyleSheet.create({
   previewFooter: { flexDirection: 'row', gap: 12, padding: 16, borderTopWidth: 1 },
   previewShareBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 12, borderRadius: 12 },
   previewShareBtnText: { fontWeight: '700', fontSize: 14 },
-  previewPrintBtn: { flex: 1.2, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 12, borderRadius: 12 },
+  previewPrintBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 12, borderRadius: 12 },
   previewPrintBtnText: { color: '#ffffff', fontWeight: '800', fontSize: 14 },
   loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 12, marginTop: 40 },
   loadingText: { fontSize: 14, fontWeight: '600' },
